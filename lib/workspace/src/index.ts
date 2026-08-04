@@ -3,5 +3,5 @@
  */
 export * from "./types.ts";
 export * from "./config.ts";
-export * from "./operation-state.ts";
+export * from "./operations.ts";
 export * from "./record-state.ts";

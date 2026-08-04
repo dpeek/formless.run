@@ -27,17 +27,17 @@ describe("Worker workspace gateway proxy routes", () => {
       headers: gatewayAuthHeaders(),
     });
 
-    expect(response.status).toBe(502);
+    expect(response.status).toBe(503);
     await expect(response.json()).resolves.toEqual({
-      error: "Workspace gateway sidecar is unavailable.",
+      code: "gateway-unavailable",
     });
   });
 
   it("injects gateway route availability only for shared-policy eligible runtime profiles", async () => {
     for (const testCase of [
-      { expectedStatus: 502, host: "instance.example.com" },
-      { expectedStatus: 502, host: "example.com" },
-      { expectedStatus: 502, host: "site-authoring.example.com" },
+      { expectedStatus: 503, host: "instance.example.com" },
+      { expectedStatus: 503, host: "example.com" },
+      { expectedStatus: 503, host: "site-authoring.example.com" },
       { expectedStatus: 404, host: "published-site.example.com" },
     ]) {
       const response = await fetchHost(testCase.host, WORKSPACE_GATEWAY_STATUS_API_PATH, {
@@ -45,9 +45,9 @@ describe("Worker workspace gateway proxy routes", () => {
       });
 
       expect(response.status).toBe(testCase.expectedStatus);
-      if (testCase.expectedStatus === 502) {
+      if (testCase.expectedStatus === 503) {
         await expect(response.json()).resolves.toEqual({
-          error: "Workspace gateway sidecar is unavailable.",
+          code: "gateway-unavailable",
         });
       }
     }

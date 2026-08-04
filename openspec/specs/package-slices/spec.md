@@ -1011,36 +1011,36 @@ sidecar HTTP adapters.
 ### Requirement: Gateway Package Non-Ownership
 
 The Gateway package SHALL own reusable local workspace gateway contracts,
-wire-safety helpers, and adapters without owning Formless workspace operations,
-owner session storage, runtime topology, provider execution, or app records.
+wire-safety helpers, process-local Push observation, and adapters without owning
+typed Push execution, owner session storage, runtime topology, provider
+execution, or app records.
 
 #### Scenario: Package owns gateway contracts and adapters
 
-- GIVEN workspace gateway route constants, proxy header contracts, operation
-  intent helpers, browser fetch behavior, response safety helpers, shared local
-  runtime proxy rules, Worker proxy behavior, or sidecar HTTP routing helpers
+- GIVEN workspace gateway route constants, proxy header contracts, exact Push
+  and interaction wire types, browser fetch behavior, response safety helpers,
+  shared local runtime proxy rules, Worker proxy behavior, process-local Push
+  registry behavior, or sidecar HTTP routing helpers
   are needed
 - WHEN runtime-neutral, browser, Worker, or sidecar code consumes gateway
   capability behavior
 - THEN they come from `lib/gateway`
 - AND Worker proxy adapters and local Node runtime proxy adapters share one
-  package-owned proxy rules Module for route classification, operation intent
-  validation, browser actor policy, CSRF checks, sanitized sidecar forwarding,
-  and display-safe response wrapping
+  package-owned proxy rules Module for route classification, Push and
+  interaction validation, browser actor policy, CSRF checks, bounded sidecar
+  forwarding, and exact response wrapping
 - AND Worker proxy adapters, local Node runtime proxy adapters, sidecar adapters,
   and browser client tests share package-owned response safety helpers for JSON
   envelopes, allowed response headers, owner-session CSRF wrapping, sidecar
-  fallback errors, and display-safe gateway transport wrappers
+  fallback error codes, and exact Gateway transport wrappers
 - AND direct sidecar automation authorization and sidecar execution ingress
   remain sidecar adapter behavior rather than browser proxy behavior
-- AND semantic workspace operation input shapes, display-safe operation state,
-  operation result contracts, operation storage, actual save, check, pull,
-  push, deploy, credential setup, owner session, runtime topology, Authority,
-  provider credential, and filesystem operation implementations remain outside
-  the package contract
-- AND Gateway may expose transport-facing aliases or response wrappers for
-  Workspace operation states, but canonical operation declarations remain in
-  the Workspace package
+- AND typed CLI Push input and results, actual save, check, pull, Push, deploy,
+  credential setup, owner session, runtime topology, Authority, provider
+  credential, and filesystem implementations remain outside the package
+  contract
+- AND Gateway does not alias Workspace generic state, results, summaries, logs,
+  errors, display objects, events, or persistence contracts
 
 ### Requirement: Public Operations Package Slice
 
@@ -1164,8 +1164,8 @@ storage, generated React surfaces, archive execution, or workspace source.
 ### Requirement: Workspace Package Slice
 
 The system SHALL provide a Workspace package slice under `lib/workspace/` for
-Formless workspace source contracts, ignored local state contracts, semantic
-workspace operation contracts, and local Node filesystem adapters.
+Formless workspace source contracts, ignored local and secret state contracts,
+semantic operation metadata, and local Node filesystem adapters.
 
 #### Scenario: Workspace package scaffold
 
@@ -1180,9 +1180,9 @@ workspace operation contracts, and local Node filesystem adapters.
 
 #### Scenario: Workspace package exports
 
-- GIVEN CLI runtime, Gateway runtime adapters, archive workflows, tests,
-  or local agent workflows need workspace source, local state, operation, or
-  storage snapshot behavior
+- GIVEN CLI runtime, archive workflows, tests, or local agent workflows need
+  workspace source, local state, semantic operation metadata, or storage
+  snapshot behavior
 - WHEN they import the package
 - THEN they import from `@dpeek/formless-workspace` or
   `@dpeek/formless-workspace/node`
@@ -1194,33 +1194,32 @@ workspace operation contracts, and local Node filesystem adapters.
   instructions describe workspace source responsibilities
 - WHEN workspace source is represented as storage snapshot state and media
   payloads
-- THEN those docs and tests name current workspace source, state, operation,
-  manifest, local state, secret state, and storage snapshot helpers
+- THEN those docs and tests name current workspace source, manifest, local
+  state, secret state, semantic operation metadata, and storage snapshot helpers
 - AND they direct agents and import allowlists toward Workspace package helpers
   and exported entrypoints
 
 ### Requirement: Workspace Package Non-Ownership
 
-The Workspace package SHALL own reusable Formless workspace source, state, and
-operation contracts without owning CLI command policy, gateway transport,
-runtime storage, provider execution, or Program records.
+The Workspace package SHALL own reusable Formless workspace source, local state,
+and semantic operation metadata without owning CLI command policy, Gateway
+transport, execution observation, provider execution, or Program records.
 
 #### Scenario: Package owns workspace contracts and local adapters
 
 - GIVEN `formless.ts` configuration contracts, default resolution, operational
   path validation, workspace path defaults, target URL normalization,
-  reviewable Program storage snapshot contracts, ignored
-  local or secret state file contracts, semantic workspace operation inputs,
-  display-safe operation state, operation result shapes, operation redaction, or
-  deterministic local filesystem workspace IO are needed
+  reviewable Program storage snapshot contracts, ignored local or secret state
+  file contracts, semantic operation keys and requirements, or deterministic
+  local filesystem workspace IO are needed
 - WHEN runtime-neutral or local Node code consumes workspace capability
   behavior
 - THEN they come from `lib/workspace`
 - AND default Program schema resolution, mixed-record validation, and
   domain-specific canonicalization are supplied by the downstream runtime
   composition root rather than imported from Formless runtime internals
-- AND Gateway imports or is supplied those semantic operation contracts instead
-  of defining Gateway-owned operation shapes
+- AND Gateway may consult semantic Push capability metadata while owning its
+  transport shapes independently
 - AND package consumers import Workspace behavior only from
   `@dpeek/formless-workspace` or `@dpeek/formless-workspace/node`, never from
   source-tree modules or package internals
@@ -1237,9 +1236,10 @@ runtime storage, provider execution, or Program records.
 - WHEN those behaviors are implemented
 - THEN CLI runtime, Gateway runtime adapters, Archive workflows, Deploy
   runtime, Worker runtime, or provider adapters own the execution
-- AND the Workspace package only supplies contracts, pure helpers, display-safe
-  state handling, and local filesystem adapters for workspace source or ignored
-  local state
+- AND the Workspace package only supplies contracts, pure helpers, and local
+  filesystem adapters for workspace source or ignored local and secret state
+- AND it supplies no generic operation result, display, log, error-message,
+  event, state, persistence, or `.formless/operations` contract
 
 ### Requirement: Source SVG Package Slice
 

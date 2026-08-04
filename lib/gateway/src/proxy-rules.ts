@@ -1,3 +1,4 @@
+import type { WorkspaceOperationRequiredCapability } from "@dpeek/formless-workspace";
 import {
   WORKSPACE_GATEWAY_ACTOR_HEADER,
   WORKSPACE_GATEWAY_AUTHORIZATION_VIA_HEADER,
@@ -5,34 +6,32 @@ import {
   WORKSPACE_GATEWAY_BOOTSTRAP_HEADER,
   WORKSPACE_GATEWAY_CSRF_COOKIE_NAME,
   WORKSPACE_GATEWAY_CSRF_HEADER,
-  WORKSPACE_GATEWAY_OPERATION_KIND_HEADER,
-  WORKSPACE_GATEWAY_OPERATIONS_API_PATH,
+  WORKSPACE_GATEWAY_INTENT_HEADER,
   WORKSPACE_GATEWAY_PROXY_AUTHORIZATION_HEADER,
+  WORKSPACE_GATEWAY_PUSHES_API_PATH,
   WORKSPACE_GATEWAY_STATUS_API_PATH,
-  isWorkspaceGatewayOperationKind,
   isWorkspaceGatewayPath,
+  parseWorkspaceGatewayAccountSelectionInput,
   parseWorkspaceGatewayAutoSaveEnqueueInput,
-  parseWorkspaceGatewayOperationId,
-  parseWorkspaceGatewayStartInput,
+  parseWorkspaceGatewayPushPath,
+  parseWorkspaceGatewayPushStartInput,
   workspaceGatewayAutoSaveEnqueueIntent,
-  workspaceGatewayOperationExecutionDecision,
-  workspaceGatewayOperationPath,
-  workspaceGatewayReadOperationIntent,
-  workspaceGatewayStartOperationIntent,
+  workspaceGatewayIntentAllowed,
+  workspaceGatewayInteractionSubmitIntent,
+  workspaceGatewayPushReadIntent,
+  workspaceGatewayPushStartIntent,
   workspaceGatewayStatusIntent,
   type WorkspaceGatewayActor,
   type WorkspaceGatewayAuthorizationVia,
-  type WorkspaceGatewayOperationIntent,
-  type WorkspaceGatewayStartInput,
-  type WorkspaceGatewayStartInputParseResult,
+  type WorkspaceGatewayIntent,
 } from "./index.ts";
-import type { WorkspaceOperationRequiredCapability } from "@dpeek/formless-workspace";
 import {
   workspaceGatewayErrorResponse,
   workspaceGatewayMethodNotAllowedResponse,
   workspaceGatewayNotFoundResponse,
   workspaceGatewaySafeSidecarResponse,
   workspaceGatewaySidecarUnavailableResponse,
+  type WorkspaceGatewayResponseKind,
 } from "./response-safety.ts";
 
 export type WorkspaceGatewayProxyRulesEnv = {
@@ -40,26 +39,20 @@ export type WorkspaceGatewayProxyRulesEnv = {
   bootstrapToken?: string;
   csrfToken?: string;
 };
-
-export type WorkspaceGatewayProxyRulesTarget = {
-  endpoint: string;
-  proxyToken: string;
-};
-
+export type WorkspaceGatewayProxyRulesTarget = { endpoint: string; proxyToken: string };
 export type WorkspaceGatewayProxyRulesAuthorization = {
   actor: WorkspaceGatewayActor;
   via: WorkspaceGatewayAuthorizationVia;
 };
-
 export type WorkspaceGatewayProxyRulesOwnerSessionValidationResult =
   | { ok: true }
   | { ok: false; reason?: string };
-
 export type WorkspaceGatewayProxyRulesDependencies = {
   capabilities: readonly WorkspaceOperationRequiredCapability[];
   fetch?: typeof fetch;
   proxyTarget: () => WorkspaceGatewayProxyRulesTarget | undefined;
   readOwnerSetupStatus?: (request: Request) => Promise<{ setupComplete: boolean }>;
+  routeAvailable?: boolean | ((request: Request) => boolean);
   validateOwnerSession?: (
     request: Request,
   ) =>
@@ -67,13 +60,9 @@ export type WorkspaceGatewayProxyRulesDependencies = {
     | WorkspaceGatewayProxyRulesOwnerSessionValidationResult;
 };
 
-type GatewayAuthorization =
-  | WorkspaceGatewayProxyRulesAuthorization
-  | { error: string; status: number };
-
-type GatewayOperationExecutionContext = {
-  mutating?: boolean;
-  operationInput?: WorkspaceGatewayStartInput;
+type ClassifiedRequest = {
+  intent: WorkspaceGatewayIntent;
+  responseKind: WorkspaceGatewayResponseKind;
 };
 
 export async function handleWorkspaceGatewayProxyRulesRequest(
@@ -81,383 +70,194 @@ export async function handleWorkspaceGatewayProxyRulesRequest(
   env: WorkspaceGatewayProxyRulesEnv,
   dependencies: WorkspaceGatewayProxyRulesDependencies,
 ): Promise<Response | undefined> {
-  const url = new URL(request.url);
+  const pathname = new URL(request.url).pathname;
+  if (!isWorkspaceGatewayPath(pathname)) return undefined;
+  const routeAvailable =
+    typeof dependencies.routeAvailable === "function"
+      ? dependencies.routeAvailable(request)
+      : dependencies.routeAvailable !== false;
+  if (!routeAvailable) return workspaceGatewayNotFoundResponse();
 
-  if (!isWorkspaceGatewayPath(url.pathname)) {
-    return undefined;
-  }
-
-  const proxyTarget = dependencies.proxyTarget();
-
-  if (!proxyTarget) {
-    return workspaceGatewayNotFoundResponse();
-  }
-
-  if (url.pathname === WORKSPACE_GATEWAY_STATUS_API_PATH) {
-    if (request.method !== "GET") {
-      return workspaceGatewayMethodNotAllowedResponse(["GET"]);
-    }
-
-    const intent = workspaceGatewayStatusIntent();
-    const authorization = await authorizeGatewayRequest(request, env, dependencies, intent, {
-      mutating: false,
-    });
-
-    if ("error" in authorization) {
-      return workspaceGatewayErrorResponse(authorization.error, authorization.status);
-    }
-
-    return proxyWorkspaceGatewayRequest(request, env, dependencies, proxyTarget, authorization, {
-      intent,
-    });
-  }
-
-  if (url.pathname === WORKSPACE_GATEWAY_AUTO_SAVE_API_PATH) {
-    if (request.method === "POST") {
-      const parsed = await parseGatewayAutoSaveEnqueueInput(request.clone());
-
-      if (!parsed.ok) {
-        return workspaceGatewayErrorResponse(parsed.error, 400);
-      }
-
-      const intent = workspaceGatewayAutoSaveEnqueueIntent();
-      const authorization = await authorizeGatewayRequest(request, env, dependencies, intent, {
-        mutating: true,
-      });
-
-      if ("error" in authorization) {
-        return workspaceGatewayErrorResponse(authorization.error, authorization.status);
-      }
-
-      return proxyWorkspaceGatewayRequest(request, env, dependencies, proxyTarget, authorization, {
-        intent,
-      });
-    }
-
-    return workspaceGatewayMethodNotAllowedResponse(["POST"]);
-  }
-
-  if (url.pathname === WORKSPACE_GATEWAY_OPERATIONS_API_PATH) {
-    if (request.method !== "POST") {
-      return workspaceGatewayMethodNotAllowedResponse(["POST"]);
-    }
-
-    const parsed = await parseGatewayStartInput(request.clone());
-
-    if (!parsed.ok) {
-      return workspaceGatewayErrorResponse(parsed.error, 400);
-    }
-
-    const intent = workspaceGatewayStartOperationIntent(parsed.input);
-    const authorization = await authorizeGatewayRequest(request, env, dependencies, intent, {
-      operationInput: parsed.input,
-    });
-
-    if ("error" in authorization) {
-      return workspaceGatewayErrorResponse(authorization.error, authorization.status);
-    }
-
-    return proxyWorkspaceGatewayRequest(request, env, dependencies, proxyTarget, authorization, {
-      intent,
-    });
-  }
-
-  const operationMatch = workspaceGatewayOperationPath(url.pathname);
-
-  if (operationMatch) {
-    if (request.method !== "GET") {
-      return workspaceGatewayMethodNotAllowedResponse(["GET"]);
-    }
-
-    const parsedOperationId = parseWorkspaceGatewayOperationId(operationMatch.operationId);
-
-    if (!parsedOperationId.ok) {
-      return workspaceGatewayErrorResponse(parsedOperationId.error, 400);
-    }
-
-    const readIntent = readOperationIntentFromRequest(request);
-
-    if (!readIntent.ok) {
-      return workspaceGatewayErrorResponse(readIntent.error, 400);
-    }
-
-    const authorization = await authorizeGatewayReadOperationRequest(
-      request,
-      env,
-      dependencies,
-      readIntent.intent,
-    );
-
-    if ("error" in authorization) {
-      return workspaceGatewayErrorResponse(authorization.error, authorization.status);
-    }
-
-    return proxyWorkspaceGatewayRequest(
-      request,
-      env,
-      dependencies,
-      proxyTarget,
-      authorization,
-      readIntent.intent === undefined ? {} : { intent: readIntent.intent },
-    );
-  }
-
-  return workspaceGatewayNotFoundResponse();
+  const classified = await classifyGatewayRequest(request);
+  if (classified instanceof Response) return classified;
+  const target = dependencies.proxyTarget();
+  if (!target) return workspaceGatewaySidecarUnavailableResponse();
+  const authorization = await authorizeGatewayRequest(
+    request,
+    env,
+    dependencies,
+    classified.intent,
+  );
+  if (authorization instanceof Response) return authorization;
+  return proxyWorkspaceGatewayRequest(
+    request,
+    env,
+    dependencies,
+    target,
+    authorization,
+    classified,
+  );
 }
 
 export function isLoopbackSidecarEndpoint(value: string): boolean {
-  let url: URL;
-
   try {
-    url = new URL(value);
+    const url = new URL(value);
+    return (
+      url.protocol === "http:" && ["127.0.0.1", "localhost", "[::1]", "::1"].includes(url.hostname)
+    );
   } catch {
     return false;
   }
+}
 
-  return (
-    url.protocol === "http:" &&
-    (url.hostname === "127.0.0.1" ||
-      url.hostname === "localhost" ||
-      url.hostname === "[::1]" ||
-      url.hostname === "::1")
-  );
+async function classifyGatewayRequest(request: Request): Promise<ClassifiedRequest | Response> {
+  const pathname = new URL(request.url).pathname;
+  if (pathname === WORKSPACE_GATEWAY_STATUS_API_PATH) {
+    return request.method === "GET"
+      ? { intent: workspaceGatewayStatusIntent(), responseKind: "status" }
+      : workspaceGatewayMethodNotAllowedResponse(["GET"]);
+  }
+  if (pathname === WORKSPACE_GATEWAY_AUTO_SAVE_API_PATH) {
+    if (request.method !== "POST") return workspaceGatewayMethodNotAllowedResponse(["POST"]);
+    const body = await readJson(request.clone());
+    if (!parseWorkspaceGatewayAutoSaveEnqueueInput(body).ok) {
+      return workspaceGatewayErrorResponse("invalid-request");
+    }
+    return { intent: workspaceGatewayAutoSaveEnqueueIntent(), responseKind: "empty" };
+  }
+  if (pathname === WORKSPACE_GATEWAY_PUSHES_API_PATH) {
+    if (request.method !== "POST") return workspaceGatewayMethodNotAllowedResponse(["POST"]);
+    const parsed = parseWorkspaceGatewayPushStartInput(await readJson(request.clone()));
+    return parsed.ok
+      ? { intent: workspaceGatewayPushStartIntent(parsed.input), responseKind: "push" }
+      : workspaceGatewayErrorResponse(parsed.code);
+  }
+  const path = parseWorkspaceGatewayPushPath(pathname);
+  if (path?.kind === "push") {
+    return request.method === "GET"
+      ? { intent: workspaceGatewayPushReadIntent(), responseKind: "push" }
+      : workspaceGatewayMethodNotAllowedResponse(["GET"]);
+  }
+  if (path?.kind === "interaction") {
+    if (request.method !== "POST") return workspaceGatewayMethodNotAllowedResponse(["POST"]);
+    const parsed = parseWorkspaceGatewayAccountSelectionInput(await readJson(request.clone()));
+    return parsed.ok
+      ? { intent: workspaceGatewayInteractionSubmitIntent(), responseKind: "push" }
+      : workspaceGatewayErrorResponse(parsed.code);
+  }
+  return pathname.startsWith(`${WORKSPACE_GATEWAY_PUSHES_API_PATH}/`)
+    ? workspaceGatewayErrorResponse("invalid-request")
+    : workspaceGatewayNotFoundResponse();
 }
 
 async function authorizeGatewayRequest(
   request: Request,
   env: WorkspaceGatewayProxyRulesEnv,
   dependencies: WorkspaceGatewayProxyRulesDependencies,
-  intent: WorkspaceGatewayOperationIntent,
-  context: GatewayOperationExecutionContext = {},
-): Promise<GatewayAuthorization> {
-  if (!isSameOriginOrNoOrigin(request)) {
-    return { error: "Workspace gateway requests must be same-origin.", status: 403 };
-  }
-
+  intent: WorkspaceGatewayIntent,
+): Promise<WorkspaceGatewayProxyRulesAuthorization | Response> {
+  if (!isSameOriginOrNoOrigin(request)) return workspaceGatewayErrorResponse("forbidden");
   if (!request.headers.get("Origin") && matchesAdminBearer(request, env)) {
-    return authorizeGatewayOperationExecution(
-      { actor: "automation", via: "admin-bearer" },
-      dependencies,
-      intent,
-      context,
-    );
+    return authorizeIntent({ actor: "automation", via: "admin-bearer" }, dependencies, intent);
   }
 
-  const ownerSession = await validateOwnerSession(request, dependencies);
-
-  if (ownerSession.ok) {
+  const owner = await validateOwnerSession(request, dependencies);
+  if (owner.ok) {
     if (intent.mutating && !isSameOriginWithOrigin(request)) {
-      return {
-        error: "Workspace gateway browser mutations require a same-origin Origin header.",
-        status: 403,
-      };
+      return workspaceGatewayErrorResponse("forbidden");
     }
-
     if (intent.mutating && !validCsrfProof(request, env)) {
-      return { error: "Workspace gateway browser mutations require CSRF proof.", status: 403 };
+      return workspaceGatewayErrorResponse("csrf-invalid");
     }
-
-    return authorizeGatewayOperationExecution(
-      { actor: "browser", via: "owner-session" },
-      dependencies,
-      intent,
-      context,
-    );
+    return authorizeIntent({ actor: "browser", via: "owner-session" }, dependencies, intent);
   }
 
   if (matchesBootstrapCapability(request, env)) {
-    if (!intent.bootstrapAllowed) {
-      return {
-        error: "Workspace bootstrap authorization is limited to status operations.",
-        status: 403,
-      };
-    }
-
+    if (!intent.bootstrapAllowed) return workspaceGatewayErrorResponse("forbidden");
     if (await ownerSetupComplete(request, dependencies)) {
-      return { error: "Workspace bootstrap authorization has expired.", status: 403 };
+      return workspaceGatewayErrorResponse("bootstrap-expired");
     }
-
-    return authorizeGatewayOperationExecution(
-      { actor: "browser", via: "bootstrap" },
-      dependencies,
-      intent,
-      context,
-    );
+    return authorizeIntent({ actor: "browser", via: "bootstrap" }, dependencies, intent);
   }
 
-  if (intent.mutating && !isSameOriginWithOrigin(request)) {
-    return {
-      error: "Workspace gateway browser mutations require a same-origin Origin header.",
-      status: 403,
-    };
-  }
-
-  return {
-    error: "Workspace gateway authorization is required.",
-    status: 401,
-  };
+  return workspaceGatewayErrorResponse("unauthorized");
 }
 
-async function authorizeGatewayReadOperationRequest(
-  request: Request,
-  env: WorkspaceGatewayProxyRulesEnv,
-  dependencies: WorkspaceGatewayProxyRulesDependencies,
-  intent: WorkspaceGatewayOperationIntent | undefined,
-): Promise<GatewayAuthorization> {
-  if (!isSameOriginOrNoOrigin(request)) {
-    return { error: "Workspace gateway requests must be same-origin.", status: 403 };
-  }
-
-  if (!request.headers.get("Origin") && matchesAdminBearer(request, env)) {
-    return intent === undefined
-      ? { actor: "automation", via: "admin-bearer" }
-      : authorizeGatewayOperationExecution(
-          { actor: "automation", via: "admin-bearer" },
-          dependencies,
-          intent,
-          { mutating: false },
-        );
-  }
-
-  const ownerSession = await validateOwnerSession(request, dependencies);
-
-  if (ownerSession.ok) {
-    return intent === undefined
-      ? { actor: "browser", via: "owner-session" }
-      : authorizeGatewayOperationExecution(
-          { actor: "browser", via: "owner-session" },
-          dependencies,
-          intent,
-          { mutating: false },
-        );
-  }
-
-  if (matchesBootstrapCapability(request, env)) {
-    if (!intent) {
-      return {
-        error: "Workspace gateway operation intent is required for bootstrap reads.",
-        status: 400,
-      };
-    }
-
-    if (!intent.bootstrapAllowed) {
-      return {
-        error: "Workspace bootstrap authorization is limited to status operations.",
-        status: 403,
-      };
-    }
-
-    if (await ownerSetupComplete(request, dependencies)) {
-      return { error: "Workspace bootstrap authorization has expired.", status: 403 };
-    }
-
-    return authorizeGatewayOperationExecution(
-      { actor: "browser", via: "bootstrap" },
-      dependencies,
-      intent,
-      { mutating: false },
-    );
-  }
-
-  return {
-    error: "Workspace gateway authorization is required.",
-    status: 401,
-  };
-}
-
-function authorizeGatewayOperationExecution(
+function authorizeIntent(
   authorization: WorkspaceGatewayProxyRulesAuthorization,
   dependencies: Pick<WorkspaceGatewayProxyRulesDependencies, "capabilities">,
-  intent: WorkspaceGatewayOperationIntent,
-  context: GatewayOperationExecutionContext = {},
-): GatewayAuthorization {
-  const decision = workspaceGatewayOperationExecutionDecision({
+  intent: WorkspaceGatewayIntent,
+): WorkspaceGatewayProxyRulesAuthorization | Response {
+  return workspaceGatewayIntentAllowed({
     actor: authorization.actor,
     capabilities: dependencies.capabilities,
     intent,
-    ...context,
-  });
-
-  if (!decision.ok) {
-    return { error: decision.error, status: 403 };
-  }
-
-  return authorization;
+  })
+    ? authorization
+    : workspaceGatewayErrorResponse("forbidden");
 }
 
 async function proxyWorkspaceGatewayRequest(
   request: Request,
   env: WorkspaceGatewayProxyRulesEnv,
   dependencies: WorkspaceGatewayProxyRulesDependencies,
-  proxyTarget: WorkspaceGatewayProxyRulesTarget,
+  target: WorkspaceGatewayProxyRulesTarget,
   authorization: WorkspaceGatewayProxyRulesAuthorization,
-  options: { intent?: WorkspaceGatewayOperationIntent },
+  classified: ClassifiedRequest,
 ): Promise<Response> {
   let response: Response;
-
   try {
-    response = await (dependencies.fetch ?? fetch)(sidecarRequestUrl(request, proxyTarget), {
+    response = await (dependencies.fetch ?? fetch)(sidecarRequestUrl(request, target), {
       body: await proxyRequestBody(request),
-      headers: proxyWorkspaceGatewayHeaders(request, proxyTarget, authorization, options),
+      headers: proxyHeaders(request, target, authorization, classified.intent),
       method: request.method,
     });
   } catch {
     return workspaceGatewaySidecarUnavailableResponse();
   }
-
-  return workspaceGatewaySafeSidecarResponse({ authorization, env, request, response });
+  return workspaceGatewaySafeSidecarResponse({
+    authorization,
+    env,
+    kind: classified.responseKind,
+    request,
+    response,
+  });
 }
 
-function readOperationIntentFromRequest(
+function proxyHeaders(
   request: Request,
-): { intent?: WorkspaceGatewayOperationIntent; ok: true } | { error: string; ok: false } {
-  const operationKind = request.headers.get(WORKSPACE_GATEWAY_OPERATION_KIND_HEADER);
-
-  if (operationKind === null) {
-    return { ok: true };
-  }
-
-  if (!isWorkspaceGatewayOperationKind(operationKind)) {
-    return { error: "Workspace gateway operation intent is invalid.", ok: false };
-  }
-
-  return {
-    intent: workspaceGatewayReadOperationIntent(operationKind),
-    ok: true,
-  };
+  target: WorkspaceGatewayProxyRulesTarget,
+  authorization: WorkspaceGatewayProxyRulesAuthorization,
+  intent: WorkspaceGatewayIntent,
+): Headers {
+  const headers = new Headers({ Accept: "application/json" });
+  const contentType = request.headers.get("Content-Type");
+  if (contentType) headers.set("Content-Type", contentType);
+  headers.set(WORKSPACE_GATEWAY_PROXY_AUTHORIZATION_HEADER, target.proxyToken);
+  headers.set(WORKSPACE_GATEWAY_ACTOR_HEADER, authorization.actor);
+  headers.set(WORKSPACE_GATEWAY_AUTHORIZATION_VIA_HEADER, authorization.via);
+  headers.set(WORKSPACE_GATEWAY_INTENT_HEADER, intent.kind);
+  return headers;
 }
 
 function matchesBootstrapCapability(request: Request, env: WorkspaceGatewayProxyRulesEnv): boolean {
   const expected = env.bootstrapToken?.trim();
-
-  return (
-    expected !== undefined &&
-    expected !== "" &&
-    request.headers.get(WORKSPACE_GATEWAY_BOOTSTRAP_HEADER) === expected
-  );
+  return Boolean(expected && request.headers.get(WORKSPACE_GATEWAY_BOOTSTRAP_HEADER) === expected);
 }
 
 function matchesAdminBearer(request: Request, env: WorkspaceGatewayProxyRulesEnv): boolean {
-  const adminToken = env.adminToken?.trim();
-  const authorization = request.headers.get("Authorization")?.trim();
-
-  if (!adminToken || !authorization) {
-    return false;
-  }
-
-  return authorization.match(/^Bearer\s+(.+)$/i)?.[1] === adminToken;
+  const expected = env.adminToken?.trim();
+  return Boolean(
+    expected && request.headers.get("Authorization")?.match(/^Bearer\s+(.+)$/i)?.[1] === expected,
+  );
 }
 
 function validCsrfProof(request: Request, env: WorkspaceGatewayProxyRulesEnv): boolean {
   const expected = env.csrfToken?.trim();
-
-  if (!expected) {
-    return false;
-  }
-
-  return (
+  return Boolean(
+    expected &&
     request.headers.get(WORKSPACE_GATEWAY_CSRF_HEADER) === expected &&
-    requestCookie(request, WORKSPACE_GATEWAY_CSRF_COOKIE_NAME) === expected
+    requestCookie(request, WORKSPACE_GATEWAY_CSRF_COOKIE_NAME) === expected,
   );
 }
 
@@ -465,97 +265,39 @@ async function ownerSetupComplete(
   request: Request,
   dependencies: WorkspaceGatewayProxyRulesDependencies,
 ): Promise<boolean> {
-  if (!dependencies.readOwnerSetupStatus) {
-    return false;
-  }
-
-  return (await dependencies.readOwnerSetupStatus(request)).setupComplete;
+  return dependencies.readOwnerSetupStatus
+    ? (await dependencies.readOwnerSetupStatus(request)).setupComplete
+    : false;
 }
 
 async function validateOwnerSession(
   request: Request,
   dependencies: WorkspaceGatewayProxyRulesDependencies,
 ): Promise<WorkspaceGatewayProxyRulesOwnerSessionValidationResult> {
-  if (!dependencies.validateOwnerSession) {
-    return { ok: false, reason: "missing-validator" };
-  }
-
-  return dependencies.validateOwnerSession(request);
+  return dependencies.validateOwnerSession
+    ? dependencies.validateOwnerSession(request)
+    : { ok: false, reason: "missing-validator" };
 }
 
-function sidecarRequestUrl(
-  request: Request,
-  proxyTarget: WorkspaceGatewayProxyRulesTarget,
-): string {
-  const requested = new URL(request.url);
-
-  return new URL(`${requested.pathname}${requested.search}`, proxyTarget.endpoint).toString();
+function sidecarRequestUrl(request: Request, target: WorkspaceGatewayProxyRulesTarget): string {
+  const url = new URL(request.url);
+  return new URL(`${url.pathname}${url.search}`, target.endpoint).toString();
 }
 
 async function proxyRequestBody(request: Request): Promise<ArrayBuffer | undefined> {
-  if (request.method === "GET" || request.method === "HEAD") {
+  return request.method === "GET" || request.method === "HEAD" ? undefined : request.arrayBuffer();
+}
+
+async function readJson(request: { json(): Promise<unknown> }): Promise<unknown> {
+  try {
+    return await request.json();
+  } catch {
     return undefined;
   }
-
-  return request.arrayBuffer();
-}
-
-function proxyWorkspaceGatewayHeaders(
-  request: Request,
-  proxyTarget: WorkspaceGatewayProxyRulesTarget,
-  authorization: WorkspaceGatewayProxyRulesAuthorization,
-  options: { intent?: WorkspaceGatewayOperationIntent },
-): Headers {
-  const headers = new Headers(request.headers);
-
-  headers.delete("Authorization");
-  headers.delete("Cookie");
-  headers.delete(WORKSPACE_GATEWAY_BOOTSTRAP_HEADER);
-  headers.delete(WORKSPACE_GATEWAY_CSRF_HEADER);
-  headers.delete(WORKSPACE_GATEWAY_PROXY_AUTHORIZATION_HEADER);
-  headers.delete(WORKSPACE_GATEWAY_ACTOR_HEADER);
-  headers.delete(WORKSPACE_GATEWAY_AUTHORIZATION_VIA_HEADER);
-  headers.delete(WORKSPACE_GATEWAY_OPERATION_KIND_HEADER);
-  headers.set(WORKSPACE_GATEWAY_PROXY_AUTHORIZATION_HEADER, proxyTarget.proxyToken);
-  headers.set(WORKSPACE_GATEWAY_ACTOR_HEADER, authorization.actor);
-  headers.set(WORKSPACE_GATEWAY_AUTHORIZATION_VIA_HEADER, authorization.via);
-
-  if (options.intent) {
-    headers.set(WORKSPACE_GATEWAY_OPERATION_KIND_HEADER, options.intent.operation);
-  }
-
-  return headers;
-}
-
-async function parseGatewayStartInput(request: {
-  json: () => Promise<unknown>;
-}): Promise<WorkspaceGatewayStartInputParseResult> {
-  let body: unknown;
-
-  try {
-    body = await request.json();
-  } catch {
-    return { error: "Workspace gateway operation request must be JSON.", ok: false };
-  }
-
-  return parseWorkspaceGatewayStartInput(body);
-}
-
-async function parseGatewayAutoSaveEnqueueInput(request: { json: () => Promise<unknown> }) {
-  let body: unknown;
-
-  try {
-    body = await request.json();
-  } catch {
-    return { error: "Workspace auto-save enqueue request must be JSON.", ok: false } as const;
-  }
-
-  return parseWorkspaceGatewayAutoSaveEnqueueInput(body);
 }
 
 function isSameOriginOrNoOrigin(request: Request): boolean {
   const origin = request.headers.get("Origin");
-
   return origin === null || origin === browserFacingRequestOrigin(request);
 }
 
@@ -566,75 +308,46 @@ function isSameOriginWithOrigin(request: Request): boolean {
 function browserFacingRequestOrigin(request: Request): string {
   const url = new URL(request.url);
   const forwardedHost = firstForwardedHeaderValue(request.headers.get("x-forwarded-host"));
-
   if (forwardedHost) {
-    const forwardedProto =
+    const proto =
       firstForwardedHeaderValue(request.headers.get("x-forwarded-proto")) ??
       forwardedHeaderValue(request.headers.get("forwarded"), "proto") ??
       url.protocol.replace(/:$/, "");
-
-    return `${forwardedProto}://${forwardedHost}`;
+    return `${proto}://${forwardedHost}`;
   }
-
-  const standardForwardedHost = forwardedHeaderValue(request.headers.get("forwarded"), "host");
-
-  if (standardForwardedHost) {
-    const forwardedProto =
-      forwardedHeaderValue(request.headers.get("forwarded"), "proto") ??
-      url.protocol.replace(/:$/, "");
-
-    return `${forwardedProto}://${standardForwardedHost}`;
-  }
-
-  return url.origin;
+  const standardHost = forwardedHeaderValue(request.headers.get("forwarded"), "host");
+  if (!standardHost) return url.origin;
+  const proto =
+    forwardedHeaderValue(request.headers.get("forwarded"), "proto") ??
+    url.protocol.replace(/:$/, "");
+  return `${proto}://${standardHost}`;
 }
 
 function firstForwardedHeaderValue(value: string | null): string | undefined {
   const first = value?.split(",")[0]?.trim();
-
-  return first ? unquoteForwardedValue(first) : undefined;
+  return first ? unquote(first) : undefined;
 }
 
 function forwardedHeaderValue(value: string | null, key: "host" | "proto"): string | undefined {
   const first = firstForwardedHeaderValue(value);
-
-  if (!first) {
-    return undefined;
-  }
-
+  if (!first) return undefined;
   for (const part of first.split(";")) {
-    const [partKey, partValue] = part.split("=", 2);
-
-    if (partKey?.trim().toLowerCase() !== key) {
-      continue;
+    const [candidateKey, candidateValue] = part.split("=", 2);
+    if (candidateKey?.trim().toLowerCase() === key && candidateValue?.trim()) {
+      return unquote(candidateValue.trim());
     }
-
-    const parsed = partValue?.trim();
-
-    return parsed ? unquoteForwardedValue(parsed) : undefined;
   }
-
   return undefined;
 }
 
-function unquoteForwardedValue(value: string): string {
+function unquote(value: string): string {
   return value.replace(/^"|"$/g, "");
 }
 
 function requestCookie(request: Request, name: string): string | undefined {
-  const cookies = request.headers.get("Cookie");
-
-  if (!cookies) {
-    return undefined;
+  for (const part of request.headers.get("Cookie")?.split(";") ?? []) {
+    const [candidate, ...value] = part.trim().split("=");
+    if (candidate === name) return value.join("=");
   }
-
-  for (const part of cookies.split(";")) {
-    const [rawName, ...rawValue] = part.trim().split("=");
-
-    if (rawName === name) {
-      return rawValue.join("=");
-    }
-  }
-
   return undefined;
 }

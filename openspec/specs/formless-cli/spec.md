@@ -224,25 +224,22 @@ preparation.
 - **AND** no operation resolves unpublished monorepo source or undeclared
   development dependencies
 
-### Requirement: Workspace Operation Definitions
+### Requirement: Workspace Operation Metadata
 
-The workspace package SHALL own runtime-neutral workspace operation definitions
-that describe the operation contract before any CLI, browser gateway, runner, or
-local execution binding handles it.
+The Workspace package SHALL own runtime-neutral semantic operation metadata
+without owning CLI presentation, Gateway transport, or generic execution state.
 
-#### Scenario: Operation definition source
+#### Scenario: Semantic operation metadata source
 
 - **WHEN** the workspace package declares a workspace operation
-- **THEN** the definition includes a target-prefixed canonical key, label, input
-  fields, Gateway input defaults, actor policy, read or write mode, bootstrap
-  availability,
-  display-safe input summary, gateway binding, required execution capability,
-  and semantic execution requirements
+- **THEN** the definition includes a target-prefixed canonical key, typed input
+  kind, actor policy, read or write mode, required execution capability, and
+  semantic execution requirements
 - **AND** the definition includes a stable execution handler key that may match
   the canonical operation key
-- **AND** operation kind allowlists, browser-visible operation sets, gateway
-  mutating intent, bootstrap intent, and display input summaries are derived from
-  the definitions
+- **AND** labels, input presentation, CLI defaults, terminal help, browser
+  availability, Gateway routes, Gateway wire types, and bootstrap or CSRF policy
+  are owned by their respective bindings
 - **AND** duplicated semantic operation metadata is not maintained separately in
   CLI, gateway, or instance shell code
 - **AND** the workspace package does not declare concrete public CLI command
@@ -291,18 +288,18 @@ local execution binding handles it.
 
 #### Scenario: Definition and handler boundary
 
-- **WHEN** a workspace operation is executed locally or through a gateway actor
+- **WHEN** a workspace operation is executed locally
 - **THEN** the operation definition remains the source of semantic metadata,
   input shape, actor policy, mode, required execution capability, execution
-  requirements, and gateway binding
+  requirements
 - **AND** operation handler implementations remain grouped by execution domain
   such as workspace status, workspace source sync, credential setup, and
   deployment
 - **AND** operation-specific typed result contracts stay with those execution
   domains
-- **AND** CLI and auto-save may invoke those typed domain functions directly
-  while Gateway execution continues to adapt them through the definition's
-  handler key and display-safe operation state
+- **AND** CLI and auto-save invoke those typed domain functions directly
+- **AND** the Gateway Push adapter maps its exact transport input to the typed
+  Push function directly instead of dispatching a generic handler table
 
 #### Scenario: CLI workspace implementation domains
 
@@ -325,11 +322,10 @@ local execution binding handles it.
   without exposing OAuth token storage, browser authorization flows, ignored
   secret files, or provider profile details to source sync, gateway, or
   terminal formatting code
-- **AND** broad compatibility entrypoints may remain as thin facades while CLI
-  callers, operation handlers, and tests move to domain modules
+- **AND** CLI callers and tests use domain modules directly
 - **AND** domain modules have focused tests for operation-body behavior, while
-  CLI and gateway integration tests cover binding, authorization, routing, and
-  display-safe progress boundaries
+  CLI and Gateway integration tests cover binding, authorization, routing, and
+  exact Push progress boundaries
 
 #### Scenario: Typed local execution boundary
 
@@ -347,8 +343,19 @@ local execution binding handles it.
 - **AND** original exceptions, paths, commands, provider diagnostics, and local
   tool output remain CLI or sidecar-local diagnostics rather than reusable
   Workspace result contracts
-- **AND** Gateway operation state execution and persistence remain a separate
-  Gateway runtime adapter concern and are not used by CLI commands or auto-save
+- **AND** Gateway Push observation remains process-local and consumes only
+  selected typed Push facts; it does not use generic Workspace state
+
+#### Scenario: Generic operation state is absent
+
+- **WHEN** Workspace and Formless CLI packages are built
+- **THEN** they expose no generic operation state, result, summary, display
+  object, log, error-message, event, browser binding, formatter, parser, or Node
+  persistence contract
+- **AND** `.formless/operations` is not created, read, listed, written, or
+  recovered by CLI or local runtime code
+- **AND** local state reset does not preserve a deleted operation-history
+  concept
 
 #### Scenario: Formless CLI typed operation binding
 
@@ -430,10 +437,10 @@ local execution binding handles it.
   command parsing and binding, dependency assembly, terminal preflight,
   account selection, typed function invocation, no-op behavior, diagnostic
   boundaries, and public command behavior without duplicating each domain branch
-- **AND** Gateway runtime integration suites own transport authorization,
-  proxy and sidecar routing, operation id scoping, browser-visible operation
-  state redaction, and auto-save enqueue behavior without asserting source sync
-  or deployment execution internals
+- **AND** Gateway runtime integration suites own transport authorization, proxy
+  and sidecar routing, Push id scoping, process-local rediscovery, exact phase
+  projection, interaction validation, and auto-save enqueue behavior without
+  asserting source sync or deployment execution internals
 - **AND** formatter suites own exact terminal strings, line ordering, labels,
   path rendering, and display-safe value rendering for direct command and
   typed workspace command output
@@ -459,43 +466,43 @@ local execution binding handles it.
   variables directly
 - **AND** read-only planning and dry-run paths may use display-safe account and
   credential facts without refreshing or exposing provider bearer values
-- **AND** deployment operation state, summaries, deploy state, workspace
-  manifests, archives, browser-visible records, and terminal output do not
+- **AND** Gateway Push state, deploy state, workspace manifests, archives,
+  browser-visible records, and terminal output do not
   expose OAuth tokens, manual provider API tokens, refresh tokens, or raw
   provider credential records
 - **AND** credential onboarding, browser authorization, terminal account
   selection, and non-interactive credential guidance remain outside deployment
   execution and complete before provider mutation begins
 
-#### Scenario: Gateway binding from operation definition
+#### Scenario: Gateway Push binding
 
-- **WHEN** a browser or automation caller starts a workspace operation through
-  the same-origin gateway API
-- **THEN** the gateway parses allowed request fields, defaults, read/write mode,
-  bootstrap eligibility, required actor policy, required capability, and
-  execution requirements from the operation definition
+- **WHEN** a browser or automation caller starts Push through the same-origin
+  Gateway API
+- **THEN** Gateway parses only Push mode and optional target alias through its
+  own wire contract and maps those facts to typed Push input
+- **AND** Gateway may consult Workspace semantic Push capability and execution
+  requirement metadata without exposing the generic operation catalog as a wire
+  contract
 - **AND** forbidden secret-looking, path-like, raw provider state, or shell
   command inputs remain rejected before execution
-- **AND** unsupported operations are rejected because no browser gateway binding
-  is declared, not because a separate gateway-only enum omits them
+- **AND** every non-Push operation route or kind is unsupported by construction
 
 #### Scenario: Local gateway runtime operation adapter boundary
 
-- **WHEN** Formless CLI supplies operation handlers to the local workspace
+- **WHEN** Formless CLI supplies a Push handler to the local workspace
   gateway sidecar
 - **THEN** local runtime adapter modules own workspace root scoping, Gateway
-  operation runner invocation, actor and capability forwarding, operation state
-  reads, auto-save scheduling, and auto-save suppression decisions
+  Push invocation, actor and capability forwarding, process-local phase
+  observation, auto-save scheduling, and auto-save suppression decisions
 - **AND** Gateway package adapters continue to own transport authorization,
   route parsing, sidecar proxy request and response shape, and browser-visible
   response wrapping without owning local workspace operation execution
 - **AND** local gateway lifecycle code may start sidecars and assemble process
-  environment facts without owning operation body execution, operation state
-  persistence, or auto-save execution
+  environment facts without owning typed Push execution or auto-save execution
 - **AND** operation-domain modules continue to own typed source sync,
   credential setup, deployment, and provider reconciliation behavior behind the
   Gateway runtime adapter
-- **AND** runtime operation adapters do not own public CLI command parsing,
+- **AND** runtime Push adapters do not own public CLI command parsing,
   terminal formatting, OAuth browser flows, provider secret storage, runtime
   topology definitions, or owner session cookie validation logic
 
@@ -777,15 +784,15 @@ snapshots and media payloads.
 - **THEN** workspace auto-save writes the same deterministic storage snapshots
   and referenced media payloads as the workspace source save operation
 - **AND** browser IndexedDB state is not used as the source of truth
-- **AND** the workspace source save operation remains available as an explicit
-  local runtime or gateway flush or retry action
-- **AND** remote pull, push, and destroy remain explicit CLI or gateway
-  operations according to their public bindings
+- **AND** the workspace source save function remains available as an explicit
+  local runtime flush or retry action
+- **AND** remote pull and destroy remain explicit CLI actions while Push remains
+  available through CLI and Gateway bindings
 
-#### Scenario: Workspace operation state vocabulary
+#### Scenario: Workspace result vocabulary
 
-- **WHEN** CLI output, gateway operation state, browser workspace status, or
-  tests report workspace save, check, pull, or push results
+- **WHEN** CLI output or tests report workspace save, check, pull, or push
+  results
 - **THEN** reviewable workspace source paths and counts are reported with
   workspace state, Program state, instance state, storage snapshot, or media
   payload terminology
@@ -1148,7 +1155,7 @@ intent records.
 - **AND** provider credentials remain in those secret locations
 - **AND** deployment evidence, cleanup, sync, and exact semantic observation and
   status results are read through read-only deployment runtime projection or
-  local gateway operation responses rather than control-plane storage snapshots
+  exact local Gateway Push responses rather than control-plane storage snapshots
 - **AND** latest persisted deployment status is read from exact semantic
   deployment config observation cache fields
 

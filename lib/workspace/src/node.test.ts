@@ -24,7 +24,6 @@ import {
   WORKSPACE_MEDIA_LEGACY_MANIFEST_VERSION,
   WORKSPACE_MEDIA_MANIFEST_VERSION,
   WORKSPACE_RECORD_STATE_FILE_KIND,
-  createWorkspaceOperationState,
   resolveFormlessConfig,
   ensureInstanceWorkspaceLocalDevSecretState,
   ensureInstanceWorkspaceSecretStateIgnored,
@@ -37,17 +36,12 @@ import {
   parseInstanceWorkspaceLocalDevSecretState,
   parseInstanceWorkspaceSecretState,
   readInstanceWorkspaceProgramStorageSnapshot as readWorkspaceProgramSnapshot,
-  readWorkspaceOperationState,
   readInstanceWorkspaceLocalDevSecretState,
   readInstanceWorkspaceMediaFiles,
   readInstanceWorkspaceSecretState,
   resolveInstanceWorkspaceAdminToken,
   replaceInstanceWorkspaceMediaFiles,
-  listWorkspaceOperationStates,
-  updateWorkspaceOperationState,
   workspaceMediaPayloadPathForArchivePath,
-  workspaceOperationStatePath,
-  workspaceOperationStateRoot,
   writeInstanceWorkspaceProgramStorageSnapshot as writeWorkspaceProgramSnapshot,
   writeInstanceWorkspaceLocalDevSecretState,
   writeInstanceWorkspaceSecretState,
@@ -736,68 +730,6 @@ describe("workspace media source node files", () => {
   });
 });
 
-describe("workspace operation node state", () => {
-  it("creates, updates, reads, and lists ignored operation state files", async () => {
-    const workspaceRoot = await makeTempDir();
-    const now = timestampSequence("2026-06-02T00:00:00.000Z", "2026-06-02T00:00:01.000Z");
-    const state = await createWorkspaceOperationState({
-      actor: "browser",
-      id: "op_status_00000001",
-      input: { targetAlias: "remote" },
-      now,
-      operation: "status",
-      workspaceRoot,
-    });
-
-    expect(workspaceOperationStateRoot(workspaceRoot)).toBe(
-      path.join(workspaceRoot, ".formless/operations"),
-    );
-    expect(workspaceOperationStatePath(workspaceRoot, state.id)).toBe(
-      path.join(workspaceRoot, ".formless/operations/op_status_00000001.json"),
-    );
-    await expect(readFile(path.join(workspaceRoot, ".gitignore"), "utf8")).resolves.toBe(
-      ".formless/\n",
-    );
-
-    const updated = await updateWorkspaceOperationState(state.id, {
-      logs: [{ at: now(), level: "info", message: `${workspaceRoot}/status.log` }],
-      status: "running",
-      workspaceRoot,
-    });
-    const persistedText = await readFile(
-      workspaceOperationStatePath(workspaceRoot, state.id),
-      "utf8",
-    );
-
-    expect(updated).toMatchObject({
-      actor: "browser",
-      id: "op_status_00000001",
-      logs: [
-        {
-          id: "op_status_00000001-log-1",
-          message: "<workspace>/status.log",
-        },
-      ],
-      operation: "status",
-      startedAt: "2026-06-02T00:00:01.000Z",
-      status: "running",
-      workspace: { label: path.basename(workspaceRoot) },
-    });
-    await expect(
-      readWorkspaceOperationState({ operationId: state.id, workspaceRoot }),
-    ).resolves.toEqual(updated);
-    expect(await listWorkspaceOperationStates(workspaceRoot)).toEqual([updated]);
-    expect(persistedText).not.toContain(workspaceRoot);
-  });
-
-  it("returns no operation states when the ignored state directory is absent", async () => {
-    await expect(listWorkspaceOperationStates(await makeTempDir())).resolves.toEqual([]);
-    expect(() => workspaceOperationStatePath("/workspace", "../secret")).toThrow(
-      "Workspace operation id is invalid.",
-    );
-  });
-});
-
 async function makeTempDir(): Promise<string> {
   const tempDir = await mkdtemp(path.join(tmpdir(), "instance-workspace-node-test-"));
 
@@ -805,13 +737,6 @@ async function makeTempDir(): Promise<string> {
   await mkdir(tempDir, { recursive: true });
 
   return tempDir;
-}
-
-function timestampSequence(...timestamps: string[]): () => string {
-  let index = 0;
-
-  return () =>
-    timestamps[index++ % timestamps.length] ?? timestamps.at(-1) ?? new Date(0).toISOString();
 }
 
 function workspaceDocumentObject(assetId: string, access: "private" | "public", byteSize: number) {

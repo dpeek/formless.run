@@ -62,21 +62,15 @@ import {
 import {
   destroyFormlessInstanceWorkspace,
   pushFormlessInstanceWorkspace,
+  refreshFormlessInstanceDeploymentObservation,
   type PushFormlessInstanceWorkspaceDependencies,
+  type PushFormlessInstanceWorkspaceDryRunDependencies,
 } from "./instance-workspace-deployment.ts";
-import { runDeploymentRefreshWorkspaceOperation } from "./instance-workspace-deployment-operation.ts";
 import {
-  runWorkspaceOperationDomainHandler,
-  type WorkspaceOperationDomainExecutionResult,
-} from "./instance-workspace-operation-handlers.ts";
-import type { RunFormlessWorkspaceOperationDependencies } from "./instance-workspace-operations.ts";
-import {
-  runPullWorkspaceSourceOperation,
-  runPushWorkspaceSourceOperation,
-} from "./instance-workspace-source-sync-operation.ts";
-import {
+  pullFormlessInstanceWorkspace,
   WorkspacePushRemoteRestoreError,
   WorkspacePushSchemaCompatibilityError,
+  type PullFormlessInstanceWorkspaceDependencies,
 } from "./instance-workspace-source-sync.ts";
 
 const tempDirs: string[] = [];
@@ -188,7 +182,7 @@ afterEach(async () => {
   );
 });
 
-describe("workspace source sync operation domain", () => {
+describe("workspace source sync domain", () => {
   it("round-trips Program Task, Site, and CRM records with Program media", async () => {
     const tempDir = await makeTempDir();
     const workspaceRoot = path.join(tempDir, "personal-sites");
@@ -248,10 +242,9 @@ describe("workspace source sync operation domain", () => {
       "FORMLESS_ADMIN_TOKEN=source-token\n",
     );
 
-    await runPullWorkspaceSourceOperation(
+    await pullFormlessInstanceWorkspace(
       {
         dryRun: false,
-        kind: "pull",
         workspacePath: workspaceRoot,
       },
       operationDeps(tempDir, { fetch: pullFetch }),
@@ -301,17 +294,18 @@ describe("workspace source sync operation domain", () => {
 
     await rewriteWorkspaceMediaManifestAsVersion1(workspaceRoot);
 
-    const adoptionDryRun = await runPullWorkspaceSourceOperation(
+    const adoptionDryRun = await pullFormlessInstanceWorkspace(
       {
         dryRun: true,
-        kind: "pull",
         workspacePath: workspaceRoot,
       },
       operationDeps(tempDir, { fetch: pullFetch }),
     );
 
     expect(adoptionDryRun).toMatchObject({
-      details: {
+      mode: "dry-run",
+      noop: false,
+      replacement: {
         changedStatePaths: [
           "state/media/documents/program-private.pdf",
           "state/media/images/program-cover.png",
@@ -321,8 +315,8 @@ describe("workspace source sync operation domain", () => {
           "state/media/media/documents/program-private.pdf",
           "state/media/media/images/program-cover.png",
         ],
+        status: "changes",
       },
-      summary: { fields: { mode: "dry-run", noop: false } },
     });
     await expect(
       readFile(path.join(workspaceRoot, "state/media/media/images/program-cover.png")),
@@ -331,10 +325,9 @@ describe("workspace source sync operation domain", () => {
       readFile(path.join(workspaceRoot, "state/media/images/program-cover.png")),
     ).rejects.toMatchObject({ code: "ENOENT" });
 
-    await runPullWorkspaceSourceOperation(
+    await pullFormlessInstanceWorkspace(
       {
         dryRun: false,
-        kind: "pull",
         workspacePath: workspaceRoot,
       },
       operationDeps(tempDir, { fetch: pullFetch }),
@@ -355,10 +348,10 @@ describe("workspace source sync operation domain", () => {
       restoreResponses: [restorePlan()],
     });
 
-    await runPushWorkspaceSourceOperation(
+    await pushFormlessInstanceWorkspace(
       {
-        dryRun: true,
-        kind: "push",
+        apply: false,
+
         workspacePath: workspaceRoot,
       },
       operationDepsWithAccessGuards(
@@ -439,10 +432,10 @@ describe("workspace source sync operation domain", () => {
       "FORMLESS_ADMIN_TOKEN=local-token\n",
     );
 
-    const result = await runPushWorkspaceSourceOperation(
+    const result = await pushFormlessInstanceWorkspace(
       {
-        dryRun: true,
-        kind: "push",
+        apply: false,
+
         workspacePath: workspaceRoot,
       },
       operationDepsWithAccessGuards(
@@ -471,17 +464,9 @@ describe("workspace source sync operation domain", () => {
     }>(requestByPath(requests, "/api/formless/archive/restore"));
 
     expect(result).toMatchObject({
-      details: {
-        syncPlan: {
-          status: "changes",
-        },
-      },
-      summary: {
-        fields: {
-          noop: false,
-          sync: "changes",
-        },
-      },
+      mode: "dry-run",
+      noop: false,
+      syncPlan: { status: "changes" },
     });
     expect(restoreBody.archive.program.snapshot.records).toEqual(
       expect.arrayContaining([
@@ -525,10 +510,9 @@ describe("workspace source sync operation domain", () => {
       "FORMLESS_ADMIN_TOKEN=stored-archive-token\n",
     );
 
-    const result = await runPullWorkspaceSourceOperation(
+    const result = await pullFormlessInstanceWorkspace(
       {
         dryRun: false,
-        kind: "pull",
         workspacePath: workspaceRoot,
       },
       operationDeps(tempDir, { fetch: fetcher }),
@@ -540,23 +524,15 @@ describe("workspace source sync operation domain", () => {
     const pulledControlPlaneRecords = pulledControlPlane?.records ?? [];
 
     expect(result).toMatchObject({
-      details: {
-        domainCount: 1,
-        syncPlan: {
-          changedStatePathCount: 0,
-          status: "up-to-date",
-          target: "workspace",
-        },
-        target: "instance.primary",
-      },
-      summary: {
-        fields: {
-          mediaCount: 0,
-          mode: "apply",
-          noop: true,
-          recordCount: 4,
-        },
-        title: "Workspace pulled",
+      domains: [{ host: "www.example.com" }],
+      instanceState: { mediaCount: 0, recordCount: 4 },
+      mode: "apply",
+      noop: true,
+      selectedTarget: { alias: "instance.primary" },
+      syncPlan: {
+        changedStatePaths: [],
+        status: "up-to-date",
+        target: { label: "workspace" },
       },
     });
     expect(JSON.stringify(result)).not.toContain("stored-archive-token");
@@ -592,31 +568,23 @@ describe("workspace source sync operation domain", () => {
       "utf8",
     );
 
-    const result = await runPullWorkspaceSourceOperation(
+    const result = await pullFormlessInstanceWorkspace(
       {
         dryRun: true,
-        kind: "pull",
         workspacePath: workspaceRoot,
       },
       operationDeps(tempDir, { fetch: fetcher }),
     );
 
     expect(result).toMatchObject({
-      details: {
+      mode: "dry-run",
+      noop: true,
+      replacement: {
         changedStatePaths: [],
         prunedStatePaths: [],
-        syncPlan: {
-          changedRecordCount: 0,
-          status: "up-to-date",
-        },
+        status: "no-changes",
       },
-      summary: {
-        fields: {
-          mode: "dry-run",
-          noop: true,
-        },
-        title: "Workspace pulled",
-      },
+      syncPlan: { changedRecords: [], status: "up-to-date" },
     });
     await expect(readFile(path.join(workspaceRoot, "state/instance.json"), "utf8")).resolves.toBe(
       programStateBefore,
@@ -645,29 +613,19 @@ describe("workspace source sync operation domain", () => {
       "utf8",
     );
 
-    const result = await runPullWorkspaceSourceOperation(
+    const result = await pullFormlessInstanceWorkspace(
       {
         dryRun: false,
-        kind: "pull",
         workspacePath: workspaceRoot,
       },
       operationDeps(tempDir, { fetch: fetcher }),
     );
 
     expect(result).toMatchObject({
-      details: {
-        syncPlan: {
-          changedStatePathCount: 0,
-          status: "up-to-date",
-        },
-      },
-      summary: {
-        fields: {
-          mode: "apply",
-          noop: true,
-        },
-        title: "Workspace pulled",
-      },
+      mode: "apply",
+      noop: true,
+      replacement: { changedStatePaths: [], status: "no-changes" },
+      syncPlan: { status: "up-to-date" },
     });
     await expect(readFile(path.join(workspaceRoot, "state/instance.json"), "utf8")).resolves.toBe(
       programStateBefore,
@@ -688,10 +646,10 @@ describe("workspace source sync operation domain", () => {
       "FORMLESS_ADMIN_TOKEN=local-token\n",
     );
 
-    const result = await runPushWorkspaceSourceOperation(
+    const result = await pushFormlessInstanceWorkspace(
       {
-        dryRun: true,
-        kind: "push",
+        apply: false,
+
         workspacePath: workspaceRoot,
       },
       operationDepsWithAccessGuards(
@@ -715,25 +673,11 @@ describe("workspace source sync operation domain", () => {
     );
 
     expect(result).toMatchObject({
-      details: {
-        applyRestore: null,
-        dryRunRestore: null,
-        syncPlan: {
-          changedRecordCount: 0,
-          changedStatePathCount: 0,
-          status: "up-to-date",
-        },
-        target: "instance.primary",
-      },
-      summary: {
-        fields: {
-          mode: "dry-run",
-          noop: true,
-          sourceRecords: 4,
-          sync: "up-to-date",
-        },
-        title: "Workspace push planned",
-      },
+      mode: "dry-run",
+      noop: true,
+      selectedTarget: { alias: "instance.primary" },
+      source: { recordCount: 4 },
+      syncPlan: { changedRecords: [], changedStatePaths: [], status: "up-to-date" },
     });
 
     const requestPaths = requests.map(
@@ -760,10 +704,10 @@ describe("workspace source sync operation domain", () => {
       "FORMLESS_ADMIN_TOKEN=local-token\n",
     );
 
-    const result = await runPushWorkspaceSourceOperation(
+    const result = await pushFormlessInstanceWorkspace(
       {
-        dryRun: true,
-        kind: "push",
+        apply: false,
+
         workspacePath: workspaceRoot,
       },
       operationDepsWithAccessGuards(
@@ -786,25 +730,11 @@ describe("workspace source sync operation domain", () => {
       ),
     );
     expect(result).toMatchObject({
-      details: {
-        dryRunRestore: null,
-        syncPlan: {
-          changedRecordCount: 0,
-          changedStatePathCount: 0,
-          status: "up-to-date",
-        },
-        target: "instance.primary",
-      },
-      summary: {
-        fields: {
-          mode: "dry-run",
-          noop: true,
-          sourceMedia: 0,
-          sourceRecords: 4,
-          sync: "up-to-date",
-        },
-        title: "Workspace push planned",
-      },
+      mode: "dry-run",
+      noop: true,
+      selectedTarget: { alias: "instance.primary" },
+      source: { mediaCount: 0, recordCount: 4 },
+      syncPlan: { changedRecords: [], changedStatePaths: [], status: "up-to-date" },
     });
     expect(requests.map((request) => new URL(request.url).pathname)).not.toContain(
       "/api/formless/archive/restore",
@@ -829,40 +759,27 @@ describe("workspace source sync operation domain", () => {
       "FORMLESS_ADMIN_TOKEN=local-token\n",
     );
 
-    const result = await runPushWorkspaceSourceOperation(
+    const result = await pushFormlessInstanceWorkspace(
       {
-        dryRun: false,
-        kind: "push",
+        apply: true,
+
         workspacePath: workspaceRoot,
       },
       pushApplyOperationDeps(tempDir, { fetch: fetcher }),
     );
 
     expect(result).toMatchObject({
-      details: {
-        applyRestore: null,
-        dryRunRestore: null,
-        syncPlan: {
-          changedRecordCount: 0,
-          status: "up-to-date",
-        },
-      },
-      summary: {
-        fields: {
-          mode: "apply",
-          noop: true,
-          sync: "up-to-date",
-        },
-        title: "Workspace push applied",
-      },
+      mode: "apply",
+      noop: true,
+      syncPlan: { changedRecords: [], status: "up-to-date" },
     });
     expect(requests.some((request) => request.method === "POST")).toBe(false);
     expect(JSON.stringify(result)).not.toContain("local-token");
   });
 });
 
-describe("deployment refresh operation domain", () => {
-  it("emits deployment summary and ordered step vocabulary from the domain module", async () => {
+describe("deployment refresh domain", () => {
+  it("refreshes typed deployment observation facts", async () => {
     const tempDir = await makeTempDir();
     const workspaceRoot = path.join(tempDir, "personal-sites");
     const requests: CapturedRequest[] = [];
@@ -875,9 +792,8 @@ describe("deployment refresh operation domain", () => {
       "FORMLESS_ADMIN_TOKEN=local-token\n",
     );
 
-    const result = await runDeploymentRefreshWorkspaceOperation(
+    const result = await refreshFormlessInstanceDeploymentObservation(
       {
-        kind: "deploymentRefresh",
         workspacePath: workspaceRoot,
       },
       operationDeps(tempDir, {
@@ -904,48 +820,18 @@ describe("deployment refresh operation domain", () => {
     }>(requestByPath(requests, "/api/formless/program/operations/deployment-config/update"));
 
     expect(result).toMatchObject({
-      deployment: {
-        observation: {
-          desiredState,
-          observedFailureCode: "provider-reconciliation-failed",
-          observedStatus: "failed",
-          targetId: "instance.primary",
-        },
-        status: {
-          state: "failed-current-version",
-        },
-        targetAlias: "instance.primary",
+      deploymentStatus: {
+        state: "failed-current-version",
       },
-      summary: {
-        fields: {
-          desiredStateVersion: "desired.instance.primary.3",
-          observedStatus: "failed",
-          status: "failed-current-version",
-          target: "instance.primary",
-        },
-        title: "Deployment observation refreshed",
+      observation: {
+        desiredState,
+        observedFailureCode: "provider-reconciliation-failed",
+        observedStatus: "failed",
+        targetId: "instance.primary",
       },
+      selectedTarget: { alias: "instance.primary" },
+      workspaceRoot,
     });
-    expect(
-      result.steps?.map((step) => ({ id: step.id, label: step.label, status: step.status })),
-    ).toEqual([
-      { id: "credentials", label: "Credentials", status: "succeeded" },
-      { id: "account-selection", label: "Account selection", status: "skipped" },
-      { id: "desired-state-plan", label: "Desired-state plan", status: "succeeded" },
-      {
-        id: "provider-reconciliation",
-        label: "Provider reconciliation",
-        status: "skipped",
-      },
-      { id: "health-check", label: "Health check", status: "skipped" },
-      { id: "owner-setup", label: "Owner setup", status: "skipped" },
-      {
-        id: "workspace-push-writeback",
-        label: "Workspace push/writeback",
-        status: "skipped",
-      },
-      { id: "observation-refresh", label: "Observation refresh", status: "succeeded" },
-    ]);
     expect(observation).toMatchObject({
       input: {
         observedDesiredStateHash: desiredState.hash,
@@ -973,11 +859,11 @@ describe("deployment runtime domain", () => {
       "FORMLESS_ADMIN_TOKEN=local-token\n",
     );
 
-    const result = await runPushWorkspaceSourceOperation(
+    const result = await pushFormlessInstanceWorkspace(
       {
-        dryRun: false,
+        apply: true,
         force: false,
-        kind: "push",
+
         workspacePath: workspaceRoot,
       },
       deploymentApplyOperationDeps(tempDir, {
@@ -988,21 +874,9 @@ describe("deployment runtime domain", () => {
     );
     expect(deployInputs).toEqual([]);
     expect(result).toMatchObject({
-      details: {
-        applyRestore: null,
-        dryRunRestore: null,
-        syncPlan: {
-          status: "up-to-date",
-        },
-      },
-      summary: {
-        fields: {
-          mode: "apply",
-          noop: true,
-          sync: "up-to-date",
-        },
-        title: "Workspace push applied",
-      },
+      mode: "apply",
+      noop: true,
+      syncPlan: { status: "up-to-date" },
     });
     expect(requests.map((request) => new URL(request.url).pathname)).not.toContain(
       "/api/formless/archive/restore",
@@ -1033,11 +907,11 @@ describe("deployment runtime domain", () => {
       "FORMLESS_ADMIN_TOKEN=local-token\n",
     );
 
-    const result = await runPushWorkspaceSourceOperation(
+    const result = await pushFormlessInstanceWorkspace(
       {
-        dryRun: false,
+        apply: true,
         force: false,
-        kind: "push",
+
         workspacePath: workspaceRoot,
       },
       deploymentApplyOperationDeps(tempDir, {
@@ -1059,18 +933,11 @@ describe("deployment runtime domain", () => {
       ),
     ).toEqual([]);
     expect(result).toMatchObject({
-      details: {
-        runtimeRebuild: {
-          reason: "runtime-extensions-configured",
-          status: "applied",
-        },
+      runtimeRebuild: {
+        reason: "runtime-extensions-configured",
+        status: "applied",
       },
-      summary: {
-        fields: {
-          runtimeRebuild: "applied",
-          sync: "up-to-date",
-        },
-      },
+      syncPlan: { status: "up-to-date" },
     });
     expect(JSON.stringify(result)).not.toContain("manual-provider-token");
   });
@@ -1107,11 +974,11 @@ describe("deployment runtime domain", () => {
       "FORMLESS_ADMIN_TOKEN=local-token\n",
     );
 
-    const result = await runPushWorkspaceSourceOperation(
+    const result = await pushFormlessInstanceWorkspace(
       {
-        dryRun: false,
+        apply: true,
         force: false,
-        kind: "push",
+
         workspacePath: workspaceRoot,
       },
       deploymentApplyOperationDeps(tempDir, {
@@ -1145,11 +1012,9 @@ describe("deployment runtime domain", () => {
       },
     });
     expect(result).toMatchObject({
-      details: {
-        runtimeRebuild: {
-          reason: "program-artifact-configured",
-          status: "applied",
-        },
+      runtimeRebuild: {
+        reason: "program-artifact-configured",
+        status: "applied",
       },
     });
   });
@@ -1189,11 +1054,11 @@ describe("deployment runtime domain", () => {
       "FORMLESS_ADMIN_TOKEN=local-token\n",
     );
 
-    const result = await runPushWorkspaceSourceOperation(
+    const result = await pushFormlessInstanceWorkspace(
       {
-        dryRun: true,
+        apply: false,
         force: false,
-        kind: "push",
+
         workspacePath: workspaceRoot,
       },
       operationDepsWithAccessGuards(
@@ -1217,24 +1082,13 @@ describe("deployment runtime domain", () => {
     );
 
     expect(result).toMatchObject({
-      details: {
-        dryRunRestore: null,
-        schemaChange: {
-          currentProgramProvenance: targetArtifact.schemaProvenance,
-          desiredProgramProvenance: desiredArtifact.schemaProvenance,
-          localArchiveValidation: "passed",
-          runtimeReconciliation: "required",
-          storageCompatibility: "storage-compatible",
-          targetRuntimeValidation: "deferred",
-        },
-      },
-      summary: {
-        fields: {
-          localArchiveValidation: "passed",
-          runtimeReconciliation: "required",
-          storageCompatibility: "storage-compatible",
-          targetRuntimeValidation: "deferred",
-        },
+      schemaChange: {
+        currentProgramProvenance: targetArtifact.schemaProvenance,
+        desiredProgramProvenance: desiredArtifact.schemaProvenance,
+        localArchiveValidation: "passed",
+        runtimeReconciliation: "required",
+        storageCompatibility: "storage-compatible",
+        targetRuntimeValidation: "deferred",
       },
     });
     expect(
@@ -2090,163 +1944,6 @@ describe("deployment runtime domain", () => {
   });
 });
 
-describe("credential setup operation domain", () => {
-  it("forwards display-safe authorization events and continuation results", async () => {
-    const workspaceRoot = "/workspace/personal-sites";
-    const setupInputs: unknown[] = [];
-
-    const start = (await runWorkspaceOperationDomainHandler(
-      {
-        accountId: "account-123",
-        kind: "credentialSetup",
-        profileLabel: "Default",
-        provider: "cloudflare",
-      },
-      operationDeps("/workspace", {
-        credentialSetup: async (input) => {
-          setupInputs.push(input);
-
-          return {
-            at: "2026-06-02T00:07:00.000Z",
-            authorizationUrl: "https://dash.cloudflare.com/oauth2/authorize?client_id=formless",
-            clientId: "formless-client-id",
-            continue: async () => ({
-              account: {
-                id: "account-123",
-                workersDevSubdomain: "personal",
-              },
-              accountCount: 1,
-              credentialRef: "formless-cloudflare-oauth:default",
-              deploymentConfig: {
-                accountId: "account-123",
-                targetId: "instance.primary",
-                targetUrl: "https://personal.personal.workers.dev",
-                workerName: "personal",
-              },
-              kind: "ready",
-              provider: "cloudflare",
-              source: "oauth",
-            }),
-            credentialRef: "formless-cloudflare-oauth:default",
-            kind: "authorization-waiting",
-            profileLabel: "Default",
-            provider: "cloudflare",
-            requestedScopes: ["account.read"],
-            scopeSet: "formless-cloudflare-deploy-oauth",
-          };
-        },
-      }),
-      { workspaceRoot },
-    )) as WorkspaceOperationDomainExecutionResult;
-
-    expect(setupInputs).toEqual([
-      {
-        accountId: "account-123",
-        profileLabel: "Default",
-        provider: "cloudflare",
-        workspaceRoot,
-      },
-    ]);
-    expect(start).toMatchObject({
-      events: [
-        {
-          profileLabel: "Default",
-          provider: "cloudflare",
-          status: "waiting",
-          type: "externalAuthorizationUrl",
-          url: "https://dash.cloudflare.com/oauth2/authorize?client_id=formless",
-        },
-      ],
-      logMessage: "credentialSetup awaiting authorization.",
-      result: {
-        summary: {
-          fields: {
-            provider: "cloudflare",
-            status: "waiting-for-authorization",
-          },
-          title: "Cloudflare authorization required",
-        },
-      },
-      status: "running",
-    });
-
-    const continued = (await start.continue?.()) as WorkspaceOperationDomainExecutionResult;
-
-    expect(continued).toMatchObject({
-      logMessage: "credentialSetup completed.",
-      result: {
-        details: {
-          account: {
-            id: "account-123",
-          },
-          credentialRef: "formless-cloudflare-oauth:default",
-        },
-        summary: {
-          fields: {
-            credentialRef: "formless-cloudflare-oauth:default",
-            provider: "cloudflare",
-            status: "validated",
-          },
-          title: "Cloudflare credentials ready",
-        },
-      },
-      status: "succeeded",
-    });
-  });
-
-  it("projects typed account-selection outcomes into Gateway operation state", async () => {
-    const result = (await runWorkspaceOperationDomainHandler(
-      {
-        kind: "credentialSetup",
-        provider: "cloudflare",
-      },
-      operationDeps("/workspace", {
-        credentialSetup: async () => ({
-          accounts: [
-            {
-              id: "acct_personal",
-              name: "Personal",
-              workersDevSubdomain: "personal",
-            },
-            {
-              id: "acct_team",
-              name: "Team",
-              workersDevSubdomain: "team",
-            },
-          ],
-          credentialRef: "formless-cloudflare-oauth:default",
-          kind: "account-selection-required",
-          provider: "cloudflare",
-        }),
-      }),
-      { workspaceRoot: "/workspace/personal-sites" },
-    )) as WorkspaceOperationDomainExecutionResult;
-
-    expect(result).toMatchObject({
-      logMessage: "credentialSetup completed.",
-      result: {
-        details: {
-          accounts: [
-            { id: "acct_personal", workersDevSubdomain: "personal" },
-            { id: "acct_team", workersDevSubdomain: "team" },
-          ],
-          credentialRef: "formless-cloudflare-oauth:default",
-        },
-        summary: {
-          fields: {
-            accountCount: 2,
-            credentialRef: "formless-cloudflare-oauth:default",
-            provider: "cloudflare",
-            status: "account-selection-required",
-          },
-          title: "Cloudflare account selection required",
-        },
-      },
-      status: "succeeded",
-    });
-  });
-});
-
 function localSecretEnvStore() {
   return {
     ensure: async (input: { createSecret: () => string; root: string }) => {
@@ -2289,37 +1986,42 @@ async function writeDeploymentLocalState(
   );
 }
 
+type WorkspaceDomainTestApplyDependencyKey = Exclude<
+  keyof PushFormlessInstanceWorkspaceDependencies,
+  keyof PushFormlessInstanceWorkspaceDryRunDependencies
+>;
+
+type WorkspaceDomainTestDependencies = PullFormlessInstanceWorkspaceDependencies &
+  PushFormlessInstanceWorkspaceDryRunDependencies &
+  Partial<Pick<PushFormlessInstanceWorkspaceDependencies, WorkspaceDomainTestApplyDependencyKey>>;
+
 function operationDeps(
   cwd: string,
   options: {
-    accountDiscovery?: RunFormlessWorkspaceOperationDependencies["accountDiscovery"];
-    credentialSetup?: RunFormlessWorkspaceOperationDependencies["credentialSetup"];
+    accountDiscovery?: PushFormlessInstanceWorkspaceDryRunDependencies["accountDiscovery"];
     env?: NodeJS.ProcessEnv;
     fetch?: typeof fetch;
     packageVersion?: string;
   } = {},
-): RunFormlessWorkspaceOperationDependencies {
+): WorkspaceDomainTestDependencies {
   return {
-    ...(options.accountDiscovery === undefined
-      ? {}
-      : { accountDiscovery: options.accountDiscovery }),
-    ...(options.credentialSetup === undefined ? {} : { credentialSetup: options.credentialSetup }),
+    accountDiscovery: options.accountDiscovery ?? { listAccounts: async () => [] },
     cwd,
     ...(options.env === undefined ? {} : { env: options.env }),
     fetch: options.fetch ?? fetch,
     now: timestampSequence("2026-06-02T00:07:00.000Z", "2026-06-02T00:07:01.000Z"),
-    ...(options.packageVersion === undefined ? {} : { packageVersion: options.packageVersion }),
+    packageVersion: options.packageVersion ?? packageJson.version,
   };
 }
 
 function pushApplyOperationDeps(
   cwd: string,
   options: {
-    accountDiscovery?: RunFormlessWorkspaceOperationDependencies["accountDiscovery"];
+    accountDiscovery?: PushFormlessInstanceWorkspaceDependencies["accountDiscovery"];
     env?: NodeJS.ProcessEnv;
     fetch?: typeof fetch;
   } = {},
-): RunFormlessWorkspaceOperationDependencies {
+): PushFormlessInstanceWorkspaceDependencies {
   return {
     ...operationDeps(cwd, {
       accountDiscovery: options.accountDiscovery ?? {
@@ -2355,9 +2057,9 @@ function pushApplyOperationDeps(
 }
 
 function operationDepsWithAccessGuards(
-  dependencies: RunFormlessWorkspaceOperationDependencies,
+  dependencies: WorkspaceDomainTestDependencies,
   guardedKeys: readonly string[],
-): RunFormlessWorkspaceOperationDependencies {
+): PushFormlessInstanceWorkspaceDryRunDependencies {
   for (const key of guardedKeys) {
     Object.defineProperty(dependencies, key, {
       configurable: true,

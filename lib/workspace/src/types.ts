@@ -36,10 +36,6 @@ export type WorkspaceMediaManifestVersion =
 
 export const INSTANCE_WORKSPACE_PROGRAM_SCHEMA_KEY = "formless-program";
 
-export const WORKSPACE_OPERATION_STATE_FILE_KIND = "formless.workspaceOperation";
-export const WORKSPACE_OPERATION_STATE_FILE_VERSION = 1;
-export const WORKSPACE_OPERATION_STATE_ROOT = ".formless/operations";
-
 export type WorkspaceOperationActor = "automation" | "browser" | "cli" | "system";
 
 export type WorkspaceOperationActorPolicy = {
@@ -86,38 +82,12 @@ export const WORKSPACE_OPERATION_EXECUTION_REQUIREMENTS = [
   "provider-credentials",
 ] as const satisfies readonly WorkspaceOperationExecutionRequirement[];
 
-export type WorkspaceOperationInputFieldValueType = "boolean" | "enum" | "string";
-
-export type WorkspaceOperationInputDisplayPolicy = "always" | "never" | "when-present";
-
-export type WorkspaceOperationInputFieldDefinition = {
-  allowedValues?: readonly string[];
-  defaultValue?: boolean | null | string;
-  display: WorkspaceOperationInputDisplayPolicy;
-  key: string;
-  required?: boolean;
-  valueType: WorkspaceOperationInputFieldValueType;
-};
-
-export type WorkspaceOperationGatewayBindingDefinition = {
-  bootstrap: boolean;
-  inputFields: readonly string[];
-  requestKind: string;
-};
-
 export type WorkspaceOperationDefinitionContract = {
   actorPolicy: WorkspaceOperationActorPolicy;
-  bindings: {
-    gateway?: WorkspaceOperationGatewayBindingDefinition;
-  };
   executionRequirements: readonly WorkspaceOperationExecutionRequirement[];
   handlerKey: string;
-  input: {
-    fields: readonly WorkspaceOperationInputFieldDefinition[];
-  };
   key: string;
   kind: string;
-  label: string;
   mode: WorkspaceOperationMode;
   requiredCapability: WorkspaceOperationRequiredCapability;
 };
@@ -132,70 +102,19 @@ export type WorkspaceOperationExecutionDecision =
 
 const allWorkspaceOperationActors = ["automation", "browser", "cli", "system"] as const;
 
-const targetAliasInputField = {
-  display: "when-present",
-  key: "targetAlias",
-  valueType: "string",
-} as const;
-
-const workspacePathInputField = {
-  display: "never",
-  key: "workspacePath",
-  valueType: "string",
-} as const;
-
-const dryRunInputField = {
-  defaultValue: false,
-  display: "always",
-  key: "dryRun",
-  valueType: "boolean",
-} as const;
-
-const forceInputField = {
-  display: "when-present",
-  key: "force",
-  valueType: "boolean",
-} as const;
-
 export const WORKSPACE_OPERATION_DEFINITIONS = [
   {
     actorPolicy: { allowedActors: allWorkspaceOperationActors },
-    bindings: {
-      gateway: { bootstrap: false, inputFields: ["targetAlias"], requestKind: "check" },
-    },
     executionRequirements: ["local-filesystem", "workspace-source-read"],
     handlerKey: "workspace.source.check",
-    input: { fields: [targetAliasInputField, workspacePathInputField] },
     key: "workspace.source.check",
     kind: "check",
-    label: "Workspace source check",
     mode: "write",
     requiredCapability: "workspace-read",
   },
   {
     actorPolicy: { allowedActors: allWorkspaceOperationActors },
-    bindings: {
-      gateway: {
-        bootstrap: false,
-        inputFields: ["provider", "accountId", "profileLabel"],
-        requestKind: "credentialSetup",
-      },
-    },
     handlerKey: "workspace.credentials.setup",
-    input: {
-      fields: [
-        {
-          allowedValues: ["cloudflare"],
-          display: "always",
-          key: "provider",
-          required: true,
-          valueType: "enum",
-        },
-        { display: "when-present", key: "accountId", valueType: "string" },
-        { display: "when-present", key: "profileLabel", valueType: "string" },
-        workspacePathInputField,
-      ],
-    },
     executionRequirements: [
       "local-filesystem",
       "workspace-source-read",
@@ -204,13 +123,11 @@ export const WORKSPACE_OPERATION_DEFINITIONS = [
     ],
     key: "workspace.credentials.setup",
     kind: "credentialSetup",
-    label: "Credential setup",
     mode: "write",
     requiredCapability: "credential-setup",
   },
   {
     actorPolicy: { allowedActors: allWorkspaceOperationActors },
-    bindings: {},
     executionRequirements: [
       "local-filesystem",
       "workspace-source-read",
@@ -218,35 +135,22 @@ export const WORKSPACE_OPERATION_DEFINITIONS = [
       "admin-token",
     ],
     handlerKey: "deployment.refresh",
-    input: { fields: [targetAliasInputField, workspacePathInputField] },
     key: "deployment.refresh",
     kind: "deploymentRefresh",
-    label: "Deployment refresh",
     mode: "write",
     requiredCapability: "deployment-observe",
   },
   {
     actorPolicy: { allowedActors: allWorkspaceOperationActors },
-    bindings: {},
     executionRequirements: ["local-filesystem", "workspace-source-write"],
     handlerKey: "workspace.init",
-    input: {
-      fields: [
-        { display: "when-present", key: "name", valueType: "string" },
-        workspacePathInputField,
-      ],
-    },
     key: "workspace.init",
     kind: "init",
-    label: "Workspace init",
     mode: "write",
     requiredCapability: "workspace-source-write",
   },
   {
     actorPolicy: { allowedActors: allWorkspaceOperationActors },
-    bindings: {
-      gateway: { bootstrap: false, inputFields: ["dryRun", "targetAlias"], requestKind: "pull" },
-    },
     executionRequirements: [
       "local-filesystem",
       "workspace-source-read",
@@ -255,38 +159,22 @@ export const WORKSPACE_OPERATION_DEFINITIONS = [
       "admin-token",
     ],
     handlerKey: "workspace.source.pull",
-    input: { fields: [dryRunInputField, targetAliasInputField, workspacePathInputField] },
     key: "workspace.source.pull",
     kind: "pull",
-    label: "Workspace source pull",
     mode: "write",
     requiredCapability: "workspace-source-sync",
   },
   {
     actorPolicy: { allowedActors: allWorkspaceOperationActors },
-    bindings: {
-      gateway: {
-        bootstrap: false,
-        inputFields: ["dryRun", "targetAlias"],
-        requestKind: "push",
-      },
-    },
     executionRequirements: ["local-filesystem", "workspace-source-read", "remote-target"],
     handlerKey: "workspace.source.push",
-    input: {
-      fields: [dryRunInputField, forceInputField, targetAliasInputField, workspacePathInputField],
-    },
     key: "workspace.source.push",
     kind: "push",
-    label: "Workspace source push",
     mode: "write",
     requiredCapability: "workspace-source-sync",
   },
   {
     actorPolicy: { allowedActors: allWorkspaceOperationActors },
-    bindings: {
-      gateway: { bootstrap: false, inputFields: ["check"], requestKind: "save" },
-    },
     executionRequirements: [
       "local-filesystem",
       "workspace-source-read",
@@ -294,45 +182,17 @@ export const WORKSPACE_OPERATION_DEFINITIONS = [
       "local-authority",
     ],
     handlerKey: "workspace.source.save",
-    input: {
-      fields: [
-        { defaultValue: false, display: "always", key: "check", valueType: "boolean" },
-        { display: "when-present", key: "source", valueType: "string" },
-        workspacePathInputField,
-      ],
-    },
     key: "workspace.source.save",
     kind: "save",
-    label: "Workspace source save",
     mode: "write",
     requiredCapability: "workspace-source-write",
   },
   {
     actorPolicy: { allowedActors: allWorkspaceOperationActors },
-    bindings: {
-      gateway: {
-        bootstrap: true,
-        inputFields: ["includeDeploymentStatus", "targetAlias"],
-        requestKind: "status",
-      },
-    },
     handlerKey: "workspace.status",
-    input: {
-      fields: [
-        {
-          defaultValue: false,
-          display: "always",
-          key: "includeDeploymentStatus",
-          valueType: "boolean",
-        },
-        targetAliasInputField,
-        workspacePathInputField,
-      ],
-    },
     executionRequirements: ["local-filesystem", "workspace-source-read"],
     key: "workspace.status",
     kind: "status",
-    label: "Workspace status",
     mode: "read",
     requiredCapability: "workspace-read",
   },
@@ -346,27 +206,6 @@ export type WorkspaceOperationHandlerKey = WorkspaceOperationDefinition["handler
 
 export type WorkspaceOperationKind = WorkspaceOperationDefinition["kind"];
 
-export type WorkspaceGatewayOperationDefinition = Extract<
-  WorkspaceOperationDefinition,
-  { readonly bindings: { readonly gateway: unknown } }
->;
-
-export type WorkspaceGatewayOperationKind = WorkspaceGatewayOperationDefinition["kind"];
-
-export type WorkspaceBrowserOperationDefinition = WorkspaceGatewayOperationDefinition;
-
-export type WorkspaceBrowserOperationKind = WorkspaceGatewayOperationKind;
-
-export type WorkspaceBrowserOperationControlMetadata = {
-  bootstrapAllowed: boolean;
-  executionRequirements: readonly WorkspaceOperationExecutionRequirement[];
-  inputFields: readonly string[];
-  kind: WorkspaceBrowserOperationKind;
-  label: string;
-  mode: WorkspaceOperationMode;
-  requiredCapability: WorkspaceOperationRequiredCapability;
-};
-
 export const WORKSPACE_OPERATION_KEYS = WORKSPACE_OPERATION_DEFINITIONS.map(
   (definition) => definition.key,
 ) as WorkspaceOperationDefinitionKey[];
@@ -374,28 +213,6 @@ export const WORKSPACE_OPERATION_KEYS = WORKSPACE_OPERATION_DEFINITIONS.map(
 export const WORKSPACE_OPERATION_KINDS = WORKSPACE_OPERATION_DEFINITIONS.map(
   (definition) => definition.kind,
 ) as WorkspaceOperationKind[];
-
-export const WORKSPACE_GATEWAY_OPERATION_DEFINITIONS = WORKSPACE_OPERATION_DEFINITIONS.filter(
-  hasWorkspaceGatewayBinding,
-) as readonly WorkspaceGatewayOperationDefinition[];
-
-export const WORKSPACE_GATEWAY_OPERATION_KINDS = WORKSPACE_GATEWAY_OPERATION_DEFINITIONS.map(
-  (definition) => definition.kind,
-) as WorkspaceGatewayOperationKind[];
-
-export const WORKSPACE_BROWSER_OPERATION_DEFINITIONS = WORKSPACE_GATEWAY_OPERATION_DEFINITIONS;
-
-export const WORKSPACE_BROWSER_OPERATION_KINDS = WORKSPACE_GATEWAY_OPERATION_KINDS;
-
-export const WORKSPACE_BOOTSTRAP_OPERATION_KINDS = WORKSPACE_GATEWAY_OPERATION_DEFINITIONS.filter(
-  (definition) => hasWorkspaceGatewayBinding(definition) && definition.bindings.gateway.bootstrap,
-).map((definition) => definition.kind) as WorkspaceGatewayOperationKind[];
-
-function hasWorkspaceGatewayBinding(
-  definition: WorkspaceOperationDefinition,
-): definition is WorkspaceBrowserOperationDefinition {
-  return "gateway" in definition.bindings;
-}
 
 export type InstanceWorkspaceRecordValue = string | boolean | number;
 
@@ -441,95 +258,6 @@ export type WorkspaceProgramRecordStateFile =
 
 export type WorkspaceRecordStateFile = WorkspaceProgramRecordStateFile;
 
-export type WorkspaceOperationStatus = "failed" | "queued" | "running" | "succeeded";
-
-export type WorkspaceOperationDisplayValue =
-  | boolean
-  | null
-  | number
-  | string
-  | WorkspaceOperationDisplayValue[]
-  | { [key: string]: WorkspaceOperationDisplayValue };
-
-export type WorkspaceOperationDisplayObject = {
-  [key: string]: WorkspaceOperationDisplayValue;
-};
-
-export type WorkspaceOperationSummary = {
-  fields: WorkspaceOperationDisplayObject;
-  title: string;
-};
-
-export type WorkspaceOperationLog = {
-  at: string;
-  id: string;
-  level: "error" | "info" | "warning";
-  message: string;
-};
-
-export type WorkspaceOperationError = {
-  at: string;
-  message: string;
-};
-
-export type WorkspaceOperationStepStatus =
-  | "failed"
-  | "pending"
-  | "running"
-  | "skipped"
-  | "succeeded";
-
-export type WorkspaceOperationStep = {
-  detail?: string;
-  error?: string;
-  fields?: WorkspaceOperationDisplayObject;
-  id: string;
-  label: string;
-  status: WorkspaceOperationStepStatus;
-};
-
-export type WorkspaceOperationExternalAuthorizationEvent = {
-  at: string;
-  id: string;
-  profileLabel: string;
-  provider: "alchemy" | "cloudflare";
-  status: "waiting";
-  type: "externalAuthorizationUrl";
-  url: string;
-};
-
-export type WorkspaceOperationEvent = WorkspaceOperationExternalAuthorizationEvent;
-
-export type WorkspaceOperationResult = {
-  deployment?: WorkspaceOperationDisplayObject;
-  details?: WorkspaceOperationDisplayObject;
-  steps?: WorkspaceOperationStep[];
-  summary: WorkspaceOperationSummary;
-};
-
-export type WorkspaceOperationState = {
-  actor: WorkspaceOperationActor;
-  completedAt?: string;
-  createdAt: string;
-  errors: WorkspaceOperationError[];
-  events: WorkspaceOperationEvent[];
-  id: string;
-  input: WorkspaceOperationDisplayObject;
-  kind: typeof WORKSPACE_OPERATION_STATE_FILE_KIND;
-  logs: WorkspaceOperationLog[];
-  operation: WorkspaceOperationKind;
-  result?: WorkspaceOperationResult;
-  startedAt?: string;
-  status: WorkspaceOperationStatus;
-  steps?: WorkspaceOperationStep[];
-  summary: WorkspaceOperationSummary;
-  updatedAt: string;
-  version: typeof WORKSPACE_OPERATION_STATE_FILE_VERSION;
-  workspace: {
-    label: string;
-  };
-};
-
 export const WORKSPACE_AUTO_SAVE_WRITE_SOURCES = [
   "control-plane-write",
   "deployment-intent",
@@ -543,139 +271,6 @@ export type WorkspaceAutoSaveWriteSource = (typeof WORKSPACE_AUTO_SAVE_WRITE_SOU
 
 export type WorkspaceAutoSaveEnqueueInput = {
   source: WorkspaceAutoSaveWriteSource;
-};
-
-export type InitWorkspaceOperationInput = {
-  kind: "init";
-  name?: string | null;
-  workspacePath?: string | null;
-};
-
-export type StatusWorkspaceOperationInput = {
-  includeDeploymentStatus?: boolean;
-  kind: "status";
-  targetAlias?: string | null;
-  workspacePath?: string | null;
-};
-
-export type SaveWorkspaceOperationInput = {
-  check?: boolean;
-  kind: "save";
-  source?: string | null;
-  workspacePath?: string | null;
-};
-
-export type CheckWorkspaceOperationInput = {
-  kind: "check";
-  targetAlias?: string | null;
-  workspacePath?: string | null;
-};
-
-export type PullWorkspaceOperationInput = {
-  dryRun?: boolean;
-  kind: "pull";
-  targetAlias?: string | null;
-  workspacePath?: string | null;
-};
-
-export type PushWorkspaceOperationInput = {
-  dryRun?: boolean;
-  force?: boolean;
-  kind: "push";
-  targetAlias?: string | null;
-  workspacePath?: string | null;
-};
-
-export type DeploymentRefreshWorkspaceOperationInput = {
-  kind: "deploymentRefresh";
-  targetAlias?: string | null;
-  workspacePath?: string | null;
-};
-
-export type CredentialSetupWorkspaceOperationInput = {
-  accountId?: string | null;
-  kind: "credentialSetup";
-  profileLabel?: string | null;
-  provider: "cloudflare";
-  workspacePath?: string | null;
-};
-
-export type WorkspaceOperationInput =
-  | CheckWorkspaceOperationInput
-  | CredentialSetupWorkspaceOperationInput
-  | DeploymentRefreshWorkspaceOperationInput
-  | InitWorkspaceOperationInput
-  | PullWorkspaceOperationInput
-  | PushWorkspaceOperationInput
-  | SaveWorkspaceOperationInput
-  | StatusWorkspaceOperationInput;
-
-export type RunnableWorkspaceOperationInput = Exclude<
-  WorkspaceOperationInput,
-  CredentialSetupWorkspaceOperationInput
->;
-
-export type WorkspaceOperationSaveStartInput = {
-  check?: boolean;
-  kind: "save";
-};
-
-export type WorkspaceOperationStatusStartInput = {
-  includeDeploymentStatus?: boolean;
-  kind: "status";
-  targetAlias?: string | null;
-};
-
-export type WorkspaceOperationCheckOrPullStartInput = {
-  dryRun?: boolean;
-  kind: "check" | "pull";
-  targetAlias?: string | null;
-};
-
-export type WorkspaceOperationPushStartInput = {
-  dryRun?: boolean;
-  force?: boolean;
-  kind: "push";
-  targetAlias?: string | null;
-};
-
-export type WorkspaceOperationCredentialSetupStartInput = {
-  accountId?: string | null;
-  kind: "credentialSetup";
-  profileLabel?: string | null;
-  provider: "cloudflare";
-};
-
-export type WorkspaceOperationStartInput =
-  | WorkspaceOperationCheckOrPullStartInput
-  | WorkspaceOperationCredentialSetupStartInput
-  | WorkspaceOperationPushStartInput
-  | WorkspaceOperationSaveStartInput
-  | WorkspaceOperationStatusStartInput;
-
-export type WorkspaceOperationIdParseResult =
-  | { ok: true; operationId: string }
-  | { error: string; ok: false };
-
-export type InitialWorkspaceOperationStateInput = {
-  actor?: WorkspaceOperationActor;
-  id: string;
-  input: WorkspaceOperationDisplayObject;
-  operation: WorkspaceOperationKind;
-  now: () => string;
-  workspaceLabel: string;
-  workspaceRoot: string;
-};
-
-export type UpdateWorkspaceOperationStateInput = {
-  errors?: readonly { message: string }[];
-  events?: readonly Omit<WorkspaceOperationEvent, "id">[];
-  logs?: readonly Omit<WorkspaceOperationLog, "id">[];
-  result?: WorkspaceOperationResult;
-  status?: WorkspaceOperationStatus;
-  steps?: readonly WorkspaceOperationStep[];
-  summary?: WorkspaceOperationSummary;
-  workspaceRoot: string;
 };
 
 export type InstanceWorkspaceDomainProfile = "instance" | "publicSite";

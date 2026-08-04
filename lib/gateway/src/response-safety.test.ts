@@ -1,107 +1,76 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import { WORKSPACE_GATEWAY_PUSH_PHASE_IDS, type WorkspaceGatewayPush } from "./index.ts";
 import {
-  initialWorkspaceOperationState,
-  nextWorkspaceOperationState,
-} from "@dpeek/formless-workspace";
-import { WORKSPACE_GATEWAY_CSRF_COOKIE_NAME } from "./types.ts";
-import { workspaceGatewaySafeSidecarResponse } from "./response-safety.ts";
+  workspaceGatewayErrorResponse,
+  workspaceGatewaySafeSidecarResponse,
+} from "./response-safety.ts";
 
-describe("workspace gateway response safety", () => {
-  it("wraps Workspace-redacted operation state without owning semantic operation redaction", async () => {
-    const workspaceRoot = "/tmp/personal-sites";
-    const ownerSetupUrl = "https://personal.dpeek.workers.dev/setup?token=owner-setup-secret";
-    const operation = nextWorkspaceOperationState(
-      initialWorkspaceOperationState({
-        actor: "browser",
-        id: "op_push_00000001",
-        input: {
-          rawAdapterOutput: "TOKEN=secret",
-          workspaceFile: `${workspaceRoot}/deploy/output.json`,
-        },
-        now: () => "2026-06-02T00:00:00.000Z",
-        operation: "push",
-        workspaceLabel: "personal-sites",
-        workspaceRoot,
-      }),
-      {
-        errors: [{ message: `Push failed at ${workspaceRoot} with TOKEN=secret` }],
-        logs: [
-          {
-            at: "2026-06-02T00:00:01.000Z",
-            level: "info",
-            message: `Bearer secret-token CF_API_TOKEN=secret ${workspaceRoot}/logs/output.txt`,
-          },
-        ],
-        result: {
-          deployment: {
-            leaseToken: "lease:local-gateway",
-            ownerSetupUrl,
-            rawAdapterOutput: "TOKEN=secret",
-          },
-          summary: {
-            fields: {
-              ownerSetupUrl,
-              providerStatePayload: "raw",
-            },
-            title: "Workspace push applied",
-          },
-        },
-        status: "failed",
-        steps: [
-          {
-            detail: `${workspaceRoot}/deploy output`,
-            error: "Health check failed with TOKEN=secret",
-            fields: {
-              rawAdapterOutput: "TOKEN=secret",
-            },
-            id: "health-check",
-            label: "Health check",
-            status: "failed",
-          },
-        ],
-        summary: {
-          fields: {
-            credentialToken: "oauth-access-token",
-            providerStatePayload: "raw",
-            setupUrl: ownerSetupUrl,
-          },
-          title: "Workspace push failed",
-        },
-        workspaceRoot,
-      },
-    );
-    const displaySafeOperationText = JSON.stringify(operation);
-
-    expect(displaySafeOperationText).toContain("[redacted]");
-    expect(displaySafeOperationText).toContain("<workspace>");
-    expect(displaySafeOperationText).not.toContain(workspaceRoot);
-    expect(displaySafeOperationText).not.toContain("oauth-access-token");
-    expect(displaySafeOperationText).not.toContain("secret-token");
-
+describe("Gateway response safety", () => {
+  it("delivers CSRF only on exact owner-session status", async () => {
     const response = await workspaceGatewaySafeSidecarResponse({
       authorization: { actor: "browser", via: "owner-session" },
-      env: { csrfToken: "csrf-token" },
-      request: new Request("https://example.com/api/formless/workspace/operations"),
-      response: new Response(JSON.stringify({ operation }), {
-        headers: {
-          "Content-Type": "application/json",
-          "Set-Cookie": "sidecar-secret=value",
-          "X-Secret": "hidden",
-        },
-      }),
+      env: { csrfToken: "csrf" },
+      kind: "status",
+      request: new Request("https://example.com/api/formless/workspace/status"),
+      response: Response.json({ currentPush: null, gateway: "available", latestPush: null }),
     });
-    const body = (await response.json()) as { csrfToken?: string; operation?: unknown };
-
-    expect(response.status).toBe(200);
-    expect(response.headers.get("Set-Cookie")).toContain(
-      `${WORKSPACE_GATEWAY_CSRF_COOKIE_NAME}=csrf-token`,
+    expect(await response.json()).toEqual({
+      csrfToken: "csrf",
+      currentPush: null,
+      gateway: "available",
+      latestPush: null,
+    });
+    expect(response.headers.get("Set-Cookie")).toBe(
+      "formless_workspace_csrf=csrf; Path=/; SameSite=Lax; Secure",
     );
-    expect(response.headers.get("Set-Cookie")).not.toContain("sidecar-secret");
-    expect(response.headers.get("X-Secret")).toBeNull();
-    expect(body.csrfToken).toBe("csrf-token");
-    expect(body.operation).toEqual(operation);
-    expect(JSON.stringify(body.operation)).not.toContain("oauth-access-token");
-    expect(JSON.stringify(body.operation)).not.toContain("secret-token");
+  });
+
+  it("forwards only closed code errors", async () => {
+    const safe = await workspaceGatewaySafeSidecarResponse({
+      authorization: { actor: "browser", via: "owner-session" },
+      env: {},
+      kind: "push",
+      request: new Request("https://example.com/api/formless/workspace/pushes"),
+      response: workspaceGatewayErrorResponse("push-active"),
+    });
+    expect(await safe.json()).toEqual({ code: "push-active" });
+
+    const invalid = await workspaceGatewaySafeSidecarResponse({
+      authorization: { actor: "browser", via: "owner-session" },
+      env: {},
+      kind: "push",
+      request: new Request("https://example.com/api/formless/workspace/pushes"),
+      response: Response.json({ error: "token=secret /tmp/workspace" }, { status: 500 }),
+    });
+    expect(invalid.status).toBe(502);
+    expect(await invalid.json()).toEqual({ code: "invalid-sidecar-response" });
+  });
+
+  it("rejects non-JSON and structurally invalid Push responses", async () => {
+    for (const response of [
+      new Response("provider output"),
+      Response.json({ push: { ...queuedPush(), path: "/tmp/workspace" } }),
+    ]) {
+      const safe = await workspaceGatewaySafeSidecarResponse({
+        authorization: { actor: "browser", via: "owner-session" },
+        env: {},
+        kind: "push",
+        request: new Request("https://example.com/api/formless/workspace/pushes"),
+        response,
+      });
+      expect(await safe.json()).toEqual({ code: "invalid-sidecar-response" });
+    }
   });
 });
+
+function queuedPush(): WorkspaceGatewayPush {
+  return {
+    createdAt: "2026-08-04T00:00:00.000Z",
+    id: "push_1234567890abcdef",
+    lifecycle: "queued",
+    mode: "apply",
+    phases: WORKSPACE_GATEWAY_PUSH_PHASE_IDS.map((id) => ({ id, status: "pending" })),
+    updatedAt: "2026-08-04T00:00:00.000Z",
+  };
+}

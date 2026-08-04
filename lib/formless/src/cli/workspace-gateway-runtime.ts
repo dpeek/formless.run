@@ -1,12 +1,14 @@
-import { type WorkspaceGatewaySidecarOperationHandlers } from "@dpeek/formless-gateway/sidecar";
+import { type WorkspaceGatewaySidecarHandlers } from "@dpeek/formless-gateway/sidecar";
 import type { WorkspaceOperationRequiredCapability } from "@dpeek/formless-workspace";
 
-import type { RunFormlessWorkspaceOperationDependencies } from "./instance-workspace-operations.ts";
 import {
   createDefaultWorkspaceAutoSaveScheduler,
   type WorkspaceAutoSaveScheduler,
 } from "./workspace-gateway-auto-save.ts";
-import { createWorkspaceGatewayOperationHandlers as createWorkspaceGatewayRuntimeOperationHandlers } from "./workspace-gateway-operation-adapter.ts";
+import {
+  createWorkspaceGatewayHandlers as createWorkspaceGatewayRuntimeHandlers,
+  type WorkspaceGatewayPushExecutionDependencies,
+} from "./workspace-gateway-operation-adapter.ts";
 import {
   createWorkspaceGatewayProxyDependencies as createWorkspaceGatewayRuntimeProxyDependencies,
   createWorkspaceGatewayRuntimeMiddleware as createWorkspaceGatewayRuntimeProxyMiddleware,
@@ -19,7 +21,7 @@ export {
   type WorkspaceAutoSaveScheduler,
   type WorkspaceAutoSaveSchedulerDependencies,
   type WorkspaceAutoSaveSchedulerSaveInput,
-  type WorkspaceGatewayOperationAutoSaveScheduler,
+  type WorkspaceGatewayAutoSaveScheduler,
 } from "./workspace-gateway-auto-save.ts";
 
 export type {
@@ -29,18 +31,16 @@ export type {
 
 export type { WorkspaceGatewayRuntimeEnv } from "./workspace-gateway-proxy-composition.ts";
 
-export type WorkspaceGatewayRuntimeDependencies = RunFormlessWorkspaceOperationDependencies & {
+export type WorkspaceGatewayRuntimeDependencies = WorkspaceGatewayPushExecutionDependencies & {
   autoSaveDebounceMs?: number;
   autoSaveMaxRetries?: number;
   autoSaveRetryBackoffMs?: (retryCount: number) => number;
   autoSaveScheduler?: WorkspaceAutoSaveScheduler;
-  createOperationId?: () => string;
-  credentialSetup?: RunFormlessWorkspaceOperationDependencies["credentialSetup"];
-  cwd: string;
-  fetch: typeof fetch;
-  now: () => string;
   operationCapabilities?: readonly WorkspaceOperationRequiredCapability[];
+  preflightPushCredential?: import("./workspace-gateway-operation-adapter.ts").WorkspaceGatewayPushAdapterDependencies["preflightPushCredential"];
   proxyFetch?: typeof fetch;
+  push?: import("./workspace-gateway-operation-adapter.ts").WorkspaceGatewayPushAdapterDependencies["push"];
+  pushCredentialSetup?: import("./workspace-gateway-operation-adapter.ts").WorkspaceGatewayPushAdapterDependencies["pushCredentialSetup"];
   readOwnerSetupStatus?: (request: Request) => Promise<{ setupComplete: boolean }>;
 };
 
@@ -48,13 +48,13 @@ export type StartWorkspaceGatewaySidecarDependencies = WorkspaceGatewayRuntimeDe
   createProxyToken?: () => string;
 };
 
-export function createWorkspaceGatewayOperationHandlers(
+export function createWorkspaceGatewayHandlers(
   dependencies: WorkspaceGatewayRuntimeDependencies,
-): WorkspaceGatewaySidecarOperationHandlers {
+): WorkspaceGatewaySidecarHandlers {
   const autoSaveScheduler =
     dependencies.autoSaveScheduler ?? createDefaultWorkspaceAutoSaveScheduler(dependencies);
 
-  return createWorkspaceGatewayRuntimeOperationHandlers({
+  return createWorkspaceGatewayRuntimeHandlers({
     ...dependencies,
     autoSaveScheduler,
   });

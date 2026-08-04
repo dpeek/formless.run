@@ -128,7 +128,8 @@ export function prepareInstanceManagementRuntimePublication({
 
 export function InstanceManagementRuntime({
   onOpenWorkspaceAuthorization,
-  onPollWorkspaceOperation,
+  onPollWorkspacePush,
+  onSelectWorkspaceAccount,
   onStartWorkspacePush,
   routesScreenPath,
   screenKey,
@@ -136,7 +137,12 @@ export function InstanceManagementRuntime({
   workspaceGatewayState,
 }: {
   onOpenWorkspaceAuthorization: (url: string) => void;
-  onPollWorkspaceOperation: (operationId: string, operationKind: "push") => Promise<void> | void;
+  onPollWorkspacePush: (pushId: string) => Promise<void> | void;
+  onSelectWorkspaceAccount: (input: {
+    accountId: string;
+    interactionId: string;
+    pushId: string;
+  }) => Promise<void> | void;
   onStartWorkspacePush: () => Promise<void> | void;
   routesScreenPath?: `/${string}` | undefined;
   screenKey: string;
@@ -156,10 +162,16 @@ export function InstanceManagementRuntime({
   const actions = useMemo<InstanceManagementIntentActions>(
     () => ({
       openAuthorization: onOpenWorkspaceAuthorization,
-      pollWorkspaceOperation: onPollWorkspaceOperation,
+      pollWorkspacePush: onPollWorkspacePush,
+      selectAccount: onSelectWorkspaceAccount,
       startWorkspacePush: onStartWorkspacePush,
     }),
-    [onOpenWorkspaceAuthorization, onPollWorkspaceOperation, onStartWorkspacePush],
+    [
+      onOpenWorkspaceAuthorization,
+      onPollWorkspacePush,
+      onSelectWorkspaceAccount,
+      onStartWorkspacePush,
+    ],
   );
   const registerRoutes = useCallback(
     (controller: GeneratedWorkspaceRuntimeController | undefined) =>

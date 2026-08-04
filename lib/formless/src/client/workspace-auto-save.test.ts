@@ -24,7 +24,12 @@ describe("local workspace auto-save client", () => {
         });
 
         return url.endsWith("/status")
-          ? Response.json({ csrfToken: "csrf-token", operation: {} })
+          ? Response.json({
+              csrfToken: "csrf-token",
+              currentPush: null,
+              gateway: "available",
+              latestPush: null,
+            })
           : new Response(null, { status: 204 });
       },
     );

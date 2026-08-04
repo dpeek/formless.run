@@ -20,10 +20,11 @@ export {
   WORKSPACE_GATEWAY_BOOTSTRAP_HEADER,
   WORKSPACE_GATEWAY_CSRF_COOKIE_NAME,
   WORKSPACE_GATEWAY_CSRF_HEADER,
-  WORKSPACE_GATEWAY_OPERATION_KIND_HEADER,
+  WORKSPACE_GATEWAY_INTENT_HEADER,
   WORKSPACE_GATEWAY_PROXY_AUTHORIZATION_HEADER,
+  WORKSPACE_GATEWAY_PUSHES_API_PATH,
 } from "./index.ts";
-export type { WorkspaceGatewayOperation, WorkspaceGatewayOperationKind } from "./index.ts";
+export type { WorkspaceGatewayPush, WorkspaceGatewayPushStartInput } from "./index.ts";
 
 export type WorkspaceGatewayWorkerProxyEnv = {
   FORMLESS_ADMIN_TOKEN?: string;
@@ -61,9 +62,9 @@ export async function handleWorkspaceGatewayProxyRequest(
   return handleWorkspaceGatewayProxyRulesRequest(request, proxyRulesEnvFromWorkerEnv(env), {
     capabilities: options.capabilities ?? [],
     fetch: options.fetch,
-    proxyTarget: () =>
-      options.routeAvailable === false ? undefined : workspaceGatewayProxyConfigFromEnv(env),
+    proxyTarget: () => workspaceGatewayProxyConfigFromEnv(env),
     readOwnerSetupStatus: options.readOwnerSetupStatus,
+    routeAvailable: options.routeAvailable,
     validateOwnerSession: options.validateOwnerSession,
   });
 }

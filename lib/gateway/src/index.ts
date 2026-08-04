@@ -1,37 +1,33 @@
 import {
-  WORKSPACE_GATEWAY_API_ROUTE_PREFIX,
-  WORKSPACE_GATEWAY_OPERATIONS_API_PATH,
-} from "./types.ts";
-import {
   isWorkspaceAutoSaveWriteSource,
-  isWorkspaceGatewayOperationKind as isWorkspaceDefinitionGatewayOperationKind,
-  parseWorkspaceOperationId,
-  workspaceOperationExecutionDecision,
-  workspaceOperationBootstrapAllowed,
+  workspaceOperationActorAllowed,
   workspaceOperationBaseExecutionRequirements,
-  workspaceOperationDefinitionForGatewayRequestKind,
   workspaceOperationEffectiveExecutionRequirements,
-  workspaceOperationGatewayAllowedRequestFields,
-  workspaceOperationGatewayInputFields,
-  workspaceOperationInputFieldDefinition,
-  workspaceOperationMode,
   workspaceOperationRequiredCapability,
+  type WorkspaceOperationRequiredCapability,
 } from "@dpeek/formless-workspace";
-import type {
-  WorkspaceOperationActor,
-  WorkspaceOperationExecutionDecision,
-  WorkspaceGatewayOperationDefinition,
-  WorkspaceOperationInputFieldDefinition,
-  WorkspaceOperationRequiredCapability,
-} from "@dpeek/formless-workspace";
-import type {
-  WorkspaceGatewayAutoSaveEnqueueInputParseResult,
-  WorkspaceGatewayOperationIdParseResult,
-  WorkspaceGatewayOperationIntent,
-  WorkspaceGatewayOperationKind,
-  WorkspaceGatewayOperationPath,
-  WorkspaceGatewayStartInput,
-  WorkspaceGatewayStartInputParseResult,
+import {
+  WORKSPACE_GATEWAY_API_ROUTE_PREFIX,
+  WORKSPACE_GATEWAY_ERROR_CODES,
+  WORKSPACE_GATEWAY_PUSHES_API_PATH,
+  WORKSPACE_GATEWAY_PUSH_FAILURE_CODES,
+  WORKSPACE_GATEWAY_PUSH_PHASE_IDS,
+  type WorkspaceGatewayAccountChoice,
+  type WorkspaceGatewayAccountSelectionInput,
+  type WorkspaceGatewayApiErrorBody,
+  type WorkspaceGatewayAutoSaveEnqueueInput,
+  type WorkspaceGatewayErrorCode,
+  type WorkspaceGatewayIntent,
+  type WorkspaceGatewayParseResult,
+  type WorkspaceGatewayPush,
+  type WorkspaceGatewayPushFailureCode,
+  type WorkspaceGatewayPushMode,
+  type WorkspaceGatewayPushPath,
+  type WorkspaceGatewayPushPhase,
+  type WorkspaceGatewayPushPhaseId,
+  type WorkspaceGatewayPushResponse,
+  type WorkspaceGatewayPushStartInput,
+  type WorkspaceGatewayStatusResponse,
 } from "./types.ts";
 
 export {
@@ -39,57 +35,61 @@ export {
   LOCAL_SESSION_BOOTSTRAP_TOKEN_ENV,
   WORKSPACE_GATEWAY_ACTOR_HEADER,
   WORKSPACE_GATEWAY_API_ROUTE_PREFIX,
-  WORKSPACE_GATEWAY_AUTO_SAVE_API_PATH,
   WORKSPACE_GATEWAY_AUTHORIZATION_VIA_HEADER,
+  WORKSPACE_GATEWAY_AUTO_SAVE_API_PATH,
   WORKSPACE_GATEWAY_BOOTSTRAP_HEADER,
-  WORKSPACE_GATEWAY_BOOTSTRAP_OPERATION_KINDS,
   WORKSPACE_GATEWAY_BOOTSTRAP_TOKEN_ENV,
   WORKSPACE_GATEWAY_CSRF_COOKIE_NAME,
   WORKSPACE_GATEWAY_CSRF_HEADER,
   WORKSPACE_GATEWAY_CSRF_TOKEN_ENV,
   WORKSPACE_GATEWAY_ENABLED_ENV,
-  WORKSPACE_GATEWAY_OPERATION_KIND_HEADER,
-  WORKSPACE_GATEWAY_OPERATION_KINDS,
-  WORKSPACE_GATEWAY_OPERATIONS_API_PATH,
+  WORKSPACE_GATEWAY_ERROR_CODES,
+  WORKSPACE_GATEWAY_INTENT_HEADER,
   WORKSPACE_GATEWAY_PROXY_AUTHORIZATION_HEADER,
   WORKSPACE_GATEWAY_PROXY_TOKEN_ENV,
+  WORKSPACE_GATEWAY_PUSHES_API_PATH,
+  WORKSPACE_GATEWAY_PUSH_FAILURE_CODES,
+  WORKSPACE_GATEWAY_PUSH_PHASE_IDS,
   WORKSPACE_GATEWAY_ROOT_ENV,
   WORKSPACE_GATEWAY_SIDECAR_URL_ENV,
   WORKSPACE_GATEWAY_STATUS_API_PATH,
 } from "./types.ts";
 export type {
+  WorkspaceGatewayAccountChoice,
+  WorkspaceGatewayAccountSelectionInput,
+  WorkspaceGatewayAccountSelectionInteraction,
   WorkspaceGatewayActor,
   WorkspaceGatewayActorFacts,
   WorkspaceGatewayApiErrorBody,
-  WorkspaceGatewayAutoSaveEnqueueInput,
-  WorkspaceGatewayAutoSaveEnqueueInputParseResult,
-  WorkspaceGatewayAutoSaveWriteSource,
   WorkspaceGatewayAuthorizationVia,
-  WorkspaceGatewayCheckOrPullStartInput,
-  WorkspaceGatewayCredentialSetupStartInput,
-  WorkspaceGatewayDisplayObject,
-  WorkspaceGatewayDisplayValue,
-  WorkspaceGatewayExternalAuthorizationEvent,
-  WorkspaceGatewayOperation,
-  WorkspaceGatewayOperationError,
-  WorkspaceGatewayOperationEvent,
-  WorkspaceGatewayOperationIdParseResult,
-  WorkspaceGatewayOperationIntent,
-  WorkspaceGatewayOperationKind,
-  WorkspaceGatewayOperationLog,
-  WorkspaceGatewayOperationPath,
-  WorkspaceGatewayOperationResult,
-  WorkspaceGatewayOperationStep,
-  WorkspaceGatewayOperationStepStatus,
-  WorkspaceGatewayOperationStatus,
-  WorkspaceGatewayOperationSummary,
+  WorkspaceGatewayAutoSaveEnqueueInput,
+  WorkspaceGatewayAutoSaveWriteSource,
+  WorkspaceGatewayErrorCode,
+  WorkspaceGatewayExternalAuthorizationInteraction,
+  WorkspaceGatewayIntent,
+  WorkspaceGatewayParseResult,
+  WorkspaceGatewayPush,
+  WorkspaceGatewayPushExecutionResult,
+  WorkspaceGatewayPushFailureCode,
+  WorkspaceGatewayPushHandler,
+  WorkspaceGatewayPushInteraction,
+  WorkspaceGatewayPushLifecycle,
+  WorkspaceGatewayPushMode,
+  WorkspaceGatewayPushOutcome,
+  WorkspaceGatewayPushPath,
+  WorkspaceGatewayPushPhase,
+  WorkspaceGatewayPushPhaseId,
+  WorkspaceGatewayPushPhaseObserver,
+  WorkspaceGatewayPushPhaseStatus,
+  WorkspaceGatewayPushResponse,
   WorkspaceGatewayPushStartInput,
-  WorkspaceGatewayResponse,
-  WorkspaceGatewaySaveStartInput,
-  WorkspaceGatewayStartInput,
-  WorkspaceGatewayStartInputParseResult,
-  WorkspaceGatewayStatusStartInput,
+  WorkspaceGatewayStatusResponse,
 } from "./types.ts";
+
+const pushIdPattern = /^push_[A-Za-z0-9_-]{16,128}$/;
+const interactionIdPattern = /^interaction_[A-Za-z0-9_-]{16,128}$/;
+const accountIdPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+const targetAliasPattern = /^[a-z][a-z0-9]*(?:(?:[.-])[a-z0-9]+)*$/;
 
 export function isWorkspaceGatewayPath(pathname: string): boolean {
   return (
@@ -101,440 +101,414 @@ export function isWorkspaceGatewayPath(pathname: string): boolean {
 export function workspaceGatewayStatusApiPath(
   apiBasePath = WORKSPACE_GATEWAY_API_ROUTE_PREFIX,
 ): string {
-  return `${trimWorkspaceGatewayApiBasePath(apiBasePath)}/status`;
+  return `${trimApiBasePath(apiBasePath)}/status`;
 }
 
-export function workspaceGatewayOperationsApiPath(
+export function workspaceGatewayPushesApiPath(
   apiBasePath = WORKSPACE_GATEWAY_API_ROUTE_PREFIX,
 ): string {
-  return `${trimWorkspaceGatewayApiBasePath(apiBasePath)}/operations`;
+  return `${trimApiBasePath(apiBasePath)}/pushes`;
+}
+
+export function workspaceGatewayPushApiPath(
+  pushId: string,
+  apiBasePath = WORKSPACE_GATEWAY_API_ROUTE_PREFIX,
+): string {
+  return `${workspaceGatewayPushesApiPath(apiBasePath)}/${encodeURIComponent(pushId)}`;
+}
+
+export function workspaceGatewayPushInteractionApiPath(
+  pushId: string,
+  interactionId: string,
+  apiBasePath = WORKSPACE_GATEWAY_API_ROUTE_PREFIX,
+): string {
+  return `${workspaceGatewayPushApiPath(pushId, apiBasePath)}/interactions/${encodeURIComponent(
+    interactionId,
+  )}`;
 }
 
 export function workspaceGatewayAutoSaveApiPath(
   apiBasePath = WORKSPACE_GATEWAY_API_ROUTE_PREFIX,
 ): string {
-  return `${trimWorkspaceGatewayApiBasePath(apiBasePath)}/auto-save`;
+  return `${trimApiBasePath(apiBasePath)}/auto-save`;
 }
 
-export function workspaceGatewayOperationApiPath(
-  operationId: string,
-  apiBasePath = WORKSPACE_GATEWAY_API_ROUTE_PREFIX,
-): string {
-  return `${workspaceGatewayOperationsApiPath(apiBasePath)}/${encodeURIComponent(operationId)}`;
-}
-
-export function workspaceGatewayOperationPath(
+export function parseWorkspaceGatewayPushPath(
   pathname: string,
-): WorkspaceGatewayOperationPath | undefined {
-  const suffix = pathname.slice(`${WORKSPACE_GATEWAY_OPERATIONS_API_PATH}/`.length);
+): WorkspaceGatewayPushPath | undefined {
+  const prefix = `${WORKSPACE_GATEWAY_PUSHES_API_PATH}/`;
+  if (!pathname.startsWith(prefix)) return undefined;
+  const parts = pathname.slice(prefix.length).split("/");
 
-  if (pathname === WORKSPACE_GATEWAY_OPERATIONS_API_PATH || suffix === pathname) {
-    return undefined;
+  if (parts.length === 1 && isWorkspaceGatewayPushId(parts[0])) {
+    return { kind: "push", pushId: parts[0] };
   }
-
-  const parts = suffix.split("/").filter(Boolean);
-
-  if (parts.length === 1) {
-    return { operationId: parts[0] ?? "", progress: false };
+  if (
+    parts.length === 3 &&
+    parts[1] === "interactions" &&
+    isWorkspaceGatewayPushId(parts[0]) &&
+    isWorkspaceGatewayInteractionId(parts[2])
+  ) {
+    return { interactionId: parts[2], kind: "interaction", pushId: parts[0] };
   }
-
-  if (parts.length === 2 && parts[1] === "progress") {
-    return { operationId: parts[0] ?? "", progress: true };
-  }
-
   return undefined;
 }
 
-export function parseWorkspaceGatewayOperationId(
+export function isWorkspaceGatewayPushId(value: unknown): value is string {
+  return typeof value === "string" && pushIdPattern.test(value);
+}
+
+export function isWorkspaceGatewayInteractionId(value: unknown): value is string {
+  return typeof value === "string" && interactionIdPattern.test(value);
+}
+
+export function isWorkspaceGatewayAccountId(value: unknown): value is string {
+  return typeof value === "string" && accountIdPattern.test(value);
+}
+
+export function isWorkspaceGatewayPushMode(value: unknown): value is WorkspaceGatewayPushMode {
+  return value === "dry-run" || value === "apply";
+}
+
+export function isWorkspaceGatewayPushPhaseId(
   value: unknown,
-): WorkspaceGatewayOperationIdParseResult {
-  return parseWorkspaceOperationId(value);
+): value is WorkspaceGatewayPushPhaseId {
+  return (
+    typeof value === "string" &&
+    (WORKSPACE_GATEWAY_PUSH_PHASE_IDS as readonly string[]).includes(value)
+  );
 }
 
-export function isWorkspaceGatewayOperationKind(
+export function isWorkspaceGatewayPushFailureCode(
   value: unknown,
-): value is WorkspaceGatewayOperationKind {
-  return isWorkspaceDefinitionGatewayOperationKind(value);
+): value is WorkspaceGatewayPushFailureCode {
+  return (
+    typeof value === "string" &&
+    (WORKSPACE_GATEWAY_PUSH_FAILURE_CODES as readonly string[]).includes(value)
+  );
 }
 
-export function isWorkspaceGatewayBootstrapOperationKind(
-  operation: WorkspaceGatewayOperationKind,
-): boolean {
-  return workspaceOperationBootstrapAllowed(operation);
+export function isWorkspaceGatewayErrorCode(value: unknown): value is WorkspaceGatewayErrorCode {
+  return (
+    typeof value === "string" &&
+    (WORKSPACE_GATEWAY_ERROR_CODES as readonly string[]).includes(value)
+  );
 }
 
-export function isWorkspaceGatewayMutatingStartOperationKind(
-  operation: WorkspaceGatewayOperationKind,
-): boolean {
-  return workspaceOperationMode(operation) === "write";
-}
-
-export function workspaceGatewayStatusIntent(): WorkspaceGatewayOperationIntent {
-  return workspaceGatewayReadOperationIntent("status");
-}
-
-export function workspaceGatewayStartOperationIntent(
-  input: WorkspaceGatewayOperationKind | WorkspaceGatewayStartInput,
-): WorkspaceGatewayOperationIntent {
-  const operation = typeof input === "string" ? input : input.kind;
-
-  return {
-    bootstrapAllowed: workspaceOperationBootstrapAllowed(operation),
-    executionRequirements:
-      typeof input === "string"
-        ? workspaceOperationBaseExecutionRequirements(operation)
-        : workspaceOperationEffectiveExecutionRequirements(input),
-    mutating: workspaceOperationMode(operation) === "write",
-    operation,
-    requiredCapability: workspaceOperationRequiredCapability(operation),
-  };
-}
-
-export function workspaceGatewayReadOperationIntent(
-  operation: WorkspaceGatewayOperationKind,
-): WorkspaceGatewayOperationIntent {
-  return {
-    bootstrapAllowed: workspaceOperationBootstrapAllowed(operation),
-    executionRequirements: workspaceOperationBaseExecutionRequirements(operation),
-    mutating: false,
-    operation,
-    requiredCapability: workspaceOperationRequiredCapability(operation),
-  };
-}
-
-export function workspaceGatewayAutoSaveEnqueueIntent(): WorkspaceGatewayOperationIntent {
-  return workspaceGatewayStartOperationIntent("save");
-}
-
-export function workspaceGatewayOperationExecutionDecision(input: {
-  actor: WorkspaceOperationActor;
-  capabilities: readonly WorkspaceOperationRequiredCapability[];
-  intent: WorkspaceGatewayOperationIntent;
-  mutating?: boolean;
-  operationInput?: WorkspaceGatewayStartInput;
-}): WorkspaceOperationExecutionDecision {
-  const intentDecision = workspaceGatewayOperationIntentDecision(input);
-
-  if (!intentDecision.ok) {
-    return intentDecision;
-  }
-
-  return workspaceOperationExecutionDecision({
-    actor: input.actor,
-    capabilities: input.capabilities,
-    kind: input.intent.operation,
-  });
-}
-
-function workspaceGatewayOperationIntentDecision(input: {
-  intent: WorkspaceGatewayOperationIntent;
-  mutating?: boolean;
-  operationInput?: WorkspaceGatewayStartInput;
-}): WorkspaceOperationExecutionDecision {
-  const operation = input.intent.operation;
-
-  if (input.operationInput !== undefined && input.operationInput.kind !== operation) {
-    return { error: "Workspace gateway operation intent is invalid.", ok: false };
-  }
-
-  const expectedMutating =
-    input.operationInput === undefined
-      ? input.mutating
-      : workspaceOperationMode(input.operationInput.kind) === "write";
-
-  if (expectedMutating !== undefined && input.intent.mutating !== expectedMutating) {
-    return { error: "Workspace gateway operation intent is invalid.", ok: false };
-  }
-
-  if (input.intent.bootstrapAllowed !== workspaceOperationBootstrapAllowed(operation)) {
-    return { error: "Workspace gateway operation intent is invalid.", ok: false };
-  }
-
-  if (input.intent.requiredCapability !== workspaceOperationRequiredCapability(operation)) {
-    return { error: "Workspace gateway operation intent is invalid.", ok: false };
-  }
-
-  const expectedRequirements =
-    input.operationInput === undefined
-      ? workspaceOperationBaseExecutionRequirements(operation)
-      : workspaceOperationEffectiveExecutionRequirements(input.operationInput);
-
-  if (
-    !sameWorkspaceGatewayExecutionRequirements(
-      input.intent.executionRequirements,
-      expectedRequirements,
-    )
-  ) {
-    return { error: "Workspace gateway operation intent is invalid.", ok: false };
-  }
-
-  return { ok: true };
-}
-
-export function parseWorkspaceGatewayAutoSaveEnqueueInput(
+export function parseWorkspaceGatewayPushStartInput(
   body: unknown,
-): WorkspaceGatewayAutoSaveEnqueueInputParseResult {
-  const forbidden = forbiddenWorkspaceGatewayInput(body);
-
-  if (forbidden) {
-    return { error: forbidden, ok: false };
+): WorkspaceGatewayParseResult<WorkspaceGatewayPushStartInput> {
+  if (!isExactRecord(body, ["mode", "targetAlias"]) || !isWorkspaceGatewayPushMode(body.mode)) {
+    return invalidParse();
   }
-
-  if (!isRecord(body)) {
-    return { error: "Workspace auto-save enqueue request must be an object.", ok: false };
+  if (body.targetAlias !== undefined && !isWorkspaceGatewayTargetAlias(body.targetAlias)) {
+    return invalidParse();
   }
-
-  const unsupportedField = Object.keys(body).find((field) => field !== "source");
-
-  if (unsupportedField) {
-    return {
-      error: `Workspace auto-save enqueue does not allow field "${unsupportedField}".`,
-      ok: false,
-    };
-  }
-
-  if (!isWorkspaceAutoSaveWriteSource(body.source)) {
-    return { error: "Workspace auto-save write source is invalid.", ok: false };
-  }
-
   return {
-    input: { source: body.source },
+    input: {
+      mode: body.mode,
+      ...(body.targetAlias === undefined ? {} : { targetAlias: body.targetAlias }),
+    },
     ok: true,
   };
 }
 
-export function parseWorkspaceGatewayStartInput(
+export function parseWorkspaceGatewayAccountSelectionInput(
   body: unknown,
-): WorkspaceGatewayStartInputParseResult {
-  const forbidden = forbiddenWorkspaceGatewayInput(body);
-
-  if (forbidden) {
-    return { error: forbidden, ok: false };
+): WorkspaceGatewayParseResult<WorkspaceGatewayAccountSelectionInput> {
+  if (
+    !isExactRecord(body, ["accountId", "kind"]) ||
+    body.kind !== "account-selection" ||
+    !isWorkspaceGatewayAccountId(body.accountId)
+  ) {
+    return invalidParse();
   }
-
-  if (!isRecord(body)) {
-    return { error: "Workspace gateway operation request must be an object.", ok: false };
-  }
-
-  const kind = typeof body.kind === "string" ? body.kind : body.operation;
-
-  if (typeof kind !== "string") {
-    return { error: 'Workspace gateway operation request must include "kind".', ok: false };
-  }
-
-  const definition = workspaceGatewayOperationDefinitionForRequestKind(kind);
-
-  if (!definition) {
-    return { error: `Workspace gateway operation "${kind}" is not supported.`, ok: false };
-  }
-
-  const unsupportedField = unsupportedWorkspaceGatewayRequestField(body, definition);
-
-  if (unsupportedField) {
-    return {
-      error: `Workspace gateway operation "${kind}" does not allow field "${unsupportedField}".`,
-      ok: false,
-    };
-  }
-
-  try {
-    const input: Record<string, unknown> = { kind: definition.kind };
-
-    for (const fieldKey of workspaceOperationGatewayInputFields(definition.kind)) {
-      const field = workspaceOperationInputFieldDefinition(definition.kind, fieldKey);
-      input[field.key] = parseWorkspaceGatewayInputField(field, body[field.key]);
-    }
-
-    return { input: input as WorkspaceGatewayStartInput, ok: true };
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error), ok: false };
-  }
+  return { input: { accountId: body.accountId, kind: body.kind }, ok: true };
 }
 
-export function forbiddenWorkspaceGatewayInput(
+export function parseWorkspaceGatewayAutoSaveEnqueueInput(
+  body: unknown,
+): WorkspaceGatewayParseResult<WorkspaceGatewayAutoSaveEnqueueInput> {
+  if (!isExactRecord(body, ["source"]) || !isWorkspaceAutoSaveWriteSource(body.source)) {
+    return invalidParse();
+  }
+  return { input: { source: body.source }, ok: true };
+}
+
+export function workspaceGatewayStatusIntent(): WorkspaceGatewayIntent {
+  return {
+    bootstrapAllowed: true,
+    executionRequirements: [],
+    kind: "status",
+    mutating: false,
+  };
+}
+
+export function workspaceGatewayPushStartIntent(
+  input: WorkspaceGatewayPushStartInput,
+): WorkspaceGatewayIntent {
+  return {
+    bootstrapAllowed: false,
+    executionRequirements: workspaceOperationEffectiveExecutionRequirements({
+      dryRun: input.mode === "dry-run",
+      kind: "push",
+      ...(input.targetAlias === undefined ? {} : { targetAlias: input.targetAlias }),
+    }),
+    kind: "push-start",
+    mutating: true,
+    requiredCapability: workspaceOperationRequiredCapability("push"),
+  };
+}
+
+export function workspaceGatewayPushReadIntent(): WorkspaceGatewayIntent {
+  return {
+    bootstrapAllowed: false,
+    executionRequirements: workspaceOperationBaseExecutionRequirements("push"),
+    kind: "push-read",
+    mutating: false,
+    requiredCapability: workspaceOperationRequiredCapability("push"),
+  };
+}
+
+export function workspaceGatewayInteractionSubmitIntent(): WorkspaceGatewayIntent {
+  return {
+    bootstrapAllowed: false,
+    executionRequirements: workspaceOperationEffectiveExecutionRequirements({
+      dryRun: false,
+      kind: "push",
+    }),
+    kind: "interaction-submit",
+    mutating: true,
+    requiredCapability: workspaceOperationRequiredCapability("push"),
+  };
+}
+
+export function workspaceGatewayAutoSaveEnqueueIntent(): WorkspaceGatewayIntent {
+  return {
+    bootstrapAllowed: false,
+    executionRequirements: workspaceOperationBaseExecutionRequirements("save"),
+    kind: "auto-save",
+    mutating: true,
+    requiredCapability: workspaceOperationRequiredCapability("save"),
+  };
+}
+
+export function workspaceGatewayIntentAllowed(input: {
+  actor: "automation" | "browser" | "cli" | "system";
+  capabilities: readonly WorkspaceOperationRequiredCapability[];
+  intent: WorkspaceGatewayIntent;
+}): boolean {
+  if (input.intent.kind === "status") return true;
+  const operationKind = input.intent.kind === "auto-save" ? "save" : "push";
+  return (
+    workspaceOperationActorAllowed(operationKind, input.actor) &&
+    (input.intent.requiredCapability === undefined ||
+      input.capabilities.includes(input.intent.requiredCapability))
+  );
+}
+
+export function isWorkspaceGatewayAccountChoice(
   value: unknown,
-  label = "request",
-): string | undefined {
-  if (typeof value === "string") {
-    if (secretLookingText(value)) {
-      return `Workspace gateway ${label} includes secret-looking text.`;
-    }
-
-    if (pathTraversalText(value) || shellCommandText(value)) {
-      return `Workspace gateway ${label} includes forbidden path or shell text.`;
-    }
-
-    return undefined;
-  }
-
-  if (Array.isArray(value)) {
-    for (const [index, item] of value.entries()) {
-      const forbidden = forbiddenWorkspaceGatewayInput(item, `${label}[${index}]`);
-
-      if (forbidden) {
-        return forbidden;
-      }
-    }
-
-    return undefined;
-  }
-
-  if (!isRecord(value)) {
-    return undefined;
-  }
-
-  for (const [key, child] of Object.entries(value)) {
-    if (forbiddenWorkspaceGatewayInputKey(key)) {
-      return `Workspace gateway request includes forbidden key "${key}".`;
-    }
-
-    const forbidden = forbiddenWorkspaceGatewayInput(child, `${label}.${key}`);
-
-    if (forbidden) {
-      return forbidden;
-    }
-  }
-
-  return undefined;
+): value is WorkspaceGatewayAccountChoice {
+  return (
+    isExactRecord(value, ["id", "name"]) &&
+    isWorkspaceGatewayAccountId(value.id) &&
+    (value.name === undefined ||
+      (typeof value.name === "string" && value.name.length > 0 && value.name.length <= 256))
+  );
 }
 
-function workspaceGatewayOperationDefinitionForRequestKind(
-  requestKind: string,
-): WorkspaceGatewayOperationDefinition | undefined {
+export function isWorkspaceGatewayPush(value: unknown): value is WorkspaceGatewayPush {
+  if (
+    !isRecord(value) ||
+    !isWorkspaceGatewayPushId(value.id) ||
+    !isWorkspaceGatewayPushMode(value.mode) ||
+    !isIsoTime(value.createdAt) ||
+    !isIsoTime(value.updatedAt) ||
+    (value.targetAlias !== undefined && !isWorkspaceGatewayTargetAlias(value.targetAlias)) ||
+    !isWorkspaceGatewayPushPhases(value.phases)
+  ) {
+    return false;
+  }
+
+  const baseKeys = ["createdAt", "id", "lifecycle", "mode", "phases", "targetAlias", "updatedAt"];
+  switch (value.lifecycle) {
+    case "queued":
+      return (
+        isExactRecord(value, baseKeys) && value.phases.every((phase) => phase.status === "pending")
+      );
+    case "running":
+      return (
+        isExactRecord(value, baseKeys) && value.phases.every((phase) => phase.status !== "failed")
+      );
+    case "waiting-for-interaction":
+      return (
+        isExactRecord(value, [...baseKeys, "interaction"]) &&
+        value.phases.filter((phase) => phase.status === "running").length === 1 &&
+        isPushInteraction(value.interaction)
+      );
+    case "succeeded":
+      return (
+        isExactRecord(value, [...baseKeys, "outcome"]) &&
+        value.phases.every((phase) => phase.status === "succeeded" || phase.status === "skipped") &&
+        (value.outcome === "up-to-date" ||
+          (value.outcome === "planned" && value.mode === "dry-run") ||
+          (value.outcome === "applied" && value.mode === "apply"))
+      );
+    case "failed":
+      return (
+        isExactRecord(value, [...baseKeys, "failedPhase", "failureCode"]) &&
+        isWorkspaceGatewayPushPhaseId(value.failedPhase) &&
+        isWorkspaceGatewayPushFailureCode(value.failureCode) &&
+        value.phases.filter((phase) => phase.status === "failed").length === 1 &&
+        value.phases.some((phase) => phase.id === value.failedPhase && phase.status === "failed")
+      );
+    default:
+      return false;
+  }
+}
+
+export function isWorkspaceGatewayStatusResponse(
+  value: unknown,
+): value is WorkspaceGatewayStatusResponse {
+  return (
+    isExactRecord(value, ["csrfToken", "currentPush", "gateway", "latestPush"]) &&
+    value.gateway === "available" &&
+    (value.csrfToken === undefined || typeof value.csrfToken === "string") &&
+    (value.currentPush === null || isWorkspaceGatewayPush(value.currentPush)) &&
+    (value.latestPush === null || isWorkspaceGatewayPush(value.latestPush)) &&
+    (value.currentPush === null || !isTerminalPush(value.currentPush)) &&
+    (value.latestPush === null || isTerminalPush(value.latestPush))
+  );
+}
+
+export function isWorkspaceGatewayPushResponse(
+  value: unknown,
+): value is WorkspaceGatewayPushResponse {
+  return isExactRecord(value, ["push"]) && isWorkspaceGatewayPush(value.push);
+}
+
+export function isWorkspaceGatewayApiErrorBody(
+  value: unknown,
+): value is WorkspaceGatewayApiErrorBody {
+  return isExactRecord(value, ["code"]) && isWorkspaceGatewayErrorCode(value.code);
+}
+
+export function isTerminalWorkspaceGatewayPush(push: WorkspaceGatewayPush): boolean {
+  return isTerminalPush(push);
+}
+
+export function assertWorkspaceGatewayAuthorizationUrl(value: string): void {
+  let url: URL;
   try {
-    return workspaceOperationDefinitionForGatewayRequestKind(requestKind);
+    url = new URL(value);
   } catch {
-    return undefined;
+    throw new Error("Gateway authorization URL is invalid.");
+  }
+  if (
+    url.protocol !== "https:" ||
+    url.origin !== "https://dash.cloudflare.com" ||
+    url.pathname !== "/oauth2/auth" ||
+    url.username !== "" ||
+    url.password !== "" ||
+    url.hash !== ""
+  ) {
+    throw new Error("Gateway authorization URL is invalid.");
   }
 }
 
-function unsupportedWorkspaceGatewayRequestField(
-  body: Record<string, unknown>,
-  definition: WorkspaceGatewayOperationDefinition,
-): string | undefined {
-  const allowedFields = new Set<string>(
-    workspaceOperationGatewayAllowedRequestFields(definition.kind),
-  );
-
-  return Object.keys(body).find((field) => !allowedFields.has(field));
-}
-
-function parseWorkspaceGatewayInputField(
-  field: WorkspaceOperationInputFieldDefinition,
+function isWorkspaceGatewayPushPhases(
   value: unknown,
-): boolean | null | string | undefined {
-  if (value === undefined && "defaultValue" in field) {
-    return field.defaultValue;
-  }
-
-  switch (field.valueType) {
-    case "boolean":
-      return optionalBoolean(value);
-    case "enum": {
-      const parsed = optionalString(value);
-
-      if (parsed === undefined || parsed === null) {
-        if (field.required) {
-          throw new Error(invalidWorkspaceGatewayEnumFieldError(field));
-        }
-
-        return parsed;
-      }
-
-      if (field.allowedValues !== undefined && !field.allowedValues.includes(parsed)) {
-        throw new Error(invalidWorkspaceGatewayEnumFieldError(field));
-      }
-
-      return parsed;
+): value is readonly WorkspaceGatewayPushPhase[] {
+  if (!Array.isArray(value) || value.length !== WORKSPACE_GATEWAY_PUSH_PHASE_IDS.length)
+    return false;
+  let active = false;
+  let pending = false;
+  return value.every((phase, index) => {
+    if (
+      !isExactRecord(phase, ["id", "status"]) ||
+      phase.id !== WORKSPACE_GATEWAY_PUSH_PHASE_IDS[index] ||
+      !["pending", "running", "succeeded", "skipped", "failed"].includes(phase.status as string)
+    ) {
+      return false;
     }
-    case "string":
-      return optionalString(value);
+    if (phase.status === "pending") {
+      pending = true;
+      return true;
+    }
+    if (phase.status === "running" || phase.status === "failed") {
+      if (active || pending) return false;
+      active = true;
+      return true;
+    }
+    return !active && !pending;
+  });
+}
+
+function isPushInteraction(value: unknown): boolean {
+  if (
+    !isRecord(value) ||
+    !isWorkspaceGatewayInteractionId(value.id) ||
+    !isIsoTime(value.expiresAt)
+  ) {
+    return false;
   }
-}
-
-function invalidWorkspaceGatewayEnumFieldError(
-  field: WorkspaceOperationInputFieldDefinition,
-): string {
-  if (field.key === "provider" && field.allowedValues?.length === 1) {
-    return `Workspace credential setup provider must be "${field.allowedValues[0]}".`;
+  if (value.kind === "external-authorization") {
+    if (
+      !isExactRecord(value, ["expiresAt", "id", "kind", "provider", "url"]) ||
+      value.provider !== "cloudflare" ||
+      typeof value.url !== "string"
+    ) {
+      return false;
+    }
+    try {
+      assertWorkspaceGatewayAuthorizationUrl(value.url);
+      return true;
+    } catch {
+      return false;
+    }
   }
-
-  return `Workspace gateway ${field.key} is invalid.`;
-}
-
-function trimWorkspaceGatewayApiBasePath(apiBasePath: string): string {
-  return apiBasePath.replace(/\/+$/, "");
-}
-
-function forbiddenWorkspaceGatewayInputKey(key: string): boolean {
-  const normalized = key.toLowerCase().replaceAll(/[-_]/g, "");
-
-  return (
-    normalized === "path" ||
-    normalized === "workspacepath" ||
-    normalized === "filepath" ||
-    normalized === "filesystem" ||
-    normalized === "command" ||
-    normalized === "shell" ||
-    normalized.startsWith("raw") ||
-    normalized.includes("providerstate") ||
-    normalized.endsWith("token") ||
-    normalized.endsWith("secret") ||
-    normalized.endsWith("password") ||
-    normalized.includes("apikey")
-  );
-}
-
-function secretLookingText(value: string): boolean {
-  return /(?:TOKEN|PASSWORD|SECRET|API[_-]?KEY)\s*=/i.test(value) || /^Bearer\s+/i.test(value);
-}
-
-function pathTraversalText(value: string): boolean {
-  return (
-    value.includes("../") ||
-    value.includes("..\\") ||
-    /^\/(?:etc|tmp|Users|var|home)\//.test(value) ||
-    /^[A-Za-z]:\\/.test(value)
-  );
-}
-
-function shellCommandText(value: string): boolean {
-  return /(?:^|[;&|]\s*)(?:bash|curl|rm|sh|zsh)(?:\s|$)/.test(value);
-}
-
-function optionalString(value: unknown): string | null | undefined {
-  if (value === undefined || value === null) {
-    return value;
+  if (
+    value.kind !== "account-selection" ||
+    !isExactRecord(value, ["choices", "expiresAt", "id", "kind", "provider"]) ||
+    value.provider !== "cloudflare" ||
+    !Array.isArray(value.choices) ||
+    value.choices.length === 0 ||
+    value.choices.length > 100 ||
+    !value.choices.every(isWorkspaceGatewayAccountChoice)
+  ) {
+    return false;
   }
-
-  if (typeof value !== "string") {
-    throw new Error("Workspace gateway string field must be a string.");
-  }
-
-  return value;
+  return new Set(value.choices.map((choice) => choice.id)).size === value.choices.length;
 }
 
-function optionalBoolean(value: unknown): boolean | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (typeof value !== "boolean") {
-    throw new Error("Workspace gateway boolean field must be a boolean.");
-  }
-
-  return value;
+function isWorkspaceGatewayTargetAlias(value: unknown): value is string {
+  return typeof value === "string" && value.length <= 128 && targetAliasPattern.test(value);
 }
 
-function sameWorkspaceGatewayExecutionRequirements(
-  left: readonly string[],
-  right: readonly string[],
-): boolean {
-  return (
-    left.length === right.length && left.every((requirement, index) => right[index] === requirement)
-  );
+function isTerminalPush(push: WorkspaceGatewayPush): boolean {
+  return push.lifecycle === "succeeded" || push.lifecycle === "failed";
+}
+
+function isIsoTime(value: unknown): value is string {
+  return typeof value === "string" && Number.isFinite(Date.parse(value));
+}
+
+function trimApiBasePath(apiBasePath: string): string {
+  return apiBasePath.replace(/\/$/, "");
+}
+
+function invalidParse<T>(): WorkspaceGatewayParseResult<T> {
+  return { code: "invalid-request", ok: false };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isExactRecord(
+  value: unknown,
+  allowedKeys: readonly string[],
+): value is Record<string, unknown> {
+  return isRecord(value) && Object.keys(value).every((key) => allowedKeys.includes(key));
 }

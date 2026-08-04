@@ -1,4 +1,3 @@
-import type { WorkspaceGatewayStartInput } from "@dpeek/formless-gateway";
 import type {
   WorkspaceAutoSaveEnqueueInput,
   WorkspaceAutoSaveWriteSource,
@@ -9,22 +8,8 @@ import {
   type SaveLocalFormlessWorkspaceDependencies,
 } from "./instance-workspace-source-sync.ts";
 
-export type WorkspaceAutoSaveSuppressionReason =
-  | "auto-save"
-  | "gateway-operation-state"
-  | "manual-save"
-  | "push-deploy-remote-apply"
-  | "workspace-check-status"
-  | "workspace-pull";
-
-export type WorkspaceGatewayOperationAutoSaveScheduler = {
+export type WorkspaceGatewayAutoSaveScheduler = {
   enqueue: (input: WorkspaceAutoSaveEnqueueInput & { workspaceRoot: string }) => Promise<void>;
-  recordGatewayOperationStateSuppressed: (input: { workspaceRoot: string }) => Promise<void>;
-  recordSaved: (input: { throughGeneration: number; workspaceRoot: string }) => Promise<void>;
-  recordWorkspaceOperationSuppressed: (input: {
-    operationInput: WorkspaceGatewayStartInput;
-    workspaceRoot: string;
-  }) => Promise<number | undefined>;
 };
 
 export type WorkspaceAutoSaveSchedulerSaveInput = {
@@ -39,7 +24,7 @@ export type WorkspaceAutoSaveSchedulerFailure = WorkspaceAutoSaveSchedulerSaveIn
 
 export type WorkspaceAutoSaveScheduler = {
   runNow: (workspaceRoot: string) => Promise<void>;
-} & WorkspaceGatewayOperationAutoSaveScheduler;
+} & WorkspaceGatewayAutoSaveScheduler;
 
 export type WorkspaceAutoSaveSchedulerDependencies = {
   clearTimeout?: (timer: WorkspaceAutoSaveTimer) => void;
@@ -69,7 +54,6 @@ type WorkspaceAutoSavePendingWrite = {
 type WorkspaceAutoSaveSchedulerEntry = {
   dirtyGeneration: number;
   inFlightGeneration?: number;
-  lastSuppression?: WorkspaceAutoSaveSuppressionReason;
   pendingWrites: WorkspaceAutoSavePendingWrite[];
   retryCount: number;
   runAfterCurrent?: boolean;
@@ -94,10 +78,6 @@ export function createWorkspaceAutoSaveScheduler(
     ((timer: WorkspaceAutoSaveTimer) => {
       clearTimeout(timer as ReturnType<typeof setTimeout>);
     });
-
-  const recordSuppressed = (workspaceRoot: string, reason: WorkspaceAutoSaveSuppressionReason) => {
-    schedulerEntry(entries, workspaceRoot).lastSuppression = reason;
-  };
 
   const schedule = (workspaceRoot: string, delayMs: number) => {
     const entry = schedulerEntry(entries, workspaceRoot);
@@ -153,8 +133,6 @@ export function createWorkspaceAutoSaveScheduler(
     };
 
     entry.inFlightGeneration = dirtyGeneration;
-    recordSuppressed(workspaceRoot, "auto-save");
-
     try {
       await dependencies.save(saveInput);
       recordSavedThrough(entry, dirtyGeneration);
@@ -180,24 +158,6 @@ export function createWorkspaceAutoSaveScheduler(
       entry.pendingWrites.push({ generation: entry.dirtyGeneration, source: input.source });
       entry.retryCount = 0;
       schedule(input.workspaceRoot, debounceMs);
-    },
-    recordGatewayOperationStateSuppressed: async ({ workspaceRoot }) => {
-      recordSuppressed(workspaceRoot, "gateway-operation-state");
-    },
-    recordSaved: async ({ throughGeneration, workspaceRoot }) => {
-      recordSavedThrough(schedulerEntry(entries, workspaceRoot), throughGeneration);
-    },
-    recordWorkspaceOperationSuppressed: async ({ operationInput, workspaceRoot }) => {
-      const reason = autoSaveSuppressionReasonForWorkspaceOperation(operationInput);
-
-      if (reason === undefined) {
-        return undefined;
-      }
-
-      const entry = schedulerEntry(entries, workspaceRoot);
-
-      recordSuppressed(workspaceRoot, reason);
-      return reason === "manual-save" ? entry.dirtyGeneration : undefined;
     },
     runNow: async (workspaceRoot) => {
       const entry = schedulerEntry(entries, workspaceRoot);
@@ -280,24 +240,6 @@ function reportFailure(
     report(error, input);
   } catch {
     // Diagnostics must not change scheduler behavior.
-  }
-}
-
-function autoSaveSuppressionReasonForWorkspaceOperation(
-  operationInput: WorkspaceGatewayStartInput,
-): WorkspaceAutoSaveSuppressionReason | undefined {
-  switch (operationInput.kind) {
-    case "check":
-    case "status":
-      return "workspace-check-status";
-    case "push":
-      return "push-deploy-remote-apply";
-    case "pull":
-      return "workspace-pull";
-    case "save":
-      return operationInput.check ? "workspace-check-status" : "manual-save";
-    case "credentialSetup":
-      return undefined;
   }
 }
 

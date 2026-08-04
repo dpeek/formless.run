@@ -1,44 +1,14 @@
-/**
- * Versioned public workspace gateway wire contract.
- *
- * Keep route strings, environment variable names, header names, gateway
- * authorization facts, and transport response wrappers here. Semantic
- * operation contracts come from the Workspace package.
- */
-import {
-  WORKSPACE_BOOTSTRAP_OPERATION_KINDS,
-  WORKSPACE_GATEWAY_OPERATION_KINDS as WORKSPACE_DEFINITION_GATEWAY_OPERATION_KINDS,
-} from "@dpeek/formless-workspace";
 import type {
   WorkspaceAutoSaveEnqueueInput,
   WorkspaceAutoSaveWriteSource,
-  WorkspaceGatewayOperationKind as WorkspaceDefinitionGatewayOperationKind,
-  WorkspaceOperationCheckOrPullStartInput,
-  WorkspaceOperationCredentialSetupStartInput,
-  WorkspaceOperationDisplayObject,
-  WorkspaceOperationDisplayValue,
-  WorkspaceOperationError,
-  WorkspaceOperationEvent,
+  WorkspaceOperationActor,
   WorkspaceOperationExecutionRequirement,
-  WorkspaceOperationExternalAuthorizationEvent,
-  WorkspaceOperationIdParseResult,
-  WorkspaceOperationLog,
-  WorkspaceOperationPushStartInput,
-  WorkspaceOperationResult,
-  WorkspaceOperationSaveStartInput,
-  WorkspaceOperationStartInput,
-  WorkspaceOperationState,
-  WorkspaceOperationStatus,
   WorkspaceOperationRequiredCapability,
-  WorkspaceOperationStep,
-  WorkspaceOperationStepStatus,
-  WorkspaceOperationSummary,
-  WorkspaceOperationStatusStartInput,
 } from "@dpeek/formless-workspace";
 
 export const WORKSPACE_GATEWAY_API_ROUTE_PREFIX = "/api/formless/workspace";
 export const WORKSPACE_GATEWAY_STATUS_API_PATH = `${WORKSPACE_GATEWAY_API_ROUTE_PREFIX}/status`;
-export const WORKSPACE_GATEWAY_OPERATIONS_API_PATH = `${WORKSPACE_GATEWAY_API_ROUTE_PREFIX}/operations`;
+export const WORKSPACE_GATEWAY_PUSHES_API_PATH = `${WORKSPACE_GATEWAY_API_ROUTE_PREFIX}/pushes`;
 export const WORKSPACE_GATEWAY_AUTO_SAVE_API_PATH = `${WORKSPACE_GATEWAY_API_ROUTE_PREFIX}/auto-save`;
 export const LOCAL_SESSION_BOOTSTRAP_API_PATH = "/api/formless/local-session/bootstrap";
 
@@ -56,104 +26,192 @@ export const WORKSPACE_GATEWAY_CSRF_COOKIE_NAME = "formless_workspace_csrf";
 export const WORKSPACE_GATEWAY_PROXY_AUTHORIZATION_HEADER = "x-formless-workspace-proxy-token";
 export const WORKSPACE_GATEWAY_ACTOR_HEADER = "x-formless-workspace-actor";
 export const WORKSPACE_GATEWAY_AUTHORIZATION_VIA_HEADER = "x-formless-workspace-authorization-via";
-export const WORKSPACE_GATEWAY_OPERATION_KIND_HEADER = "x-formless-workspace-operation-kind";
+export const WORKSPACE_GATEWAY_INTENT_HEADER = "x-formless-workspace-gateway-intent";
 
-/**
- * Browser-safe operation allowlist from the Workspace package. Gateway uses
- * these wire strings for transport intent classification only.
- */
-export const WORKSPACE_GATEWAY_OPERATION_KINDS = WORKSPACE_DEFINITION_GATEWAY_OPERATION_KINDS;
+export const WORKSPACE_GATEWAY_PUSH_PHASE_IDS = [
+  "credentials",
+  "account-selection",
+  "desired-state-plan",
+  "provider-reconciliation",
+  "health-check",
+  "owner-setup",
+  "workspace-push-writeback",
+  "observation-refresh",
+] as const;
 
-/**
- * Operations allowed before owner setup through the local bootstrap capability.
- */
-export const WORKSPACE_GATEWAY_BOOTSTRAP_OPERATION_KINDS = WORKSPACE_BOOTSTRAP_OPERATION_KINDS;
+export const WORKSPACE_GATEWAY_PUSH_FAILURE_CODES = [
+  "source-invalid",
+  "credential-unavailable",
+  "authorization-expired",
+  "account-discovery-failed",
+  "interaction-expired",
+  "target-unavailable",
+  "target-conflict",
+  "schema-incompatible",
+  "backup-failed",
+  "provider-reconciliation-failed",
+  "health-check-failed",
+  "owner-setup-failed",
+  "restore-validation-failed",
+  "restore-apply-failed",
+  "observation-write-failed",
+  "internal-failure",
+] as const;
 
-export type WorkspaceGatewayOperationKind = WorkspaceDefinitionGatewayOperationKind;
+export const WORKSPACE_GATEWAY_ERROR_CODES = [
+  "invalid-request",
+  "unauthorized",
+  "forbidden",
+  "bootstrap-expired",
+  "csrf-invalid",
+  "gateway-unavailable",
+  "push-active",
+  "push-not-found",
+  "interaction-not-found",
+  "interaction-invalid",
+  "interaction-expired",
+  "invalid-sidecar-response",
+  "method-not-allowed",
+  "not-found",
+] as const;
 
-export type WorkspaceGatewayOperationStatus = WorkspaceOperationStatus;
-
-export type WorkspaceGatewayOperationStepStatus = WorkspaceOperationStepStatus;
-
-export type WorkspaceGatewayActor = "automation" | "browser" | "cli" | "system";
-
+export type WorkspaceGatewayActor = WorkspaceOperationActor;
 export type WorkspaceGatewayAuthorizationVia = "admin-bearer" | "bootstrap" | "owner-session";
-
 export type WorkspaceGatewayActorFacts = {
   actor: WorkspaceGatewayActor;
   via: WorkspaceGatewayAuthorizationVia;
 };
 
-export type WorkspaceGatewayDisplayValue = WorkspaceOperationDisplayValue;
+export type WorkspaceGatewayPushMode = "dry-run" | "apply";
+export type WorkspaceGatewayPushLifecycle =
+  | "queued"
+  | "running"
+  | "waiting-for-interaction"
+  | "succeeded"
+  | "failed";
+export type WorkspaceGatewayPushPhaseId = (typeof WORKSPACE_GATEWAY_PUSH_PHASE_IDS)[number];
+export type WorkspaceGatewayPushPhaseStatus =
+  | "pending"
+  | "running"
+  | "succeeded"
+  | "skipped"
+  | "failed";
+export type WorkspaceGatewayPushPhase = {
+  id: WorkspaceGatewayPushPhaseId;
+  status: WorkspaceGatewayPushPhaseStatus;
+};
+export type WorkspaceGatewayPushOutcome = "up-to-date" | "planned" | "applied";
+export type WorkspaceGatewayPushFailureCode = (typeof WORKSPACE_GATEWAY_PUSH_FAILURE_CODES)[number];
 
-export type WorkspaceGatewayDisplayObject = WorkspaceOperationDisplayObject;
+export type WorkspaceGatewayAccountChoice = {
+  id: string;
+  name?: string;
+};
 
-export type WorkspaceGatewayOperationSummary = WorkspaceOperationSummary;
+export type WorkspaceGatewayExternalAuthorizationInteraction = {
+  expiresAt: string;
+  id: string;
+  kind: "external-authorization";
+  provider: "cloudflare";
+  url: string;
+};
 
-export type WorkspaceGatewayOperationLog = WorkspaceOperationLog;
+export type WorkspaceGatewayAccountSelectionInteraction = {
+  choices: readonly WorkspaceGatewayAccountChoice[];
+  expiresAt: string;
+  id: string;
+  kind: "account-selection";
+  provider: "cloudflare";
+};
 
-export type WorkspaceGatewayOperationError = WorkspaceOperationError;
+export type WorkspaceGatewayPushInteraction =
+  | WorkspaceGatewayExternalAuthorizationInteraction
+  | WorkspaceGatewayAccountSelectionInteraction;
 
-export type WorkspaceGatewayExternalAuthorizationEvent =
-  WorkspaceOperationExternalAuthorizationEvent;
+type WorkspaceGatewayPushBase = {
+  createdAt: string;
+  id: string;
+  mode: WorkspaceGatewayPushMode;
+  phases: readonly WorkspaceGatewayPushPhase[];
+  targetAlias?: string;
+  updatedAt: string;
+};
 
-export type WorkspaceGatewayOperationEvent = WorkspaceOperationEvent;
+export type WorkspaceGatewayPush =
+  | (WorkspaceGatewayPushBase & { lifecycle: "queued" | "running" })
+  | (WorkspaceGatewayPushBase & {
+      interaction: WorkspaceGatewayPushInteraction;
+      lifecycle: "waiting-for-interaction";
+    })
+  | (WorkspaceGatewayPushBase & {
+      lifecycle: "succeeded";
+      outcome: WorkspaceGatewayPushOutcome;
+    })
+  | (WorkspaceGatewayPushBase & {
+      failedPhase: WorkspaceGatewayPushPhaseId;
+      failureCode: WorkspaceGatewayPushFailureCode;
+      lifecycle: "failed";
+    });
 
-export type WorkspaceGatewayOperationResult = WorkspaceOperationResult;
+export type WorkspaceGatewayPushStartInput = {
+  mode: WorkspaceGatewayPushMode;
+  targetAlias?: string;
+};
 
-export type WorkspaceGatewayOperationStep = WorkspaceOperationStep;
+export type WorkspaceGatewayAccountSelectionInput = {
+  accountId: string;
+  kind: "account-selection";
+};
+
+export type WorkspaceGatewayStatusResponse = {
+  csrfToken?: string;
+  currentPush: WorkspaceGatewayPush | null;
+  gateway: "available";
+  latestPush: WorkspaceGatewayPush | null;
+};
+
+export type WorkspaceGatewayPushResponse = {
+  push: WorkspaceGatewayPush;
+};
+
+export type WorkspaceGatewayErrorCode = (typeof WORKSPACE_GATEWAY_ERROR_CODES)[number];
+export type WorkspaceGatewayApiErrorBody = { code: WorkspaceGatewayErrorCode };
 
 export type WorkspaceGatewayAutoSaveWriteSource = WorkspaceAutoSaveWriteSource;
-
 export type WorkspaceGatewayAutoSaveEnqueueInput = WorkspaceAutoSaveEnqueueInput;
 
-/**
- * Gateway transport alias for Workspace-owned display-safe operation state.
- */
-export type WorkspaceGatewayOperation = Omit<WorkspaceOperationState, "operation"> & {
-  operation: WorkspaceGatewayOperationKind;
-};
-
-export type WorkspaceGatewaySaveStartInput = WorkspaceOperationSaveStartInput;
-
-export type WorkspaceGatewayStatusStartInput = WorkspaceOperationStatusStartInput;
-
-export type WorkspaceGatewayCheckOrPullStartInput = WorkspaceOperationCheckOrPullStartInput;
-
-export type WorkspaceGatewayPushStartInput = WorkspaceOperationPushStartInput;
-
-export type WorkspaceGatewayCredentialSetupStartInput = WorkspaceOperationCredentialSetupStartInput;
-
-export type WorkspaceGatewayStartInput = WorkspaceOperationStartInput;
-
-export type WorkspaceGatewayResponse = {
-  csrfToken?: string;
-  operation: WorkspaceGatewayOperation;
-};
-
-export type WorkspaceGatewayApiErrorBody = {
-  error: string;
-};
-
-export type WorkspaceGatewayOperationIntent = {
+export type WorkspaceGatewayIntent = {
   bootstrapAllowed: boolean;
   executionRequirements: readonly WorkspaceOperationExecutionRequirement[];
+  kind: "auto-save" | "interaction-submit" | "push-read" | "push-start" | "status";
   mutating: boolean;
-  operation: WorkspaceGatewayOperationKind;
-  requiredCapability: WorkspaceOperationRequiredCapability;
+  requiredCapability?: WorkspaceOperationRequiredCapability;
 };
 
-export type WorkspaceGatewayOperationPath = {
-  operationId: string;
-  progress: boolean;
+export type WorkspaceGatewayPushPath =
+  | { kind: "push"; pushId: string }
+  | { interactionId: string; kind: "interaction"; pushId: string };
+
+export type WorkspaceGatewayParseResult<T> =
+  | { input: T; ok: true }
+  | { code: "invalid-request"; ok: false };
+
+export type WorkspaceGatewayPushExecutionResult = {
+  outcome: WorkspaceGatewayPushOutcome;
 };
 
-export type WorkspaceGatewayOperationIdParseResult = WorkspaceOperationIdParseResult;
+export type WorkspaceGatewayPushPhaseObserver = {
+  fail(phase: WorkspaceGatewayPushPhaseId, code: WorkspaceGatewayPushFailureCode): never;
+  requestAccountSelection(choices: readonly WorkspaceGatewayAccountChoice[]): Promise<string>;
+  setExternalAuthorization(url: string): string;
+  skip(phase: WorkspaceGatewayPushPhaseId): void;
+  start(phase: WorkspaceGatewayPushPhaseId): void;
+  succeed(phase: WorkspaceGatewayPushPhaseId): void;
+};
 
-export type WorkspaceGatewayStartInputParseResult =
-  | { input: WorkspaceGatewayStartInput; ok: true }
-  | { error: string; ok: false };
-
-export type WorkspaceGatewayAutoSaveEnqueueInputParseResult =
-  | { input: WorkspaceGatewayAutoSaveEnqueueInput; ok: true }
-  | { error: string; ok: false };
+export type WorkspaceGatewayPushHandler = (input: {
+  authorization: WorkspaceGatewayActorFacts;
+  observer: WorkspaceGatewayPushPhaseObserver;
+  push: WorkspaceGatewayPushStartInput;
+  workspaceRoot: string;
+}) => Promise<WorkspaceGatewayPushExecutionResult>;

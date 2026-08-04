@@ -8,8 +8,8 @@ Read this when editing `src/cli/*`.
 
 - Public `formless` command parsing, option syntax, terminal help labels, and dispatch behavior.
 - CLI runtime startup, local workspace process control, terminal output, and browser-opening decisions.
-- Command and operation runtime adapters that bind CLI actors to workspace operation definitions.
-- CLI workspace domain code for local filesystem effects, process effects, terminal-facing policy, provider adapter assembly, ignored local secret state, and workspace operation execution policy.
+- Command and Gateway Push runtime adapters that bind CLI actors to semantic workspace operation metadata.
+- CLI workspace domain code for local filesystem effects, process effects, terminal-facing policy, provider adapter assembly, ignored local secret state, and typed workspace execution.
 - Focused CLI-internal workspace domains for source sync, target/context resolution, provider credential resolution, deployment execution, deployment refresh, destroy, and operation-body tests.
 
 ## Does Not Own
@@ -32,7 +32,7 @@ Read this when editing `src/cli/*`.
 
 - `cli.ts` and `cli-command.ts`: public command parsing, help, and dispatch.
 - `package-commands.ts`: package command entrypoints.
-- `instance-workspace-*operation*.ts`: workspace operation contracts, runner, handlers, and domain operation bodies.
+- `instance-workspace-source-sync.ts` and `instance-workspace-deployment.ts`: typed workspace source and deployment execution.
 - `instance-target-context.ts` and `instance-target-client.ts`: target selection, target facts, and instance protocol access.
 - `instance-workspace-credential-setup.ts`, `cloudflare-oauth.ts`, and provider runner modules: credential and provider adapter assembly.
 - `archive-*`, `upgrade-*`, and runtime extension modules: CLI-owned workflow helpers for workspace source, archives, upgrades, and deploy code setup.

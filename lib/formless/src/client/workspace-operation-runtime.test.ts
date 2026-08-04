@@ -1,293 +1,133 @@
 import { describe, expect, it } from "vite-plus/test";
-import type { WorkspaceGatewayOperation } from "@dpeek/formless-gateway/client";
-
+import type { WorkspaceGatewayPush } from "@dpeek/formless-gateway/client";
 import {
   executeWorkspaceGatewayGeneratedOperation,
-  workspaceGatewayOperationGeneratedProgress,
-  workspaceGatewayOperationGeneratedRuntimeAdapterResponse,
-  workspaceGatewayStartInputFromGeneratedOperation,
+  workspaceGatewayPushGeneratedProgress,
+  workspaceGatewayPushGeneratedRuntimeAdapterResponse,
+  workspaceGatewayPushStartInputFromGeneratedOperation,
 } from "./workspace-operation-runtime.ts";
 import type {
   GeneratedOperationControlBinding,
   GeneratedOperationProgress,
 } from "./operation-control-model.ts";
 
-describe("workspace operation generated runtime adapter", () => {
-  it("builds push gateway start input from definition-declared generated fields", () => {
+describe("workspace Push generated runtime adapter", () => {
+  it("projects only mode and optional target alias from generated input", () => {
     expect(
-      workspaceGatewayStartInputFromGeneratedOperation({
-        binding: workspaceBinding(),
-        callerInput: {
-          bindingId: "workspace-push",
-          input: {
-            dryRun: false,
-            providerToken: "secret-provider-token",
-            targetAlias: "instance.primary",
-            workspacePath: "/Users/dpeek/project",
-          },
-          source: "button",
-        },
-        input: {
-          dryRun: false,
+      workspaceGatewayPushStartInputFromGeneratedOperation(
+        request({
+          dryRun: true,
           providerToken: "secret-provider-token",
           targetAlias: "instance.primary",
-          workspacePath: "/Users/dpeek/project",
-        },
-        reportProgress: () => {},
-        source: { surface: "button" },
-      }),
-    ).toEqual({
-      dryRun: false,
-      kind: "push",
-      targetAlias: "instance.primary",
-    });
+          workspacePath: "/Users/example/project",
+        }),
+      ),
+    ).toEqual({ mode: "dry-run", targetAlias: "instance.primary" });
   });
-  it("starts push through the gateway client and reports polled generated progress", async () => {
-    const calls: Array<{
-      body?: unknown;
-      method?: string;
-      url: string;
-    }> = [];
+
+  it("starts and polls the exact Push resource", async () => {
+    const calls: Array<{ body?: unknown; method?: string; url: string }> = [];
     const reported: GeneratedOperationProgress[] = [];
-    const running = workspaceOperation({
-      status: "running",
-      steps: [
-        { id: "sync-plan", label: "Plan workspace source", status: "succeeded" },
-        { id: "provider", label: "Provider reconciliation", status: "running" },
-        { id: "health", label: "Health check", status: "pending" },
-      ],
-      summary: {
-        fields: { noop: false },
-        title: "Workspace push running",
-      },
-      updatedAt: "2026-06-02T00:00:01.000Z",
-    });
-    const succeeded = workspaceOperation({
-      status: "succeeded",
-      steps: [
-        { id: "sync-plan", label: "Plan workspace source", status: "succeeded" },
-        { id: "provider", label: "Provider reconciliation", status: "succeeded" },
-        { id: "health", label: "Health check", status: "succeeded" },
-      ],
-      summary: {
-        fields: { noop: false },
-        title: "Workspace push applied",
-      },
-      updatedAt: "2026-06-02T00:00:02.000Z",
-    });
     const fetcher: typeof fetch = async (input, init) => {
       calls.push({
         body: requestJsonBody(init?.body),
         method: init?.method,
         url: requestUrl(input),
       });
-
-      return Response.json({
-        csrfToken: "csrf-token",
-        operation: calls.length === 1 ? running : succeeded,
-      });
+      return calls.length === 1
+        ? Response.json({ push: push("running") })
+        : Response.json({ push: succeededPush("applied") });
     };
 
     const response = await executeWorkspaceGatewayGeneratedOperation(
-      {
-        binding: workspaceBinding(),
-        callerInput: {
-          bindingId: "workspace-push",
-          input: { dryRun: false, providerToken: "secret-provider-token" },
-          source: "button",
-        },
-        input: { dryRun: false, providerToken: "secret-provider-token" },
-        reportProgress: (progress) => reported.push(progress),
-        source: { surface: "button" },
-      },
+      request({ dryRun: false }, reported),
       {
         config: { apiBasePath: "/api/formless/workspace" },
         csrfToken: "csrf-token",
         fetcher,
-        wait: async () => {},
+        wait: async () => undefined,
       },
     );
 
     expect(calls).toEqual([
       {
-        body: { dryRun: false, kind: "push" },
+        body: { mode: "apply" },
         method: "POST",
-        url: "/api/formless/workspace/operations",
+        url: "/api/formless/workspace/pushes",
       },
       {
         body: undefined,
         method: undefined,
-        url: "/api/formless/workspace/operations/op_push_00000001",
+        url: "/api/formless/workspace/pushes/push_1234567890abcdef",
       },
     ]);
     expect(reported).toHaveLength(2);
-    expect(reported[0]).toMatchObject({
-      title: "Workspace push running",
-      steps: [
-        { id: "sync-plan", label: "Plan workspace source", status: "succeeded" },
-        { id: "provider", label: "Provider reconciliation", status: "running" },
-        { id: "health", label: "Health check", status: "pending" },
-      ],
-    });
     expect(response).toMatchObject({
+      displayMessage: "Workspace Push applied.",
+      output: { outcome: "applied", pushId: "push_1234567890abcdef" },
       status: "committed",
-      displayMessage: "Workspace push applied.",
-      output: {
-        operationId: "op_push_00000001",
-        operationKind: "push",
-        status: "succeeded",
-      },
     });
   });
 
-  it("maps display-safe push progress and replayed results without gateway internals", () => {
-    const operation = workspaceOperation({
-      input: {
-        proxyToken: "sidecar-proxy-token",
-      },
-      logs: [
-        {
-          at: "2026-06-02T00:00:01.000Z",
-          id: "log-1",
-          level: "info",
-          message:
-            'Raw deploy log at /Users/dpeek/project with CLOUDFLARE_API_TOKEN="secret-token".',
-        },
-      ],
-      result: {
-        deployment: {
-          providerToken: "secret-provider-token",
-          rawAdapterOutput: "raw provider payload",
-        },
-        summary: {
-          fields: {
-            noop: true,
-            proxyToken: "sidecar-proxy-token",
-          },
-          title: "Workspace push applied",
-        },
-      },
-      status: "succeeded",
-      steps: [
-        {
-          fields: { providerToken: "secret-provider-token" },
-          id: "sync-plan",
-          label: "Plan workspace source",
-          status: "succeeded",
-        },
-        {
-          detail: "Provider state already matches the workspace source.",
-          fields: { proxyToken: "sidecar-proxy-token" },
-          id: "provider",
-          label: "Provider reconciliation",
-          status: "skipped",
-        },
-      ],
-      summary: {
-        fields: {
-          noop: true,
-          proxyToken: "sidecar-proxy-token",
-        },
-        title: "Workspace push applied",
-      },
+  it("submits only a listed account through the current interaction", async () => {
+    const calls: Array<{ body?: unknown; url: string }> = [];
+    const fetcher: typeof fetch = async (input, init) => {
+      calls.push({ body: requestJsonBody(init?.body), url: requestUrl(input) });
+      return calls.length === 1
+        ? Response.json({ push: accountSelectionPush() })
+        : Response.json({ push: succeededPush("applied") });
+    };
+
+    const response = await executeWorkspaceGatewayGeneratedOperation(request({}), {
+      config: { apiBasePath: "/api/formless/workspace" },
+      csrfToken: "csrf-token",
+      fetcher,
+      selectAccount: async (interaction) => interaction.choices[0]!.id,
+      wait: async () => undefined,
     });
 
-    const progress = workspaceGatewayOperationGeneratedProgress(operation);
-    const response = workspaceGatewayOperationGeneratedRuntimeAdapterResponse(operation);
-    const serialized = JSON.stringify({ progress, response });
-
-    expect(progress).toEqual({
-      title: "Workspace push applied",
-      updatedAt: Date.parse("2026-06-02T00:00:00.000Z"),
-      steps: [
-        { id: "sync-plan", label: "Plan workspace source", status: "succeeded" },
-        {
-          id: "provider",
-          label: "Provider reconciliation",
-          detail: "Provider state already matches the workspace source.",
-          status: "skipped",
-        },
-      ],
+    expect(calls[1]).toEqual({
+      body: { accountId: "account-a", kind: "account-selection" },
+      url: "/api/formless/workspace/pushes/push_1234567890abcdef/interactions/interaction_1234567890abcdef",
     });
-    expect(response).toMatchObject({
-      status: "replayed",
-      displayMessage: "Workspace source push already applied.",
-    });
-    expect(serialized).not.toContain("secret-provider-token");
-    expect(serialized).not.toContain("sidecar-proxy-token");
-    expect(serialized).not.toContain("raw provider payload");
-    expect(serialized).not.toContain("Raw deploy log");
-    expect(serialized).not.toContain("/Users/dpeek");
+    expect(response.status).toBe("committed");
   });
 
-  it("maps failed push state to concise display-safe failure feedback", () => {
-    const operation = workspaceOperation({
-      errors: [
-        {
-          at: "2026-06-02T00:00:02.000Z",
-          message: "Health check failed with TOKEN=[redacted] at <workspace>/deploy.",
-        },
-      ],
-      logs: [
-        {
-          at: "2026-06-02T00:00:01.000Z",
-          id: "log-1",
-          level: "error",
-          message:
-            'Provider output at /Users/dpeek/project with CLOUDFLARE_API_TOKEN="secret-token".',
-        },
-      ],
-      result: {
-        deployment: {
-          providerToken: "secret-provider-token",
-        },
-        summary: {
-          fields: { proxyToken: "sidecar-proxy-token" },
-          title: "Workspace push failed",
-        },
-      },
+  it("uses fixed progress, outcome, and failure copy without diagnostic data", () => {
+    const failed = {
+      ...push("running"),
+      failureCode: "health-check-failed",
+      lifecycle: "failed",
+      phases: phaseIds().map((id) => ({
+        id,
+        status: id === "health-check" ? "failed" : id === "credentials" ? "succeeded" : "pending",
+      })),
+    } as WorkspaceGatewayPush;
+    const progress = workspaceGatewayPushGeneratedProgress(failed);
+    const response = workspaceGatewayPushGeneratedRuntimeAdapterResponse(failed);
+
+    expect(progress.steps.find((step) => step.id === "health-check")).toEqual({
+      id: "health-check",
+      label: "Check deployed runtime",
       status: "failed",
-      steps: [
-        { id: "sync-plan", label: "Plan workspace source", status: "succeeded" },
-        {
-          error: "Health check failed with TOKEN=[redacted].",
-          fields: { providerToken: "secret-provider-token" },
-          id: "health",
-          label: "Health check",
-          status: "failed",
-        },
-      ],
-      summary: {
-        fields: { workspacePath: "/Users/dpeek/project" },
-        title: "Workspace push failed",
-      },
     });
-
-    const response = workspaceGatewayOperationGeneratedRuntimeAdapterResponse(operation);
-    const serialized = JSON.stringify(response);
-
     expect(response).toMatchObject({
+      displayError: "The deployed runtime did not pass its health check.",
       status: "failed",
-      displayError: "Health check failed with TOKEN=[redacted] at <workspace>/deploy.",
-      progress: {
-        detail: "Health check failed with TOKEN=[redacted].",
-        steps: [
-          { id: "sync-plan", label: "Plan workspace source", status: "succeeded" },
-          {
-            detail: "Health check failed with TOKEN=[redacted].",
-            id: "health",
-            label: "Health check",
-            status: "failed",
-          },
-        ],
-      },
     });
-    expect(serialized).not.toContain("secret-provider-token");
-    expect(serialized).not.toContain("sidecar-proxy-token");
-    expect(serialized).not.toContain("Provider output");
-    expect(serialized).not.toContain("/Users/dpeek");
+    expect(JSON.stringify({ progress, response })).not.toContain("secret");
   });
 });
+
+function request(input: Record<string, unknown>, reported: GeneratedOperationProgress[] = []) {
+  return {
+    binding: workspaceBinding(),
+    callerInput: { bindingId: "workspace-push", input, source: "button" as const },
+    input,
+    reportProgress: (progress: GeneratedOperationProgress) => reported.push(progress),
+    source: { surface: "button" as const },
+  };
+}
 
 function workspaceBinding(): GeneratedOperationControlBinding {
   return {
@@ -311,31 +151,54 @@ function workspaceBinding(): GeneratedOperationControlBinding {
   };
 }
 
-function workspaceOperation(
-  overrides: Partial<WorkspaceGatewayOperation> = {},
-): WorkspaceGatewayOperation {
+function push(lifecycle: "queued" | "running"): WorkspaceGatewayPush {
   return {
-    actor: "browser",
-    createdAt: "2026-06-02T00:00:00.000Z",
-    errors: [],
-    events: [],
-    id: "op_push_00000001",
-    input: {},
-    kind: "formless.workspaceOperation",
-    logs: [],
-    operation: "push",
-    status: "running",
-    summary: {
-      fields: {},
-      title: "Workspace push running",
-    },
-    updatedAt: "2026-06-02T00:00:00.000Z",
-    version: 1,
-    workspace: {
-      label: "personal-sites",
-    },
-    ...overrides,
+    createdAt: "2026-08-04T00:00:00.000Z",
+    id: "push_1234567890abcdef",
+    lifecycle,
+    mode: "apply",
+    phases: phaseIds().map((id, index) => ({
+      id,
+      status: index === 0 ? "running" : "pending",
+    })),
+    updatedAt: "2026-08-04T00:00:01.000Z",
   };
+}
+
+function succeededPush(outcome: "applied" | "planned" | "up-to-date"): WorkspaceGatewayPush {
+  return {
+    ...push("running"),
+    lifecycle: "succeeded",
+    outcome,
+    phases: phaseIds().map((id) => ({ id, status: "succeeded" })),
+  };
+}
+
+function accountSelectionPush(): WorkspaceGatewayPush {
+  return {
+    ...push("running"),
+    interaction: {
+      choices: [{ id: "account-a", name: "Account A" }],
+      expiresAt: "2026-08-04T00:05:00.000Z",
+      id: "interaction_1234567890abcdef",
+      kind: "account-selection",
+      provider: "cloudflare",
+    },
+    lifecycle: "waiting-for-interaction",
+  };
+}
+
+function phaseIds() {
+  return [
+    "credentials",
+    "account-selection",
+    "desired-state-plan",
+    "provider-reconciliation",
+    "health-check",
+    "owner-setup",
+    "workspace-push-writeback",
+    "observation-refresh",
+  ] as const;
 }
 
 function requestJsonBody(body: BodyInit | null | undefined): unknown {
@@ -343,13 +206,5 @@ function requestJsonBody(body: BodyInit | null | undefined): unknown {
 }
 
 function requestUrl(input: RequestInfo | URL): string {
-  if (typeof input === "string") {
-    return input;
-  }
-
-  if (input instanceof URL) {
-    return input.toString();
-  }
-
-  return input.url;
+  return typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
 }

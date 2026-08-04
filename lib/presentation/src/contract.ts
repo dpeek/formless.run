@@ -2860,7 +2860,19 @@ export type ManagementAuthorizationOpenIntent = {
   type: "managementAuthorizationOpen";
 };
 
+export type ManagementAccountSelectionIntent = {
+  accountId: string;
+  controlId: string;
+  interactionId: string;
+  managementId: string;
+  operationId: string;
+  promptId: string;
+  pushId: string;
+  type: "managementAccountSelection";
+};
+
 export type ManagementIntent =
+  | ManagementAccountSelectionIntent
   | ManagementAuthorizationOpenIntent
   | ManagementWorkspaceOperationIntent;
 
@@ -2875,7 +2887,22 @@ export type ManagementAuthorizationPromptContract = {
   title: string;
 };
 
+export type ManagementAccountSelectionPromptContract = {
+  choices: readonly {
+    action: ButtonContract;
+    accountId: string;
+    id: string;
+    intent: ManagementAccountSelectionIntent;
+    label: string;
+  }[];
+  detail?: string;
+  id: string;
+  kind: "managementAccountSelectionPrompt";
+  title: string;
+};
+
 export type ManagementWorkspaceOperationContract = {
+  accountSelectionPrompt?: ManagementAccountSelectionPromptContract;
   authorizationPrompt?: ManagementAuthorizationPromptContract;
   control: OperationControlContract;
   id: string;

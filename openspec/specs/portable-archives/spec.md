@@ -473,19 +473,18 @@ envelopes.
 
 ### Requirement: Workspace Package Boundary
 
-The system SHALL expose reusable Formless workspace source, local state, and
-semantic operation contracts through the Workspace package slice.
+The system SHALL expose reusable Formless workspace source, local and secret
+state, and semantic operation metadata through the Workspace package slice.
 
 #### Scenario: Package owns workspace source contracts
 
-- **WHEN** CLI runtime, Gateway runtime adapters, archive workflows,
+- **WHEN** CLI runtime, archive workflows,
   tests, or local agent workflows need `formless.ts` configuration contracts,
   default resolution, workspace path validation and defaults,
   workspace target URL normalization, workspace storage snapshot contracts,
-  ignored local state
-  contracts, ignored secret state contracts, semantic workspace operation input
-  shapes, display-safe operation state, operation result shapes, operation
-  redaction, or deterministic local filesystem workspace IO
+  ignored local state contracts, ignored secret state contracts, semantic
+  operation keys and execution requirements, or deterministic local filesystem
+  workspace IO
 - **THEN** they import that behavior from `@dpeek/formless-workspace` or
   `@dpeek/formless-workspace/node`
 - **AND** they import package-owned workspace behavior only through exported
@@ -511,11 +510,11 @@ semantic operation contracts through the Workspace package slice.
   workflows, Deploy runtime, Worker runtime, Gateway runtime adapters, or
   provider adapters
 - **AND** the Workspace package supplies source/state contracts, pure helpers,
-  display-safe state handling, and local filesystem adapters rather than
+  and local filesystem adapters rather than
   owning Program records, deployed runtime records, provider credentials, or
   Cloudflare and Alchemy execution
-- **AND** display-safe operation state persists under ignored local workspace
-  state, not reviewable storage snapshots or media payloads
+- **AND** the Workspace package does not persist generic operation state under
+  ignored or reviewable workspace state
 
 ### Requirement: Instance Workspaces
 
@@ -683,8 +682,8 @@ history.
 - **AND** the file does not embed the full Program App schema object
 - **AND** `formless.ts` does not duplicate that intent
 - **AND** deployment attempts, evidence summaries, and cleanup
-  audit summaries are available only through deployment runtime projection or
-  gateway operation status, not reviewable workspace state
+  audit summaries are available only through deployment runtime projection, not
+  reviewable workspace state or Gateway Push
 - **AND** deployment config observation cache fields are omitted from reviewable
   workspace state
 - **AND** secret-looking fields are rejected from reviewable workspace state

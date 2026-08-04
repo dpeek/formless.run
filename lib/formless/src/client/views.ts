@@ -59,10 +59,11 @@ export {
 export {
   createWorkspaceGatewayGeneratedOperationRuntimeAdapter,
   executeWorkspaceGatewayGeneratedOperation,
-  workspaceGatewayOperationGeneratedProgress,
-  workspaceGatewayOperationGeneratedProgressSteps,
-  workspaceGatewayOperationGeneratedRuntimeAdapterResponse,
-  workspaceGatewayStartInputFromGeneratedOperation,
+  workspaceGatewayPushGeneratedProgress,
+  workspaceGatewayPushGeneratedProgressSteps,
+  workspaceGatewayPushGeneratedRuntimeAdapterResponse,
+  workspaceGatewayPushStartInputFromGeneratedOperation,
+  workspaceGatewayStatusObservedPush,
 } from "./workspace-operation-runtime.ts";
 export {
   createIdleGeneratedOperationExecutionState,

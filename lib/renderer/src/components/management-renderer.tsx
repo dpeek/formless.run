@@ -208,6 +208,9 @@ function AstryxManagementWorkspaceControls({
         {operation?.authorizationPrompt ? (
           <AstryxManagementAuthorizationPrompt onIntent={onIntent} operation={operation} />
         ) : null}
+        {operation?.accountSelectionPrompt ? (
+          <AstryxManagementAccountSelectionPrompt onIntent={onIntent} operation={operation} />
+        ) : null}
       </VStack>
     </Card>
   );
@@ -270,6 +273,49 @@ function AstryxManagementAuthorizationPrompt({
         </VStack>
         <AstryxManagementButton button={prompt.action} onPress={() => onIntent(prompt.intent)} />
       </HStack>
+    </Card>
+  );
+}
+
+function AstryxManagementAccountSelectionPrompt({
+  onIntent,
+  operation,
+}: {
+  onIntent: ManagementIntentHandler;
+  operation: ManagementWorkspaceOperationContract;
+}) {
+  const prompt = operation.accountSelectionPrompt;
+  if (!prompt) return null;
+
+  return (
+    <Card
+      aria-label={prompt.title}
+      data-formless-astryx-management-account-selection={prompt.id}
+      padding={3}
+      variant="muted"
+      width="100%"
+    >
+      <VStack gap={2} width="100%">
+        <VStack gap={0.5}>
+          <Text display="block" type="label" weight="medium">
+            {prompt.title}
+          </Text>
+          {prompt.detail ? (
+            <Text color="secondary" display="block" type="supporting">
+              {prompt.detail}
+            </Text>
+          ) : null}
+        </VStack>
+        <HStack align="center" gap={2} width="100%" wrap="wrap">
+          {prompt.choices.map((choice) => (
+            <AstryxManagementButton
+              button={choice.action}
+              key={choice.id}
+              onPress={() => onIntent(choice.intent)}
+            />
+          ))}
+        </HStack>
+      </VStack>
     </Card>
   );
 }

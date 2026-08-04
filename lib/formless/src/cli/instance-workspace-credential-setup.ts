@@ -12,6 +12,7 @@ import {
 import {
   FORMLESS_CLOUDFLARE_OAUTH_CLIENT_ID,
   FORMLESS_CLOUDFLARE_OAUTH_DEPLOY_SCOPES,
+  FORMLESS_CLOUDFLARE_OAUTH_REDIRECT_URI,
   assertFormlessCloudflareDeployScopesGranted,
   createFormlessCloudflareOAuthCredential,
   createNodeFormlessCloudflareOAuthAdapter,
@@ -299,6 +300,34 @@ export async function setupCloudflareCredentialsWithFormlessOAuth(
     requestedScopes: [...FORMLESS_CLOUDFLARE_OAUTH_DEPLOY_SCOPES],
     scopeSet: "formless-cloudflare-deploy-oauth",
   };
+}
+
+export function assertFormlessCloudflareCredentialAuthorization(
+  result: FormlessCloudflareCredentialAuthorizationWaitingResult,
+): void {
+  const url = new URL(result.authorizationUrl);
+  const expectedScopes = FORMLESS_CLOUDFLARE_OAUTH_DEPLOY_SCOPES.join(" ");
+  const state = url.searchParams.get("state");
+  const challenge = url.searchParams.get("code_challenge");
+
+  if (
+    url.origin !== "https://dash.cloudflare.com" ||
+    url.pathname !== "/oauth2/auth" ||
+    url.searchParams.get("client_id") !== FORMLESS_CLOUDFLARE_OAUTH_CLIENT_ID ||
+    result.clientId !== FORMLESS_CLOUDFLARE_OAUTH_CLIENT_ID ||
+    url.searchParams.get("redirect_uri") !== FORMLESS_CLOUDFLARE_OAUTH_REDIRECT_URI ||
+    url.searchParams.get("response_type") !== "code" ||
+    url.searchParams.get("scope") !== expectedScopes ||
+    result.requestedScopes.join(" ") !== expectedScopes ||
+    result.scopeSet !== "formless-cloudflare-deploy-oauth" ||
+    !state ||
+    !/^[A-Za-z0-9_-]{32,256}$/.test(state) ||
+    !challenge ||
+    !/^[A-Za-z0-9_-]{32,256}$/.test(challenge) ||
+    url.searchParams.get("code_challenge_method") !== "S256"
+  ) {
+    throw new Error("Formless Cloudflare OAuth authorization facts are invalid.");
+  }
 }
 
 async function completeFormlessOAuthCredentialSetup(input: {

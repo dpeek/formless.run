@@ -2,7 +2,7 @@
  * Local Node Workspace package adapter entrypoint.
  */
 import { randomUUID } from "node:crypto";
-import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { AppSchema } from "@dpeek/formless-schema";
@@ -19,21 +19,12 @@ import {
   WORKSPACE_MEDIA_MANIFEST_VERSION,
   WORKSPACE_RECORD_STATE_FILE_KIND,
   WORKSPACE_RECORD_STATE_FILE_VERSION,
-  WORKSPACE_OPERATION_STATE_ROOT,
   formatWorkspaceRecordStateFile,
-  formatWorkspaceOperationState,
-  initialWorkspaceOperationState,
-  nextWorkspaceOperationState,
   parseInstanceWorkspaceRelativePath,
   parseWorkspaceRecordStateFile,
-  parseWorkspaceOperationStateJson,
-  workspaceOperationStateFileName,
 } from "./index.ts";
 import type {
-  InitialWorkspaceOperationStateInput,
   ResolvedFormlessConfig,
-  UpdateWorkspaceOperationStateInput,
-  WorkspaceOperationState,
   WorkspaceMediaManifestVersion,
   WorkspaceRecordStateFile,
   WorkspaceSchemaProvenance,
@@ -67,14 +58,6 @@ export type WriteInstanceWorkspaceSecretStateResult = {
 export type WriteInstanceWorkspaceLocalDevSecretStateResult = {
   path: string;
   state: InstanceWorkspaceLocalDevSecretState;
-};
-
-export type CreateWorkspaceOperationStateInput = Omit<
-  InitialWorkspaceOperationStateInput,
-  "id" | "workspaceLabel"
-> & {
-  id?: string;
-  workspaceLabel?: string;
 };
 
 export type InstanceWorkspaceMediaFile = {
@@ -125,17 +108,6 @@ export function instanceWorkspaceSecretStatePath(workspaceRoot: string): string 
 
 export function instanceWorkspaceLocalDevSecretStatePath(localStateRoot: string): string {
   return path.join(localStateRoot, INSTANCE_WORKSPACE_LOCAL_DEV_SECRET_STATE_FILE);
-}
-
-export function workspaceOperationStateRoot(workspaceRoot: string): string {
-  return path.join(workspaceRoot, WORKSPACE_OPERATION_STATE_ROOT);
-}
-
-export function workspaceOperationStatePath(workspaceRoot: string, operationId: string): string {
-  return path.join(
-    workspaceOperationStateRoot(workspaceRoot),
-    `${workspaceOperationStateFileName(operationId)}.json`,
-  );
 }
 
 export function instanceWorkspaceStateRootPath(
@@ -626,18 +598,6 @@ export async function ensureInstanceWorkspaceLocalDevSecretState(
   return write;
 }
 
-async function writeFileAtomically(filePath: string, contents: string): Promise<void> {
-  const tempPath = `${filePath}.${randomUUID()}.tmp`;
-
-  try {
-    await writeFile(tempPath, contents);
-    await rename(tempPath, filePath);
-  } catch (error) {
-    await rm(tempPath, { force: true }).catch(() => undefined);
-    throw error;
-  }
-}
-
 export async function ensureInstanceWorkspaceSecretStateIgnored(
   workspaceRoot: string,
 ): Promise<string> {
@@ -654,87 +614,6 @@ export async function ensureInstanceWorkspaceSecretStateIgnored(
   await writeFile(gitignorePath, `${prefix}${INSTANCE_WORKSPACE_GITIGNORE_ENTRY}\n`);
 
   return gitignorePath;
-}
-
-export async function createWorkspaceOperationState(
-  input: CreateWorkspaceOperationStateInput,
-): Promise<WorkspaceOperationState> {
-  const state = initialWorkspaceOperationState({
-    ...input,
-    id: input.id ?? `op_${randomUUID()}`,
-    workspaceLabel: input.workspaceLabel ?? (path.basename(input.workspaceRoot) || "."),
-  });
-
-  await writeWorkspaceOperationState(input.workspaceRoot, state);
-
-  return state;
-}
-
-export async function readWorkspaceOperationState(input: {
-  operationId: string;
-  workspaceRoot: string;
-}): Promise<WorkspaceOperationState> {
-  return parseWorkspaceOperationStateJson(
-    await readFile(workspaceOperationStatePath(input.workspaceRoot, input.operationId), "utf8"),
-  );
-}
-
-export async function listWorkspaceOperationStates(
-  workspaceRoot: string,
-): Promise<WorkspaceOperationState[]> {
-  let entries: Array<{ isFile(): boolean; name: string }>;
-
-  try {
-    entries = await readdir(workspaceOperationStateRoot(workspaceRoot), {
-      withFileTypes: true,
-    });
-  } catch (error) {
-    if (isNodeError(error) && error.code === "ENOENT") {
-      return [];
-    }
-
-    throw error;
-  }
-
-  const states = await Promise.all(
-    entries
-      .filter((entry) => entry.isFile() && entry.name.endsWith(".json"))
-      .map((entry) =>
-        readFile(path.join(workspaceOperationStateRoot(workspaceRoot), entry.name), "utf8"),
-      ),
-  );
-
-  return states
-    .map(parseWorkspaceOperationStateJson)
-    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
-}
-
-export async function updateWorkspaceOperationState(
-  operationId: string,
-  input: UpdateWorkspaceOperationStateInput,
-): Promise<WorkspaceOperationState> {
-  const current = await readWorkspaceOperationState({
-    operationId,
-    workspaceRoot: input.workspaceRoot,
-  });
-  const next = nextWorkspaceOperationState(current, input);
-
-  await writeWorkspaceOperationState(input.workspaceRoot, next);
-
-  return next;
-}
-
-export async function writeWorkspaceOperationState(
-  workspaceRoot: string,
-  state: WorkspaceOperationState,
-): Promise<void> {
-  await mkdir(workspaceRoot, { recursive: true });
-  await ensureInstanceWorkspaceSecretStateIgnored(workspaceRoot);
-  await mkdir(workspaceOperationStateRoot(workspaceRoot), { recursive: true });
-  await writeFileAtomically(
-    workspaceOperationStatePath(workspaceRoot, state.id),
-    formatWorkspaceOperationState(state),
-  );
 }
 
 async function parseInstanceWorkspaceProgramStorageSnapshot(

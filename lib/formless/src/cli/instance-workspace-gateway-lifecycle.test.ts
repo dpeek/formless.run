@@ -281,10 +281,12 @@ function lifecycleDependencies(
   overrides: Partial<FormlessInstanceWorkspaceGatewayLifecycleDependencies> = {},
 ): FormlessInstanceWorkspaceGatewayLifecycleDependencies {
   return {
+    accountDiscovery: { listAccounts: async () => [] },
     cwd: "/workspace",
     fetch: async () => Response.json({ ok: true }),
     now: () => "2026-06-26T01:00:00.000Z",
     packageRoot: "/package",
+    packageVersion: "0.0.0-test",
     ...overrides,
   };
 }

@@ -360,10 +360,10 @@ cache.
 - THEN latest deployment status reports desired changes pending and may show the
   stale failure separately
 
-#### Scenario: Local active operation
+#### Scenario: Local active Push
 
-- WHEN a local workspace gateway operation is actively deploying a target
-- THEN browser UI may show in-progress state from gateway operation status
+- WHEN local Gateway Push is actively deploying a target
+- THEN browser UI may show in-progress state from exact current Push phases
 - AND the deployment config observation cache is updated only when push or
   refresh writes an observation
 
@@ -464,15 +464,17 @@ The deployment runtime SHALL allow local workspace gateway sidecar push
 operations to plan and apply deployment state while preserving projection and
 credential boundaries.
 
-#### Scenario: Browser starts credential setup
+#### Scenario: Push starts credential setup when required
 
-- **WHEN** a browser starts Cloudflare credential setup through the local
-  workspace gateway proxy before push planning
+- **WHEN** browser Push cannot resolve a usable Formless Cloudflare credential
+  before planning
 - **THEN** the local gateway sidecar runs the trusted Formless-owned
-  Cloudflare OAuth adapter and returns display-safe authorization URL events
-  through the proxy
+  Cloudflare OAuth adapter and returns an exact validated authorization
+  interaction through the proxy
 - **AND** deployment intent records store only provider references, account
   facts, and validation status after credentials are validated
+- **AND** Push may wait on exact external-authorization or account-selection
+  interaction facts before resuming
 - **AND** the first browser onboarding flow does not create Cloudflare API
   tokens, request token-management credentials from browser input, or write
   Formless-owned OAuth credentials into Alchemy OAuth profiles
@@ -490,25 +492,25 @@ credential boundaries.
   records, resolves local credential context outside browser-visible responses,
   reads the current desired-state projection, and compares selected workspace
   source with the target
-- **AND** the browser receives display-safe sync plan output without provider API
-  tokens, Alchemy passwords, Alchemy state tokens, raw lease tokens, or runtime
-  secrets
+- **AND** the browser receives exact Push phase and outcome facts without sync
+  plan objects, provider API tokens, Alchemy passwords, Alchemy state tokens,
+  raw lease tokens, or runtime secrets
 - **AND** Worker runtime code does not read workspace source, ignored secret
   state, or provider credentials to produce the plan
 
 #### Scenario: Push operation execution capability
 
 - **WHEN** a CLI, browser workspace gateway, trusted deploy node, or future
-  automation runner considers push dry-run, push apply, credential setup, or
-  deployment refresh operation
-- **THEN** the runtime matches the operation definition's required execution
+  automation runner considers push dry-run or push apply
+- **THEN** the runtime matches semantic Push metadata's required execution
   capability and actor policy before starting execution
-- **AND** browser callers can only forward operations to an available gateway or
-  runner that advertises the required local workspace or provider capability
+- **AND** browser callers can only forward Push to an available Gateway that
+  advertises the required local workspace or provider capability
 - **AND** provider mutation, credential setup, and local filesystem access remain
   unavailable to Worker runtime actors that do not advertise those capabilities
-- **AND** the operation result boundary remains display-safe operation state and
-  summaries, not raw provider output or runner secret state
+- **AND** the Gateway result boundary remains exact Push lifecycle, phase,
+  outcome, failure-code, and interaction facts rather than generic operation
+  state, raw provider output, or runner secret state
 - **AND** standalone deploy, deploy plan, deploy apply, drift report, and
   migration policy operations are not exposed as browser gateway operations
 
@@ -519,8 +521,8 @@ credential boundaries.
 - **THEN** the local gateway sidecar applies provider mutations as a trusted
   local deployer and patches the target deployment config's latest observation
   cache after provider reconciliation or failure
-- **AND** the gateway returns display-safe operation, evidence, cleanup, sync,
-  and observation summaries through operation status or completion responses
+- **AND** Gateway returns only exact Push lifecycle, phase, outcome, and failure
+  facts through current or latest Push responses
 - **AND** any deploy wording is scoped to an internal push step rather than a
   standalone operation key, command, browser route, or public workflow
 - **AND** deployment execution history is not written to schema-owned workspace
@@ -567,16 +569,18 @@ outside reviewable source.
 - **THEN** provider API tokens, Cloudflare OAuth access tokens, Cloudflare OAuth
   refresh tokens, Alchemy passwords, Alchemy state tokens, raw lease tokens,
   and runtime secrets are not returned
-- **AND** display-safe secret references and operation summaries may be returned
+- **AND** typed deployment execution may use secret references internally while
+  Gateway responses omit them
 
-#### Scenario: Gateway returns operation summaries
+#### Scenario: Gateway returns exact Push state
 
-- **WHEN** browser clients inspect local push dry-run, push apply, cleanup, or
-  refresh operation status through the workspace gateway
-- **THEN** responses may include display-safe operation ids, desired-state
-  hashes, plan counts, evidence counts, affected logical ids, cleanup results,
-  sync counts, runner ids, timestamps, and user-facing errors
+- **WHEN** browser clients inspect Push dry-run or apply through Gateway
+- **THEN** responses include only Push id, mode, lifecycle, ordered phase
+  statuses, outcome or failure code, current interaction, and transport times
 - **AND** those responses do not require `deploy-attempt` or
   `deploy-evidence-summary` control-plane records
+- **AND** they do not include desired-state payloads, evidence, cleanup, drift,
+  sync plan, runner, observation record, summary, error-message, log, path,
+  command, provider output, or generic result objects
 - **AND** provider credentials, raw provider state, raw lease tokens, Alchemy
   state tokens, and runtime secrets are omitted

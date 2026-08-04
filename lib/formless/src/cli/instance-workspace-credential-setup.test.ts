@@ -25,7 +25,10 @@ import {
 } from "../program/workspace.ts";
 
 import {
+  FORMLESS_CLOUDFLARE_OAUTH_CLIENT_ID,
   FORMLESS_CLOUDFLARE_OAUTH_DEPLOY_SCOPES,
+  FORMLESS_CLOUDFLARE_OAUTH_REDIRECT_URI,
+  createFormlessCloudflareOAuthAuthorization,
   createFormlessCloudflareOAuthCredential,
   formlessCloudflareOAuthCredentialPath,
   formatFormlessCloudflareOAuthCredentialRef,
@@ -37,6 +40,7 @@ import {
   type FormlessCloudflareOAuthTokenSet,
 } from "./cloudflare-oauth.ts";
 import {
+  assertFormlessCloudflareCredentialAuthorization,
   setupCloudflareCredentialsWithFormlessOAuth,
   setupCloudflareCredentialsWithAlchemyProfile,
   type AlchemyCloudflareOAuthCredentials,
@@ -97,6 +101,47 @@ afterEach(async () => {
 });
 
 describe("Formless Cloudflare OAuth credentials", () => {
+  it("accepts only the exact Formless Cloudflare OAuth authorization facts", () => {
+    const authorization = createFormlessCloudflareOAuthAuthorization();
+    const waiting = {
+      at: now(),
+      authorizationUrl: authorization.url,
+      clientId: FORMLESS_CLOUDFLARE_OAUTH_CLIENT_ID,
+      continue: async () => {
+        throw new Error("Continuation is not part of authorization validation.");
+      },
+      credentialRef: "formless-cloudflare-oauth:default",
+      kind: "authorization-waiting" as const,
+      profileLabel: "default",
+      provider: "cloudflare" as const,
+      requestedScopes: [...FORMLESS_CLOUDFLARE_OAUTH_DEPLOY_SCOPES],
+      scopeSet: "formless-cloudflare-deploy-oauth" as const,
+    };
+
+    expect(() => assertFormlessCloudflareCredentialAuthorization(waiting)).not.toThrow();
+
+    const invalidUrl = new URL(authorization.url);
+    invalidUrl.searchParams.set("redirect_uri", "https://attacker.example/callback");
+    expect(() =>
+      assertFormlessCloudflareCredentialAuthorization({
+        ...waiting,
+        authorizationUrl: invalidUrl.toString(),
+      }),
+    ).toThrow("Formless Cloudflare OAuth authorization facts are invalid.");
+
+    const missingPkce = new URL(authorization.url);
+    missingPkce.searchParams.delete("code_challenge");
+    expect(() =>
+      assertFormlessCloudflareCredentialAuthorization({
+        ...waiting,
+        authorizationUrl: missingPkce.toString(),
+      }),
+    ).toThrow("Formless Cloudflare OAuth authorization facts are invalid.");
+    expect(new URL(waiting.authorizationUrl).searchParams.get("redirect_uri")).toBe(
+      FORMLESS_CLOUDFLARE_OAUTH_REDIRECT_URI,
+    );
+  });
+
   it("formats, parses, and validates display-safe credentialRef values", () => {
     expect(formatFormlessCloudflareOAuthCredentialRef(" personal ")).toBe(
       "formless-cloudflare-oauth:personal",

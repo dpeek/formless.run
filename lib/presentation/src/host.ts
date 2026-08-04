@@ -496,6 +496,7 @@ export function isWorkspaceIntent(intent: PresentationIntent): intent is Workspa
     case "authPasskey":
     case "authPolicySelection":
     case "documentThemeModeSelection":
+    case "managementAccountSelection":
     case "managementAuthorizationOpen":
     case "managementWorkspaceOperation":
     case "shellCreate":
@@ -548,6 +549,7 @@ export function isAuthIntent(intent: PresentationIntent): intent is AuthIntent {
 
 export function isManagementIntent(intent: PresentationIntent): intent is ManagementIntent {
   switch (intent.type) {
+    case "managementAccountSelection":
     case "managementAuthorizationOpen":
     case "managementWorkspaceOperation":
       return true;

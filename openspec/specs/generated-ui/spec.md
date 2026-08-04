@@ -2422,8 +2422,8 @@ evidence, view, screen, read model, and operation models.
   schema
 - **AND** latest deployment status comes from deployment config observation
   cache fields and read-only deployment projection
-- **AND** active local operation progress, evidence summaries, and sync
-  summaries may come from local gateway operation state
+- **AND** active or latest local Push progress may come from exact Gateway Push
+  state
 - **AND** custom-domain desired route state and provider applied evidence remain
   visually separate
 
@@ -2440,8 +2440,9 @@ evidence, view, screen, read model, and operation models.
   `Create Route` control without route-category query tabs
 - **AND** the overview renders one local workspace control, `Push`, only when
   the local workspace gateway proxy is available
-- **AND** push completion or failure is shown as compact display-safe status or
-  alert feedback instead of a workspace status panel
+- **AND** push completion or failure is shown as compact browser-owned status or
+  alert feedback derived from exact outcome or failure codes instead of a
+  workspace status panel
 - **AND** the overview does not render deployment setup, deployment status,
   desired-state summaries, deployment operation controls, deployment config
   management tables, routes grouped by deployment config, primary instance
@@ -2457,11 +2458,12 @@ evidence, view, screen, read model, and operation models.
 - **GIVEN** route management data is ready
 - **WHEN** local workspace gateway status is loading, unavailable, or failed
 - **THEN** the Routes generated workspace remains available
-- **AND** gateway availability governs only the Push control and associated
-  display-safe progress, feedback, and external authorization prompt
+- **AND** Gateway availability governs only the Push control and associated
+  typed progress, browser-owned feedback, and current interaction
 - **AND** an unavailable gateway omits or disables Push without presenting a
   management-level failure
-- **AND** a failed gateway may present concise display-safe operation feedback
+- **AND** a failed Push may present concise browser-owned feedback selected from
+  its semantic failure code
   without exposing raw gateway output, provider state, filesystem paths,
   credentials, or secrets
 
@@ -2486,8 +2488,8 @@ actor kinds.
   surface
 - AND standalone deploy, deploy plan, deploy apply, drift report, and provider
   runner operations are hidden from the browser surface
-- AND workspace check, pull, credential setup, and save operations remain hidden
-  from the instance overview controls
+- AND workspace check, pull, credential setup, deployment refresh, and save are
+  not Gateway operation contracts rather than hidden browser operation variants
 
 #### Scenario: Read-only deployment observation
 
@@ -2592,15 +2594,15 @@ management destinations while retaining control-plane records as Program data.
 #### Scenario: Push progress may include internal deployment step
 
 - **WHEN** a browser workspace operation displays push progress
-- **THEN** progress is presented as one push operation with display-safe sync
-  planning, optional runtime deploy/provider reconciliation, health check, owner
-  setup when needed, remote data restore, and observation refresh steps
+- **THEN** exact Gateway phases are mapped in their declared order into the
+  existing generated operation progress contract
+- **AND** progress is presented as one Push with credentials, account selection,
+  desired-state planning, optional provider reconciliation, health check, owner
+  setup, workspace push/writeback, and observation refresh phases
 - **AND** any deploy wording is scoped to an internal push step rather than a
   standalone command, route, operation, or destination
-- **AND** push progress maps into the same generic operation progress state used
+- **AND** Push progress maps into the same generic operation progress state used
   by other generated operations
-- **AND** check operations can display fresh operation results without persisting
-  observation fields
 
 ### Requirement: Browser Workspace Operation Controls
 
@@ -2617,53 +2619,68 @@ workspace gateway proxy is available through the local runtime.
   save controls on the instance overview
 - **AND** the browser UI does not expose a user-triggered workspace save control
   because browser writes enqueue workspace auto-save
-- **AND** CLI save remains available outside the browser as an explicit flush or
-  retry fallback
-- **AND** the available controls are selected from workspace operation
-  definitions that expose browser gateway bindings for the current actor and
-  runtime capability
+- **AND** CLI and local runtime save remain outside the browser as flush or retry
+  fallbacks
+- **AND** the Push control is selected from exact Gateway availability and actor
+  capability rather than a generic browser operation-definition catalog
 - **AND** the UI does not expose arbitrary filesystem path inputs or raw file
   read/write controls
 - **AND** the UI does not receive or render the sidecar loopback URL or internal
   proxy token
 
-#### Scenario: Workspace operation form facts
+#### Scenario: Push request facts
 
-- **WHEN** a browser workspace control needs caller input
-- **THEN** labels, defaults, required fields, option sets, and hidden
-  non-browser fields come from the workspace operation definition
-- **AND** the UI posts only the definition-declared gateway input fields
-- **AND** workspace gateway operation state is mapped to generic generated
-  operation progress before it reaches generated view primitives
+- **WHEN** the browser starts Push
+- **THEN** it posts only exact mode and optional target alias fields
+- **AND** force, workspace paths, credentials, account ids, commands, and
+  generic operation inputs are unavailable
+- **AND** exact Gateway Push state is mapped to generic generated operation
+  progress before it reaches generated view primitives
 
 #### Scenario: Operation status display
 
-- **WHEN** a workspace operation is running or completed
+- **WHEN** current or latest Push is running or terminal
 - **THEN** the UI can display compact pending, completion, replay, and failure
-  feedback from display-safe operation state returned through the local runtime
-  gateway proxy
+  feedback derived from exact lifecycle, outcome, phase, and failure-code facts
 - **AND** pending feedback describes the active push progress step when one is
   available instead of showing only an indefinite spinner
-- **AND** failure feedback uses a concise display-safe error message
+- **AND** failure feedback uses browser-owned fixed copy for the failure code
 - **AND** the instance overview does not require a separate workspace progress
   panel to render push progress or failure state
 - **AND** provider credentials, local secret values, raw provider state, and
   disallowed filesystem paths are not rendered
 
+#### Scenario: Rediscover current or latest Push
+
+- **WHEN** the instance shell loads or refreshes with Gateway available
+- **THEN** it consumes current and latest Push from the Gateway status response
+  and stores the delivered owner-session CSRF token for later mutations
+- **AND** current Push resumes polling and progress projection without starting
+  duplicate execution
+- **AND** latest terminal Push restores compact outcome or failure feedback
+
 #### Scenario: External authorization prompt
 
-- **WHEN** a workspace credential setup operation reports a display-safe
-  external authorization URL through the local runtime gateway proxy
+- **WHEN** current Push reports an `external-authorization` interaction through
+  the local runtime Gateway proxy
 - **THEN** the UI can render a control to open that URL and continue polling the
   operation
 - **AND** raw adapter or tool output, provider tokens, refresh tokens, Alchemy
   passwords, and local secret values are not rendered
 
+#### Scenario: Account selection prompt
+
+- **WHEN** current Push reports an `account-selection` interaction
+- **THEN** the UI renders only the bounded account choices returned for that
+  interaction and submits its id with the selected account id
+- **AND** stale Push or interaction state is rediscovered through Gateway status
+- **AND** account selection does not accept free-form provider ids
+
 #### Scenario: Gateway proxy unavailable
 
 - **WHEN** the product instance shell renders without local gateway proxy status
   available
-- **THEN** the UI treats workspace gateway operations as unavailable
+- **THEN** the UI treats Push as unavailable
 - **AND** it does not offer controls that would imply workspace filesystem,
   credential setup, push dry-run, or push apply execution is available
 

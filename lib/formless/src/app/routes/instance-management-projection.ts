@@ -8,13 +8,12 @@ import type {
   ManagementWorkspaceOperationContract,
   WorkspaceManifestReference,
 } from "@dpeek/formless-presentation/contract";
-import type { WorkspaceGatewayOperation } from "@dpeek/formless-gateway/client";
-import { workspaceBrowserOperationControlMetadata } from "@dpeek/formless-workspace";
+import type { WorkspaceGatewayPush } from "@dpeek/formless-gateway/client";
 import {
   normalizeGeneratedOperationRuntimeAdapterResponse,
   projectWorkspaceOperationControlBinding,
-  workspaceGatewayOperationGeneratedProgress,
-  workspaceGatewayOperationGeneratedRuntimeAdapterResponse,
+  workspaceGatewayPushGeneratedProgress,
+  workspaceGatewayPushGeneratedRuntimeAdapterResponse,
   type GeneratedOperationExecutionState,
 } from "../../client/views.ts";
 import { projectGeneratedOperationControl } from "../generated/operation-projection.ts";
@@ -60,13 +59,24 @@ export type InstanceManagementProjection = {
 };
 
 export type ResolvedInstanceManagementIntent =
+  | {
+      accountId: string;
+      interactionId: string;
+      kind: "accountSelection";
+      pushId: string;
+    }
   | { kind: "authorizationOpen"; authorization: InstanceManagementAuthorizationRuntime }
   | { kind: "ignored" }
   | { kind: "workspacePush" };
 
 export type InstanceManagementIntentActions = {
   openAuthorization: (url: string) => void;
-  pollWorkspaceOperation: (operationId: string, operationKind: "push") => Promise<void> | void;
+  pollWorkspacePush: (pushId: string) => Promise<void> | void;
+  selectAccount: (input: {
+    accountId: string;
+    interactionId: string;
+    pushId: string;
+  }) => Promise<void> | void;
   startWorkspacePush: () => Promise<void> | void;
 };
 
@@ -155,6 +165,31 @@ export function resolveInstanceManagementIntent(
       : { kind: "ignored" };
   }
 
+  if (intent.type === "managementAccountSelection") {
+    const operation = projection.manifest.workspaceOperation;
+    const prompt = operation?.accountSelectionPrompt;
+    const choice = prompt?.choices.find(
+      (candidate) =>
+        candidate.accountId === intent.accountId &&
+        candidate.action.id === intent.controlId &&
+        candidate.intent.interactionId === intent.interactionId &&
+        candidate.intent.pushId === intent.pushId,
+    );
+    return operation &&
+      prompt &&
+      choice &&
+      intent.operationId === operation.id &&
+      intent.promptId === prompt.id &&
+      projection.authorization === undefined
+      ? {
+          accountId: choice.accountId,
+          interactionId: intent.interactionId,
+          kind: "accountSelection",
+          pushId: choice.intent.pushId,
+        }
+      : { kind: "ignored" };
+  }
+
   return { kind: "ignored" };
 }
 
@@ -172,27 +207,33 @@ export async function dispatchInstanceManagementIntent(
 
   if (resolved.kind === "authorizationOpen") {
     actions.openAuthorization(resolved.authorization.url);
-    await actions.pollWorkspaceOperation(
-      resolved.authorization.operationId,
-      resolved.authorization.operationKind,
-    );
+    await actions.pollWorkspacePush(resolved.authorization.operationId);
+    return;
+  }
+
+  if (resolved.kind === "accountSelection") {
+    await actions.selectAccount({
+      accountId: resolved.accountId,
+      interactionId: resolved.interactionId,
+      pushId: resolved.pushId,
+    });
   }
 }
 
 export function workspacePushOperationExecutionState({
   error,
-  operation,
+  push,
 }: {
   error?: string;
-  operation?: WorkspaceGatewayOperation;
+  push?: WorkspaceGatewayPush;
 }): GeneratedOperationExecutionState {
-  if (!operation && !error) {
+  if (!push && !error) {
     return { executionKey: INSTANCE_MANAGEMENT_PUSH_OPERATION_ID, status: "idle" };
   }
 
-  const progress = operation ? workspaceGatewayOperationGeneratedProgress(operation) : undefined;
-  const startedAt = workspaceOperationTimestamp(operation?.createdAt);
-  const completedAt = workspaceOperationTimestamp(operation?.updatedAt);
+  const progress = push ? workspaceGatewayPushGeneratedProgress(push) : undefined;
+  const startedAt = workspaceOperationTimestamp(push?.createdAt);
+  const completedAt = workspaceOperationTimestamp(push?.updatedAt);
   const base = {
     executionKey: INSTANCE_MANAGEMENT_PUSH_OPERATION_ID,
     ...(startedAt === undefined ? {} : { startedAt }),
@@ -221,16 +262,20 @@ export function workspacePushOperationExecutionState({
     };
   }
 
-  if (!operation) {
+  if (!push) {
     return { ...base, status: "idle" };
   }
 
-  if (operation.status === "queued" || operation.status === "running") {
+  if (
+    push.lifecycle === "queued" ||
+    push.lifecycle === "running" ||
+    push.lifecycle === "waiting-for-interaction"
+  ) {
     return { ...base, status: "pending" };
   }
 
   const result = normalizeGeneratedOperationRuntimeAdapterResponse(
-    workspaceGatewayOperationGeneratedRuntimeAdapterResponse(operation),
+    workspaceGatewayPushGeneratedRuntimeAdapterResponse(push),
   );
   const displaySafeResult =
     result.type === "failed"
@@ -272,26 +317,22 @@ function projectWorkspaceOperation(state: WorkspaceGatewayRouteState): {
     return {};
   }
 
-  const metadata = workspaceBrowserOperationControlMetadata().find(({ kind }) => kind === "push");
-  if (!metadata) {
-    return {};
-  }
-  const operation = managementPushOperation(state);
+  const push = managementPush(state);
   const executionState = workspacePushOperationExecutionState({
     error: state.error,
-    operation,
+    push,
   });
   const disabledReason = state.csrfToken ? undefined : "Workspace authorization is unavailable.";
   const binding = projectWorkspaceOperationControlBinding(
     {
-      bootstrapAllowed: metadata.bootstrapAllowed,
+      bootstrapAllowed: false,
       ...(disabledReason === undefined ? {} : { disabledReason }),
-      inputFields: metadata.inputFields,
-      key: metadata.kind,
-      kind: metadata.kind,
-      label: metadata.label,
-      mode: metadata.mode,
-      requiredCapability: metadata.requiredCapability,
+      inputFields: ["dryRun", "targetAlias"],
+      key: "push",
+      kind: "push",
+      label: "Push",
+      mode: "write",
+      requiredCapability: "workspace-source-sync",
     },
     {
       executionKey: INSTANCE_MANAGEMENT_PUSH_OPERATION_ID,
@@ -320,7 +361,7 @@ function projectWorkspaceOperation(state: WorkspaceGatewayRouteState): {
     },
     state: executionState,
   });
-  const authorizationRuntime = selectAuthorizationRuntime(operation);
+  const authorizationRuntime = selectAuthorizationRuntime(push);
   const authorization = authorizationRuntime
     ? {
         action: button(`${authorizationRuntime.promptId}:open`, "Open authorization", "secondary"),
@@ -344,13 +385,16 @@ function projectWorkspaceOperation(state: WorkspaceGatewayRouteState): {
       ? {}
       : {
           authorizationRuntime: {
-            operationId: operation?.id ?? "",
+            operationId: push?.id ?? "",
             operationKind: "push" as const,
             promptId: authorizationRuntime.promptId,
             url: authorizationRuntime.url,
           },
         }),
     operation: {
+      ...(selectAccountSelectionPrompt(push) === undefined
+        ? {}
+        : { accountSelectionPrompt: selectAccountSelectionPrompt(push) }),
       control,
       id: INSTANCE_MANAGEMENT_PUSH_OPERATION_ID,
       kind: "managementWorkspaceOperation" as const,
@@ -358,32 +402,63 @@ function projectWorkspaceOperation(state: WorkspaceGatewayRouteState): {
   };
 }
 
-function selectAuthorizationRuntime(operation: WorkspaceGatewayOperation | undefined) {
-  const event = operation?.events
-    .map((candidate) => {
-      const url = displaySafeAuthorizationUrl(candidate.url, candidate.provider);
-      return url === "" ? undefined : { event: candidate, url };
-    })
-    .filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== undefined)
-    .at(-1);
-
-  if (!event) {
+function selectAuthorizationRuntime(push: WorkspaceGatewayPush | undefined) {
+  const interaction =
+    push?.lifecycle === "waiting-for-interaction" &&
+    push.interaction.kind === "external-authorization"
+      ? push.interaction
+      : undefined;
+  if (!interaction) {
     return undefined;
   }
-
-  const provider = event.event.provider === "cloudflare" ? "Cloudflare" : "Alchemy";
+  const url = displaySafeAuthorizationUrl(interaction.url, interaction.provider);
+  if (url === "") return undefined;
   return {
-    detail: `${displaySafeText(event.event.profileLabel)} requires external authorization.`,
-    promptId: `instance-management:workspace:push:authorization:${event.event.id}`,
-    title: `${provider} authorization`,
-    url: event.url,
+    detail: "Connect Cloudflare to continue Workspace Push.",
+    promptId: `instance-management:workspace:push:authorization:${interaction.id}`,
+    title: "Cloudflare authorization",
+    url,
   };
 }
 
-function managementPushOperation(
+function selectAccountSelectionPrompt(push: WorkspaceGatewayPush | undefined) {
+  const interaction =
+    push?.lifecycle === "waiting-for-interaction" && push.interaction.kind === "account-selection"
+      ? push.interaction
+      : undefined;
+  if (!push || !interaction) return undefined;
+  const promptId = `instance-management:workspace:push:account:${interaction.id}`;
+  return {
+    choices: interaction.choices.map((choice) => {
+      const controlId = `${promptId}:${choice.id}`;
+      return {
+        accountId: choice.id,
+        action: button(controlId, choice.name ?? choice.id),
+        id: controlId,
+        intent: {
+          accountId: choice.id,
+          controlId,
+          interactionId: interaction.id,
+          managementId: INSTANCE_MANAGEMENT_ID,
+          operationId: INSTANCE_MANAGEMENT_PUSH_OPERATION_ID,
+          promptId,
+          pushId: push.id,
+          type: "managementAccountSelection" as const,
+        },
+        label: choice.name ?? choice.id,
+      };
+    }),
+    detail: "Choose the Cloudflare account for this workspace.",
+    id: promptId,
+    kind: "managementAccountSelectionPrompt" as const,
+    title: "Select Cloudflare account",
+  };
+}
+
+function managementPush(
   state: Extract<WorkspaceGatewayRouteState, { status: "ready" }>,
-): WorkspaceGatewayOperation | undefined {
-  return state.currentOperation?.operation === "push" ? state.currentOperation : undefined;
+): WorkspaceGatewayPush | undefined {
+  return state.currentPush ?? state.latestPush;
 }
 
 function managementFeedback(

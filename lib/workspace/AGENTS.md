@@ -6,10 +6,9 @@ Read this when editing `lib/workspace/*`.
 
 ## Owns
 
-- Public workspace configuration, state, and operation contract declarations and constants in `src/types.ts`.
-- Runtime-neutral workspace configuration, operation, redaction, parse, format, and validation helpers exported from the package root.
-- Local Node filesystem adapters for Program storage snapshots, media payloads, ignored local state, secret state, and operation state.
-- Canonical semantic operation input, result, event, log, summary, redaction, and persistence contracts used by Gateway transport and CLI runtime adapters.
+- Public workspace configuration, state, and semantic operation metadata declarations and constants in `src/types.ts`.
+- Runtime-neutral workspace configuration, semantic operation policy, parse, format, and validation helpers exported from the package root.
+- Local Node filesystem adapters for Program storage snapshots, media payloads, ignored local state, and secret state.
 - Package-local tests for workspace contracts and deterministic Node adapters.
 
 ## Does Not Own
@@ -27,7 +26,7 @@ Read this when editing `lib/workspace/*`.
 - `tsconfig.json`: package-local TypeScript project extending the repo config.
 - `src/types.ts`: import-free versioned public contract declarations.
 - `src/config.ts`: typed configuration authoring, default resolution, and operational path validation.
-- `src/operation-state.ts`: runtime-neutral operation kind, display, state, and redaction helpers.
+- `src/operations.ts`: runtime-neutral semantic operation identity, policy, capability, and requirement helpers.
 - `src/index.ts`: runtime-neutral root export entrypoint.
 - `src/node.ts`: local Node filesystem, workspace state, storage snapshot, media payload, ignored-state, and secret-state adapter entrypoint; no React import.
 - `src/*.test.ts`: package-local contract and adapter coverage.
@@ -36,7 +35,7 @@ Read this when editing `lib/workspace/*`.
 
 1. Read this file.
 2. Read `src/types.ts` for public contract facts.
-3. Read only the relevant helper or adapter file for the task: `src/config.ts`, `src/operation-state.ts`, or `src/node.ts`.
+3. Read only the relevant helper or adapter file for the task: `src/config.ts`, `src/operations.ts`, or `src/node.ts`.
 4. Read matching package-local tests when changing behavior.
 
 ## Rules

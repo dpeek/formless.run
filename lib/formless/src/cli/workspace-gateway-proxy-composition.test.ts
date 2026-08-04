@@ -6,7 +6,7 @@ import {
   WORKSPACE_GATEWAY_BOOTSTRAP_HEADER,
   WORKSPACE_GATEWAY_BOOTSTRAP_TOKEN_ENV,
   WORKSPACE_GATEWAY_ENABLED_ENV,
-  WORKSPACE_GATEWAY_OPERATION_KIND_HEADER,
+  WORKSPACE_GATEWAY_INTENT_HEADER,
   WORKSPACE_GATEWAY_PROXY_AUTHORIZATION_HEADER,
   WORKSPACE_GATEWAY_PROXY_TOKEN_ENV,
   WORKSPACE_GATEWAY_SIDECAR_URL_ENV,
@@ -118,13 +118,9 @@ describe("workspace gateway proxy composition", () => {
         proxiedRequests.push(new Request(input, init));
 
         return Response.json({
-          operation: {
-            actor: "browser",
-            id: "op_status_00000001",
-            operation: "status",
-            status: "succeeded",
-            summary: { title: "Workspace status ready" },
-          },
+          currentPush: null,
+          gateway: "available",
+          latestPush: null,
         });
       },
     });
@@ -133,12 +129,10 @@ describe("workspace gateway proxy composition", () => {
     });
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({
-      operation: {
-        actor: "browser",
-        id: "op_status_00000001",
-        operation: "status",
-      },
+    await expect(response.json()).resolves.toEqual({
+      currentPush: null,
+      gateway: "available",
+      latestPush: null,
     });
     expect(proxiedRequests.map((request) => request.url)).toEqual([
       `http://127.0.0.1:9999${WORKSPACE_GATEWAY_STATUS_API_PATH}`,
@@ -147,7 +141,7 @@ describe("workspace gateway proxy composition", () => {
     expect(proxiedRequests[0]?.headers.get(WORKSPACE_GATEWAY_AUTHORIZATION_VIA_HEADER)).toBe(
       "bootstrap",
     );
-    expect(proxiedRequests[0]?.headers.get(WORKSPACE_GATEWAY_OPERATION_KIND_HEADER)).toBe("status");
+    expect(proxiedRequests[0]?.headers.get(WORKSPACE_GATEWAY_INTENT_HEADER)).toBe("status");
     expect(proxiedRequests[0]?.headers.get(WORKSPACE_GATEWAY_PROXY_AUTHORIZATION_HEADER)).toBe(
       proxyToken,
     );

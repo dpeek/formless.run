@@ -1,159 +1,176 @@
 import {
   WORKSPACE_GATEWAY_CSRF_COOKIE_NAME,
-  type WorkspaceGatewayActor,
-  type WorkspaceGatewayAuthorizationVia,
-} from "./types.ts";
+  isWorkspaceGatewayApiErrorBody,
+  isWorkspaceGatewayPushResponse,
+  isWorkspaceGatewayStatusResponse,
+  type WorkspaceGatewayActorFacts,
+  type WorkspaceGatewayErrorCode,
+  type WorkspaceGatewayPush,
+  type WorkspaceGatewayPushResponse,
+  type WorkspaceGatewayStatusResponse,
+} from "./index.ts";
 
 export const WORKSPACE_GATEWAY_SAFE_RESPONSE_HEADERS = ["Allow", "Content-Type"] as const;
 
-export type WorkspaceGatewayResponseSafetyAuthorization = {
-  actor: WorkspaceGatewayActor;
-  via: WorkspaceGatewayAuthorizationVia;
-};
-
-export type WorkspaceGatewayResponseSafetyEnv = {
-  csrfToken?: string;
-};
+export type WorkspaceGatewayResponseKind = "empty" | "push" | "status";
+export type WorkspaceGatewayResponseSafetyEnv = { csrfToken?: string };
 
 export function workspaceGatewayJsonResponse(
   body: unknown,
-  status: number,
-  headers: HeadersInit = new Headers(),
+  status = 200,
+  inputHeaders: HeadersInit = new Headers(),
 ): Response {
-  const responseHeaders = new Headers(headers);
-
-  responseHeaders.set("Content-Type", "application/json");
-
-  return new Response(JSON.stringify(body), { headers: responseHeaders, status });
-}
-
-export function workspaceGatewayErrorResponse(
-  error: string,
-  status: number,
-  headers?: HeadersInit,
-): Response {
-  return workspaceGatewayJsonResponse({ error }, status, headers);
-}
-
-export function workspaceGatewayNotFoundResponse(): Response {
-  return workspaceGatewayErrorResponse("Not found.", 404);
-}
-
-export function workspaceGatewayMethodNotAllowedResponse(methods: readonly string[]): Response {
-  return workspaceGatewayErrorResponse(
-    "Method not allowed.",
-    405,
-    new Headers({ Allow: methods.join(", ") }),
-  );
-}
-
-export function workspaceGatewaySidecarUnavailableResponse(): Response {
-  return workspaceGatewayErrorResponse("Workspace gateway sidecar is unavailable.", 502);
-}
-
-export async function workspaceGatewaySafeSidecarResponse(input: {
-  authorization: WorkspaceGatewayResponseSafetyAuthorization;
-  env: WorkspaceGatewayResponseSafetyEnv;
-  request: Request;
-  response: Response;
-}): Promise<Response> {
-  const contentType = input.response.headers.get("Content-Type") ?? "";
-
-  if (!contentType.includes("application/json")) {
-    return workspaceGatewayNonJsonSidecarPassthroughResponse(input.response);
-  }
-
-  const body = (await input.response.json()) as unknown;
-
-  if (input.response.status === 200 && responseObjectHas(body, "operation")) {
-    return workspaceGatewayOperationResponse({
-      authorization: input.authorization,
-      env: input.env,
-      operation: body.operation,
-      request: input.request,
-    });
-  }
-
-  return workspaceGatewayJsonResponse(
-    body,
-    input.response.status,
-    workspaceGatewayAllowedPassthroughResponseHeaders(input.response.headers),
-  );
-}
-
-export function workspaceGatewayOperationResponse(input: {
-  authorization: WorkspaceGatewayResponseSafetyAuthorization;
-  env: WorkspaceGatewayResponseSafetyEnv;
-  operation: unknown;
-  request: Request;
-}): Response {
-  const browserResponse = workspaceGatewayBrowserResponseHeaders(input);
-
-  return workspaceGatewayJsonResponse(
-    {
-      ...(browserResponse.csrfToken === undefined ? {} : { csrfToken: browserResponse.csrfToken }),
-      operation: input.operation,
-    },
-    200,
-    browserResponse.headers,
-  );
-}
-
-export function workspaceGatewayEmptySuccessResponse(): Response {
-  return new Response(null, { status: 204 });
-}
-
-export function workspaceGatewayAllowedPassthroughResponseHeaders(headers: Headers): Headers {
-  const next = new Headers();
-
-  for (const key of WORKSPACE_GATEWAY_SAFE_RESPONSE_HEADERS) {
-    const value = headers.get(key);
-
-    if (value) {
-      next.set(key, value);
-    }
-  }
-
-  return next;
-}
-
-async function workspaceGatewayNonJsonSidecarPassthroughResponse(response: Response) {
-  if (response.status === 204) {
-    return new Response(null, {
-      headers: workspaceGatewayAllowedPassthroughResponseHeaders(response.headers),
-      status: response.status,
-    });
-  }
-
-  return new Response(await response.arrayBuffer(), {
-    headers: workspaceGatewayAllowedPassthroughResponseHeaders(response.headers),
-    status: response.status,
+  const headers = new Headers(inputHeaders);
+  headers.set("Cache-Control", "no-store");
+  headers.set("Content-Type", "application/json");
+  return Response.json(body, {
+    headers,
+    status,
   });
 }
 
-function workspaceGatewayBrowserResponseHeaders(input: {
-  authorization: WorkspaceGatewayResponseSafetyAuthorization;
-  env: WorkspaceGatewayResponseSafetyEnv;
-  request: Request;
-}): { csrfToken?: string; headers: Headers } {
-  const headers = new Headers();
-  const csrfToken = input.env.csrfToken?.trim();
-  const includeCsrfToken =
-    input.authorization.via === "owner-session" && input.authorization.actor === "browser";
-
-  if (includeCsrfToken && csrfToken) {
-    headers.set(
-      "Set-Cookie",
-      `${WORKSPACE_GATEWAY_CSRF_COOKIE_NAME}=${csrfToken}; Path=/; SameSite=Lax${new URL(input.request.url).protocol === "https:" ? "; Secure" : ""}`,
-    );
-  }
-
-  return {
-    ...(includeCsrfToken && csrfToken ? { csrfToken } : {}),
-    headers,
-  };
+export function workspaceGatewayErrorResponse(
+  code: WorkspaceGatewayErrorCode,
+  status = workspaceGatewayErrorStatus(code),
+): Response {
+  return workspaceGatewayJsonResponse({ code }, status);
 }
 
-function responseObjectHas(value: unknown, key: string): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && key in value;
+export function workspaceGatewayNotFoundResponse(): Response {
+  return workspaceGatewayErrorResponse("not-found");
+}
+
+export function workspaceGatewayMethodNotAllowedResponse(methods: readonly string[]): Response {
+  const response = workspaceGatewayErrorResponse("method-not-allowed");
+  response.headers.set("Allow", methods.join(", "));
+  return response;
+}
+
+export function workspaceGatewaySidecarUnavailableResponse(): Response {
+  return workspaceGatewayErrorResponse("gateway-unavailable");
+}
+
+export function workspaceGatewayInvalidSidecarResponse(): Response {
+  return workspaceGatewayErrorResponse("invalid-sidecar-response");
+}
+
+export async function workspaceGatewaySafeSidecarResponse(input: {
+  authorization: WorkspaceGatewayActorFacts;
+  env: WorkspaceGatewayResponseSafetyEnv;
+  kind: WorkspaceGatewayResponseKind;
+  request: Request;
+  response: Response;
+}): Promise<Response> {
+  const headers = workspaceGatewayAllowedPassthroughResponseHeaders(input.response.headers);
+  headers.set("Cache-Control", "no-store");
+  if (input.kind === "empty" && input.response.status === 204) {
+    return new Response(null, { headers, status: 204 });
+  }
+
+  const body = await readJson(input.response);
+  if (body === undefined) return workspaceGatewayInvalidSidecarResponse();
+
+  if (!input.response.ok) {
+    return isWorkspaceGatewayApiErrorBody(body)
+      ? workspaceGatewayJsonResponse(body, input.response.status)
+      : workspaceGatewayInvalidSidecarResponse();
+  }
+
+  if (input.kind === "push" && isWorkspaceGatewayPushResponse(body)) {
+    return workspaceGatewayJsonResponse(body, input.response.status);
+  }
+  if (input.kind === "status" && isWorkspaceGatewayStatusResponse(body)) {
+    const csrf = workspaceGatewayBrowserCsrf(input);
+    const status: WorkspaceGatewayStatusResponse = {
+      ...body,
+      ...(csrf.token === undefined ? {} : { csrfToken: csrf.token }),
+    };
+    return workspaceGatewayJsonResponse(status, input.response.status, csrf.headers);
+  }
+  return workspaceGatewayInvalidSidecarResponse();
+}
+
+export function workspaceGatewayPushResponse(push: WorkspaceGatewayPush): Response {
+  return workspaceGatewayJsonResponse({ push } satisfies WorkspaceGatewayPushResponse);
+}
+
+export function workspaceGatewayStatusResponse(
+  body: Omit<WorkspaceGatewayStatusResponse, "csrfToken">,
+): Response {
+  return workspaceGatewayJsonResponse(body);
+}
+
+export function workspaceGatewayEmptySuccessResponse(): Response {
+  return new Response(null, { headers: { "Cache-Control": "no-store" }, status: 204 });
+}
+
+export function workspaceGatewayAllowedPassthroughResponseHeaders(headers: Headers): Headers {
+  const safe = new Headers();
+  for (const name of WORKSPACE_GATEWAY_SAFE_RESPONSE_HEADERS) {
+    const value = headers.get(name);
+    if (value !== null) safe.set(name, value);
+  }
+  return safe;
+}
+
+export function workspaceGatewayErrorStatus(code: WorkspaceGatewayErrorCode): number {
+  switch (code) {
+    case "unauthorized":
+      return 401;
+    case "forbidden":
+    case "bootstrap-expired":
+    case "csrf-invalid":
+      return 403;
+    case "gateway-unavailable":
+      return 503;
+    case "push-active":
+      return 409;
+    case "push-not-found":
+    case "interaction-not-found":
+    case "not-found":
+      return 404;
+    case "interaction-expired":
+      return 410;
+    case "method-not-allowed":
+      return 405;
+    case "invalid-sidecar-response":
+      return 502;
+    case "interaction-invalid":
+    case "invalid-request":
+      return 400;
+  }
+}
+
+async function readJson(response: Response): Promise<unknown> {
+  if (!response.headers.get("Content-Type")?.toLowerCase().includes("application/json")) {
+    return undefined;
+  }
+  try {
+    return await response.json();
+  } catch {
+    return undefined;
+  }
+}
+
+function workspaceGatewayBrowserCsrf(input: {
+  authorization: WorkspaceGatewayActorFacts;
+  env: WorkspaceGatewayResponseSafetyEnv;
+  request: Request;
+}): { headers: Headers; token?: string } {
+  const headers = new Headers();
+  const token = input.env.csrfToken?.trim();
+  if (
+    input.authorization.actor !== "browser" ||
+    input.authorization.via !== "owner-session" ||
+    !token
+  ) {
+    return { headers };
+  }
+  headers.set(
+    "Set-Cookie",
+    `${WORKSPACE_GATEWAY_CSRF_COOKIE_NAME}=${token}; Path=/; SameSite=Lax${
+      new URL(input.request.url).protocol === "https:" ? "; Secure" : ""
+    }`,
+  );
+  return { headers, token };
 }

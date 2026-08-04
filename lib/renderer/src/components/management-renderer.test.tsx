@@ -65,6 +65,51 @@ describe("Astryx management renderer", () => {
     expect(html).toContain("Cloudflare authorization");
   });
 
+  it("renders current Cloudflare account choices as canonical management actions", () => {
+    const operation = workspaceOperation();
+    const promptId = "instance-management:workspace:push:account:interaction-1";
+    const controlId = `${promptId}:account-a`;
+    const html = renderToStaticMarkup(
+      <AstryxManagementRenderer
+        manifest={readyManifest({
+          workspaceOperation: {
+            ...operation,
+            accountSelectionPrompt: {
+              choices: [
+                {
+                  accountId: "account-a",
+                  action: button(controlId, "Account A"),
+                  id: controlId,
+                  intent: {
+                    accountId: "account-a",
+                    controlId,
+                    interactionId: "interaction_1234567890abcdef",
+                    managementId: managementReference.managementId,
+                    operationId: operation.id,
+                    promptId,
+                    pushId: "push_1234567890abcdef",
+                    type: "managementAccountSelection",
+                  },
+                  label: "Account A",
+                },
+              ],
+              id: promptId,
+              kind: "managementAccountSelectionPrompt",
+              title: "Select Cloudflare account",
+            },
+            authorizationPrompt: undefined,
+          },
+        })}
+        onIntent={() => undefined}
+        onWorkspaceIntent={() => undefined}
+      />,
+    );
+
+    expect(html).toContain(`data-formless-astryx-management-account-selection="${promptId}"`);
+    expect(html).toContain("Select Cloudflare account");
+    expect(html).toContain("Account A");
+  });
+
   it("subscribes to management and routes through one host", () => {
     const manifest = readyManifest({ workspaceOperation: undefined });
     const workspace = routesWorkspace();

@@ -1,13 +1,16 @@
 import {
-  fetchWorkspaceGatewayOperation,
-  startWorkspaceGatewayOperation,
+  fetchWorkspaceGatewayPush,
+  startWorkspaceGatewayPush,
+  submitWorkspaceGatewayAccountSelection,
   WorkspaceGatewayApiError,
+  type WorkspaceGatewayAccountSelectionInteraction,
   type WorkspaceGatewayConfig,
-  type WorkspaceGatewayOperation,
-  type WorkspaceGatewayOperationKind,
-  type WorkspaceGatewayOperationStep,
-  type WorkspaceGatewayResponse,
-  type WorkspaceGatewayStartInput,
+  type WorkspaceGatewayPush,
+  type WorkspaceGatewayPushFailureCode,
+  type WorkspaceGatewayPushPhase,
+  type WorkspaceGatewayPushResponse,
+  type WorkspaceGatewayPushStartInput,
+  type WorkspaceGatewayStatusResponse,
 } from "@dpeek/formless-gateway/client";
 import type {
   GeneratedOperationProgress,
@@ -19,13 +22,14 @@ import type {
   GeneratedOperationRuntimeAdapterResponse,
 } from "./operation-control-controller.ts";
 
-const DEFAULT_WORKSPACE_GATEWAY_POLL_INTERVAL_MS = 1_500;
+const DEFAULT_POLL_INTERVAL_MS = 1_500;
 
 export type WorkspaceGatewayGeneratedOperationRuntimeAdapterOptions = {
   config?: WorkspaceGatewayConfig;
   csrfToken?: string;
   fetcher?: typeof fetch;
   pollIntervalMs?: number;
+  selectAccount?: (interaction: WorkspaceGatewayAccountSelectionInteraction) => Promise<string>;
   signal?: AbortSignal;
   wait?: (milliseconds: number) => Promise<void>;
 };
@@ -40,282 +44,198 @@ export async function executeWorkspaceGatewayGeneratedOperation(
   request: GeneratedOperationRuntimeAdapterRequest,
   options: WorkspaceGatewayGeneratedOperationRuntimeAdapterOptions = {},
 ): Promise<GeneratedOperationRuntimeAdapterResponse> {
-  const input = workspaceGatewayStartInputFromGeneratedOperation(request);
-
-  if (input === undefined) {
-    return failedWorkspaceGatewayRuntimeAdapterResponse("Workspace operation is unavailable.");
-  }
-
+  const input = workspaceGatewayPushStartInputFromGeneratedOperation(request);
+  if (!input) return failed("Workspace Push is unavailable.");
   try {
-    const response = await startWorkspaceGatewayOperation(input, {
-      config: options.config,
-      csrfToken: options.csrfToken,
-      fetcher: options.fetcher,
-      signal: options.signal,
-    });
-
-    if (response === undefined) {
-      return failedWorkspaceGatewayRuntimeAdapterResponse("Workspace gateway is unavailable.");
-    }
-
-    return await pollWorkspaceGatewayGeneratedOperation(response, request, options);
+    const started = await startWorkspaceGatewayPush(input, options);
+    if (!started) return failed("Workspace gateway is unavailable.");
+    return pollPush(started, request, options);
   } catch (error) {
-    return failedWorkspaceGatewayRuntimeAdapterResponse(workspaceGatewayAdapterErrorMessage(error));
+    return failed(gatewayAdapterErrorMessage(error));
   }
 }
 
-export function workspaceGatewayStartInputFromGeneratedOperation(
+export function workspaceGatewayPushStartInputFromGeneratedOperation(
   request: GeneratedOperationRuntimeAdapterRequest,
-): WorkspaceGatewayStartInput | undefined {
-  const adapter = request.binding.input;
-
-  if (adapter.kind !== "workspace") {
-    return undefined;
-  }
-
-  const operationKind = workspaceGatewayOperationKind(adapter.operationKind);
-
-  if (operationKind === undefined) {
-    return undefined;
-  }
-
-  const input: Record<string, unknown> = { kind: operationKind };
-
-  if (isRecord(request.input)) {
-    for (const field of adapter.inputFields) {
-      if (Object.hasOwn(request.input, field)) {
-        input[field] = request.input[field];
-      }
-    }
-  }
-
-  return input as WorkspaceGatewayStartInput;
+): WorkspaceGatewayPushStartInput | undefined {
+  const binding = request.binding.input;
+  if (binding.kind !== "workspace" || binding.operationKind !== "push") return undefined;
+  const input = isRecord(request.input) ? request.input : {};
+  const targetAlias = input.targetAlias;
+  if (targetAlias !== undefined && typeof targetAlias !== "string") return undefined;
+  return {
+    mode: input.dryRun === true ? "dry-run" : "apply",
+    ...(targetAlias === undefined || targetAlias === "" ? {} : { targetAlias }),
+  };
 }
 
-export function workspaceGatewayOperationGeneratedRuntimeAdapterResponse(
-  operation: WorkspaceGatewayOperation,
+export function workspaceGatewayPushGeneratedRuntimeAdapterResponse(
+  push: WorkspaceGatewayPush,
 ): GeneratedOperationRuntimeAdapterResponse {
-  const progress = workspaceGatewayOperationGeneratedProgress(operation);
-
-  if (operation.status === "failed") {
+  const progress = workspaceGatewayPushGeneratedProgress(push);
+  if (push.lifecycle === "failed") {
     return {
-      status: "failed",
-      displayError: workspaceGatewayOperationFailureMessage(operation),
+      displayError: workspaceGatewayPushFailureMessage(push.failureCode),
       progress,
+      status: "failed",
     };
   }
-
-  if (operation.status !== "succeeded") {
-    return {
-      status: "failed",
-      displayError: "Workspace gateway operation is still running.",
-      progress,
-    };
+  if (push.lifecycle !== "succeeded") {
+    return { displayError: "Workspace Push is still running.", progress, status: "failed" };
   }
-
   return {
-    status: workspaceGatewayOperationReplayed(operation) ? "replayed" : "committed",
-    displayMessage: workspaceGatewayOperationDisplayMessage(operation),
-    output: {
-      operationId: operation.id,
-      operationKind: operation.operation,
-      status: operation.status,
-    },
+    displayMessage: workspaceGatewayPushOutcomeMessage(push.outcome),
+    output: { outcome: push.outcome, pushId: push.id },
     progress,
+    status: push.outcome === "up-to-date" ? "replayed" : "committed",
   };
 }
 
-export function workspaceGatewayOperationGeneratedProgress(
-  operation: WorkspaceGatewayOperation,
+export function workspaceGatewayPushGeneratedProgress(
+  push: WorkspaceGatewayPush,
 ): GeneratedOperationProgress {
-  const steps = workspaceGatewayOperationGeneratedProgressSteps(operation);
-  const activeDetail = steps.find((step) => step.status === "running")?.detail;
-  const failedDetail = steps.find((step) => step.status === "failed")?.detail;
-  const pendingDetail = steps.find((step) => step.status === "pending")?.detail;
-  const detail = activeDetail ?? failedDetail ?? pendingDetail;
-
+  const steps = push.phases.map(workspaceGatewayPushGeneratedProgressStep);
+  const active =
+    steps.find((step) => step.status === "running") ??
+    steps.find((step) => step.status === "failed") ??
+    steps.find((step) => step.status === "pending");
   return {
-    title: operation.summary.title,
-    ...(detail === undefined ? {} : { detail }),
-    updatedAt: workspaceGatewayOperationUpdatedAt(operation),
+    ...(active === undefined ? {} : { detail: active.label }),
     steps,
+    title: "Push workspace",
+    updatedAt: timestamp(push.updatedAt),
   };
 }
 
-export function workspaceGatewayOperationGeneratedProgressSteps(
-  operation: WorkspaceGatewayOperation,
+export function workspaceGatewayPushGeneratedProgressSteps(
+  push: WorkspaceGatewayPush,
 ): readonly GeneratedOperationProgressStep[] {
-  const steps = operation.steps ?? operation.result?.steps ?? [];
-
-  if (steps.length > 0) {
-    return steps.map(workspaceGatewayOperationGeneratedProgressStep);
-  }
-
-  const failureMessage =
-    operation.status === "failed" ? workspaceGatewayOperationFailureMessage(operation) : undefined;
-
-  return [
-    {
-      id: operation.operation,
-      label: operation.summary.title,
-      ...(failureMessage === undefined ? {} : { detail: failureMessage }),
-      status: workspaceGatewayStatusToGeneratedStepStatus(operation.status),
-    },
-  ];
+  return push.phases.map(workspaceGatewayPushGeneratedProgressStep);
 }
 
-async function pollWorkspaceGatewayGeneratedOperation(
-  response: WorkspaceGatewayResponse,
+export function workspaceGatewayStatusObservedPush(
+  status: WorkspaceGatewayStatusResponse,
+): WorkspaceGatewayPush | undefined {
+  return status.currentPush ?? status.latestPush ?? undefined;
+}
+
+export function workspaceGatewayPushFailureMessage(code: WorkspaceGatewayPushFailureCode): string {
+  const copy: Record<WorkspaceGatewayPushFailureCode, string> = {
+    "account-discovery-failed": "Cloudflare accounts could not be loaded.",
+    "authorization-expired": "Cloudflare authorization expired.",
+    "backup-failed": "The current target could not be backed up.",
+    "credential-unavailable": "Cloudflare credentials are unavailable.",
+    "health-check-failed": "The deployed runtime did not pass its health check.",
+    "interaction-expired": "Cloudflare account selection expired.",
+    "internal-failure": "Workspace Push failed.",
+    "observation-write-failed": "Deployment observation could not be refreshed.",
+    "owner-setup-failed": "Instance owner setup could not be completed.",
+    "provider-reconciliation-failed": "Cloudflare resources could not be reconciled.",
+    "restore-apply-failed": "Workspace state could not be applied.",
+    "restore-validation-failed": "Workspace state did not pass restore validation.",
+    "schema-incompatible": "Workspace schema is incompatible with the target.",
+    "source-invalid": "Workspace source is invalid.",
+    "target-conflict": "The target changed while Push was running.",
+    "target-unavailable": "The workspace target is unavailable.",
+  };
+  return copy[code];
+}
+
+export function workspaceGatewayPushPending(push: WorkspaceGatewayPush): boolean {
+  return (
+    push.lifecycle === "queued" ||
+    push.lifecycle === "running" ||
+    push.lifecycle === "waiting-for-interaction"
+  );
+}
+
+async function pollPush(
+  response: WorkspaceGatewayPushResponse,
   request: GeneratedOperationRuntimeAdapterRequest,
   options: WorkspaceGatewayGeneratedOperationRuntimeAdapterOptions,
 ): Promise<GeneratedOperationRuntimeAdapterResponse> {
-  let operation = response.operation;
-
-  request.reportProgress(workspaceGatewayOperationGeneratedProgress(operation));
-
-  while (workspaceGatewayOperationPending(operation)) {
-    await waitForWorkspaceGatewayPoll(options);
-
-    const next = await fetchWorkspaceGatewayOperation(
-      { operationId: operation.id, operationKind: operation.operation },
-      {
-        config: options.config,
-        fetcher: options.fetcher,
-        signal: options.signal,
-      },
-    );
-
-    if (next === undefined) {
-      return {
-        status: "failed",
-        displayError: "Workspace gateway operation is unavailable.",
-        progress: workspaceGatewayOperationGeneratedProgress(operation),
-      };
+  let push = response.push;
+  request.reportProgress(workspaceGatewayPushGeneratedProgress(push));
+  while (workspaceGatewayPushPending(push)) {
+    if (
+      push.lifecycle === "waiting-for-interaction" &&
+      push.interaction.kind === "account-selection"
+    ) {
+      if (!options.selectAccount) {
+        return {
+          displayError: "Select a Cloudflare account to continue Workspace Push.",
+          progress: workspaceGatewayPushGeneratedProgress(push),
+          status: "failed",
+        };
+      }
+      const accountId = await options.selectAccount(push.interaction);
+      const submitted = await submitWorkspaceGatewayAccountSelection(
+        { accountId, interactionId: push.interaction.id, pushId: push.id },
+        options,
+      );
+      if (!submitted) return failed("Workspace gateway is unavailable.");
+      push = submitted.push;
+      request.reportProgress(workspaceGatewayPushGeneratedProgress(push));
+      continue;
     }
-
-    operation = next.operation;
-    request.reportProgress(workspaceGatewayOperationGeneratedProgress(operation));
+    await wait(options);
+    const next = await fetchWorkspaceGatewayPush(push.id, options);
+    if (!next) return failed("Workspace gateway is unavailable.");
+    push = next.push;
+    request.reportProgress(workspaceGatewayPushGeneratedProgress(push));
   }
-
-  return workspaceGatewayOperationGeneratedRuntimeAdapterResponse(operation);
+  return workspaceGatewayPushGeneratedRuntimeAdapterResponse(push);
 }
 
-function workspaceGatewayOperationGeneratedProgressStep(
-  step: WorkspaceGatewayOperationStep,
+function workspaceGatewayPushGeneratedProgressStep(
+  phase: WorkspaceGatewayPushPhase,
 ): GeneratedOperationProgressStep {
-  return {
-    id: step.id,
-    label: step.label,
-    ...(step.detail === undefined && step.error === undefined
-      ? {}
-      : { detail: step.detail ?? step.error }),
-    status: step.status,
+  return { id: phase.id, label: phaseLabel(phase.id), status: phase.status };
+}
+
+function phaseLabel(id: WorkspaceGatewayPushPhase["id"]): string {
+  const labels: Record<WorkspaceGatewayPushPhase["id"], string> = {
+    "account-selection": "Select Cloudflare account",
+    credentials: "Connect Cloudflare",
+    "desired-state-plan": "Plan desired state",
+    "health-check": "Check deployed runtime",
+    "observation-refresh": "Refresh deployment observation",
+    "owner-setup": "Set up instance owner",
+    "provider-reconciliation": "Reconcile Cloudflare resources",
+    "workspace-push-writeback": "Push workspace state",
   };
+  return labels[id];
 }
 
-function workspaceGatewayOperationKind(
-  value: string | undefined,
-): WorkspaceGatewayOperationKind | undefined {
-  switch (value) {
-    case "check":
-    case "credentialSetup":
-    case "pull":
-    case "push":
-    case "save":
-    case "status":
-      return value;
-    default:
-      return undefined;
-  }
+function workspaceGatewayPushOutcomeMessage(
+  outcome: Extract<WorkspaceGatewayPush, { lifecycle: "succeeded" }>["outcome"],
+): string {
+  return outcome === "up-to-date"
+    ? "Workspace is already up to date."
+    : outcome === "planned"
+      ? "Workspace Push plan is ready."
+      : "Workspace Push applied.";
 }
 
-function workspaceGatewayOperationPending(operation: WorkspaceGatewayOperation): boolean {
-  return operation.status === "queued" || operation.status === "running";
+function gatewayAdapterErrorMessage(error: unknown): string {
+  return error instanceof WorkspaceGatewayApiError ? error.message : "Workspace Push failed.";
 }
 
-function workspaceGatewayStatusToGeneratedStepStatus(
-  status: WorkspaceGatewayOperation["status"],
-): GeneratedOperationProgressStep["status"] {
-  switch (status) {
-    case "failed":
-      return "failed";
-    case "queued":
-      return "pending";
-    case "running":
-      return "running";
-    case "succeeded":
-      return "succeeded";
-  }
+function failed(displayError: string): GeneratedOperationRuntimeAdapterResponse {
+  return { displayError, status: "failed" };
 }
 
-function workspaceGatewayOperationFailureMessage(operation: WorkspaceGatewayOperation): string {
-  const failedStep = (operation.steps ?? operation.result?.steps ?? []).find(
-    (step) => step.status === "failed",
-  );
-
-  return (
-    operation.errors.at(-1)?.message ??
-    failedStep?.error ??
-    failedStep?.detail ??
-    operation.summary.title ??
-    "Workspace gateway operation failed."
-  );
-}
-
-function workspaceGatewayOperationDisplayMessage(operation: WorkspaceGatewayOperation): string {
-  if (workspaceGatewayOperationReplayed(operation)) {
-    return "Workspace source push already applied.";
-  }
-
-  return punctuate(operation.summary.title);
-}
-
-function workspaceGatewayOperationReplayed(operation: WorkspaceGatewayOperation): boolean {
-  return (
-    operation.operation === "push" &&
-    operation.summary.fields.noop === true &&
-    operation.summary.fields.runtimeRebuild === undefined
-  );
-}
-
-function workspaceGatewayOperationUpdatedAt(operation: WorkspaceGatewayOperation): number {
-  const timestamp = Date.parse(operation.updatedAt);
-
-  return Number.isFinite(timestamp) ? timestamp : 0;
-}
-
-function punctuate(value: string): string {
-  return /[.!?]$/.test(value) ? value : `${value}.`;
-}
-
-function workspaceGatewayAdapterErrorMessage(error: unknown): string {
-  if (error instanceof WorkspaceGatewayApiError) {
-    return error.message;
-  }
-
-  return "Workspace gateway operation failed.";
-}
-
-function failedWorkspaceGatewayRuntimeAdapterResponse(
-  displayError: string,
-): GeneratedOperationRuntimeAdapterResponse {
-  return {
-    status: "failed",
-    displayError,
-  };
-}
-
-async function waitForWorkspaceGatewayPoll(
+async function wait(
   options: WorkspaceGatewayGeneratedOperationRuntimeAdapterOptions,
 ): Promise<void> {
-  if (options.wait !== undefined) {
-    await options.wait(options.pollIntervalMs ?? DEFAULT_WORKSPACE_GATEWAY_POLL_INTERVAL_MS);
-    return;
-  }
+  const milliseconds = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
+  if (options.wait) return options.wait(milliseconds);
+  await new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+}
 
-  await new Promise<void>((resolve) => {
-    setTimeout(resolve, options.pollIntervalMs ?? DEFAULT_WORKSPACE_GATEWAY_POLL_INTERVAL_MS);
-  });
+function timestamp(value: string): number {
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

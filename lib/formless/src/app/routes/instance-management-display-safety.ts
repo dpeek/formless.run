@@ -1,20 +1,3 @@
-import type {
-  WorkspaceGatewayDisplayObject,
-  WorkspaceGatewayDisplayValue,
-} from "@dpeek/formless-gateway/client";
-
-export function displaySafeEntries(fields: WorkspaceGatewayDisplayObject): Array<{
-  key: string;
-  label: string;
-  value: string;
-}> {
-  return Object.entries(fields).map(([key, value]) => ({
-    key,
-    label: fieldKeyLabel(key),
-    value: displaySafeValue(key, value),
-  }));
-}
-
 export function displaySafeText(value: string): string {
   return value
     .replace(
@@ -76,33 +59,6 @@ export function fieldKeyLabel(key: string): string {
     .replaceAll(/([a-z0-9])([A-Z])/g, "$1 $2")
     .replaceAll(/[-_]/g, " ")
     .replace(/^\w/, (match) => match.toUpperCase());
-}
-
-function displaySafeValue(key: string, value: WorkspaceGatewayDisplayValue): string {
-  if (isForbiddenDisplayKey(key)) {
-    return "[redacted]";
-  }
-
-  if (typeof value === "string") {
-    return displaySafeText(value);
-  }
-
-  if (typeof value === "number" || typeof value === "boolean" || value === null) {
-    return String(value);
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((item) => displaySafeValue(key, item)).join(", ");
-  }
-
-  const entries = Object.entries(value).map(([childKey, childValue]) => [
-    childKey,
-    displaySafeValue(childKey, childValue),
-  ]);
-
-  return entries
-    .map(([childKey, childValue]) => `${fieldKeyLabel(childKey)} ${childValue}`)
-    .join(", ");
 }
 
 function isForbiddenDisplayKey(key: string): boolean {

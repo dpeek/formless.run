@@ -33,7 +33,7 @@ import {
 import { formlessInstanceWorkspaceWranglerPersistPath } from "./instance-workspace-foundation.ts";
 import { FORMLESS_WORKSPACE_PROGRAM_RUNTIME_ENV_NAME } from "./program-runtime-bundler.ts";
 import {
-  createWorkspaceGatewayOperationHandlers,
+  createWorkspaceGatewayHandlers,
   type StartWorkspaceGatewaySidecarDependencies,
 } from "./workspace-gateway-runtime.ts";
 
@@ -280,7 +280,7 @@ async function startFormlessInstanceWorkspaceGatewaySidecar(
 
   return startPackageWorkspaceGatewaySidecar(sidecarInput, {
     createProxyToken: sidecarDependencies.createProxyToken,
-    operations: createWorkspaceGatewayOperationHandlers(runtimeDependencies),
+    handlers: createWorkspaceGatewayHandlers(runtimeDependencies),
   });
 }
 
@@ -288,9 +288,7 @@ function formlessInstanceWorkspaceGatewaySidecarDependencies(
   dependencies: FormlessInstanceWorkspaceGatewayLifecycleDependencies,
 ): StartWorkspaceGatewaySidecarDependencies {
   return {
-    ...(dependencies.accountDiscovery === undefined
-      ? {}
-      : { accountDiscovery: dependencies.accountDiscovery }),
+    accountDiscovery: dependencies.accountDiscovery,
     cwd: dependencies.cwd,
     ...(dependencies.deploymentAdapter === undefined
       ? {}
@@ -303,9 +301,7 @@ function formlessInstanceWorkspaceGatewaySidecarDependencies(
       : { localSecretEnv: dependencies.localSecretEnv }),
     now: dependencies.now,
     packageRoot: dependencies.packageRoot,
-    ...(dependencies.packageVersion === undefined
-      ? {}
-      : { packageVersion: dependencies.packageVersion }),
+    packageVersion: dependencies.packageVersion,
     ...(dependencies.randomToken === undefined ? {} : { randomToken: dependencies.randomToken }),
     ...(dependencies.setupCapability === undefined
       ? {}

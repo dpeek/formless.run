@@ -1,16 +1,18 @@
 import { describe, expect, it } from "vite-plus/test";
 import type {
   ManagementReadyContract,
+  ManagementAccountSelectionIntent,
   WorkspaceContract,
   WorkspaceIntent,
 } from "@dpeek/formless-presentation/contract";
 import { workspaceManifestReference } from "@dpeek/formless-presentation/host";
-import type { WorkspaceGatewayOperation } from "@dpeek/formless-gateway/client";
+import type { WorkspaceGatewayPush } from "@dpeek/formless-gateway/client";
 import { createApplicationRuntimePublicationCoordinator } from "../generated/application-runtime-contract-host.tsx";
 import { prepareGeneratedWorkspaceRuntimePublication } from "../generated/generated-workspace-contract-host.ts";
 import type { GeneratedWorkspaceRuntimeController } from "../generated/generated-workspace-runtime.tsx";
 import type { WorkspaceGatewayRouteState } from "./instance-shell.tsx";
 import {
+  dispatchInstanceManagementIntent,
   instanceManagementReference,
   projectInstanceManagement,
   resolveInstanceManagementIntent,
@@ -58,6 +60,40 @@ describe("instance management projection", () => {
     expect(resolveInstanceManagementIntent(projection, intent)).toEqual({
       kind: "workspacePush",
     });
+  });
+
+  it("projects, resolves, and dispatches only a current account-selection choice", async () => {
+    const currentPush = accountSelectionPush();
+    const projection = projectInstanceManagement(
+      input({ workspaceGatewayState: gatewayReady({ currentPush }) }),
+    );
+    const prompt = required(readyManifest(projection).workspaceOperation?.accountSelectionPrompt);
+    const intent = prompt.choices[0]!.intent as ManagementAccountSelectionIntent;
+
+    expect(resolveInstanceManagementIntent(projection, intent)).toEqual({
+      accountId: "account-a",
+      interactionId: "interaction_1234567890abcdef",
+      kind: "accountSelection",
+      pushId: currentPush.id,
+    });
+    expect(
+      resolveInstanceManagementIntent(projection, { ...intent, accountId: "unlisted" }),
+    ).toEqual({ kind: "ignored" });
+
+    const selected: unknown[] = [];
+    await dispatchInstanceManagementIntent(projection, intent, {
+      ...actions(),
+      selectAccount: (input) => {
+        selected.push(input);
+      },
+    });
+    expect(selected).toEqual([
+      {
+        accountId: "account-a",
+        interactionId: "interaction_1234567890abcdef",
+        pushId: currentPush.id,
+      },
+    ]);
   });
 });
 
@@ -123,32 +159,35 @@ function gatewayReady(
 ): Extract<WorkspaceGatewayRouteState, { status: "ready" }> {
   return {
     csrfToken: "csrf-token",
-    currentOperation: statusOperation(),
     status: "ready",
     ...overrides,
   };
 }
 
-function statusOperation(
-  overrides: Partial<WorkspaceGatewayOperation> = {},
-): WorkspaceGatewayOperation {
+function accountSelectionPush(): WorkspaceGatewayPush {
   return {
-    actor: "browser",
-    createdAt: "2026-07-16T00:00:00.000Z",
-    errors: [],
-    events: [],
-    id: "op_status_00000001",
-    input: {},
-    kind: "formless.workspaceOperation",
-    logs: [],
-    operation: "status",
-    result: { summary: { fields: {}, title: "Workspace status" } },
-    status: "succeeded",
-    summary: { fields: {}, title: "Workspace status" },
-    updatedAt: "2026-07-16T00:00:02.000Z",
-    version: 1,
-    workspace: { label: "formless" },
-    ...overrides,
+    createdAt: "2026-08-04T00:00:00.000Z",
+    id: "push_1234567890abcdef",
+    interaction: {
+      choices: [{ id: "account-a", name: "Account A" }],
+      expiresAt: "2026-08-04T00:05:00.000Z",
+      id: "interaction_1234567890abcdef",
+      kind: "account-selection",
+      provider: "cloudflare",
+    },
+    lifecycle: "waiting-for-interaction",
+    mode: "apply",
+    phases: [
+      { id: "credentials", status: "succeeded" },
+      { id: "account-selection", status: "running" },
+      { id: "desired-state-plan", status: "pending" },
+      { id: "provider-reconciliation", status: "pending" },
+      { id: "health-check", status: "pending" },
+      { id: "owner-setup", status: "pending" },
+      { id: "workspace-push-writeback", status: "pending" },
+      { id: "observation-refresh", status: "pending" },
+    ],
+    updatedAt: "2026-08-04T00:00:01.000Z",
   };
 }
 
@@ -174,7 +213,8 @@ function workspaceController(
 function actions(): InstanceManagementIntentActions {
   return {
     openAuthorization: () => undefined,
-    pollWorkspaceOperation: () => undefined,
+    pollWorkspacePush: () => undefined,
+    selectAccount: () => undefined,
     startWorkspacePush: () => undefined,
   };
 }

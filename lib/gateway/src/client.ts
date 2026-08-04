@@ -1,57 +1,60 @@
 import {
   WORKSPACE_GATEWAY_BOOTSTRAP_HEADER,
   WORKSPACE_GATEWAY_CSRF_HEADER,
-  WORKSPACE_GATEWAY_OPERATION_KIND_HEADER,
+  isWorkspaceGatewayApiErrorBody,
+  isWorkspaceGatewayPushResponse,
+  isWorkspaceGatewayStatusResponse,
   workspaceGatewayAutoSaveApiPath,
-  workspaceGatewayAutoSaveEnqueueIntent,
-  workspaceGatewayOperationApiPath,
-  workspaceGatewayOperationsApiPath,
-  workspaceGatewayReadOperationIntent,
-  workspaceGatewayStartOperationIntent,
+  workspaceGatewayPushApiPath,
+  workspaceGatewayPushInteractionApiPath,
+  workspaceGatewayPushesApiPath,
   workspaceGatewayStatusApiPath,
+  type WorkspaceGatewayAccountSelectionInput,
   type WorkspaceGatewayApiErrorBody,
   type WorkspaceGatewayAutoSaveEnqueueInput,
-  type WorkspaceGatewayOperationKind,
-  type WorkspaceGatewayResponse,
-  type WorkspaceGatewayStartInput,
+  type WorkspaceGatewayErrorCode,
+  type WorkspaceGatewayPushResponse,
+  type WorkspaceGatewayPushStartInput,
+  type WorkspaceGatewayStatusResponse,
 } from "./index.ts";
 
 export { WORKSPACE_GATEWAY_BOOTSTRAP_HEADER, WORKSPACE_GATEWAY_CSRF_HEADER } from "./index.ts";
 export type {
+  WorkspaceGatewayAccountChoice,
+  WorkspaceGatewayAccountSelectionInput,
+  WorkspaceGatewayAccountSelectionInteraction,
   WorkspaceGatewayApiErrorBody,
   WorkspaceGatewayAutoSaveEnqueueInput,
   WorkspaceGatewayAutoSaveWriteSource,
-  WorkspaceGatewayDisplayObject,
-  WorkspaceGatewayDisplayValue,
-  WorkspaceGatewayExternalAuthorizationEvent,
-  WorkspaceGatewayOperation,
-  WorkspaceGatewayOperationError,
-  WorkspaceGatewayOperationEvent,
-  WorkspaceGatewayOperationKind,
-  WorkspaceGatewayOperationLog,
-  WorkspaceGatewayOperationResult,
-  WorkspaceGatewayOperationStep,
-  WorkspaceGatewayOperationStepStatus,
-  WorkspaceGatewayOperationStatus,
-  WorkspaceGatewayOperationSummary,
-  WorkspaceGatewayResponse,
-  WorkspaceGatewayStartInput,
+  WorkspaceGatewayErrorCode,
+  WorkspaceGatewayExternalAuthorizationInteraction,
+  WorkspaceGatewayPush,
+  WorkspaceGatewayPushFailureCode,
+  WorkspaceGatewayPushInteraction,
+  WorkspaceGatewayPushLifecycle,
+  WorkspaceGatewayPushMode,
+  WorkspaceGatewayPushOutcome,
+  WorkspaceGatewayPushPhase,
+  WorkspaceGatewayPushPhaseId,
+  WorkspaceGatewayPushPhaseStatus,
+  WorkspaceGatewayPushResponse,
+  WorkspaceGatewayPushStartInput,
+  WorkspaceGatewayStatusResponse,
 } from "./index.ts";
 
-export type WorkspaceGatewayConfig = {
-  apiBasePath: string;
-  bootstrapToken?: string;
-};
+export type WorkspaceGatewayConfig = { apiBasePath: string; bootstrapToken?: string };
 
 export class WorkspaceGatewayApiError extends Error {
   readonly body: WorkspaceGatewayApiErrorBody;
+  readonly code: WorkspaceGatewayErrorCode;
   readonly status: number;
 
-  constructor(message: string, options: { body: WorkspaceGatewayApiErrorBody; status: number }) {
-    super(message);
+  constructor(body: WorkspaceGatewayApiErrorBody, status: number) {
+    super(workspaceGatewayErrorMessage(body.code));
     this.name = "WorkspaceGatewayApiError";
-    this.body = options.body;
-    this.status = options.status;
+    this.body = body;
+    this.code = body.code;
+    this.status = status;
   }
 }
 
@@ -59,13 +62,8 @@ export function workspaceGatewayBrowserConfig(
   env: Record<string, unknown> = import.meta.env,
 ): WorkspaceGatewayConfig | undefined {
   const apiBasePath = stringConfigValue(env.VITE_FORMLESS_WORKSPACE_GATEWAY_API);
-
-  if (!apiBasePath) {
-    return undefined;
-  }
-
+  if (!apiBasePath) return undefined;
   const bootstrapToken = stringConfigValue(env.VITE_FORMLESS_WORKSPACE_GATEWAY_BOOTSTRAP_TOKEN);
-
   return {
     apiBasePath: apiBasePath.replace(/\/+$/, ""),
     ...(bootstrapToken === undefined ? {} : { bootstrapToken }),
@@ -80,234 +78,154 @@ export async function fetchWorkspaceGatewayStatus({
   config?: WorkspaceGatewayConfig;
   fetcher?: typeof fetch;
   signal?: AbortSignal;
-} = {}): Promise<WorkspaceGatewayResponse | undefined> {
-  if (!config) {
-    return undefined;
-  }
+} = {}): Promise<WorkspaceGatewayStatusResponse | undefined> {
+  if (!config) return undefined;
+  const request = (allowBootstrap: boolean) =>
+    fetcher(workspaceGatewayStatusApiPath(config.apiBasePath), {
+      credentials: "same-origin",
+      headers: gatewayHeaders(config, { allowBootstrap }),
+      signal,
+    });
+  return requestWithBootstrapRetry(request, readStatusResponse);
+}
 
-  return gatewayRequestWithBootstrapRetry<WorkspaceGatewayResponse>(
-    () =>
-      fetcher(workspaceGatewayStatusApiPath(config.apiBasePath), {
-        credentials: "same-origin",
-        headers: gatewayHeaders(config, { allowBootstrap: true }),
-        signal,
+export async function startWorkspaceGatewayPush(
+  input: WorkspaceGatewayPushStartInput,
+  options: MutationOptions = {},
+): Promise<WorkspaceGatewayPushResponse | undefined> {
+  const config = options.config ?? workspaceGatewayBrowserConfig();
+  if (!config) return undefined;
+  return readPushResponse(
+    await (options.fetcher ?? fetch)(workspaceGatewayPushesApiPath(config.apiBasePath), {
+      body: JSON.stringify(input),
+      credentials: "same-origin",
+      headers: gatewayHeaders(config, {
+        allowBootstrap: false,
+        csrfToken: options.csrfToken,
+        includeJsonContentType: true,
       }),
-    () =>
-      fetcher(workspaceGatewayStatusApiPath(config.apiBasePath), {
-        credentials: "same-origin",
-        headers: gatewayHeaders(config, { allowBootstrap: false }),
-        signal,
-      }),
+      method: "POST",
+      signal: options.signal,
+    }),
   );
 }
 
-export async function startWorkspaceGatewayOperation(
-  input: WorkspaceGatewayStartInput,
-  {
-    config = workspaceGatewayBrowserConfig(),
-    csrfToken,
-    fetcher = fetch,
-    signal,
-  }: {
-    config?: WorkspaceGatewayConfig;
-    csrfToken?: string;
-    fetcher?: typeof fetch;
-    signal?: AbortSignal;
-  } = {},
-): Promise<WorkspaceGatewayResponse | undefined> {
-  if (!config) {
-    return undefined;
-  }
+export async function fetchWorkspaceGatewayPush(
+  pushId: string,
+  options: ReadOptions = {},
+): Promise<WorkspaceGatewayPushResponse | undefined> {
+  const config = options.config ?? workspaceGatewayBrowserConfig();
+  if (!config) return undefined;
+  return readPushResponse(
+    await (options.fetcher ?? fetch)(workspaceGatewayPushApiPath(pushId, config.apiBasePath), {
+      credentials: "same-origin",
+      headers: gatewayHeaders(config, { allowBootstrap: false }),
+      signal: options.signal,
+    }),
+  );
+}
 
-  const { bootstrapAllowed } = workspaceGatewayStartOperationIntent(input);
-
-  return gatewayRequestWithBootstrapRetry<WorkspaceGatewayResponse>(
-    () =>
-      fetcher(workspaceGatewayOperationsApiPath(config.apiBasePath), {
-        body: JSON.stringify(input),
-        credentials: "same-origin",
-        headers: gatewayHeaders(config, {
-          allowBootstrap: bootstrapAllowed,
-          csrfToken,
-          includeJsonContentType: true,
-        }),
-        method: "POST",
-        signal,
-      }),
-    () =>
-      fetcher(workspaceGatewayOperationsApiPath(config.apiBasePath), {
-        body: JSON.stringify(input),
+export async function submitWorkspaceGatewayAccountSelection(
+  input: {
+    accountId: string;
+    interactionId: string;
+    pushId: string;
+  },
+  options: MutationOptions = {},
+): Promise<WorkspaceGatewayPushResponse | undefined> {
+  const config = options.config ?? workspaceGatewayBrowserConfig();
+  if (!config) return undefined;
+  const body: WorkspaceGatewayAccountSelectionInput = {
+    accountId: input.accountId,
+    kind: "account-selection",
+  };
+  return readPushResponse(
+    await (options.fetcher ?? fetch)(
+      workspaceGatewayPushInteractionApiPath(input.pushId, input.interactionId, config.apiBasePath),
+      {
+        body: JSON.stringify(body),
         credentials: "same-origin",
         headers: gatewayHeaders(config, {
           allowBootstrap: false,
-          csrfToken,
+          csrfToken: options.csrfToken,
           includeJsonContentType: true,
         }),
         method: "POST",
-        signal,
-      }),
+        signal: options.signal,
+      },
+    ),
   );
 }
 
 export async function enqueueWorkspaceGatewayAutoSave(
   input: WorkspaceGatewayAutoSaveEnqueueInput,
-  {
-    config = workspaceGatewayBrowserConfig(),
-    csrfToken,
-    fetcher = fetch,
-    signal,
-  }: {
-    config?: WorkspaceGatewayConfig;
-    csrfToken?: string;
-    fetcher?: typeof fetch;
-    signal?: AbortSignal;
-  } = {},
+  options: MutationOptions = {},
 ): Promise<void> {
-  if (!config) {
-    return;
-  }
-
-  const { bootstrapAllowed } = workspaceGatewayAutoSaveEnqueueIntent();
-
-  await gatewayRequestWithBootstrapRetry<void>(
-    () =>
-      fetcher(workspaceGatewayAutoSaveApiPath(config.apiBasePath), {
-        body: JSON.stringify(input),
-        credentials: "same-origin",
-        headers: gatewayHeaders(config, {
-          allowBootstrap: bootstrapAllowed,
-          csrfToken,
-          includeJsonContentType: true,
-        }),
-        method: "POST",
-        signal,
+  const config = options.config ?? workspaceGatewayBrowserConfig();
+  if (!config) return;
+  const response = await (options.fetcher ?? fetch)(
+    workspaceGatewayAutoSaveApiPath(config.apiBasePath),
+    {
+      body: JSON.stringify(input),
+      credentials: "same-origin",
+      headers: gatewayHeaders(config, {
+        allowBootstrap: false,
+        csrfToken: options.csrfToken,
+        includeJsonContentType: true,
       }),
-    () =>
-      fetcher(workspaceGatewayAutoSaveApiPath(config.apiBasePath), {
-        body: JSON.stringify(input),
-        credentials: "same-origin",
-        headers: gatewayHeaders(config, {
-          allowBootstrap: false,
-          csrfToken,
-          includeJsonContentType: true,
-        }),
-        method: "POST",
-        signal,
-      }),
+      method: "POST",
+      signal: options.signal,
+    },
   );
+  if (!response.ok || response.status !== 204) await throwGatewayError(response);
 }
 
-export async function fetchWorkspaceGatewayOperation(
-  input: { operationId: string; operationKind?: WorkspaceGatewayOperationKind },
-  {
-    config = workspaceGatewayBrowserConfig(),
-    fetcher = fetch,
-    signal,
-  }: {
-    config?: WorkspaceGatewayConfig;
-    fetcher?: typeof fetch;
-    signal?: AbortSignal;
-  } = {},
-): Promise<WorkspaceGatewayResponse | undefined> {
-  if (!config) {
-    return undefined;
-  }
+type ReadOptions = {
+  config?: WorkspaceGatewayConfig;
+  fetcher?: typeof fetch;
+  signal?: AbortSignal;
+};
+type MutationOptions = ReadOptions & { csrfToken?: string };
 
-  const allowBootstrap = input.operationKind
-    ? workspaceGatewayReadOperationIntent(input.operationKind).bootstrapAllowed
-    : false;
-  const operationPath = workspaceGatewayOperationApiPath(input.operationId, config.apiBasePath);
-
-  return gatewayRequestWithBootstrapRetry<WorkspaceGatewayResponse>(
-    () =>
-      fetcher(operationPath, {
-        credentials: "same-origin",
-        headers: gatewayHeaders(config, { allowBootstrap, operationKind: input.operationKind }),
-        signal,
-      }),
-    () =>
-      fetcher(operationPath, {
-        credentials: "same-origin",
-        headers: gatewayHeaders(config, {
-          allowBootstrap: false,
-          operationKind: input.operationKind,
-        }),
-        signal,
-      }),
-  );
-}
-
-async function gatewayRequestWithBootstrapRetry<T>(
-  request: () => Promise<Response>,
-  retryWithoutBootstrap: () => Promise<Response>,
+async function requestWithBootstrapRetry<T>(
+  request: (allowBootstrap: boolean) => Promise<Response>,
+  parse: (response: Response) => Promise<T>,
 ): Promise<T> {
-  const first = await request();
-
-  if (first.status !== 403) {
-    return readJsonResponse<T>(first);
-  }
-
-  const firstBody = await readGatewayTransportErrorBody(first);
-
-  if (!bootstrapExpired(firstBody)) {
-    throw new WorkspaceGatewayApiError(firstBody.error, {
-      body: firstBody,
-      status: first.status,
-    });
-  }
-
-  return readJsonResponse<T>(await retryWithoutBootstrap());
+  const first = await request(true);
+  if (first.status !== 403) return parse(first);
+  const body = await readGatewayErrorBody(first);
+  if (body.code !== "bootstrap-expired") throw new WorkspaceGatewayApiError(body, first.status);
+  return parse(await request(false));
 }
 
-function gatewayHeaders(
-  config: WorkspaceGatewayConfig,
-  options: {
-    allowBootstrap: boolean;
-    csrfToken?: string;
-    includeJsonContentType?: boolean;
-    operationKind?: WorkspaceGatewayOperationKind;
-  },
-): Headers {
-  const headers = new Headers({ Accept: "application/json" });
-
-  if (options.includeJsonContentType) {
-    headers.set("Content-Type", "application/json");
-  }
-
-  if (options.allowBootstrap && config.bootstrapToken) {
-    headers.set(WORKSPACE_GATEWAY_BOOTSTRAP_HEADER, config.bootstrapToken);
-  }
-
-  if (options.csrfToken) {
-    headers.set(WORKSPACE_GATEWAY_CSRF_HEADER, options.csrfToken);
-  }
-
-  if (options.operationKind) {
-    headers.set(WORKSPACE_GATEWAY_OPERATION_KIND_HEADER, options.operationKind);
-  }
-
-  return headers;
-}
-
-async function readJsonResponse<T>(response: Response): Promise<T> {
+async function readStatusResponse(response: Response): Promise<WorkspaceGatewayStatusResponse> {
   const body = await readResponseJson(response);
-
-  if (!response.ok) {
-    const errorBody = gatewayTransportErrorBody(body);
-
-    throw new WorkspaceGatewayApiError(errorBody.error, {
-      body: errorBody,
-      status: response.status,
-    });
-  }
-
-  return body as unknown as T;
+  if (!response.ok) throw new WorkspaceGatewayApiError(gatewayErrorBody(body), response.status);
+  if (!isWorkspaceGatewayStatusResponse(body)) throw invalidResponseError();
+  return body;
 }
 
-async function readGatewayTransportErrorBody(
-  response: Response,
-): Promise<WorkspaceGatewayApiErrorBody> {
-  return gatewayTransportErrorBody(await readResponseJson(response));
+async function readPushResponse(response: Response): Promise<WorkspaceGatewayPushResponse> {
+  const body = await readResponseJson(response);
+  if (!response.ok) throw new WorkspaceGatewayApiError(gatewayErrorBody(body), response.status);
+  if (!isWorkspaceGatewayPushResponse(body)) throw invalidResponseError();
+  return body;
+}
+
+async function throwGatewayError(response: Response): Promise<never> {
+  throw new WorkspaceGatewayApiError(await readGatewayErrorBody(response), response.status);
+}
+
+async function readGatewayErrorBody(response: Response): Promise<WorkspaceGatewayApiErrorBody> {
+  return gatewayErrorBody(await readResponseJson(response));
+}
+
+function gatewayErrorBody(body: unknown): WorkspaceGatewayApiErrorBody {
+  return isWorkspaceGatewayApiErrorBody(body) ? body : { code: "invalid-sidecar-response" };
+}
+
+function invalidResponseError(): WorkspaceGatewayApiError {
+  return new WorkspaceGatewayApiError({ code: "invalid-sidecar-response" }, 502);
 }
 
 async function readResponseJson(response: Response): Promise<unknown> {
@@ -318,25 +236,54 @@ async function readResponseJson(response: Response): Promise<unknown> {
   }
 }
 
-function gatewayTransportErrorBody(body: unknown): WorkspaceGatewayApiErrorBody {
-  if (isRecord(body)) {
-    return {
-      ...body,
-      error: typeof body.error === "string" ? body.error : "Workspace gateway request failed.",
-    } as WorkspaceGatewayApiErrorBody;
+function gatewayHeaders(
+  config: WorkspaceGatewayConfig,
+  options: {
+    allowBootstrap: boolean;
+    csrfToken?: string;
+    includeJsonContentType?: boolean;
+  },
+): Headers {
+  const headers = new Headers({ Accept: "application/json" });
+  if (options.includeJsonContentType) headers.set("Content-Type", "application/json");
+  if (options.allowBootstrap && config.bootstrapToken) {
+    headers.set(WORKSPACE_GATEWAY_BOOTSTRAP_HEADER, config.bootstrapToken);
   }
-
-  return { error: "Workspace gateway request failed." };
+  if (options.csrfToken) headers.set(WORKSPACE_GATEWAY_CSRF_HEADER, options.csrfToken);
+  return headers;
 }
 
-function bootstrapExpired(body: WorkspaceGatewayApiErrorBody): boolean {
-  return body.error.toLowerCase().includes("bootstrap authorization has expired");
+function workspaceGatewayErrorMessage(code: WorkspaceGatewayErrorCode): string {
+  switch (code) {
+    case "push-active":
+      return "A workspace push is already running.";
+    case "push-not-found":
+      return "Workspace push was not found.";
+    case "interaction-not-found":
+      return "Workspace push interaction was not found.";
+    case "interaction-invalid":
+      return "The selected Cloudflare account is unavailable.";
+    case "interaction-expired":
+      return "Workspace push interaction expired.";
+    case "csrf-invalid":
+      return "Workspace authorization expired. Refresh and try again.";
+    case "unauthorized":
+    case "bootstrap-expired":
+      return "Workspace authorization is required.";
+    case "forbidden":
+      return "Workspace push is not allowed.";
+    case "gateway-unavailable":
+      return "Workspace gateway is unavailable.";
+    case "invalid-sidecar-response":
+      return "Workspace gateway returned an invalid response.";
+    case "invalid-request":
+      return "Workspace push request is invalid.";
+    case "method-not-allowed":
+    case "not-found":
+      return "Workspace gateway route is unavailable.";
+  }
 }
 
 function stringConfigValue(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

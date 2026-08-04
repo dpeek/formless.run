@@ -1,246 +1,336 @@
 import {
-  isWorkspaceGatewayOperationKind,
-  type WorkspaceGatewayOperation,
-  type WorkspaceGatewayStartInput,
+  WORKSPACE_GATEWAY_PUSH_PHASE_IDS,
+  type WorkspaceGatewayPushFailureCode,
+  type WorkspaceGatewayPushHandler,
+  type WorkspaceGatewayPushPhaseId,
+  type WorkspaceGatewayPushPhaseObserver,
 } from "@dpeek/formless-gateway";
-import type { WorkspaceGatewaySidecarOperationHandlers } from "@dpeek/formless-gateway/sidecar";
+import {
+  WorkspaceGatewayPushExecutionError,
+  type WorkspaceGatewaySidecarHandlers,
+} from "@dpeek/formless-gateway/sidecar";
 import {
   WORKSPACE_OPERATION_CAPABILITIES,
-  workspaceOperationEffectiveExecutionRequirements,
-  type WorkspaceOperationExecutionRequirement,
-  type WorkspaceOperationInput,
+  assertWorkspaceOperationExecutionAllowed,
+  assertWorkspaceOperationExecutionRequirements,
   type WorkspaceOperationRequiredCapability,
-  type WorkspaceOperationState,
 } from "@dpeek/formless-workspace";
-import { readWorkspaceOperationState } from "@dpeek/formless-workspace/node";
 
 import {
-  runFormlessWorkspaceOperation,
-  type RunFormlessWorkspaceOperationDependencies,
-  type WorkspaceCredentialSetupOperationAdapterInput,
-} from "./instance-workspace-operations.ts";
-import type { FormlessCloudflareCredentialSetupResult } from "./instance-workspace-credential-setup.ts";
-import type { WorkspaceGatewayOperationAutoSaveScheduler } from "./workspace-gateway-auto-save.ts";
+  pushFormlessInstanceWorkspace,
+  preflightPushFormlessCloudflareOAuthCredential,
+  type PushFormlessInstanceWorkspaceDependencies,
+  type PushFormlessInstanceWorkspaceDryRunDependencies,
+  type PushFormlessInstanceWorkspaceResult,
+} from "./instance-workspace-deployment.ts";
+import {
+  assertFormlessCloudflareCredentialAuthorization,
+  setupCloudflareCredentialsWithFormlessOAuth,
+  type AlchemyCloudflareCredentialSetupInput,
+  type FormlessCloudflareCredentialSetupResult,
+} from "./instance-workspace-credential-setup.ts";
+import type { WorkspaceGatewayAutoSaveScheduler } from "./workspace-gateway-auto-save.ts";
 
-export type WorkspaceGatewayCredentialSetupAdapterInput =
-  WorkspaceCredentialSetupOperationAdapterInput;
-
+export type WorkspaceGatewayCredentialSetupAdapterInput = AlchemyCloudflareCredentialSetupInput;
 export type WorkspaceGatewayCredentialSetupAdapterResult = FormlessCloudflareCredentialSetupResult;
 
-export type WorkspaceGatewayOperationAdapterDependencies =
-  RunFormlessWorkspaceOperationDependencies & {
-    autoSaveScheduler: WorkspaceGatewayOperationAutoSaveScheduler;
-    operationCapabilities?: readonly WorkspaceOperationRequiredCapability[];
-  };
+type WorkspaceGatewayPushApplyDependencyKey = Exclude<
+  keyof PushFormlessInstanceWorkspaceDependencies,
+  keyof PushFormlessInstanceWorkspaceDryRunDependencies
+>;
 
-export function createWorkspaceGatewayOperationHandlers(
-  dependencies: WorkspaceGatewayOperationAdapterDependencies,
-): WorkspaceGatewaySidecarOperationHandlers {
-  const autoSaveScheduler = dependencies.autoSaveScheduler;
+export type WorkspaceGatewayPushExecutionDependencies =
+  PushFormlessInstanceWorkspaceDryRunDependencies &
+    Partial<
+      Pick<PushFormlessInstanceWorkspaceDependencies, WorkspaceGatewayPushApplyDependencyKey>
+    >;
 
+export type WorkspaceGatewayPushAdapterDependencies = WorkspaceGatewayPushExecutionDependencies & {
+  autoSaveScheduler: WorkspaceGatewayAutoSaveScheduler;
+  operationCapabilities?: readonly WorkspaceOperationRequiredCapability[];
+  preflightPushCredential?: typeof preflightPushFormlessCloudflareOAuthCredential;
+  push?: typeof pushFormlessInstanceWorkspace;
+  pushCredentialSetup?: (
+    input: WorkspaceGatewayCredentialSetupAdapterInput,
+  ) => Promise<WorkspaceGatewayCredentialSetupAdapterResult>;
+};
+
+export function createWorkspaceGatewayHandlers(
+  dependencies: WorkspaceGatewayPushAdapterDependencies,
+): WorkspaceGatewaySidecarHandlers {
   return {
     enqueueAutoSave: async ({ enqueue, workspaceRoot }) => {
-      await autoSaveScheduler.enqueue({ ...enqueue, workspaceRoot });
+      await dependencies.autoSaveScheduler.enqueue({ ...enqueue, workspaceRoot });
     },
-    readOperation: async ({ operationId, workspaceRoot }) => {
-      await autoSaveScheduler.recordGatewayOperationStateSuppressed({ workspaceRoot });
-
-      try {
-        const operation = await readWorkspaceOperationState({
-          operationId,
-          workspaceRoot,
-        });
-
-        return workspaceGatewayOperationFromState(operation);
-      } catch (error) {
-        if (isNodeError(error) && error.code === "ENOENT") {
-          return undefined;
-        }
-
-        throw error;
-      }
-    },
-    startOperation: async ({ authorization, operationInput, workspaceRoot }) => {
-      await autoSaveScheduler.recordGatewayOperationStateSuppressed({ workspaceRoot });
-      const manualSaveGeneration = await autoSaveScheduler.recordWorkspaceOperationSuppressed({
-        operationInput,
-        workspaceRoot,
-      });
-
-      const scopedInput = workspaceGatewayOperationInputWithWorkspaceRoot(
-        operationInput,
-        workspaceRoot,
-      );
-
-      const operation = requireWorkspaceGatewayOperation(
-        await runFormlessWorkspaceOperation(
-          scopedInput,
-          projectWorkspaceGatewayOperationDependencies(dependencies, scopedInput, workspaceRoot),
-          {
-            actor: authorization.actor,
-            capabilities: workspaceGatewayRuntimeCapabilities(dependencies),
-          },
-        ),
-      );
-
-      if (manualSaveGeneration !== undefined && operation.status === "succeeded") {
-        await autoSaveScheduler.recordSaved({
-          throughGeneration: manualSaveGeneration,
-          workspaceRoot,
-        });
-      }
-
-      return operation;
-    },
-    status: async ({ authorization, workspaceRoot }) => {
-      const operationStartInput = {
-        includeDeploymentStatus: false,
-        kind: "status",
-      } as const;
-
-      await autoSaveScheduler.recordWorkspaceOperationSuppressed({
-        operationInput: operationStartInput,
-        workspaceRoot,
-      });
-
-      const operationInput = {
-        ...operationStartInput,
-        workspacePath: workspaceRoot,
-      } as const;
-
-      return requireWorkspaceGatewayOperation(
-        await runFormlessWorkspaceOperation(
-          operationInput,
-          projectWorkspaceGatewayOperationDependencies(dependencies, operationInput, workspaceRoot),
-          {
-            actor: authorization.actor,
-            capabilities: workspaceGatewayRuntimeCapabilities(dependencies),
-          },
-        ),
-      );
-    },
+    push: createWorkspaceGatewayPushHandler(dependencies),
   };
 }
 
-export function projectWorkspaceGatewayOperationDependencies(
-  dependencies: RunFormlessWorkspaceOperationDependencies,
-  operationInput: WorkspaceOperationInput,
-  workspaceRoot: string,
-): RunFormlessWorkspaceOperationDependencies {
-  const requirements = workspaceOperationEffectiveExecutionRequirements(operationInput);
-  const projected: RunFormlessWorkspaceOperationDependencies = {
-    cwd: workspaceRoot,
-    fetch: dependencies.fetch,
-    now: dependencies.now,
+export function createWorkspaceGatewayPushHandler(
+  dependencies: WorkspaceGatewayPushAdapterDependencies,
+): WorkspaceGatewayPushHandler {
+  return async ({ authorization, observer, push, workspaceRoot }) => {
+    const semanticInput = {
+      dryRun: push.mode === "dry-run",
+      kind: "push" as const,
+      ...(push.targetAlias === undefined ? {} : { targetAlias: push.targetAlias }),
+    };
+    assertWorkspaceOperationExecutionRequirements(semanticInput);
+    assertWorkspaceOperationExecutionAllowed({
+      actor: authorization.actor,
+      capabilities: workspaceGatewayRuntimeCapabilities(dependencies),
+      kind: "push",
+    });
+    await ensurePushCredential({
+      dependencies,
+      observer,
+      targetAlias: push.targetAlias,
+      workspaceRoot,
+    });
+
+    observer.start("desired-state-plan");
+    let result: PushFormlessInstanceWorkspaceResult;
+    try {
+      result = await (dependencies.push ?? pushFormlessInstanceWorkspace)(
+        {
+          apply: push.mode === "apply",
+          targetAlias: push.targetAlias,
+          workspacePath: workspaceRoot,
+        },
+        pushDependencies(dependencies, push.mode),
+      );
+    } catch (error) {
+      const failure = classifyPushFailure(error);
+      advanceToFailurePhase(observer, failure.phase);
+      throw new WorkspaceGatewayPushExecutionError(failure.code, failure.phase, { cause: error });
+    }
+
+    observer.succeed("desired-state-plan");
+    completePushExecutionPhases(observer, result);
+    return {
+      outcome:
+        result.noop && result.runtimeRebuild === undefined
+          ? "up-to-date"
+          : push.mode === "dry-run"
+            ? "planned"
+            : "applied",
+    };
   };
-
-  if (dependencies.createOperationId !== undefined) {
-    projected.createOperationId = dependencies.createOperationId;
-  }
-
-  if (shouldProjectEnv(requirements) && dependencies.env !== undefined) {
-    projected.env = dependencies.env;
-  }
-
-  if (operationInput.kind === "credentialSetup" && dependencies.credentialSetup !== undefined) {
-    projected.credentialSetup = dependencies.credentialSetup;
-  }
-
-  if (operationInput.kind === "push" && hasRequirement(requirements, "remote-target")) {
-    if (dependencies.accountDiscovery !== undefined) {
-      projected.accountDiscovery = dependencies.accountDiscovery;
-    }
-
-    if (dependencies.packageVersion !== undefined) {
-      projected.packageVersion = dependencies.packageVersion;
-    }
-  }
-
-  if (operationInput.kind === "push" && hasRequirement(requirements, "provider-credentials")) {
-    if (dependencies.deploymentAdapter !== undefined) {
-      projected.deploymentAdapter = dependencies.deploymentAdapter;
-    }
-
-    if (dependencies.healthCheck !== undefined) {
-      projected.healthCheck = dependencies.healthCheck;
-    }
-
-    if (dependencies.localSecretEnv !== undefined) {
-      projected.localSecretEnv = dependencies.localSecretEnv;
-    }
-
-    if (dependencies.packageRoot !== undefined) {
-      projected.packageRoot = dependencies.packageRoot;
-    }
-
-    if (dependencies.randomToken !== undefined) {
-      projected.randomToken = dependencies.randomToken;
-    }
-
-    if (dependencies.setupCapability !== undefined) {
-      projected.setupCapability = dependencies.setupCapability;
-    }
-  }
-
-  return projected;
 }
 
 export function workspaceGatewayRuntimeCapabilities(
-  dependencies: Pick<WorkspaceGatewayOperationAdapterDependencies, "operationCapabilities">,
+  dependencies: Pick<WorkspaceGatewayPushAdapterDependencies, "operationCapabilities">,
 ): readonly WorkspaceOperationRequiredCapability[] {
   return dependencies.operationCapabilities ?? WORKSPACE_OPERATION_CAPABILITIES;
 }
 
-function workspaceGatewayOperationInputWithWorkspaceRoot(
-  input: WorkspaceGatewayStartInput,
-  workspaceRoot: string,
-): WorkspaceOperationInput {
+async function ensurePushCredential(input: {
+  dependencies: WorkspaceGatewayPushAdapterDependencies;
+  observer: WorkspaceGatewayPushPhaseObserver;
+  targetAlias?: string;
+  workspaceRoot: string;
+}): Promise<void> {
+  input.observer.start("credentials");
+  let preflight: Awaited<ReturnType<typeof preflightPushFormlessCloudflareOAuthCredential>>;
+  try {
+    preflight = await (
+      input.dependencies.preflightPushCredential ?? preflightPushFormlessCloudflareOAuthCredential
+    )(
+      { targetAlias: input.targetAlias, workspacePath: input.workspaceRoot },
+      { cwd: input.workspaceRoot },
+    );
+  } catch (error) {
+    throw new WorkspaceGatewayPushExecutionError("source-invalid", "credentials", {
+      cause: error,
+    });
+  }
+
+  if (!preflight.needsSetup) {
+    input.observer.succeed("credentials");
+    input.observer.skip("account-selection");
+    return;
+  }
+
+  const setup =
+    input.dependencies.pushCredentialSetup ??
+    ((setupInput) =>
+      setupCloudflareCredentialsWithFormlessOAuth(setupInput, { now: input.dependencies.now }));
+  let result: WorkspaceGatewayCredentialSetupAdapterResult;
+  try {
+    result = await setup({
+      deploymentConfigId: preflight.deploymentConfigId,
+      profileLabel: preflight.credentialId,
+      provider: "cloudflare",
+      targetAlias: input.targetAlias,
+      workspaceRoot: input.workspaceRoot,
+    });
+    if (result.kind === "authorization-waiting") {
+      assertFormlessCloudflareCredentialAuthorization(result);
+      input.observer.setExternalAuthorization(result.authorizationUrl);
+      result = await result.continue();
+    }
+  } catch (error) {
+    const code = credentialFailureCode(error);
+    throw new WorkspaceGatewayPushExecutionError(code, "credentials", { cause: error });
+  }
+
+  if (result.kind !== "account-selection-required") {
+    input.observer.succeed("credentials");
+    input.observer.skip("account-selection");
+    return;
+  }
+
+  input.observer.succeed("credentials");
+  input.observer.start("account-selection");
+  const accountId = await input.observer.requestAccountSelection(
+    result.accounts.map((account) => ({
+      id: account.id,
+      ...(account.name === undefined ? {} : { name: account.name }),
+    })),
+  );
+  try {
+    const selected = await setup({
+      accountId,
+      deploymentConfigId: preflight.deploymentConfigId,
+      profileLabel: preflight.credentialId,
+      provider: "cloudflare",
+      targetAlias: input.targetAlias,
+      workspaceRoot: input.workspaceRoot,
+    });
+    if (selected.kind !== "ready") {
+      throw new Error("Cloudflare account selection did not complete credential setup.");
+    }
+    input.observer.succeed("account-selection");
+  } catch (error) {
+    throw new WorkspaceGatewayPushExecutionError("account-discovery-failed", "account-selection", {
+      cause: error,
+    });
+  }
+}
+
+function pushDependencies(
+  dependencies: WorkspaceGatewayPushAdapterDependencies,
+  mode: "apply" | "dry-run",
+): PushFormlessInstanceWorkspaceDependencies | PushFormlessInstanceWorkspaceDryRunDependencies {
+  const accountDiscovery = requiredDependency(dependencies.accountDiscovery, "accountDiscovery");
+  const packageVersion = requiredDependency(dependencies.packageVersion, "packageVersion");
+  const base = {
+    accountDiscovery,
+    cwd: dependencies.cwd,
+    ...(dependencies.env === undefined ? {} : { env: dependencies.env }),
+    fetch: dependencies.fetch,
+    now: dependencies.now,
+    packageVersion,
+  };
+  if (mode === "dry-run") return base;
   return {
-    ...input,
-    workspacePath: workspaceRoot,
-  } as WorkspaceOperationInput;
+    ...base,
+    deploymentAdapter: requiredDependency(dependencies.deploymentAdapter, "deploymentAdapter"),
+    healthCheck: requiredDependency(dependencies.healthCheck, "healthCheck"),
+    localSecretEnv: requiredDependency(dependencies.localSecretEnv, "localSecretEnv"),
+    packageRoot: requiredDependency(dependencies.packageRoot, "packageRoot"),
+    randomToken: requiredDependency(dependencies.randomToken, "randomToken"),
+    setupCapability: requiredDependency(dependencies.setupCapability, "setupCapability"),
+  };
 }
 
-function workspaceGatewayOperationFromState(
-  operation: WorkspaceOperationState,
-): WorkspaceGatewayOperation | undefined {
-  if (!isWorkspaceGatewayOperationKind(operation.operation)) {
-    return undefined;
-  }
-
-  return operation as WorkspaceGatewayOperation;
-}
-
-function requireWorkspaceGatewayOperation(
-  operation: WorkspaceOperationState,
-): WorkspaceGatewayOperation {
-  const gatewayOperation = workspaceGatewayOperationFromState(operation);
-
-  if (!gatewayOperation) {
-    throw new Error(`Workspace gateway operation "${operation.operation}" is not supported.`);
-  }
-
-  return gatewayOperation;
-}
-
-function shouldProjectEnv(
-  requirements: readonly WorkspaceOperationExecutionRequirement[],
-): boolean {
-  return (
-    hasRequirement(requirements, "admin-token") ||
-    hasRequirement(requirements, "provider-credentials") ||
-    hasRequirement(requirements, "remote-target") ||
-    hasRequirement(requirements, "workspace-source-write")
+function completePushExecutionPhases(
+  observer: WorkspaceGatewayPushPhaseObserver,
+  result: PushFormlessInstanceWorkspaceResult,
+): void {
+  completeOptionalPhase(observer, "provider-reconciliation", result.deployment !== undefined);
+  completeOptionalPhase(observer, "health-check", result.healthCheck !== undefined);
+  completeOptionalPhase(observer, "owner-setup", result.ownerSetup !== undefined);
+  observer.start("workspace-push-writeback");
+  observer.succeed("workspace-push-writeback");
+  completeOptionalPhase(
+    observer,
+    "observation-refresh",
+    result.deploymentObservation !== undefined,
   );
 }
 
-function hasRequirement(
-  requirements: readonly WorkspaceOperationExecutionRequirement[],
-  requirement: WorkspaceOperationExecutionRequirement,
-): boolean {
-  return requirements.includes(requirement);
+function completeOptionalPhase(
+  observer: WorkspaceGatewayPushPhaseObserver,
+  phase: WorkspaceGatewayPushPhaseId,
+  ran: boolean,
+): void {
+  if (!ran) return observer.skip(phase);
+  observer.start(phase);
+  observer.succeed(phase);
 }
 
-function isNodeError(error: unknown): error is NodeJS.ErrnoException {
-  return error instanceof Error && "code" in error;
+function advanceToFailurePhase(
+  observer: WorkspaceGatewayPushPhaseObserver,
+  failurePhase: WorkspaceGatewayPushPhaseId,
+): void {
+  if (failurePhase === "desired-state-plan") return;
+  observer.succeed("desired-state-plan");
+  const firstExecutionPhase = WORKSPACE_GATEWAY_PUSH_PHASE_IDS.indexOf("provider-reconciliation");
+  const failureIndex = WORKSPACE_GATEWAY_PUSH_PHASE_IDS.indexOf(failurePhase);
+  for (let index = firstExecutionPhase; index < failureIndex; index += 1) {
+    observer.skip(WORKSPACE_GATEWAY_PUSH_PHASE_IDS[index]!);
+  }
+  observer.start(failurePhase);
+}
+
+function classifyPushFailure(error: unknown): {
+  code: WorkspaceGatewayPushFailureCode;
+  phase: WorkspaceGatewayPushPhaseId;
+} {
+  if (error instanceof WorkspaceGatewayPushExecutionError) {
+    return { code: error.code, phase: error.phase };
+  }
+  const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+  if (message.includes("schema") || message.includes("migration")) {
+    return { code: "schema-incompatible", phase: "workspace-push-writeback" };
+  }
+  if (message.includes("backup")) {
+    return { code: "backup-failed", phase: "workspace-push-writeback" };
+  }
+  if (message.includes("health")) {
+    return { code: "health-check-failed", phase: "health-check" };
+  }
+  if (message.includes("owner setup")) {
+    return { code: "owner-setup-failed", phase: "owner-setup" };
+  }
+  if (message.includes("observation")) {
+    return { code: "observation-write-failed", phase: "observation-refresh" };
+  }
+  if (message.includes("cursor") || message.includes("conflict")) {
+    return { code: "target-conflict", phase: "workspace-push-writeback" };
+  }
+  if (message.includes("restore") && message.includes("validation")) {
+    return { code: "restore-validation-failed", phase: "workspace-push-writeback" };
+  }
+  if (message.includes("restore")) {
+    return { code: "restore-apply-failed", phase: "workspace-push-writeback" };
+  }
+  if (
+    message.includes("deploy") ||
+    message.includes("provider") ||
+    message.includes("alchemy") ||
+    message.includes("cloudflare")
+  ) {
+    return { code: "provider-reconciliation-failed", phase: "provider-reconciliation" };
+  }
+  if (message.includes("target") || message.includes("404") || message.includes("unavailable")) {
+    return { code: "target-unavailable", phase: "desired-state-plan" };
+  }
+  if (message.includes("source") || message.includes("archive") || message.includes("config")) {
+    return { code: "source-invalid", phase: "desired-state-plan" };
+  }
+  return { code: "internal-failure", phase: "desired-state-plan" };
+}
+
+function credentialFailureCode(error: unknown): WorkspaceGatewayPushFailureCode {
+  const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
+  if (message.includes("timed out") || message.includes("expired")) return "authorization-expired";
+  if (message.includes("account")) return "account-discovery-failed";
+  return "credential-unavailable";
+}
+
+function requiredDependency<T>(value: T | undefined, name: string): T {
+  if (value === undefined) throw new Error(`Workspace Gateway Push requires ${name}.`);
+  return value;
 }

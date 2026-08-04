@@ -176,18 +176,13 @@ export type DevFormlessInstanceWorkspaceDependencies = {
   selectWorkspaceName?: EnsureFormlessInstanceWorkspaceDevBootstrapDependencies["selectWorkspaceName"];
   spawn: typeof nodeSpawn;
   startWorkspaceGatewaySidecar?: FormlessInstanceWorkspaceGatewayLifecycleSidecarStarter;
-} & Partial<
-  Pick<
-    StartWorkspaceGatewaySidecarDependencies,
-    | "accountDiscovery"
-    | "deploymentAdapter"
-    | "healthCheck"
-    | "localSecretEnv"
-    | "packageVersion"
-    | "randomToken"
-    | "setupCapability"
-  >
->;
+} & Pick<StartWorkspaceGatewaySidecarDependencies, "accountDiscovery" | "packageVersion"> &
+  Partial<
+    Pick<
+      StartWorkspaceGatewaySidecarDependencies,
+      "deploymentAdapter" | "healthCheck" | "localSecretEnv" | "randomToken" | "setupCapability"
+    >
+  >;
 
 export type ResetFormlessInstanceWorkspaceLocalStateInput = {
   workspacePath?: string;
@@ -671,7 +666,7 @@ async function assertNoLocalOnboardingIgnoredStateConflict(workspaceRoot: string
   }
 
   const hasOnlyIgnoredState = entries.every(
-    (entry) => entry.isDirectory() && (entry.name === "local" || entry.name === "operations"),
+    (entry) => entry.isDirectory() && entry.name === "local",
   );
 
   if (hasOnlyIgnoredState) {

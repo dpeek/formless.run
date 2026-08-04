@@ -1,422 +1,206 @@
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import path from "node:path";
-
-import { afterEach, describe, expect, it } from "vite-plus/test";
-import { type WorkspaceOperationRequiredCapability } from "@dpeek/formless-workspace";
+import { describe, expect, it } from "vite-plus/test";
+import type { WorkspaceGatewayPushPhaseObserver } from "@dpeek/formless-gateway";
+import { WorkspaceGatewayPushExecutionError } from "@dpeek/formless-gateway/sidecar";
 import {
-  createWorkspaceOperationState,
-  updateWorkspaceOperationState,
-} from "@dpeek/formless-workspace/node";
-
-import {
-  createWorkspaceGatewayOperationHandlers,
-  projectWorkspaceGatewayOperationDependencies,
-  type WorkspaceGatewayOperationAdapterDependencies,
+  createWorkspaceGatewayPushHandler,
+  type WorkspaceGatewayCredentialSetupAdapterResult,
+  type WorkspaceGatewayPushAdapterDependencies,
 } from "./workspace-gateway-operation-adapter.ts";
 import type {
-  WorkspaceAutoSaveSuppressionReason,
-  WorkspaceGatewayOperationAutoSaveScheduler,
-} from "./workspace-gateway-auto-save.ts";
-import { formlessProgramSchemaProvenance } from "../program/runtime.ts";
+  PushFormlessInstanceWorkspaceCloudflareOAuthPreflightResult,
+  PushFormlessInstanceWorkspaceResult,
+} from "./instance-workspace-deployment.ts";
 
-const tempDirs: string[] = [];
-
-afterEach(async () => {
-  await Promise.all(
-    tempDirs
-      .splice(0)
-      .map((tempDir) =>
-        rm(tempDir, { force: true, maxRetries: 10, recursive: true, retryDelay: 25 }),
-      ),
-  );
-});
-
-describe("workspace gateway operation adapter", () => {
-  it("projects dry-run push dependencies without provider mutation dependencies", () => {
-    const workspaceRoot = "/workspace/project";
-    const deps = adapterDeps(workspaceRoot);
-    const projected = projectWorkspaceGatewayOperationDependencies(
-      deps,
-      {
-        dryRun: true,
-        kind: "push",
-        workspacePath: workspaceRoot,
-      },
-      workspaceRoot,
-    );
-
-    expect(projected.cwd).toBe(workspaceRoot);
-    expect(projected.accountDiscovery).toBe(deps.accountDiscovery);
-    expect(projected.env).toBe(deps.env);
-    expect(projected.fetch).toBe(deps.fetch);
-    expect(projected.now).toBe(deps.now);
-    expect(projected.packageVersion).toBe(deps.packageVersion);
-    expect(projected.deploymentAdapter).toBeUndefined();
-    expect(projected.healthCheck).toBeUndefined();
-    expect(projected.localSecretEnv).toBeUndefined();
-    expect(projected.packageRoot).toBeUndefined();
-    expect(projected.randomToken).toBeUndefined();
-    expect(projected.setupCapability).toBeUndefined();
-  });
-
-  it("projects push apply dependencies required for provider reconciliation", () => {
-    const workspaceRoot = "/workspace/project";
-    const deps = adapterDeps(workspaceRoot);
-    const projected = projectWorkspaceGatewayOperationDependencies(
-      deps,
-      {
-        dryRun: false,
-        kind: "push",
-        workspacePath: workspaceRoot,
-      },
-      workspaceRoot,
-    );
-
-    expect(projected.accountDiscovery).toBe(deps.accountDiscovery);
-    expect(projected.deploymentAdapter).toBe(deps.deploymentAdapter);
-    expect(projected.healthCheck).toBe(deps.healthCheck);
-    expect(projected.localSecretEnv).toBe(deps.localSecretEnv);
-    expect(projected.packageRoot).toBe(deps.packageRoot);
-    expect(projected.packageVersion).toBe(deps.packageVersion);
-    expect(projected.randomToken).toBe(deps.randomToken);
-    expect(projected.setupCapability).toBe(deps.setupCapability);
-  });
-
-  it("forwards actor, capabilities, and configured workspace root to the operation runner", async () => {
-    const workspaceRoot = await makeTempDir();
-    const scheduler = autoSaveScheduler();
-    const credentialSetupInputs: Array<{
-      accountId?: string;
-      profileLabel?: string;
-      provider: string;
-      workspaceRoot: string;
-    }> = [];
-    const handlers = createWorkspaceGatewayOperationHandlers(
-      adapterDeps(workspaceRoot, {
-        autoSaveScheduler: scheduler.scheduler,
-        credentialSetup: async (input) => {
-          credentialSetupInputs.push({
-            accountId: input.accountId,
-            profileLabel: input.profileLabel,
-            provider: input.provider,
-            workspaceRoot: input.workspaceRoot,
-          });
-
-          return {
-            account: {
-              id: input.accountId ?? "acct_personal",
-              name: `FORMLESS_TOKEN=secret ${workspaceRoot}/state`,
-              workersDevSubdomain: "personal",
-            },
-            accountCount: 1,
-            credentialRef: "formless-cloudflare-oauth:personal",
-            deploymentConfig: {
-              accountId: input.accountId ?? "acct_personal",
-              targetId: "instance.primary",
-              targetUrl: "https://personal.example.test",
-              workerName: "personal",
-            },
-            kind: "ready",
-            provider: "cloudflare",
-            source: "stored-credential",
-          };
+describe("workspace Gateway typed Push adapter", () => {
+  it("invokes typed dry-run Push and reports the exact ordered phases", async () => {
+    const phases: string[] = [];
+    const pushed: unknown[] = [];
+    const handler = createWorkspaceGatewayPushHandler(
+      dependencies({
+        push: async (input) => {
+          pushed.push(input);
+          return pushResult({ mode: "dry-run", noop: false });
         },
-        operationCapabilities: ["credential-setup"],
-        operationIds: ["op_credential_adapter_00000001"],
       }),
     );
 
-    const operation = await handlers.startOperation({
+    const result = await handler({
       authorization: { actor: "browser", via: "owner-session" },
-      operationInput: {
-        accountId: "acct_personal",
-        kind: "credentialSetup",
-        profileLabel: "personal",
-        provider: "cloudflare",
-      },
-      request: new Request("http://local.test/api/formless/workspace-gateway/operations"),
-      workspaceRoot,
+      observer: observer(phases),
+      push: { mode: "dry-run", targetAlias: "staging" },
+      workspaceRoot: "/workspace/project",
     });
-    const serialized = JSON.stringify(operation);
 
-    expect(credentialSetupInputs).toEqual([
+    expect(pushed).toEqual([
       {
-        accountId: "acct_personal",
-        profileLabel: "personal",
-        provider: "cloudflare",
-        workspaceRoot,
+        apply: false,
+        targetAlias: "staging",
+        workspacePath: "/workspace/project",
       },
     ]);
-    expect(operation).toMatchObject({
-      actor: "browser",
-      id: "op_credential_adapter_00000001",
-      input: {
-        accountId: "acct_personal",
-        profileLabel: "personal",
-        provider: "cloudflare",
-      },
-      operation: "credentialSetup",
-      status: "succeeded",
-    });
-    expect(serialized).not.toContain(workspaceRoot);
-    expect(serialized).not.toContain("secret");
-    expect(scheduler.suppressed).toEqual(["gateway-operation-state"]);
+    expect(result).toEqual({ outcome: "planned" });
+    expect(phases).toEqual([
+      "start:credentials",
+      "succeed:credentials",
+      "skip:account-selection",
+      "start:desired-state-plan",
+      "succeed:desired-state-plan",
+      "skip:provider-reconciliation",
+      "skip:health-check",
+      "skip:owner-setup",
+      "start:workspace-push-writeback",
+      "succeed:workspace-push-writeback",
+      "skip:observation-refresh",
+    ]);
   });
 
-  it("reads operation ids from only the configured workspace root", async () => {
-    const workspaceRoot = await makeTempDir();
-    const otherWorkspaceRoot = await makeTempDir();
-    const handlers = createWorkspaceGatewayOperationHandlers(
-      adapterDeps(workspaceRoot, {
-        operationCapabilities: ["credential-setup"],
-        operationIds: ["op_scoped_adapter_00000001"],
-      }),
-    );
-
-    await handlers.startOperation({
-      authorization: { actor: "browser", via: "owner-session" },
-      operationInput: { kind: "credentialSetup", provider: "cloudflare" },
-      request: new Request("http://local.test/api/formless/workspace-gateway/operations"),
-      workspaceRoot,
-    });
-
-    await expect(
-      handlers.readOperation({
-        authorization: { actor: "browser", via: "owner-session" },
-        operationId: "op_scoped_adapter_00000001",
-        request: new Request(
-          "http://local.test/api/formless/workspace-gateway/operations/op_scoped_adapter_00000001",
-        ),
-        workspaceRoot,
-      }),
-    ).resolves.toMatchObject({
-      id: "op_scoped_adapter_00000001",
-      operation: "credentialSetup",
-    });
-    await expect(
-      handlers.readOperation({
-        authorization: { actor: "browser", via: "owner-session" },
-        operationId: "op_scoped_adapter_00000001",
-        request: new Request(
-          "http://local.test/api/formless/workspace-gateway/operations/op_scoped_adapter_00000001",
-        ),
-        workspaceRoot: otherWorkspaceRoot,
-      }),
-    ).resolves.toBeUndefined();
-  });
-
-  it("filters stored non-gateway operation state from gateway reads", async () => {
-    const workspaceRoot = await makeTempDir();
-    const handlers = createWorkspaceGatewayOperationHandlers(adapterDeps(workspaceRoot));
-    const operation = await createWorkspaceOperationState({
-      actor: "cli",
-      id: "op_init_not_gateway",
-      input: {},
-      now: () => "2026-06-02T01:00:00.000Z",
-      operation: "init",
-      workspaceRoot,
-    });
-
-    await updateWorkspaceOperationState(operation.id, {
-      logs: [
-        {
-          at: "2026-06-02T01:00:01.000Z",
-          level: "info",
-          message: "init completed.",
+  it("continues credential setup with one listed account selection", async () => {
+    const phases: string[] = [];
+    const setupInputs: unknown[] = [];
+    const handler = createWorkspaceGatewayPushHandler(
+      dependencies({
+        preflightPushCredential: async () => preflight({ needsSetup: true }),
+        pushCredentialSetup: async (
+          input,
+        ): Promise<WorkspaceGatewayCredentialSetupAdapterResult> => {
+          setupInputs.push(input);
+          return input.accountId
+            ? {
+                account: {
+                  id: input.accountId,
+                  name: "Account A",
+                  workersDevSubdomain: "example",
+                },
+                accountCount: 1,
+                credentialRef: "formless-cloudflare-oauth:default",
+                deploymentConfig: {
+                  accountId: input.accountId,
+                  targetId: "instance.primary",
+                  targetUrl: "https://example.workers.dev",
+                  workerName: "example",
+                },
+                kind: "ready",
+                provider: "cloudflare",
+                source: "oauth",
+              }
+            : {
+                accounts: [{ id: "account-a", name: "Account A", workersDevSubdomain: "example" }],
+                credentialRef: "formless-cloudflare-oauth:default",
+                kind: "account-selection-required",
+                provider: "cloudflare",
+              };
         },
-      ],
-      status: "succeeded",
-      summary: {
-        fields: {},
-        title: "Workspace initialized",
-      },
-      workspaceRoot,
+      }),
+    );
+
+    await handler({
+      authorization: { actor: "browser", via: "owner-session" },
+      observer: observer(phases, "account-a"),
+      push: { mode: "dry-run" },
+      workspaceRoot: "/workspace/project",
     });
 
-    await expect(
-      handlers.readOperation({
-        authorization: { actor: "browser", via: "owner-session" },
-        operationId: operation.id,
-        request: new Request(
-          "http://local.test/api/formless/workspace-gateway/operations/op_init_not_gateway",
-        ),
-        workspaceRoot,
-      }),
-    ).resolves.toBeUndefined();
+    expect(setupInputs).toHaveLength(2);
+    expect(setupInputs[1]).toMatchObject({ accountId: "account-a" });
+    expect(phases.slice(0, 5)).toEqual([
+      "start:credentials",
+      "succeed:credentials",
+      "start:account-selection",
+      "accounts:account-a",
+      "succeed:account-selection",
+    ]);
   });
 
-  it("forwards capability restrictions to the operation runner", async () => {
-    const workspaceRoot = await makeTempDir();
-    const handlers = createWorkspaceGatewayOperationHandlers(
-      adapterDeps(workspaceRoot, {
-        operationCapabilities: ["workspace-read"],
+  it("preserves typed local failure cause while projecting a closed failure", async () => {
+    const diagnostic = new Error("health probe included secret local diagnostics");
+    const handler = createWorkspaceGatewayPushHandler(
+      dependencies({
+        push: async () => {
+          throw diagnostic;
+        },
       }),
     );
 
-    await expect(
-      handlers.startOperation({
-        authorization: { actor: "browser", via: "owner-session" },
-        operationInput: { kind: "credentialSetup", provider: "cloudflare" },
-        request: new Request("http://local.test/api/formless/workspace-gateway/operations"),
-        workspaceRoot,
-      }),
-    ).rejects.toThrow(
-      'Workspace operation "credentialSetup" requires execution capability "credential-setup".',
-    );
+    const rejected = await handler({
+      authorization: { actor: "browser", via: "owner-session" },
+      observer: observer([]),
+      push: { mode: "dry-run" },
+      workspaceRoot: "/workspace/project",
+    }).catch((error: unknown) => error);
+
+    expect(rejected).toBeInstanceOf(WorkspaceGatewayPushExecutionError);
+    if (!(rejected instanceof WorkspaceGatewayPushExecutionError)) {
+      throw new Error("Expected typed Workspace Gateway Push failure.");
+    }
+    expect(rejected).toMatchObject({ code: "health-check-failed", phase: "health-check" });
+    expect(rejected.cause).toBe(diagnostic);
+    expect(JSON.stringify({ code: rejected.code, phase: rejected.phase })).not.toContain("secret");
   });
 });
 
-function adapterDeps(
-  workspaceRoot: string,
-  options: {
-    autoSaveScheduler?: WorkspaceGatewayOperationAutoSaveScheduler;
-    credentialSetup?: WorkspaceGatewayOperationAdapterDependencies["credentialSetup"];
-    operationCapabilities?: readonly WorkspaceOperationRequiredCapability[];
-    operationIds?: string[];
-  } = {},
-): WorkspaceGatewayOperationAdapterDependencies {
-  const operationIds = [...(options.operationIds ?? [])];
-
+function dependencies(
+  overrides: Partial<WorkspaceGatewayPushAdapterDependencies> = {},
+): WorkspaceGatewayPushAdapterDependencies {
   return {
-    accountDiscovery: {
-      listAccounts: async () => [{ id: "account-123", workersDevSubdomain: "dpeek" }],
-    },
-    autoSaveScheduler: options.autoSaveScheduler ?? autoSaveScheduler().scheduler,
-    createOperationId: () => operationIds.shift() ?? "op_adapter_00000001",
-    credentialSetup:
-      options.credentialSetup ??
-      (async (input) => ({
-        account: {
-          id: input.accountId ?? "account-123",
-          workersDevSubdomain: "dpeek",
-        },
-        accountCount: 1,
-        credentialRef: "formless-cloudflare-oauth:default",
-        deploymentConfig: {
-          accountId: input.accountId ?? "account-123",
-          targetId: "instance.primary",
-          targetUrl: "https://project.dpeek.workers.dev",
-          workerName: "project",
-        },
-        kind: "ready",
-        provider: input.provider,
-        source: "stored-credential",
-      })),
-    cwd: workspaceRoot,
-    deploymentAdapter: {
-      deploy: async (input: {
-        plan: {
-          expectedUrl: {
-            url: string;
-          };
-        };
-      }) => ({
-        url: input.plan.expectedUrl.url,
-      }),
-    },
-    env: { FORMLESS_ADMIN_TOKEN: "admin-token" },
-    fetch: async () => Response.json({ ok: true }),
-    healthCheck: {
-      check: async (input) => ({
-        cacheControl: "no-store",
-        metadataUrl: new URL("/api/formless/deploy", `${input.url}/`).toString(),
-        packageVersion: input.expectedVersion,
-        runtimeProtocolVersion: 1,
-        schemaProvenance: formlessProgramSchemaProvenance,
-        storageMigrationSet: "formless-storage-migrations:v1",
-        url: input.url,
-        version: input.expectedVersion,
-      }),
-    },
-    localSecretEnv: {
-      ensure: async (input: { root: string }) => ({
-        created: false,
-        path: path.join(input.root, "deploy.env"),
-        secrets: { ALCHEMY_PASSWORD: "alchemy-password" },
-      }),
-    },
-    now: timestampSequence(
-      "2026-06-02T01:00:00.000Z",
-      "2026-06-02T01:00:01.000Z",
-      "2026-06-02T01:00:02.000Z",
-      "2026-06-02T01:00:03.000Z",
-    ),
-    operationCapabilities: options.operationCapabilities,
-    packageRoot: "/package/root",
-    packageVersion: "0.0.0-test",
-    randomToken: () => "random-token",
-    setupCapability: {
-      create: async (input: { deploymentUrl: string }) => ({
-        capabilityCreated: true,
-        endpointUrl: new URL(
-          "/api/formless/setup/capability",
-          `${input.deploymentUrl}/`,
-        ).toString(),
-        setupComplete: false,
-      }),
-    },
-  };
-}
-
-function autoSaveScheduler(): {
-  scheduler: WorkspaceGatewayOperationAutoSaveScheduler;
-  suppressed: WorkspaceAutoSaveSuppressionReason[];
-} {
-  const suppressed: WorkspaceAutoSaveSuppressionReason[] = [];
-
-  return {
-    scheduler: {
+    accountDiscovery: { listAccounts: async () => [] },
+    autoSaveScheduler: {
       enqueue: async () => undefined,
-      recordGatewayOperationStateSuppressed: async (input) => {
-        recordSuppressed(input.workspaceRoot, "gateway-operation-state");
-      },
-      recordSaved: async () => undefined,
-      recordWorkspaceOperationSuppressed: async (input) => {
-        switch (input.operationInput.kind) {
-          case "check":
-          case "status":
-            recordSuppressed(input.workspaceRoot, "workspace-check-status");
-            return undefined;
-          case "push":
-            recordSuppressed(input.workspaceRoot, "push-deploy-remote-apply");
-            return undefined;
-          case "pull":
-            recordSuppressed(input.workspaceRoot, "workspace-pull");
-            return undefined;
-          case "save":
-            recordSuppressed(
-              input.workspaceRoot,
-              input.operationInput.check ? "workspace-check-status" : "manual-save",
-            );
-            return input.operationInput.check ? undefined : 0;
-          case "credentialSetup":
-            return undefined;
-        }
-      },
     },
-    suppressed,
+    cwd: "/workspace/project",
+    fetch: async () => Response.json({}),
+    now: () => "2026-08-04T00:00:00.000Z",
+    packageVersion: "0.0.0-test",
+    preflightPushCredential: async () => preflight({ needsSetup: false }),
+    push: async () => pushResult({ mode: "dry-run", noop: true }),
+    ...overrides,
   };
-
-  function recordSuppressed(
-    workspaceRoot: string,
-    reason: WorkspaceAutoSaveSuppressionReason,
-  ): void {
-    expect(workspaceRoot).toBeTruthy();
-    suppressed.push(reason);
-  }
 }
 
-function timestampSequence(...timestamps: string[]): () => string {
-  let index = 0;
-
-  return () =>
-    timestamps[index++ % timestamps.length] ?? timestamps.at(-1) ?? new Date(0).toISOString();
+function observer(events: string[], accountId = "account-a"): WorkspaceGatewayPushPhaseObserver {
+  return {
+    fail: (phase, code): never => {
+      throw new WorkspaceGatewayPushExecutionError(code, phase);
+    },
+    requestAccountSelection: async (choices) => {
+      events.push(`accounts:${choices.map((choice) => choice.id).join(",")}`);
+      return accountId;
+    },
+    setExternalAuthorization: () => "interaction_1234567890abcdef",
+    skip: (phase) => events.push(`skip:${phase}`),
+    start: (phase) => events.push(`start:${phase}`),
+    succeed: (phase) => events.push(`succeed:${phase}`),
+  };
 }
 
-async function makeTempDir(): Promise<string> {
-  const tempDir = await mkdtemp(path.join(tmpdir(), "formless-gateway-operation-adapter-test-"));
+function preflight(
+  overrides: Partial<PushFormlessInstanceWorkspaceCloudflareOAuthPreflightResult>,
+): PushFormlessInstanceWorkspaceCloudflareOAuthPreflightResult {
+  return {
+    credentialId: "default",
+    deploymentConfigId: "deployment-config-primary",
+    needsSetup: false,
+    selectedTarget: { alias: "primary", url: "https://example.workers.dev" },
+    workspaceRoot: "/workspace/project",
+    ...overrides,
+  };
+}
 
-  tempDirs.push(tempDir);
-  return tempDir;
+function pushResult(
+  overrides: Pick<PushFormlessInstanceWorkspaceResult, "mode" | "noop">,
+): PushFormlessInstanceWorkspaceResult {
+  return {
+    deploymentDisplay: {
+      accountId: "account-a",
+      providerFamily: "cloudflare",
+      target: "primary",
+      targetUrl: "https://example.workers.dev",
+      workerName: "example",
+      workersDevSubdomain: "example",
+    },
+    selectedTarget: { alias: "primary", url: "https://example.workers.dev" },
+    source: { archivePath: "/workspace/project/archive.json", mediaCount: 0, recordCount: 0 },
+    syncPlan: {} as PushFormlessInstanceWorkspaceResult["syncPlan"],
+    workspaceRoot: "/workspace/project",
+    ...overrides,
+  };
 }
