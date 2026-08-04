@@ -19,7 +19,8 @@ initial records.
 - **GIVEN** trusted Program composition imports the standard library, Tasks, or
   Site package
 - **WHEN** it loads the package's documented schema entrypoint
-- **THEN** the package's App schema declarations and standalone artifact are available
+- **THEN** the package's App schema declarations and named complete source
+  recipes are available
 - **AND** package source loading does not supply initial stored records
 - **AND** app records enter Authority through operations, workspace state,
   storage snapshot restore, or instance archive restore
@@ -29,8 +30,8 @@ initial records.
 ### Requirement: TypeScript Schema Authoring
 
 The system SHALL allow trusted package-local TypeScript to declare App schema
-source while keeping the materialized schema and parsed runtime model as
-data-only contracts.
+source while keeping the complete materialized Program schema and parsed
+runtime model as data-only contracts.
 
 #### Scenario: Declare typed App schema source
 
@@ -45,31 +46,30 @@ data-only contracts.
 - AND the authoring contract introduces no filesystem, network, provider,
   browser, Worker, or app-record dependency
 
-#### Scenario: Materialize TypeScript-authored source
+#### Scenario: Publish TypeScript-authored package source
 
 - GIVEN a package owns valid TypeScript-authored App schema source
-- WHEN its schema artifact is materialized
-- THEN the output is a deterministic plain JSON `schema.json` package artifact
-- AND the materialized artifact parses through the same App schema parser as a
-  hand-authored JSON schema
-- AND package checks and publication consume the standalone data artifact
-  without evaluating the TypeScript authoring module
+- WHEN its documented schema entrypoint is checked or published
+- THEN package checks validate the TypeScript declarations through the same App
+  schema parser used for complete Program composition
+- AND publication emits the documented executable schema entrypoint and its
+  declarations rather than a standalone package JSON artifact
 - AND Worker request handling consumes only the trusted complete Program
-  artifact rather than a standalone domain artifact or workspace TypeScript
-- AND the artifact contains no executable callback, import reference,
-  credential, provider object, or runtime implementation
+  artifact rather than package authoring source or workspace TypeScript
+- AND executable callbacks, import references, credentials, provider objects,
+  and runtime implementations remain outside the complete Program artifact
 
 #### Scenario: Preserve source-schema hash semantics
 
-- GIVEN TypeScript-authored source omits a value for which parsing supplies a
-  runtime default
-- WHEN the package materializes and hashes its source schema
+- GIVEN a complete TypeScript-authored Program source omits a value for which
+  parsing supplies a runtime default
+- WHEN Program materialization hashes that source schema
 - THEN materialization preserves the authored omission in the plain data
   artifact
 - AND `sourceSchemaHash` is computed from that complete materialized source
   data rather than from the parser-defaulted runtime model
-- AND package checks reject canonical drift between the TypeScript declaration
-  and the materialized artifact
+- AND Program checks reject canonical drift between the TypeScript composition
+  and the complete materialized artifact
 
 ### Requirement: TypeScript Schema Module Composition
 
@@ -215,7 +215,7 @@ from reusable package modules.
   `member` screen access
 - AND the Program root owns navigation and access policy without taking
   ownership of Task domain declarations
-- AND the standalone Tasks artifact does not need to declare Program roles
+- AND the package-owned Tasks source does not need to declare Program roles
 
 #### Scenario: Materialize the Program schema artifact
 
@@ -242,11 +242,11 @@ from reusable package modules.
 - THEN the runtime uses that one complete artifact and its canonical source hash
 - AND the Program root owns the runtime schema key, storage target, generic API
   route, navigation, and complete schema provenance
-- AND the standalone Tasks schema remains a reusable package artifact rather
-  than a separate runtime storage mount
+- AND the Tasks schema modules remain reusable package composition inputs
+  rather than a separate runtime storage mount
 - AND standard, Task, Site, and other explicitly composed domain records use
-  Program storage while standalone domain schemas remain build-time
-  composition inputs
+  Program storage while domain schema modules remain build-time composition
+  inputs
 
 #### Scenario: Materialize an explicit workspace Program extension
 

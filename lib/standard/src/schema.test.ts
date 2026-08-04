@@ -1,9 +1,4 @@
-import {
-  composeAppSchema,
-  computeSourceSchemaHash,
-  defineAppSchemaModule,
-  parseAppSchema,
-} from "@dpeek/formless-schema";
+import { composeAppSchema, defineAppSchemaModule, parseAppSchema } from "@dpeek/formless-schema";
 import {
   STANDARD_AUDIENCE_ENTITY_ID,
   STANDARD_CONTACT_ENTITY_ID,
@@ -16,7 +11,6 @@ import {
   standardInquiryRecordSchemaModule,
   standardSchemaSource,
 } from "@dpeek/formless-standard/schema";
-import rawSourceSchema from "@dpeek/formless-standard/schema.json";
 import { describe, expect, it } from "vite-plus/test";
 
 describe("standard schema authoring", () => {
@@ -174,12 +168,17 @@ describe("standard schema authoring", () => {
     expect(standardInquiryRecordSchemaModule).not.toHaveProperty("runtimeRequirements");
   });
 
-  it("keeps authored, materialized, and parsed schema data aligned", async () => {
-    expect(standardSchemaSource).toEqual(rawSourceSchema);
-    expect(parseAppSchema(standardSchemaSource)).toEqual(parseAppSchema(rawSourceSchema));
-    expect(await computeSourceSchemaHash(standardSchemaSource)).toBe(
-      await computeSourceSchemaHash(rawSourceSchema),
-    );
+  it("exposes a valid named complete schema source", () => {
+    const schema = parseAppSchema(standardSchemaSource);
+
+    expect(schema.entities.map(({ key }) => key)).toEqual([
+      "contact-message",
+      "contact",
+      "email-address",
+      "audience",
+      "subscription",
+    ]);
+    expect(schema.screens.map(({ key }) => key)).toEqual(["standardContactIntake"]);
   });
 });
 

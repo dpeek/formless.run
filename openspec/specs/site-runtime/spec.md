@@ -54,24 +54,22 @@ presentation declarations through a documented schema authoring subpath.
   projection remain Site-owned schema and runtime behavior
 - AND consumers do not deep-import Site package source files
 
-#### Scenario: Materialize the standalone Site schema
+#### Scenario: Compose the named complete Site schema
 
-- GIVEN package-local TypeScript is authoritative for the standalone Site schema
-- WHEN the Site schema artifact is materialized
+- GIVEN package-local TypeScript is authoritative for the named complete Site
+  schema
+- WHEN the named complete Site source is composed
 - THEN the complete source explicitly composes the standard inquiry and
   contact-subscription modules before Site records and the dependent Site
   presentation modules
-- AND materialization produces the deterministic data-only `schema.json`
-  source
-- AND authored and materialized source parse to the same App schema
-- AND package checks compare the TypeScript source and `schema.json` through
-  canonical App schema data
+- AND the complete TypeScript source parses through the normal App schema
+  contract
 - AND public Site runtime consumes the complete data-only Program artifact
-  rather than the standalone Site schema or workspace TypeScript
+  rather than the named Site source or workspace TypeScript
 
 #### Scenario: Site schema publication remains runtime neutral
 
-- GIVEN the Site package publishes its standalone schema modules and source
+- GIVEN the Site package publishes its schema modules and named complete source
 - WHEN the authoring boundary is consumed or packaged
 - THEN the package declarations do not select a Program, Authority, route,
   replica, archive, workspace, or CLI behavior by themselves

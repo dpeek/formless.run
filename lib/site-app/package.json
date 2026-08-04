@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "files": [
     "dist",
-    "schema.json",
     "src",
     "!src/**/*.test.*",
     "!src/**/*-fixtures.ts",
@@ -19,8 +18,7 @@
     "./runtime/browser": "./src/runtime/browser.tsx",
     "./runtime/worker": "./src/runtime/worker.ts",
     "./worker": "./src/worker.ts",
-    "./node": "./src/node.ts",
-    "./schema.json": "./schema.json"
+    "./node": "./src/node.ts"
   },
   "publishConfig": {
     "exports": {
@@ -59,14 +57,12 @@
       "./node": {
         "types": "./dist/node.d.mts",
         "import": "./dist/node.mjs"
-      },
-      "./schema.json": "./schema.json"
+      }
     },
     "access": "public"
   },
   "scripts": {
     "check": "vp check --fix && vp test --configLoader runner",
-    "schema:materialize": "bun run scripts/materialize-schema.ts",
     "pack": "vp pack src/index.ts src/schema.ts src/react.tsx src/public-react.tsx src/runtime/index.ts src/runtime/browser.tsx src/runtime/worker.ts src/worker.ts src/node.ts"
   },
   "dependencies": {

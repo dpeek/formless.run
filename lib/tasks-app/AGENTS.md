@@ -7,7 +7,6 @@ Read this when editing `lib/tasks-app/*`.
 ## Owns
 
 - Tasks schema authoring modules composed in `src/schema.ts`.
-- Materialized Tasks source schema in `schema.json`.
 - Runtime-neutral Tasks package contracts in `src/`.
 
 ## Does Not Own
@@ -17,10 +16,8 @@ Read this when editing `lib/tasks-app/*`.
 
 ## Map
 
-- `package.json`: package metadata and exported root, schema authoring, and source JSON subpaths.
+- `package.json`: package metadata and exported root and schema authoring subpaths.
 - `tsconfig.json`: package-local TypeScript project extending the repo config.
-- `schema.json`: materialized flat Tasks app schema source.
-- `scripts/materialize-schema.ts`: package-local schema materialization command.
 - `src/schema-records.ts`: Tasks record and query declarations.
 - `src/schema-presentation.ts`: Tasks item view, view, and screen declarations.
 - `src/schema.ts`: public schema authoring subpath and authoritative Tasks schema composition.
@@ -30,4 +27,3 @@ Read this when editing `lib/tasks-app/*`.
 ## Rules
 
 - Keep Tasks records flat.
-- Keep materialized schema as package source data, not generated runtime state.

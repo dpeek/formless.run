@@ -20,8 +20,6 @@ reusable standard domain declarations that are not owned by a product surface.
 - THEN the package exposes granular inquiry and contact-subscription record modules
 - AND it exposes a complete standard schema source that composes those modules in
   deterministic order
-- AND the package may materialize that source as deterministic data-only
-  `schema.json` for package checks and publication
 - AND package exports contain runtime-neutral schema declarations and supported
   authoring metadata rather than runtime package metadata
 - AND consumers do not deep-import package source files

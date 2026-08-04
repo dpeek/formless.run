@@ -11,34 +11,31 @@ singleton domain whose records live in Program Authority.
 ### Requirement: Tasks Domain Package Source
 
 The system SHALL provide Tasks as a bundled in-repo domain package that owns its
-standalone artifact and reusable schema modules.
+reusable schema modules and named complete source recipe.
 
 #### Scenario: Tasks domain package scaffold
 
 - **GIVEN** the bundled Tasks domain package is present
 - **WHEN** package source files are inspected
 - **THEN** Tasks source data lives under `lib/tasks-app/`
-- **AND** the package contains `schema.json`, package-local `AGENTS.md`,
-  `package.json`, `tsconfig.json`, and root and schema `src/` exports
+- **AND** the package contains package-local `AGENTS.md`, `package.json`,
+  `tsconfig.json`, and root and schema `src/` exports
 - **AND** `lib/tasks-app/` is the repository source owner for Tasks schema declarations
 
 #### Scenario: Tasks package runtime boundary
 
-- **GIVEN** the Tasks package publishes schema modules and standalone
-  `schema.json`
+- **GIVEN** the Tasks package publishes schema modules and a named complete
+  source
 - **WHEN** the default Program is materialized and served
 - **THEN** trusted build-time composition imports the schema modules
 - **AND** Worker request handling consumes only the complete Program artifact
 - **AND** the package root exports the stable Task entity id without install,
   source-schema selection, or record-adapter keys
-- **AND** the standalone artifact is not an install, route, Authority, replica,
-  archive, workspace, upgrade, deploy, or authorization identity
 
 ### Requirement: Reusable Tasks Schema Modules
 
 The Tasks package SHALL expose its runtime-neutral schema declarations through
-a documented TypeScript schema subpath while preserving its complete portable
-standalone artifact.
+a documented TypeScript schema subpath with a named complete source recipe.
 
 #### Scenario: Import Tasks schema authoring
 
@@ -60,7 +57,6 @@ standalone artifact.
 - **WHEN** its documented entrypoints are emitted
 - **THEN** the root and `./schema` entrypoints have executable ESM,
   declarations, and source maps
-- **AND** `schema.json` remains the deterministic portable schema artifact
 - **AND** package exports do not select Program storage, routing,
   authorization, archive, workspace, or runtime availability
 
@@ -78,8 +74,8 @@ screen, Authority, replica, archive, and workspace.
 - **AND** the Task entity retains its package-owned stable entity id
 - **AND** Program-owned same-key replacements add Program access requirements,
   select screen path `/tasks`, and place Tasks in Program navigation
-- **AND** the package-owned standalone source remains a valid deterministic
-  artifact without becoming another default runtime mount
+- **AND** the package-owned complete source remains a valid App schema recipe
+  without becoming another default runtime mount
 
 #### Scenario: Store Tasks in Program Authority from first use
 

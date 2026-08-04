@@ -1,4 +1,4 @@
-import rawTaskSourceSchema from "@dpeek/formless-tasks-app/schema.json";
+import { tasksSchemaSource } from "@dpeek/formless-tasks-app/schema";
 import { siteSchemaSource } from "@dpeek/formless-site-app/schema";
 import rawRateCardRecords from "./fixtures/rate-card-records.json";
 import rawRateCardSourceSchema from "./fixtures/rate-card-schema.json";
@@ -11,7 +11,7 @@ import {
 
 export { taskStorageSnapshotRecords, taskTestRecords } from "./schema-app-records.ts";
 
-export const taskSourceSchema = parseAppSchema(rawTaskSourceSchema);
+export const taskSourceSchema = parseAppSchema(tasksSchemaSource);
 export const rateSourceSchema = parseAppSchema(rawRateCardSourceSchema);
 export const siteSourceSchema = parseAppSchema(siteSchemaSource);
 

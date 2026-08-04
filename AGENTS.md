@@ -58,9 +58,9 @@ Data stays flat. Compose in query, view, projection, action layer.
 - `lib/formless/src/cli/`: Formless CLI implementation, project files, publish, archives, domains.
 - `lib/formless/src/media/`: core media model and providers.
 - `lib/formless/src/test/`: shared test fixtures.
-- `lib/tasks-app/`: reusable Tasks schema modules and standalone artifact.
-- `lib/standard/`: reusable standard schema modules and standalone artifact.
-- `lib/site-app/`: bundled Site schema modules, standalone artifact, and adapters.
+- `lib/tasks-app/`: reusable Tasks schema modules and named complete source.
+- `lib/standard/`: reusable standard schema modules and named complete source.
+- `lib/site-app/`: bundled Site schema modules, named complete source, and adapters.
 - `lib/presentation/`: renderer-neutral Formless UI contracts, hosts, and React adapters.
 - `lib/renderer/`: Formless Renderer application and Site presentation backed by Astryx.
 - `lib/media/`: reusable media contracts and adapters package.

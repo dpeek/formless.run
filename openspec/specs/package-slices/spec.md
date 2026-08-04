@@ -5,7 +5,7 @@
 Package slices and in-repo domain packages define package boundaries under
 `lib/<package>/`. Capability slices own reusable contracts and adapters without
 owning Program records. Domain packages own schema authoring source when
-present, optional portable schema artifacts, and domain-specific adapters.
+present and domain-specific adapters.
 
 ## Requirements
 
@@ -57,11 +57,9 @@ package owns schema declarations and domain-specific runtime adapters.
   `tsconfig.json`, and `src/` entrypoints for schema declarations, public
   contracts, and supported runtime adapters
 - AND a package that uses TypeScript schema authoring owns its declaration
-  under `src/` and a package-local schema materialization command
+  under `src/` and publishes a documented schema authoring subpath
 - AND the domain package is published as a workspace package with documented root,
   React, Worker, and Node subpaths when those adapters exist
-- AND `schema.json` may remain a deterministic standalone schema artifact for
-  package checks and publication without becoming runtime package metadata
 - AND domain packages without package-specific executable adapters do not need to
   expose unused adapter subpaths
 
@@ -84,7 +82,7 @@ package owns schema declarations and domain-specific runtime adapters.
 #### Scenario: Domain package source replaces root app files
 
 - GIVEN a domain package such as Site, Tasks, or the standard library owns
-  package-local schema authoring source and an optional `schema.json` artifact
+  package-local schema authoring source
 - WHEN a trusted downstream Program composition root selects its declarations
 - THEN it imports the documented schema authoring subpath
 - AND the domain package is the repository source owner for those declarations
@@ -113,20 +111,18 @@ domain declarations into the Schema package.
 #### Scenario: Tasks package publishes its existing modules
 
 - GIVEN the Tasks package owns a record module, a dependent presentation
-  module, and a complete standalone schema source
+  module, and a named complete schema source
 - WHEN trusted TypeScript composition imports Tasks declarations
 - THEN it imports them through `@dpeek/formless-tasks-app/schema`
 - AND the package publishes that subpath with executable ESM, declarations,
   and source maps
-- AND the complete standalone source continues to materialize the existing
-  Tasks `schema.json` artifact
 - AND the public schema boundary returns declarations without selecting Program
   storage, routing, or authorization
 
 #### Scenario: Site package publishes TypeScript-authored modules
 
-- GIVEN the Site package owns one complete portable schema artifact and
-  package-specific public runtime adapters
+- GIVEN the Site package owns reusable schema modules, a named complete source,
+  and package-specific public runtime adapters
 - WHEN its existing schema declarations are authored in package-local
   TypeScript
 - THEN trusted composition imports `siteRecordSchemaModule`,
@@ -140,8 +136,6 @@ domain declarations into the Schema package.
   screens over standard inquiry and contact-subscription records
 - AND the package publishes the schema subpath with executable ESM,
   declarations, and source maps
-- AND the complete standalone source may materialize the deterministic
-  data-only Site `schema.json` artifact for package checks and publication
 - AND Worker request handling consumes only the complete Program artifact
   without evaluating this TypeScript authoring entrypoint
 - AND publishing the schema boundary alone does not select Program ownership,
@@ -150,12 +144,10 @@ domain declarations into the Schema package.
 #### Scenario: Standard package publishes TypeScript-authored modules
 
 - GIVEN the standard library owns reusable inquiry and contact-subscription
-  record modules and its portable standalone schema artifact
+  record modules and a named complete schema source
 - WHEN trusted Program composition needs those declarations
 - THEN it imports documented granular record modules and the complete standalone
   source through `@dpeek/formless-standard/schema`
-- AND the package may materialize deterministic `schema.json` from its
-  TypeScript source for package checks and publication
 - AND the standard library keeps ownership of its entities, relationships,
   queries, operations, constraints, and executable requirement declarations
 - AND publication alone does not select Program identity, Authority storage,
@@ -335,37 +327,6 @@ plugins.
   canonical Program provenance
 - AND any deployment bundle digest remains build evidence rather than another
   Program schema, storage, archive, or authorization identity
-
-### Requirement: Domain Package Schema Materialization
-
-A domain package that publishes a standalone schema artifact SHALL materialize
-data-only `schema.json` without making it an independently selectable runtime
-source.
-
-#### Scenario: Materialize an authored package schema
-
-- GIVEN a domain package declares its schema in package-local TypeScript
-- WHEN the package schema materialization command runs
-- THEN it validates the declaration through the public Schema package contract
-- AND it writes the complete deterministic `schema.json` artifact owned by that
-  package
-- AND the artifact remains checked in and included in the package's public
-  files and source JSON export
-
-#### Scenario: Detect materialized schema drift
-
-- GIVEN a domain package has TypeScript source and a materialized `schema.json`
-- WHEN package checks run
-- THEN they compare canonical schema data rather than source formatting
-- AND they fail when the declaration and JSON artifact differ
-
-#### Scenario: Keep package artifacts outside runtime selection
-
-- GIVEN a domain package publishes TypeScript schema modules and `schema.json`
-- WHEN Worker runtime, workspace persistence, deploy, or upgrade behavior runs
-- THEN it consumes the one complete materialized Program artifact
-- AND it does not resolve the package artifact, evaluate the TypeScript
-  authoring module, or treat either as an independently selectable schema
 
 ### Requirement: Minimal Package Documentation
 
@@ -612,8 +573,6 @@ resolves the same public imports directly to current package source.
   artifacts without repository source export targets
 - AND package export, ESM, and TypeScript declaration contracts pass package
   publication validation
-- AND an in-repo domain package may publish its standalone schema JSON as an
-  explicitly declared uncompiled package artifact
 
 ### Requirement: Formless Presentation Package Slice
 

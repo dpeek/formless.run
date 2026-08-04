@@ -1,4 +1,4 @@
-import { computeSourceSchemaHash, parseAppSchema } from "@dpeek/formless-schema";
+import { parseAppSchema } from "@dpeek/formless-schema";
 import { describe, expect, it } from "vite-plus/test";
 import { TASK_ENTITY_ID } from "@dpeek/formless-tasks-app";
 import {
@@ -6,7 +6,6 @@ import {
   tasksRecordSchemaModule,
   tasksSchemaSource,
 } from "@dpeek/formless-tasks-app/schema";
-import rawSourceSchema from "@dpeek/formless-tasks-app/schema.json";
 
 describe("Tasks schema authoring", () => {
   it("composes record declarations before dependent presentation declarations", () => {
@@ -41,11 +40,10 @@ describe("Tasks schema authoring", () => {
     });
   });
 
-  it("keeps authored, materialized, and parsed schema data aligned", async () => {
-    expect(tasksSchemaSource).toEqual(rawSourceSchema);
-    expect(parseAppSchema(tasksSchemaSource)).toEqual(parseAppSchema(rawSourceSchema));
-    expect(await computeSourceSchemaHash(tasksSchemaSource)).toBe(
-      await computeSourceSchemaHash(rawSourceSchema),
-    );
+  it("exposes a valid named complete schema source", () => {
+    const schema = parseAppSchema(tasksSchemaSource);
+
+    expect(schema.entities.map(({ key }) => key)).toEqual(["task"]);
+    expect(schema.screens.map(({ key }) => key)).toEqual(["taskHome"]);
   });
 });

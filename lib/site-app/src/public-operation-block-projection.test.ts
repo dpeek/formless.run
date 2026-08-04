@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import rawSiteSourceSchema from "../schema.json";
+import { siteSchemaSource } from "@dpeek/formless-site-app/schema";
 import { parseAppSchema, type AppSchema, type EntityOperationSchema } from "@dpeek/formless-schema";
 import {
   buildPublicOperationRequestBody,
@@ -9,7 +9,7 @@ import {
 import { projectSitePublicOperationBlock } from "./public-operation-block-projection.ts";
 import type { SiteTreeWarning, StoredRecord } from "./types.ts";
 
-const siteSourceSchema = parseAppSchema(rawSiteSourceSchema);
+const parsedSiteSchema = parseAppSchema(siteSchemaSource);
 
 describe("site public operation block projection", () => {
   it("projects fixed Site-local subscribe and contact form operation facts", () => {
@@ -422,7 +422,7 @@ function projectRecord(
     publicOperation: projectSitePublicOperationBlock({
       record,
       type: typeof record.values.type === "string" ? record.values.type : "",
-      schema: options.schema ?? siteSourceSchema,
+      schema: options.schema ?? parsedSiteSchema,
       ...(options.turnstileSiteKey === undefined
         ? {}
         : { turnstileSiteKey: options.turnstileSiteKey }),
@@ -443,9 +443,9 @@ function blockRecord(id: string, values: StoredRecord["values"]): StoredRecord {
 
 function programSchemaWith(extension: AppSchema): AppSchema {
   return {
-    ...structuredClone(siteSourceSchema),
-    entities: [...siteSourceSchema.entities, ...extension.entities],
-    queries: [...siteSourceSchema.queries, ...extension.queries],
+    ...structuredClone(parsedSiteSchema),
+    entities: [...parsedSiteSchema.entities, ...extension.entities],
+    queries: [...parsedSiteSchema.queries, ...extension.queries],
   };
 }
 

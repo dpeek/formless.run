@@ -1,11 +1,11 @@
-import rawSiteSourceSchema from "@dpeek/formless-site-app/schema.json";
+import { siteSchemaSource } from "@dpeek/formless-site-app/schema";
 import { parseAppSchema, type TextFieldSchema } from "@dpeek/formless-schema";
 import { describe, expect, it } from "vite-plus/test";
 
 import type { CreateFieldConfig, RecordFieldConfig } from "../../client/views.ts";
 import { projectGeneratedCreateField, projectGeneratedRecordField } from "./field-projection.ts";
 
-const siteSourceSchema = parseAppSchema(rawSiteSourceSchema);
+const parsedSiteSchema = parseAppSchema(siteSchemaSource);
 
 const siteMediaOccurrenceConformance = [
   {
@@ -37,7 +37,7 @@ const siteMediaOccurrenceConformance = [
 
 describe("generated media presentation conformance", () => {
   it("covers every canonical live Site media editor occurrence", () => {
-    expect(collectMediaEditorPaths(rawSiteSourceSchema)).toEqual(
+    expect(collectMediaEditorPaths(siteSchemaSource)).toEqual(
       siteMediaOccurrenceConformance.map(({ schemaPath }) => schemaPath).sort(),
     );
     expect(siteMediaOccurrenceConformance.map(({ id }) => id)).toEqual([
@@ -49,7 +49,7 @@ describe("generated media presentation conformance", () => {
     ]);
   });
   it("projects every occurrence through the canonical media field contract", () => {
-    const mediaField = siteSourceSchema.entities
+    const mediaField = parsedSiteSchema.entities
       .find((definition) => definition.key === "block")
       ?.fields.find((definition) => definition.key === "mediaAssetId")!;
     if (mediaField?.type !== "text") {
@@ -97,7 +97,7 @@ describe("generated media presentation conformance", () => {
         },
         recordId: "block-image",
         recordValue: "hero.webp",
-        schema: siteSourceSchema,
+        schema: parsedSiteSchema,
         surface: "record",
       }),
       table: projectGeneratedRecordField({
@@ -112,7 +112,7 @@ describe("generated media presentation conformance", () => {
         },
         recordId: "block-image",
         recordValue: "hero.webp",
-        schema: siteSourceSchema,
+        schema: parsedSiteSchema,
         surface: "table-cell",
       }),
       detail: projectGeneratedRecordField({
@@ -130,7 +130,7 @@ describe("generated media presentation conformance", () => {
         },
         recordId: "block-image",
         recordValue: "hero.webp",
-        schema: siteSourceSchema,
+        schema: parsedSiteSchema,
         showLabel: true,
         surface: "detail",
       }),
@@ -149,7 +149,7 @@ describe("generated media presentation conformance", () => {
         },
         recordId: "block-image",
         recordValue: "hero.webp",
-        schema: siteSourceSchema,
+        schema: parsedSiteSchema,
         showLabel: true,
         surface: "record",
       }),

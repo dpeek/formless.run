@@ -1081,7 +1081,7 @@ async function writeStorageHarness() {
     harnessPath,
     `
       import { DurableObject } from "cloudflare:workers";
-      import rawSeedSchema from "@dpeek/formless-tasks-app/schema.json";
+      import { tasksSchemaSource } from "@dpeek/formless-tasks-app/schema";
       import { parseAppSchema } from "@dpeek/formless-schema";
       import {
         ActiveSchemaRefreshBlockedError,
@@ -1108,7 +1108,7 @@ async function writeStorageHarness() {
         writeActiveSchema,
       } from "${process.cwd()}/src/worker/storage.ts";
 
-      const seedSchema = parseAppSchema(rawSeedSchema);
+      const seedSchema = parseAppSchema(tasksSchemaSource);
       const sourceSchemaHash = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
 
       function schemaForSourceRefresh(kind) {

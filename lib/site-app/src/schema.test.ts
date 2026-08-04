@@ -2,7 +2,7 @@ import {
   standardContactSubscriptionRecordSchemaModule,
   standardInquiryRecordSchemaModule,
 } from "@dpeek/formless-standard/schema";
-import { composeAppSchema, computeSourceSchemaHash, parseAppSchema } from "@dpeek/formless-schema";
+import { composeAppSchema, parseAppSchema } from "@dpeek/formless-schema";
 import { describe, expect, it } from "vite-plus/test";
 import {
   siteContactIntakePresentationSchemaModule,
@@ -10,7 +10,6 @@ import {
   siteRecordSchemaModule,
   siteSchemaSource,
 } from "@dpeek/formless-site-app/schema";
-import rawSourceSchema from "@dpeek/formless-site-app/schema.json";
 import { sitePublicBrowserSurfaceDefinition } from "@dpeek/formless-site-app/runtime/browser";
 import {
   sitePublicWorkerReadDefinition,
@@ -154,12 +153,25 @@ describe("Site schema authoring", () => {
     ).toBe(false);
   });
 
-  it("keeps authored, materialized, and parsed schema data aligned", async () => {
-    expect(siteSchemaSource).toEqual(rawSourceSchema);
-    expect(parseAppSchema(siteSchemaSource)).toEqual(parseAppSchema(rawSourceSchema));
-    expect(await computeSourceSchemaHash(siteSchemaSource)).toBe(
-      await computeSourceSchemaHash(rawSourceSchema),
-    );
+  it("exposes a valid named complete schema source", () => {
+    const schema = parseAppSchema(siteSchemaSource);
+
+    expect(schema.entities.map(({ key }) => key)).toEqual([
+      "contact-message",
+      "contact",
+      "email-address",
+      "audience",
+      "subscription",
+      "site",
+      "block",
+      "block-placement",
+    ]);
+    expect(schema.screens.map(({ key }) => key)).toEqual([
+      "siteSettings",
+      "siteEditor",
+      "siteSubscribers",
+      "siteContacts",
+    ]);
   });
 
   it("publishes explicit browser and Worker runtime selections", () => {

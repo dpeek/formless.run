@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import rawTasksSourceSchema from "@dpeek/formless-tasks-app/schema.json";
+import { tasksSchemaSource } from "@dpeek/formless-tasks-app/schema";
 import { parseAppSchema } from "@dpeek/formless-schema";
 import { describe, expect, it } from "vite-plus/test";
 
@@ -42,7 +42,7 @@ describe("CLI formatter helpers", () => {
   });
 
   it("renders stored records in schema declaration and record-id order", () => {
-    const formatted = formatCliStoredRecords(parseAppSchema(rawTasksSourceSchema), [
+    const formatted = formatCliStoredRecords(parseAppSchema(tasksSchemaSource), [
       {
         id: "task-z",
         entity: "task",

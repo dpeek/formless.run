@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import rawSiteSourceSchema from "../schema.json";
+import { siteSchemaSource } from "@dpeek/formless-site-app/schema";
 import { parseAppSchema, type AppSchema } from "@dpeek/formless-schema";
 import type { StoredRecord } from "./types.ts";
 import { testSiteRecords } from "./test-records.ts";
@@ -11,7 +11,7 @@ import {
 } from "./tree.ts";
 
 const generatedAt = "2026-05-06T00:00:00.000Z";
-const siteSourceSchema = parseAppSchema(rawSiteSourceSchema);
+const siteSourceSchema = parseAppSchema(siteSchemaSource);
 
 describe("site page tree projection", () => {
   it("projects home into a framed public tree with content groups and media blocks", () => {

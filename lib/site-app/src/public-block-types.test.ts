@@ -1,4 +1,4 @@
-import rawSiteSourceSchema from "../schema.json";
+import { siteSchemaSource } from "@dpeek/formless-site-app/schema";
 
 import { describe, expect, it } from "vite-plus/test";
 
@@ -6,7 +6,7 @@ import { SITE_PUBLIC_BLOCK_TYPES } from "./public-block-types.ts";
 
 describe("Site public block types", () => {
   it("matches the block type enum in the source schema", () => {
-    const blockTypeField = rawSiteSourceSchema.entities
+    const blockTypeField = siteSchemaSource.entities
       .find(({ key }) => key === "block")!
       .fields.find(({ key }) => key === "type")!;
 

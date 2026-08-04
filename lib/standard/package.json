@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "files": [
     "dist",
-    "schema.json",
     "src",
     "!src/**/*.test.*",
     "!src/**/*-fixtures.ts",
@@ -12,8 +11,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./schema": "./src/schema.ts",
-    "./schema.json": "./schema.json"
+    "./schema": "./src/schema.ts"
   },
   "publishConfig": {
     "exports": {
@@ -24,14 +22,12 @@
       "./schema": {
         "types": "./dist/schema.d.mts",
         "import": "./dist/schema.mjs"
-      },
-      "./schema.json": "./schema.json"
+      }
     },
     "access": "public"
   },
   "scripts": {
     "check": "vp check --fix && vp test --configLoader runner",
-    "schema:materialize": "bun run scripts/materialize-schema.ts",
     "pack": "vp pack src/index.ts src/schema.ts"
   },
   "dependencies": {
