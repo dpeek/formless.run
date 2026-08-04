@@ -54,7 +54,7 @@ Common commands:
 
 The runtime already has:
 
-- app schemas for Tasks, Site, and CRM;
+- app schemas for the standard library, Tasks, and Site;
 - flat record storage through Durable Object Authority;
 - one build-time-composed Program schema and Authority;
 - browser IndexedDB replicas;
@@ -67,7 +67,7 @@ The runtime already has:
   intent, and deployment intent;
 - product instance, dev workbench, and published Site runtime profiles;
 - owner passkey setup, owner sessions, logout, and admin bearer recovery boundaries;
-- public action execution and Site contact subscription records;
+- public action execution and standard contact subscription records;
 - deployment desired-state versions, attempts, leases, status, and upgrade metadata;
 - custom-domain planning, provider delete and cleanup, redirects, and generic
   deployment projection paths.

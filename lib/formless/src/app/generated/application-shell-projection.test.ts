@@ -292,7 +292,6 @@ describe("generated application shell projection", () => {
     ).toEqual([
       expect.objectContaining({ href: "/tasks", label: "Tasks", selected: false }),
       expect.objectContaining({ href: "/site", label: "Site", selected: false }),
-      expect.objectContaining({ href: "/crm", label: "CRM", selected: false }),
       expect.objectContaining({
         href: "/settings/routes",
         label: "Instance",
@@ -656,7 +655,7 @@ function groupedProgramScreenSchema(): AppSchema {
           label: "Instance",
           screens: ["routes", "access"],
         },
-        { key: "crm", label: "CRM", screens: ["contacts"] },
+        { key: "custom", label: "Custom", screens: ["siteContacts"] },
       ],
     },
     screens: formlessProgramSchema.screens.map((screen) =>

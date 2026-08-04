@@ -2,15 +2,15 @@
 
 ## Purpose
 
-Contact subscriptions model public subscribe intent as one flat Program-owned
-domain for Site and CRM workflows.
+Contact subscriptions model public subscribe intent as reusable flat standard
+library records selected into a Program and projected by downstream workflows.
 
 ## Requirements
 
 ### Requirement: Contact Subscription Records
 
 The system SHALL model contacts, email addresses, audiences, and subscriptions
-as flat records suitable for generated admin surfaces and CRM workflows.
+as flat records owned by the standard contact-subscription schema module.
 
 #### Scenario: Flat contact subscription model
 
@@ -30,6 +30,15 @@ as flat records suitable for generated admin surfaces and CRM workflows.
 - GIVEN a subscription record is created or updated
 - WHEN storage validates the record
 - THEN the email address and audience pair is unique within Program storage identity
+
+#### Scenario: Standard module owns the declarations
+
+- GIVEN a Program selects the standard contact-subscription module
+- WHEN its schema is composed with Site or another downstream workflow
+- THEN `contact`, `email-address`, `audience`, and `subscription` each have one
+  complete declaration owned by the standard module
+- AND downstream packages contribute projections and workflows without
+  redeclaring, merging, filtering, or enriching those entities
 
 ### Requirement: Default Audience
 
@@ -69,14 +78,14 @@ The system SHALL provide a public subscribe operation that upserts reusable cont
 - THEN the runtime updates the subscription status to `subscribed`
 - AND records the new consent timestamp
 
-#### Scenario: Site and CRM share subscriber records
+#### Scenario: Site projects standard subscriber records
 
-- GIVEN a visitor submits through a Site subscribe block or CRM public flow
+- GIVEN a visitor submits through a Site subscribe block bound to the selected
+  standard subscribe operation
 - WHEN the Program `subscription.subscribe` operation commits
 - THEN contact, email-address, audience, and subscription records are written
   once in Program storage
-- AND Site subscriber and CRM audience generated screens project the same
-  records for their respective workflows
+- AND the optional Site subscriber presentation projects those standard records
 - AND the Site block invokes the narrow Program public operation route
 
 ### Requirement: Subscription Operation Adapter
@@ -124,12 +133,13 @@ The system SHALL preserve source context for public subscription consent.
 
 ### Requirement: Subscription Admin Surface
 
-The system SHALL expose collected email addresses and subscription state through generated admin screens.
+The system SHALL allow selected downstream presentations to expose collected
+email addresses and subscription state through generated admin screens.
 
 #### Scenario: Owner reviews subscribers
 
-- GIVEN a Program member opens a Site or CRM generated screen that presents
-  contact subscription data
+- GIVEN a Program member opens a selected Site or downstream generated screen
+  that presents contact subscription data
 - WHEN the owner opens the generated admin screens
 - THEN the member can inspect email addresses, audiences, subscription status,
   consent time, and source context according to the screen presentation

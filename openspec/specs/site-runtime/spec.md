@@ -30,30 +30,37 @@ content records.
 
 ### Requirement: Reusable Site Schema Modules
 
-The Site package SHALL declare its complete standalone App schema in
-package-local TypeScript and expose its runtime-neutral record and presentation
-declarations through a documented schema authoring subpath.
+The Site package SHALL declare its Site-owned App schema in package-local
+TypeScript and expose independently selectable core and contact-intake
+presentation declarations through a documented schema authoring subpath.
 
 #### Scenario: Import Site schema authoring
 
 - GIVEN trusted TypeScript composition needs Site declarations
 - WHEN it imports `@dpeek/formless-site-app/schema`
 - THEN the package exports `siteRecordSchemaModule`,
-  `sitePresentationSchemaModule`, and the complete `siteSchemaSource`
-- AND the record module owns the eight existing Site entities with their stable
-  entity ids, fields, constraints, operations, relationships, union, and queries
-- AND existing anonymous public operation policy and operation-handler
-  declarations remain package-owned record schema data
-- AND the presentation module depends on the record module and owns the existing
-  item views, table views, views, and screens
+  `sitePresentationSchemaModule`,
+  `siteContactIntakePresentationSchemaModule`, and the complete
+  `siteSchemaSource`
+- AND the record module owns the `site`, `block`, and `block-placement`
+  entities with their stable entity ids, fields, constraints, operations,
+  relationships, union, and queries
+- AND the core presentation module depends only on Site records and owns Site
+  content item views, table views, views, and screens
+- AND the optional contact-intake presentation module depends explicitly on
+  the standard inquiry and contact-subscription modules and owns the Site
+  contact-message and subscriber projections
+- AND Site form blocks, public operation binding, copy, placement, and public
+  projection remain Site-owned schema and runtime behavior
 - AND consumers do not deep-import Site package source files
 
 #### Scenario: Materialize the standalone Site schema
 
 - GIVEN package-local TypeScript is authoritative for the standalone Site schema
 - WHEN the Site schema artifact is materialized
-- THEN the complete source composes the record module before the dependent
-  presentation module
+- THEN the complete source explicitly composes the standard inquiry and
+  contact-subscription modules before Site records and the dependent Site
+  presentation modules
 - AND materialization produces the deterministic data-only `schema.json`
   source
 - AND authored and materialized source parse to the same App schema
@@ -68,8 +75,10 @@ declarations through a documented schema authoring subpath.
 - WHEN the authoring boundary is consumed or packaged
 - THEN the package declarations do not select a Program, Authority, route,
   replica, archive, workspace, or CLI behavior by themselves
+- AND a downstream Program may select Site content without standard contact
+  intake or may select the named complete Site source as a prewired recipe
 - AND the downstream Program root may compose and specialize those declarations
-  without moving Site domain ownership into core runtime
+  without moving Site or standard domain ownership into core runtime
 
 ### Requirement: Program-Native Singleton Site
 
@@ -80,7 +89,8 @@ records are written directly to Program Authority from first use.
 
 - GIVEN the default Program composition imports the package-owned Site modules
 - WHEN its materialized schema is selected
-- THEN all eight Site entities share storage identity
+- THEN all three Site-owned entities and any separately selected standard
+  contact-intake entities share storage identity
   `instance:control-plane`, schema key `formless-program`, the Program record-id
   namespace, cursor, change log, snapshot boundary, browser replica, and
   content-free invalidation WebSocket
@@ -90,9 +100,9 @@ records are written directly to Program Authority from first use.
   cursors, changes, operation histories, media provenance, archives,
   workspaces, replicas, or provenance from legacy `app:<installId>` storage
 
-#### Scenario: Validate Site records generically
+#### Scenario: Validate Site-owned records generically
 
-- GIVEN active or tombstoned Program records use any of the eight stable Site
+- GIVEN active or tombstoned Program records use any of the three stable Site
   entity ids
 - WHEN Program validation or reviewable canonicalization runs
 - THEN generic Program schema validation remains responsible for field,
@@ -114,12 +124,14 @@ records are written directly to Program Authority from first use.
   navigation
 - AND `site.update`, `block.create`, `block.update`, `block.delete`,
   `block-placement.create`, `block-placement.update`,
-  `block-placement.addTreeChild`, `block-placement.removeTreePlacement`,
-  `contact.update`, `email-address.update`, `audience.update`, and
-  `subscription.update` require Program `editor` access
-- AND `contact-message.submit` and `subscription.subscribe` retain their
-  package-owned anonymous public policies without receiving top-level Program
-  role access
+  `block-placement.addTreeChild`, and
+  `block-placement.removeTreePlacement` require Program `editor` access
+- AND selected standard `contact.update`, `email-address.update`,
+  `audience.update`, and `subscription.update` operations require Program
+  `editor` access through deliberate complete Program replacements
+- AND selected standard `contact-message.submit` and
+  `subscription.subscribe` operations retain their anonymous public policies
+  without receiving top-level Program role access
 
 ### Requirement: Public Tree Projection
 
@@ -190,9 +202,11 @@ browser and Worker runtime composition and the one Program storage target.
 
 - GIVEN a trusted Program composition includes Site executable behavior
 - WHEN local development or deploy builds browser and Worker outputs
-- THEN shared Site requirements, browser readiness and hydration, Worker public
-  reads, document rendering, metadata, indexing, icons, and after-commit
-  notification behavior are selected through explicit target entries
+- THEN Site browser readiness and hydration, Worker public reads, document
+  rendering, metadata, indexing, icons, and after-commit notification behavior
+  are selected through explicit target entries
+- AND any standard contact-subscription operation adapter required by the
+  selected Program schema is supplied separately by shared runtime composition
 - AND Site-owned target adapters are imported through documented
   `@dpeek/formless-site-app/runtime/browser` and
   `@dpeek/formless-site-app/runtime/worker` subpaths where those adapters live
@@ -494,7 +508,8 @@ without exposing raw implementation-only fields as primary controls.
 
 #### Scenario: Review contact messages
 
-- GIVEN public contact operations have stored flat `contact-message` records
+- GIVEN selected standard public contact operations have stored flat
+  `contact-message` records
 - WHEN an author opens the Contacts screen after Subscribers
 - THEN the generated admin table shows each message name, email, and message
 

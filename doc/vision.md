@@ -99,7 +99,7 @@ Roles, orgs, groups, app marketplace, durable workflow UI, broad provider
 management UI, AI surfaces, browser rendering jobs, video delivery, and email
 product flows should not become V1 peers of operations.
 
-CRM launch is the forcing function for the first complete operation set.
+Standard contact intake is the first reusable public operation set.
 
 ## Cloudflare Boundary
 
@@ -252,7 +252,7 @@ From the browser, the user should be able to:
 ## Open Questions
 
 - What is the exact V1 browser-first setup path after `formless dev`?
-- Which CRM interaction is not covered by first-pass operation kinds?
+- Which next domain interaction is not covered by first-pass operation kinds?
 - What is the smallest useful permission model beyond owner sessions?
 - What does ejection produce: a generated Worker project, an app package, an
   archive, or all three?

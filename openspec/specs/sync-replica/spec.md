@@ -21,8 +21,8 @@ identity.
 - WHEN the client target is selected
 - THEN the local IndexedDB replica uses `formless:instance:control-plane`
 - AND the matching broadcast channel uses the same Program scope
-- AND the replica contains instance, reviewable identity, Task, Site, and CRM records
-  from one active `formless-program` schema and cursor
+- AND the replica contains instance, reviewable identity, standard, Task, and
+  Site records from one active `formless-program` schema and cursor
 - AND all Program projections read from that replica
 
 #### Scenario: Workspace Program extension replica

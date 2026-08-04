@@ -89,8 +89,8 @@ browser replica state.
 - WHEN an instance archive is exported
 - THEN one Program storage snapshot and referenced core media are read from the
   target
-- AND the Program snapshot contains instance, reviewable identity, Task, Site,
-  and CRM records from storage identity `instance:control-plane`
+- AND the Program snapshot contains instance, reviewable identity, standard,
+  Task, and Site records from storage identity `instance:control-plane`
 - AND core images referenced by Program-native Site records use canonical
   archive paths under `media/images/`
 - AND Program document media uses canonical archive paths under
@@ -317,7 +317,7 @@ reviewable local source of truth for local-first Formless workspaces.
   Program records and referenced core image or document media
 - **THEN** the system writes one deterministic Program record state file, schema
   provenance, and referenced media payloads from Authority-backed state
-- **AND** instance control-plane, reviewable identity, Task, Site, and CRM
+- **AND** instance control-plane, reviewable identity, standard, Task, and Site
   records are written to `state/instance.json`
 - **AND** browser replica state is not used as the source of truth
 - **AND** secret-looking fields are rejected from reviewable workspace state
@@ -346,7 +346,7 @@ payloads, not portable archive directories or duplicated schema source bodies.
 
 - **WHEN** workspace source is written
 - **THEN** Program state is written to `state/instance.json`
-- **AND** Task, built-in Site, and CRM records are written only to
+- **AND** standard, Task, and built-in Site records are written only to
   `state/instance.json`
 - **AND** the state file declares kind, version, storage identity, schema key,
   exported timestamp, schema timestamp, source cursor, schema provenance, and
@@ -356,8 +356,8 @@ payloads, not portable archive directories or duplicated schema source bodies.
 - **AND** workspace state does not embed the full App schema object
 - **AND** `state/instance.json` uses storage identity `instance:control-plane`
 - **AND** `state/instance.json` uses schema key `formless-program`
-- **AND** it includes instance, reviewable identity, Task, Site, and CRM records
-  from the same Authority record-id namespace
+- **AND** it includes instance, reviewable identity, standard, Task, and Site
+  records from the same Authority record-id namespace
 - **AND** workspace state kind constants, version constants, and parsing
   behavior come from the Workspace package contract
 
@@ -629,11 +629,10 @@ resolved schema identified by that state file's schema provenance.
 
 ### Requirement: Schema-Owned Program Snapshots
 
-The system SHALL represent instance control-plane intent, reviewable identity
-records, singleton Task records, singleton Site records, and singleton CRM records in workspace state
-and portable archive envelopes through one schema-owned Program snapshot
-without storing secrets, deployment observation cache, or deployment execution
-history.
+The system SHALL represent instance control-plane intent, reviewable identity,
+standard, Task, and Site records in workspace state and portable archive
+envelopes through one schema-owned Program snapshot without storing secrets,
+deployment observation cache, or deployment execution history.
 
 #### Scenario: Instance archive includes Program records
 
@@ -645,10 +644,10 @@ history.
   acceptances are represented through that same snapshot
 - **AND** active and tombstoned Task records are represented through that same
   snapshot
-- **AND** active and tombstoned records for all eight Site entities are
+- **AND** active and tombstoned records for all three Site-owned entities are
   represented through that same snapshot
-- **AND** active and tombstoned CRM records are represented through that same
-  snapshot, including the shared Site-stable contact subscription records
+- **AND** active and tombstoned standard inquiry and contact-subscription
+  records are represented through that same snapshot
 - **AND** the snapshot uses schema key `formless-program`, provenance kind
   `program`, and the complete Program source hash
 - **AND** provider API tokens, Alchemy passwords, Alchemy state tokens, raw lease
@@ -673,7 +672,8 @@ history.
   that file
 - **AND** reviewable Site records from the same Program Authority are present
   in that file
-- **AND** reviewable CRM records from the same Program Authority are present
+- **AND** reviewable standard inquiry and contact-subscription records from the
+  same Program Authority are present
   in that file
 - **AND** the file declares a workspace state kind, version,
   storage identity `instance:control-plane`, schema key
@@ -705,7 +705,8 @@ Program records for push and pull sync planning.
   comparison
 - **AND** Site record changes are reported from the same Program state
   comparison
-- **AND** CRM record changes are reported from the same Program state
+- **AND** standard inquiry and contact-subscription record changes are reported
+  from the same Program state
   comparison
 - **AND** hostless path, exact-host mapping, and redirect changes are compared
   through `instance:route` records

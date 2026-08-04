@@ -839,7 +839,7 @@ describe("authority operation execution", () => {
         idempotencyKey: "public-subscribe-invalid-email",
         input: { email: "not an email address" },
         source: {
-          host: "crm.example.com",
+          host: "subscribe.example.com",
           path: route,
           siteBlockId: "rec_site_subscribe_invalid",
         },
@@ -855,7 +855,7 @@ describe("authority operation execution", () => {
         idempotencyKey: "public-subscribe-first",
         input: { email: "Ada@Example.com" },
         source: {
-          host: "crm.example.com",
+          host: "subscribe.example.com",
           path: route,
           siteBlockId: "rec_site_subscribe_first",
         },
@@ -871,7 +871,7 @@ describe("authority operation execution", () => {
         idempotencyKey: "public-subscribe-duplicate",
         input: { email: "ada@example.com" },
         source: {
-          host: "crm.example.com",
+          host: "subscribe.example.com",
           path: route,
           siteBlockId: "rec_site_subscribe_duplicate",
         },
@@ -896,7 +896,7 @@ describe("authority operation execution", () => {
     const subscription = duplicateSubscriptions[0];
 
     if (!subscription) {
-      throw new Error("Expected installed CRM subscription.");
+      throw new Error("Expected standard subscription.");
     }
 
     await executeOperation<OperationInvocationResponse>({
@@ -920,7 +920,7 @@ describe("authority operation execution", () => {
         idempotencyKey: "public-subscribe-resubscribe",
         input: { email: "ada@example.com" },
         source: {
-          host: "crm.example.com",
+          host: "subscribe.example.com",
           path: route,
           siteBlockId: "rec_site_subscribe_resubscribe",
         },
@@ -972,7 +972,7 @@ describe("authority operation execution", () => {
       operationKey: "subscription.subscribe",
       operationKind: "command",
       source: {
-        host: "crm.example.com",
+        host: "subscribe.example.com",
         path: route,
         protocol: "public",
         siteBlockId: "rec_site_subscribe_invalid",
@@ -997,7 +997,7 @@ describe("authority operation execution", () => {
       sourceSchemaKey: "formless-program",
       sourceApiRoutePrefix: "/api/formless/program",
       sourceOperationKey: "subscription.subscribe",
-      sourceHost: "crm.example.com",
+      sourceHost: "subscribe.example.com",
       sourcePath: route,
       sourceSiteBlockId: "rec_site_subscribe_resubscribe",
     });
@@ -1011,7 +1011,7 @@ describe("authority operation execution", () => {
         },
       },
       source: {
-        host: "crm.example.com",
+        host: "subscribe.example.com",
         path: route,
         protocol: "public",
         siteBlockId: "rec_site_subscribe_resubscribe",
@@ -3924,7 +3924,7 @@ async function writeAuthorityOperationHarness() {
         buildVerifiedPublicOperationInvocationEnvelope,
       } from "${process.cwd()}/src/worker/operation-invocation-envelopes.ts";
       import { executePublicOperationInvocationLifecycle } from "${process.cwd()}/src/worker/operation-invocation-lifecycle.ts";
-      import { schemaAppTestRecords } from "${process.cwd()}/src/test/schema-app-records.ts";
+      import { taskStorageSnapshotRecords } from "${process.cwd()}/src/test/schema-app-records.ts";
       import { taskSourceSchema } from "${process.cwd()}/src/test/schema-apps.ts";
       import { formlessProgramSchema } from "${process.cwd()}/src/program/runtime.ts";
       import { formlessProgramDefaultSharedRuntime } from "${process.cwd()}/src/program/default/shared.ts";
@@ -3972,7 +3972,7 @@ async function writeAuthorityOperationHarness() {
           }
 
           const identity = input.identity ?? programStorageIdentity();
-          const records = schemaAppTestRecords(schemaFixture === "tasks" ? "tasks" : "crm");
+          const records = schemaFixture === "tasks" ? taskStorageSnapshotRecords : [];
           const source = { schema: sourceSchema };
           if (!readCurrentStoredSchema(this.ctx.storage)) {
             initializeStorageFromSource(this.ctx.storage, source);

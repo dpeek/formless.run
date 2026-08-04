@@ -15,13 +15,12 @@ import { formlessProgramSchema } from "./program/runtime.ts";
 describe("application route selection", () => {
   it("selects Program surfaces inside the application shell", () => {
     const instance = renderRoute("/settings/access");
-    const crmProgramScreen = renderRoute("/crm/audiences");
+    const contactIntakeScreen = renderRoute("/site/subscribers");
 
     expect(instance).toContain('data-surface="application-shell"');
     expect(instance).toContain('data-route="access"');
-    expect(crmProgramScreen).toContain('data-surface="application-shell"');
-    expect(crmProgramScreen).toContain('data-route="instance"');
-    expect(crmProgramScreen).not.toContain('data-schema-key="crm"');
+    expect(contactIntakeScreen).toContain('data-surface="application-shell"');
+    expect(contactIntakeScreen).toContain('data-route="instance"');
   });
 
   it("selects local session, account, and published Site surfaces outside the shell", () => {

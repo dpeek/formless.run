@@ -3,9 +3,9 @@ import { createMemoryPresentationHost } from "@dpeek/formless-presentation/host"
 import { instanceControlPlaneSchema } from "@dpeek/formless-instance-control-plane";
 import type { AppSchema } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
+import { formlessProgramSchema } from "../../program/runtime.ts";
 import { selectScreenModels } from "../../client/views.ts";
 import {
-  crmSourceSchema,
   rateSourceSchema,
   siteSourceSchema,
   taskTestRecords,
@@ -29,13 +29,15 @@ describe("generated workspace production path", () => {
     );
 
     expect(inventory).toEqual({
-      crm: [
-        { results: ["table", "table", "table"], screen: "contacts", width: "wide" },
-        { results: ["table", "table"], screen: "audiences", width: "wide" },
-        { results: ["table", "table"], screen: "campaigns", width: "wide" },
-        { results: ["table", "table", "table"], screen: "broadcasts", width: "wide" },
-      ],
       instance: [{ results: ["table"], screen: "routes", width: "standard" }],
+      program: [
+        { results: ["table"], screen: "routes", width: "standard" },
+        { results: ["list"], screen: "taskHome", width: "standard" },
+        { results: ["record"], screen: "siteSettings", width: "narrow" },
+        { results: ["tree"], screen: "siteEditor", width: "wide" },
+        { results: ["table", "table", "table"], screen: "siteSubscribers", width: "wide" },
+        { results: ["table"], screen: "siteContacts", width: "wide" },
+      ],
       rate: [
         { results: ["table"], screen: "rateHome", width: "standard" },
         { results: ["list", "list"], screen: "rateSetup", width: "standard" },
@@ -54,7 +56,7 @@ describe("generated workspace production path", () => {
     const examples = [
       { schema: siteSourceSchema, screenName: "siteSettings" },
       { schema: taskSourceSchema, screenName: "taskHome" },
-      { schema: crmSourceSchema, screenName: "contacts" },
+      { schema: formlessProgramSchema, screenName: "siteContacts" },
     ];
 
     const widths = examples.map(({ schema, screenName }) => {
@@ -104,8 +106,8 @@ describe("generated workspace production path", () => {
 });
 
 const productionSchemas = {
-  crm: crmSourceSchema,
   instance: instanceControlPlaneSchema,
+  program: formlessProgramSchema,
   rate: rateSourceSchema,
   site: siteSourceSchema,
   tasks: taskSourceSchema,

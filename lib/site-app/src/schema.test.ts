@@ -1,6 +1,11 @@
-import { computeSourceSchemaHash, parseAppSchema } from "@dpeek/formless-schema";
+import {
+  standardContactSubscriptionRecordSchemaModule,
+  standardInquiryRecordSchemaModule,
+} from "@dpeek/formless-standard/schema";
+import { composeAppSchema, computeSourceSchemaHash, parseAppSchema } from "@dpeek/formless-schema";
 import { describe, expect, it } from "vite-plus/test";
 import {
+  siteContactIntakePresentationSchemaModule,
   sitePresentationSchemaModule,
   siteRecordSchemaModule,
   siteSchemaSource,
@@ -13,11 +18,12 @@ import {
 } from "@dpeek/formless-site-app/runtime/worker";
 
 describe("Site schema authoring", () => {
-  it("composes record declarations before dependent presentation declarations", () => {
-    expect([siteRecordSchemaModule.key, sitePresentationSchemaModule.key]).toEqual([
-      "site-records",
-      "site-presentation",
-    ]);
+  it("separates Site content from standard contact-intake presentation", () => {
+    expect([
+      siteRecordSchemaModule.key,
+      sitePresentationSchemaModule.key,
+      siteContactIntakePresentationSchemaModule.key,
+    ]).toEqual(["site-records", "site-presentation", "site-contact-intake-presentation"]);
     expect(siteRecordSchemaModule.entities?.map(({ id, key }) => ({ id, key }))).toEqual([
       {
         id: "entity_610ac202-b123-46ed-8bd3-5b65383e2233",
@@ -31,38 +37,12 @@ describe("Site schema authoring", () => {
         id: "entity_3d195c79-db03-4da4-95c8-433266271b21",
         key: "block-placement",
       },
-      {
-        id: "entity_dd5c1285-721a-4294-8114-efd784b6a578",
-        key: "contact",
-      },
-      {
-        id: "entity_5a3667a2-a5a7-46ed-b3a4-b6364bae31a0",
-        key: "contact-message",
-      },
-      {
-        id: "entity_9863574c-952d-41a9-b90e-b40f6eda5eba",
-        key: "email-address",
-      },
-      {
-        id: "entity_8999782d-0e12-4e4b-8830-0e60cb3f1179",
-        key: "audience",
-      },
-      {
-        id: "entity_da574ad0-f310-4542-927e-c76dd89402f0",
-        key: "subscription",
-      },
     ]);
     expect(siteRecordSchemaModule.relationships?.map(({ key }) => key)).toEqual([
       "placementParent",
       "blockPlacements",
       "placementBlock",
       "blockUsedInPlacements",
-      "emailAddressContact",
-      "contactEmailAddresses",
-      "subscriptionEmailAddress",
-      "emailAddressSubscriptions",
-      "subscriptionAudience",
-      "audienceSubscriptions",
     ]);
     expect(siteRecordSchemaModule.unions?.map(({ key }) => key)).toEqual(["blockByType"]);
     expect(siteRecordSchemaModule.queries?.map(({ key }) => key)).toEqual([
@@ -76,10 +56,6 @@ describe("Site schema authoring", () => {
       "blockLinks",
       "blockGroups",
       "blockImages",
-      "emailAddressAll",
-      "audienceAll",
-      "subscriptionAll",
-      "contactMessageAll",
       "placementsForSelectedBlock",
     ]);
     expect(siteRecordSchemaModule).not.toHaveProperty("itemViews");
@@ -87,7 +63,6 @@ describe("Site schema authoring", () => {
     expect(siteRecordSchemaModule).not.toHaveProperty("views");
     expect(siteRecordSchemaModule).not.toHaveProperty("screens");
     expect(siteRecordSchemaModule.runtimeRequirements).toEqual({
-      shared: { operationAdapters: ["contact-subscription.subscribe"] },
       browser: { surfaces: ["site.public"] },
       worker: {
         publicReads: ["site.public-tree"],
@@ -108,18 +83,10 @@ describe("Site schema authoring", () => {
     expect(sitePresentationSchemaModule.tableViews?.map(({ key }) => key)).toEqual([
       "blockTable",
       "blockPlacementTable",
-      "emailAddressTable",
-      "audienceTable",
-      "subscriptionTable",
-      "contactMessageTable",
     ]);
     expect(sitePresentationSchemaModule.views?.map(({ key }) => key)).toEqual([
       "siteSettingsHome",
       "blockHome",
-      "emailAddressHome",
-      "audienceHome",
-      "subscriptionHome",
-      "contactMessageHome",
       "siteCompositionHome",
       "pageCompositionHome",
       "navigationCompositionHome",
@@ -134,13 +101,57 @@ describe("Site schema authoring", () => {
     expect(sitePresentationSchemaModule.screens?.map(({ key }) => key)).toEqual([
       "siteSettings",
       "siteEditor",
+    ]);
+
+    expect(siteContactIntakePresentationSchemaModule.requires).toEqual([
+      standardInquiryRecordSchemaModule.key,
+      standardContactSubscriptionRecordSchemaModule.key,
+    ]);
+    expect(siteContactIntakePresentationSchemaModule.tableViews?.map(({ key }) => key)).toEqual([
+      "emailAddressTable",
+      "audienceTable",
+      "subscriptionTable",
+      "contactMessageTable",
+    ]);
+    expect(siteContactIntakePresentationSchemaModule.views?.map(({ key }) => key)).toEqual([
+      "emailAddressHome",
+      "audienceHome",
+      "subscriptionHome",
+      "contactMessageHome",
+    ]);
+    expect(siteContactIntakePresentationSchemaModule.screens?.map(({ key }) => key)).toEqual([
       "siteSubscribers",
       "siteContacts",
     ]);
-    expect(sitePresentationSchemaModule).not.toHaveProperty("entities");
-    expect(sitePresentationSchemaModule).not.toHaveProperty("relationships");
-    expect(sitePresentationSchemaModule).not.toHaveProperty("unions");
-    expect(sitePresentationSchemaModule).not.toHaveProperty("queries");
+    for (const module of [
+      sitePresentationSchemaModule,
+      siteContactIntakePresentationSchemaModule,
+    ]) {
+      expect(module).not.toHaveProperty("entities");
+      expect(module).not.toHaveProperty("relationships");
+      expect(module).not.toHaveProperty("unions");
+      expect(module).not.toHaveProperty("queries");
+    }
+  });
+
+  it("composes Site content without standard contact intake", () => {
+    const contentOnlySource = composeAppSchema({
+      version: 1,
+      modules: [siteRecordSchemaModule, sitePresentationSchemaModule],
+    });
+    const contentOnlySchema = parseAppSchema(contentOnlySource);
+
+    expect(contentOnlySchema.entities.map(({ key }) => key)).toEqual([
+      "site",
+      "block",
+      "block-placement",
+    ]);
+    expect(contentOnlySchema.screens.map(({ key }) => key)).toEqual(["siteSettings", "siteEditor"]);
+    expect(
+      contentOnlySchema.entities.some(({ key }) =>
+        ["contact", "contact-message", "email-address", "audience", "subscription"].includes(key),
+      ),
+    ).toBe(false);
   });
 
   it("keeps authored, materialized, and parsed schema data aligned", async () => {

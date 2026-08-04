@@ -10,12 +10,14 @@ browser replicas, public bindings, automation, and package adapters.
 
 ### Requirement: Bundled Domain Schemas
 
-The system SHALL provide package-owned Tasks, Site, and CRM schemas for trusted
-build-time Program composition without coupling package source to initial records.
+The system SHALL provide package-owned standard library, Tasks, and Site schemas
+for trusted build-time Program composition without coupling package source to
+initial records.
 
 #### Scenario: Load current package schema
 
-- **GIVEN** trusted Program composition imports the Tasks, Site, or CRM package
+- **GIVEN** trusted Program composition imports the standard library, Tasks, or
+  Site package
 - **WHEN** it loads the package's documented schema entrypoint
 - **THEN** the package's App schema declarations and standalone artifact are available
 - **AND** package source loading does not supply initial stored records
@@ -165,8 +167,9 @@ from reusable package modules.
 
 #### Scenario: Compose the default Program schema
 
-- GIVEN the Instance Control Plane, Identity Control Plane, Tasks, Site, and CRM
-  packages expose their current record, presentation, and screen modules
+- GIVEN the Instance Control Plane, Identity Control Plane, standard library,
+  Tasks, and Site packages expose their current record, presentation, and
+  screen modules
   through public `./schema` subpaths
 - WHEN the Formless product composition root builds its default Program schema
 - THEN it explicitly lists package record modules before any dependent
@@ -178,8 +181,8 @@ from reusable package modules.
   independently replaceable modules
 - AND the result is one valid `AppSchemaSource` rather than a second Program
   schema language or wrapper contract
-- AND instance, identity, and Task entities retain their package-owned stable
-  entity ids in the complete source
+- AND instance, identity, standard, Task, and Site entities retain their
+  package-owned stable entity ids in the complete source
 
 #### Scenario: Place product screens through ordinary schema composition
 
@@ -233,7 +236,7 @@ from reusable package modules.
 #### Scenario: Select the default Program for runtime storage
 
 - GIVEN the default Program artifact contains the composed instance, identity,
-  and Tasks declarations
+  standard, Tasks, and Site declarations
 - WHEN runtime-owned reviewable records are bootstrapped, validated, operated
   on, synced, snapshotted, archived, or projected
 - THEN the runtime uses that one complete artifact and its canonical source hash
@@ -241,8 +244,9 @@ from reusable package modules.
   route, navigation, and complete schema provenance
 - AND the standalone Tasks schema remains a reusable package artifact rather
   than a separate runtime storage mount
-- AND Task, Site, CRM, and other explicitly composed domain records use Program
-  storage while standalone domain schemas remain build-time composition inputs
+- AND standard, Task, Site, and other explicitly composed domain records use
+  Program storage while standalone domain schemas remain build-time
+  composition inputs
 
 #### Scenario: Materialize an explicit workspace Program extension
 
@@ -275,11 +279,11 @@ from reusable package modules.
 - WHEN the root declares grouped navigation
 - THEN `navigation.groups` is an ordered array of stable group keys, human
   labels, and ordered screen-key references
-- AND the default Program declares Tasks, Site, CRM, and Instance groups while
+- AND the default Program declares Tasks, Site, and Instance groups while
   a downstream Program may replace that complete grouping and add its own
   groups
-- AND the default Tasks, Site, and CRM groups select `taskHome`, `siteEditor`,
-  and `contacts` respectively
+- AND the default Tasks and Site groups select `taskHome` and `siteEditor`
+  respectively
 - AND the default Instance group selects `routes` and `access` in that order
 - AND group and nested screen order remain portable, source-hash-significant
   root-owned navigation data

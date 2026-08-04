@@ -264,7 +264,6 @@ function workspaceSwitcherSection(selectedKey: string): ShellNavigationSectionCo
     destinations: [
       shellLink("workspace:tasks", "Tasks", "/tasks", selectedKey === "tasks"),
       shellLink("workspace:site", "Site", "/site", selectedKey === "site"),
-      shellLink("workspace:crm", "CRM", "/crm", selectedKey === "crm"),
       shellLink("workspace:instance", "Instance", "/settings/routes", selectedKey === "instance"),
     ],
     label: "Workspaces",
@@ -287,7 +286,6 @@ function programDestinations() {
     shellLink("program:principals", "Principals", "/"),
     shellLink("program:tasks", "Tasks", "/tasks"),
     shellLink("program:site", "Site", "/site"),
-    shellLink("program:crm", "CRM", "/crm"),
     shellLink("program:routes", "Routes", "/routes"),
     shellLink("program:deployments", "Deployments", "/deployments"),
     shellLink("program:settings", "Settings", "/settings"),

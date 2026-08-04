@@ -59,7 +59,7 @@ Data stays flat. Compose in query, view, projection, action layer.
 - `lib/formless/src/media/`: core media model and providers.
 - `lib/formless/src/test/`: shared test fixtures.
 - `lib/tasks-app/`: reusable Tasks schema modules and standalone artifact.
-- `lib/crm-app/`: reusable CRM schema modules and standalone artifact.
+- `lib/standard/`: reusable standard schema modules and standalone artifact.
 - `lib/site-app/`: bundled Site schema modules, standalone artifact, and adapters.
 - `lib/presentation/`: renderer-neutral Formless UI contracts, hosts, and React adapters.
 - `lib/renderer/`: Formless Renderer application and Site presentation backed by Astryx.
@@ -103,7 +103,7 @@ Data stays flat. Compose in query, view, projection, action layer.
 - Deployment runtime: versioned desired deploy state, attempt history, leases, and status.
 - Instance auth: owner passkey setup, sessions, logout, and admin bearer boundary.
 - Public action: schema-declared action opened through target-scoped public routes.
-- Contact subscription: flat Site-owned contact, email address, audience, and subscription records.
+- Contact subscription: flat standard-owned contact, email address, audience, and subscription records.
 - Instance archive: versioned Program, media, and instance configuration envelope.
 - Package slice: reusable capability package under `lib/<package>` without app records.
 - Upgrade migration: registered runtime or app-data migration with safety policy and apply evidence.

@@ -826,12 +826,12 @@ describe("schema entity operations", () => {
         operations: {
           submitIntake: recordPlanOperation({
             effect: recordPlanEffect({
-              steps: [{ ...createTaskStep(), entity: "crm:task" }],
+              steps: [{ ...createTaskStep(), entity: "external:task" }],
             }),
           }),
         },
         message:
-          'entity "crm:task" references local entity "task" with a qualified name. Use local entity key "task".',
+          'entity "external:task" references local entity "task" with a qualified name. Use local entity key "task".',
       },
       {
         operations: {

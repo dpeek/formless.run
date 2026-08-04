@@ -53,7 +53,7 @@ Program API is the only generic data route family.
   instance, account auth, or workspace gateway API routes
 - THEN those route families remain available
 - AND the dev workbench composes Program and product instance surfaces together
-- AND Tasks, Site, and CRM are available through Program-owned paths
+- AND Tasks and Site are available through Program-owned paths
 
 ### Requirement: Browser Route Mounts
 
@@ -105,9 +105,6 @@ The system SHALL mount browser surfaces according to the active runtime profile.
 - AND `/site`, `/site/settings`, `/site/contacts`, and `/site/subscribers`
   select package-owned Site screens through Program-owned paths and `member`
   access requirements
-- AND `/crm`, `/crm/audiences`, `/crm/campaigns`, and `/crm/broadcasts` select
-  package-owned CRM screens through Program-owned paths and `member` access
-  requirements
 - AND `/pages` and nested `/pages/*` paths select the authenticated
   Program-native Site preview
 - AND Program navigation order comes from the materialized Program artifact
@@ -268,7 +265,7 @@ The system MUST route public Site documents through published Site behavior only
 #### Scenario: Non-document paths stay out of SSR
 
 - GIVEN the runtime profile is `publishedSite`
-- WHEN a request targets `/api/*`, `/formless/*`, `/tasks`, `/crm/audiences`,
+- WHEN a request targets `/api/*`, `/formless/*`, `/tasks`,
   `/site/schema`, `/schema`, static asset-like paths, dynamic root icon paths,
   or a non-HTML request
 - THEN the request is not handled as a published Site document

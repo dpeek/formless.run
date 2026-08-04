@@ -327,7 +327,7 @@ present resumable controls through operation bindings.
    complete.
 
 Do not add workflow, marketplace, broad provider management, roles/orgs,
-AI/agent, or deployment-console primitives under this seam unless a CRM
+AI/agent, or deployment-console primitives under this seam unless a concrete
 operation proves the primitive is needed.
 
 ## Open Questions

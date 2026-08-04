@@ -15,7 +15,7 @@ Read this when editing `lib/instance-control-plane/*`.
 
 - App install mutation execution, owner authorization, or Authority writes.
 - Browser replica state, Durable Object storage, sync, reset, restore execution, or runtime protocol handlers.
-- Bundled Site, Tasks, CRM schema modules, standalone artifacts, or Program composition.
+- Bundled standard, Site, or Tasks schema modules, standalone artifacts, or Program composition.
 - Deployment provider execution, credential resolution, operation history, or provider resource truth.
 - React UI, Worker routes, Node adapters, provider SDKs, or filesystem APIs.
 

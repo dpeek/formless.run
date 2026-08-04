@@ -23,14 +23,18 @@ describe("current Formless Program selection", () => {
     });
     const task = record("task-1", "task", { title: "Complete replica" });
     const siteBlock = record("block-1", "block", { type: "page" });
-    const campaign = record("campaign-1", "campaign", { name: "Complete replica" });
+    const inquiry = record("inquiry-1", "contact-message", {
+      name: "Ada",
+      email: "ada@example.com",
+      message: "Complete replica",
+    });
     const records = [
       owner,
       programAssignment,
       programRoute,
       task,
       siteBlock,
-      campaign,
+      inquiry,
       record("unknown", "unknown-entity", {}),
     ];
 
@@ -40,7 +44,7 @@ describe("current Formless Program selection", () => {
       programRoute,
       task,
       siteBlock,
-      campaign,
+      inquiry,
     ]);
   });
 

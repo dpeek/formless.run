@@ -105,10 +105,10 @@ describe("Astryx application shell renderer", () => {
     expect(workspaceLinks.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
       ["Tasks", "/tasks"],
       ["Site", "/site"],
-      ["CRM", "/crm"],
+      ["Instance", "/settings/routes"],
       ["Tasks", "/tasks"],
       ["Site", "/site"],
-      ["CRM", "/crm"],
+      ["Instance", "/settings/routes"],
     ]);
     expect(
       required(document.body.querySelector('[role="menuitem"] [aria-current="page"]')).textContent,
@@ -205,8 +205,8 @@ describe("Astryx application shell renderer", () => {
         ? {
             ...section,
             destinations: section.destinations.map((destination) =>
-              destination.id === "workspace:crm"
-                ? { ...destination, label: "Customers" }
+              destination.id === "workspace:instance"
+                ? { ...destination, label: "Infrastructure" }
                 : destination,
             ),
           }
@@ -217,7 +217,7 @@ describe("Astryx application shell renderer", () => {
     });
 
     fireEvent.click(requiredByProps(mountedRenderer.container, { "aria-label": "Open menu" }));
-    await waitFor(() => expect(document.body.textContent).toContain("Customers"));
+    await waitFor(() => expect(document.body.textContent).toContain("Infrastructure"));
 
     mountedRenderer.unmount();
   });
@@ -337,7 +337,7 @@ function shellSections(
       destinations: [
         { ...shellLink("workspace:tasks", "Tasks", "/tasks"), selected: true },
         shellLink("workspace:site", "Site", "/site"),
-        shellLink("workspace:crm", "CRM", "/crm"),
+        shellLink("workspace:instance", "Instance", "/settings/routes"),
       ],
       label: "Workspaces",
     }),

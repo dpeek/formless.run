@@ -194,7 +194,7 @@ through an explicit actor policy and public binding.
 - AND public execution tests, fixtures, and response helpers use operation names
   consistently
 
-#### Scenario: Execute Program CRM public subscribe operation
+#### Scenario: Execute standard public subscribe operation
 
 - GIVEN the Program declares `subscription.subscribe` as an anonymous public
   command operation requiring the `contact-subscription.subscribe` operation
@@ -207,19 +207,19 @@ through an explicit actor policy and public binding.
   submitted email address, Turnstile proof, provider details, or protected
   internal storage state
 - AND replaying the same idempotency key returns the original committed public
-  operation response without duplicating CRM contact, email-address, audience,
-  or subscription records
+  operation response without duplicating standard contact, email-address,
+  audience, or subscription records
 
 ### Requirement: Program Public Operation API
 
 The system SHALL expose public operation execution only through the narrow
 Program public-operation endpoint.
 
-#### Scenario: Program-native Site and CRM public operation route
+#### Scenario: Program-native standard and Site public operation route
 
 - GIVEN a visitor posts to
   `/api/formless/program/public/operations/:entityKey/:operationKey`
-- WHEN the route resolves a package-owned Site or CRM operation with anonymous
+- WHEN the route resolves a standard or Site-bound operation with anonymous
   public policy
 - THEN the dedicated public executor uses Program storage identity
   `instance:control-plane`
@@ -304,9 +304,9 @@ invocation envelope before validating input or committing effects.
 - AND source records are produced by operation-native create, record-plan, or
   operation handler execution
 
-#### Scenario: Program-native Site and CRM source context
+#### Scenario: Program-native standard and Site source context
 
-- GIVEN a Program-native Site or CRM public operation commits records
+- GIVEN a Program-native standard or Site-bound public operation commits records
 - WHEN source context is recorded
 - THEN its source target kind is `program`, schema key is `formless-program`,
   and API prefix is `/api/formless/program`

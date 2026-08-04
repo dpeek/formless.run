@@ -1,7 +1,4 @@
 import type { StoredRecord } from "@dpeek/formless-storage";
-import { testSiteRecords } from "./site-records.ts";
-
-export type AppSchemaFixtureKey = "tasks" | "site" | "crm";
 
 export const taskStorageSnapshotRecords: StoredRecord[] = [
   testRecord({
@@ -61,31 +58,6 @@ export const taskStorageSnapshotRecords: StoredRecord[] = [
 ];
 
 export const taskTestRecords = [...taskStorageSnapshotRecords].sort(compareRecordsByCreatedAt);
-
-export const crmTestRecords: StoredRecord[] = [
-  testRecord({
-    id: "rec_company_northstar",
-    entity: "company",
-    values: {
-      name: "Northstar Labs",
-      website: "https://northstar.example",
-      status: "customer",
-      notes: "Archive and storage test record.",
-    },
-    createdAt: "2026-05-01T00:00:01.000Z",
-  }),
-];
-
-export function schemaAppTestRecords(schemaKey: AppSchemaFixtureKey): StoredRecord[] {
-  switch (schemaKey) {
-    case "tasks":
-      return taskStorageSnapshotRecords;
-    case "site":
-      return testSiteRecords;
-    case "crm":
-      return crmTestRecords;
-  }
-}
 
 function testRecord(record: Omit<StoredRecord, "updatedAt">): StoredRecord {
   return {

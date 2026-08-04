@@ -464,7 +464,7 @@ describe("schema state machines", () => {
       },
       {
         sideEffects: transitionSideEffects({
-          steps: [{ ...createOrderStep(), entity: "crm:external-order" }],
+          steps: [{ ...createOrderStep(), entity: "external:external-order" }],
         }),
         message: "must target an entity from the same schema",
       },

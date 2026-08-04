@@ -12,10 +12,14 @@ import {
   tasksRecordSchemaModule,
 } from "@dpeek/formless-tasks-app/schema";
 import {
+  siteContactIntakePresentationSchemaModule,
   sitePresentationSchemaModule,
   siteRecordSchemaModule,
 } from "@dpeek/formless-site-app/schema";
-import { crmPresentationSchemaModule, crmRecordSchemaModule } from "@dpeek/formless-crm-app/schema";
+import {
+  standardContactSubscriptionRecordSchemaModule,
+  standardInquiryRecordSchemaModule,
+} from "@dpeek/formless-standard/schema";
 import {
   composeAppSchema,
   defineAppSchemaModule,
@@ -26,6 +30,23 @@ import {
 const programAdministratorScreenAccess = { role: "administrator" } as const;
 const programEditorOperationAccess = { role: "editor" } as const;
 const programMemberScreenAccess = { role: "member" } as const;
+
+export const formlessStandardInquiryRecordSchemaModule = standardInquiryRecordSchemaModule;
+
+export const formlessStandardContactSubscriptionRecordSchemaModule = defineAppSchemaModule({
+  ...standardContactSubscriptionRecordSchemaModule,
+  entities: standardContactSubscriptionRecordSchemaModule.entities.map((entity) => ({
+    ...entity,
+    operations: entity.operations?.map((operation) =>
+      "policy" in operation && operation.policy.actors.includes("anonymous")
+        ? operation
+        : {
+            ...operation,
+            access: programEditorOperationAccess,
+          },
+    ),
+  })),
+});
 
 export const formlessTasksRecordSchemaModule = defineAppSchemaModule({
   ...tasksRecordSchemaModule,
@@ -47,87 +68,20 @@ export const formlessTasksPresentationSchemaModule = defineAppSchemaModule({
   })),
 });
 
-const crmSharedProgramEntityKeys = new Set([
-  "contact",
-  "email-address",
-  "audience",
-  "subscription",
-]);
-const siteRelationshipKeys = new Set<string>(
-  siteRecordSchemaModule.relationships.map(({ key }) => key),
-);
-const siteQueryKeys = new Set<string>(siteRecordSchemaModule.queries.map(({ key }) => key));
-
 export const formlessSiteRecordSchemaModule = defineAppSchemaModule({
   ...siteRecordSchemaModule,
-  entities: siteRecordSchemaModule.entities.map((siteEntity) => {
-    const crmEntity = crmSharedProgramEntityKeys.has(siteEntity.key)
-      ? crmRecordSchemaModule.entities.find(({ key }) => key === siteEntity.key)
-      : undefined;
-    const entity =
-      crmEntity === undefined
-        ? siteEntity
-        : {
-            ...crmEntity,
-            id: siteEntity.id,
-            fields:
-              crmEntity.key === "subscription"
-                ? crmEntity.fields.map((field) =>
-                    field.key === "sourceTargetKind" && field.type === "enum"
-                      ? {
-                          ...field,
-                          values: [{ key: "program", label: "Program" }],
-                        }
-                      : field,
-                  )
-                : crmEntity.fields,
-          };
-
-    return {
-      ...entity,
-      ...("operations" in entity
-        ? {
-            operations: entity.operations.map((operation) =>
-              "policy" in operation && operation.policy.actors.includes("anonymous")
-                ? operation
-                : {
-                    ...operation,
-                    access: programEditorOperationAccess,
-                  },
-            ),
-          }
-        : {}),
-    };
-  }),
-});
-
-export const formlessCrmRecordSchemaModule = defineAppSchemaModule({
-  ...crmRecordSchemaModule,
-  requires: [siteRecordSchemaModule.key],
-  entities: crmRecordSchemaModule.entities
-    .filter(({ key }) => !crmSharedProgramEntityKeys.has(key))
-    .map((entity) => ({
-      ...entity,
-      ...("operations" in entity
-        ? {
-            operations: entity.operations.map((operation) => ({
-              ...operation,
-              access: programEditorOperationAccess,
-            })),
-          }
-        : {}),
+  entities: siteRecordSchemaModule.entities.map((entity) => ({
+    ...entity,
+    operations: entity.operations?.map((operation) => ({
+      ...operation,
+      access: programEditorOperationAccess,
     })),
-  relationships: crmRecordSchemaModule.relationships.filter(
-    ({ key }) => !siteRelationshipKeys.has(key),
-  ),
-  queries: crmRecordSchemaModule.queries.filter(({ key }) => !siteQueryKeys.has(key)),
+  })),
 });
 
 const formlessSiteScreenPaths = {
   siteEditor: "/site",
   siteSettings: "/site/settings",
-  siteContacts: "/site/contacts",
-  siteSubscribers: "/site/subscribers",
 } as const;
 
 export const formlessSitePresentationSchemaModule = defineAppSchemaModule({
@@ -139,55 +93,17 @@ export const formlessSitePresentationSchemaModule = defineAppSchemaModule({
   })),
 });
 
-const formlessCrmScreenPaths = {
-  contacts: "/crm",
-  audiences: "/crm/audiences",
-  campaigns: "/crm/campaigns",
-  broadcasts: "/crm/broadcasts",
+const formlessSiteContactIntakeScreenPaths = {
+  siteContacts: "/site/contacts",
+  siteSubscribers: "/site/subscribers",
 } as const;
-const formlessCrmPresentationKeys: Readonly<Record<string, string>> = {
-  emailAddressTable: "crmEmailAddressTable",
-  audienceTable: "crmAudienceTable",
-  subscriptionTable: "crmSubscriptionTable",
-  emailAddressHome: "crmEmailAddressHome",
-  audienceHome: "crmAudienceHome",
-  subscriptionHome: "crmSubscriptionHome",
-};
 
-function formlessCrmPresentationKey(key: string): string {
-  return formlessCrmPresentationKeys[key] ?? key;
-}
-
-export const formlessCrmPresentationSchemaModule = defineAppSchemaModule({
-  ...crmPresentationSchemaModule,
-  requires: [siteRecordSchemaModule.key, crmRecordSchemaModule.key],
-  tableViews: crmPresentationSchemaModule.tableViews.map((tableView) => ({
-    ...tableView,
-    key: formlessCrmPresentationKey(tableView.key),
-  })),
-  views: crmPresentationSchemaModule.views.map((view) => ({
-    ...view,
-    key: formlessCrmPresentationKey(view.key),
-    ...(view.type === "collection" && view.result.type === "table"
-      ? {
-          result: {
-            ...view.result,
-            tableView: formlessCrmPresentationKey(view.result.tableView),
-          },
-        }
-      : {}),
-  })),
-  screens: crmPresentationSchemaModule.screens.map((screen) => ({
+export const formlessSiteContactIntakePresentationSchemaModule = defineAppSchemaModule({
+  ...siteContactIntakePresentationSchemaModule,
+  screens: siteContactIntakePresentationSchemaModule.screens.map((screen) => ({
     ...screen,
-    path: formlessCrmScreenPaths[screen.key],
+    path: formlessSiteContactIntakeScreenPaths[screen.key],
     access: programMemberScreenAccess,
-    layout: {
-      ...screen.layout,
-      sections: screen.layout.sections.map((section) => ({
-        ...section,
-        view: formlessCrmPresentationKey(section.view),
-      })),
-    },
   })),
 });
 
@@ -215,29 +131,31 @@ export const formlessIdentityControlPlaneAccessScreenSchemaModule = defineAppSch
 export const formlessProgramBuiltInModules = {
   instanceControlPlaneRecords: instanceControlPlaneRecordSchemaModule,
   identityControlPlaneRecords: identityControlPlaneRecordSchemaModule,
+  standardInquiryRecords: formlessStandardInquiryRecordSchemaModule,
+  standardContactSubscriptionRecords: formlessStandardContactSubscriptionRecordSchemaModule,
   tasksRecords: formlessTasksRecordSchemaModule,
   siteRecords: formlessSiteRecordSchemaModule,
-  crmRecords: formlessCrmRecordSchemaModule,
   instanceControlPlanePresentation: formlessInstanceControlPlanePresentationSchemaModule,
   instanceControlPlaneRoutesScreen: formlessInstanceControlPlaneRoutesScreenSchemaModule,
   identityControlPlaneAccessScreen: formlessIdentityControlPlaneAccessScreenSchemaModule,
   tasksPresentation: formlessTasksPresentationSchemaModule,
   sitePresentation: formlessSitePresentationSchemaModule,
-  crmPresentation: formlessCrmPresentationSchemaModule,
+  siteContactIntakePresentation: formlessSiteContactIntakePresentationSchemaModule,
 } as const;
 
 export const formlessProgramSchemaModules = [
   formlessProgramBuiltInModules.instanceControlPlaneRecords,
   formlessProgramBuiltInModules.identityControlPlaneRecords,
+  formlessProgramBuiltInModules.standardInquiryRecords,
+  formlessProgramBuiltInModules.standardContactSubscriptionRecords,
   formlessProgramBuiltInModules.tasksRecords,
   formlessProgramBuiltInModules.siteRecords,
-  formlessProgramBuiltInModules.crmRecords,
   formlessProgramBuiltInModules.instanceControlPlanePresentation,
   formlessProgramBuiltInModules.instanceControlPlaneRoutesScreen,
   formlessProgramBuiltInModules.identityControlPlaneAccessScreen,
   formlessProgramBuiltInModules.tasksPresentation,
   formlessProgramBuiltInModules.sitePresentation,
-  formlessProgramBuiltInModules.crmPresentation,
+  formlessProgramBuiltInModules.siteContactIntakePresentation,
 ] as const;
 
 export const formlessProgramDefaultAuthorization: NonNullable<
@@ -268,7 +186,6 @@ export const formlessProgramDefaultNavigation: NonNullable<
   groups: [
     { key: "tasks", label: "Tasks", screens: ["taskHome"] },
     { key: "site", label: "Site", screens: ["siteEditor"] },
-    { key: "crm", label: "CRM", screens: ["contacts"] },
     {
       key: "instance",
       label: "Instance",

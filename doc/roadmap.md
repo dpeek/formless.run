@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-06-19
+Last updated: 2026-08-04
 
 Purpose: concise list of possible OpenSpec or Git-backed changes.
 
@@ -10,36 +10,18 @@ This is not shipped behavior. Shipped behavior lives in
 This is not a commitment. Work starts when a committed OpenSpec or Git-backed
 change owns the work.
 
-## Current Focus: CRM Operation Completeness
+## Current Focus: Operation Completeness
 
-CRM launch is the forcing function for the operation runtime seam.
-
-1. `center-operations-runtime`: make operations the shared interaction contract
-   for schema, Authority, generated UI, and public bindings.
-2. `add-launch-crm-app`: add installable CRM app with contacts, audiences,
-   campaigns, and broadcasts.
-3. `add-crm-public-subscribe-operation`: make CRM own subscribe operation
-   writes, audiences, and consent source.
-4. `add-site-crm-subscribe-bindings`: let Site subscribe blocks bind to a CRM
-   install, audience, and public subscribe operation.
-5. `retire-site-owned-subscribers`: move Site away from owning contact
-   subscription records.
-6. `add-campaign-drafts`: add campaign and message draft records with generated
-   operation-bound authoring views.
-7. `add-broadcast-recipient-snapshots`: snapshot broadcast recipients from
-   audiences or segments.
-8. `add-contact-segments`: add segment records and membership or query rules.
-9. `add-suppression-preferences`: add unsubscribe, suppression, and
-   preference-center records.
-10. `add-email-broadcast-operations`: send broadcasts through operation-owned
-    queued email work with delivery events.
+Standard contact intake is the current reusable public-operation domain. New
+operation primitives should be driven by a concrete selected domain module or
+downstream Program workflow.
 
 ## Scope Guardrail
 
-Do not add broad platform surfaces while CRM operation completeness is the
-forcing function.
+Do not add broad platform surfaces without a concrete operation forcing the
+runtime seam.
 
-Deferred unless a CRM operation proves the primitive is needed:
+Deferred unless a concrete operation proves the primitive is needed:
 
 - workflow engines or durable workflow UI;
 - marketplace/package discovery surfaces;

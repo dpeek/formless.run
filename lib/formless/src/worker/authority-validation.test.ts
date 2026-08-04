@@ -229,7 +229,10 @@ describe("Authority storage snapshot validation", () => {
       ),
     ).rejects.toThrow(new BadRequestError('Storage snapshot storageIdentity must be "tasks".'));
     await expect(
-      validateStorageSnapshotRestore(taskSnapshot({ schemaKey: "crm" }), expectedSnapshotIdentity),
+      validateStorageSnapshotRestore(
+        taskSnapshot({ schemaKey: "other-schema" }),
+        expectedSnapshotIdentity,
+      ),
     ).rejects.toThrow(new BadRequestError('Storage snapshot schemaKey must be "tasks".'));
   });
 

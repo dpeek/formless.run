@@ -1,11 +1,11 @@
 import { writeFile } from "node:fs/promises";
 import { formatAppSchemaSource, parseAppSchema } from "@dpeek/formless-schema";
-import { crmSchemaSource } from "../src/schema.ts";
+import { standardSchemaSource } from "../src/schema.ts";
 
-parseAppSchema(crmSchemaSource);
+parseAppSchema(standardSchemaSource);
 
 await writeFile(
   new URL("../schema.json", import.meta.url),
-  formatAppSchemaSource(crmSchemaSource),
+  formatAppSchemaSource(standardSchemaSource),
   "utf8",
 );

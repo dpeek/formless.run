@@ -112,14 +112,14 @@ not subject, text, or HTML.
 ## Batch And Broadcast Email
 
 The first email queue is the leaf delivery primitive. It does not by itself
-model CRM broadcast sending.
+model future broadcast sending.
 
-CRM broadcast sending should add a higher-level fan-out job when the CRM app
+Broadcast sending should add a higher-level fan-out job when a selected domain
 owns broadcast operations:
 
 1. A `broadcast.send` operation validates intent and returns quickly after
    durable runtime handoff.
-2. CRM snapshots the target audience or segment into flat `broadcast-recipient`
+2. The domain snapshots the target audience or segment into flat `broadcast-recipient`
    records before enqueueing sends.
 3. A broadcast dispatch job chunks pending recipients and enqueues one email
    delivery job per recipient.
@@ -227,10 +227,10 @@ Suggested Git-backed change:
 8. Cover duplicate delivery messages, provider failure retry, permanent config
    failure, and operation response not waiting for provider send.
 
-Future CRM broadcast change:
+Future broadcast change:
 
 1. Add broadcast dispatch job state and queue topic or queue.
-2. Snapshot recipients into flat CRM records before dispatch.
+2. Snapshot recipients into flat domain records before dispatch.
 3. Enqueue per-recipient email delivery jobs in bounded chunks.
 4. Project recipient delivery status from delivery events without coupling
    broadcast operation responses to provider sends.
@@ -241,5 +241,5 @@ Future CRM broadcast change:
 - No queue per domain, Program operation, or tenant.
 - No provider email body in queue messages.
 - No public exposure of notification delivery errors in operation responses.
-- No CRM broadcast fan-out in the first email delivery queue change.
+- No broadcast fan-out in the first email delivery queue change.
 - No DLQ repair UI in the first change.

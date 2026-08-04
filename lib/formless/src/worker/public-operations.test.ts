@@ -142,20 +142,15 @@ describe("public operation runtime", () => {
     expect(records.subscriptions).toHaveLength(1);
     expect(records.contacts[0]?.values).toEqual({
       label: "ada@example.com",
-      lifecycle: "lead",
-      source: "owner",
     });
     expect(records.emailAddresses[0]?.values).toEqual({
       contact: records.contacts[0]?.id,
       address: "ada@example.com",
       normalizedAddress: "ada@example.com",
-      status: "active",
-      primary: true,
     });
     expect(records.audiences[0]?.values).toEqual({
       key: "default",
       label: "Default audience",
-      status: "active",
     });
     expect(records.subscriptions[0]?.values).toMatchObject({
       emailAddress: records.emailAddresses[0]?.id,

@@ -62,8 +62,8 @@ describe("Program navigation runtime", () => {
     fireEvent.click(renderer.getByTestId("sidebar-site"));
     await waitFor(() => expect(selectedWorkspace(renderer)).toBe("siteEditor"));
 
-    fireEvent.click(renderer.getByTestId("intent-crm"));
-    await waitFor(() => expect(selectedWorkspace(renderer)).toBe("contacts"));
+    fireEvent.click(renderer.getByTestId("intent-subscribers"));
+    await waitFor(() => expect(selectedWorkspace(renderer)).toBe("siteSubscribers"));
 
     window.history.back();
     await waitFor(() => expect(selectedWorkspace(renderer)).toBe("siteEditor"));
@@ -86,7 +86,7 @@ describe("Program navigation runtime", () => {
     expect(workspaceMounts).toEqual([
       "taskHome",
       "siteEditor",
-      "contacts",
+      "siteSubscribers",
       "siteEditor",
       "taskHome",
       "siteEditor",
@@ -94,7 +94,7 @@ describe("Program navigation runtime", () => {
     expect(workspaceUnmounts).toEqual([
       "taskHome",
       "siteEditor",
-      "contacts",
+      "siteSubscribers",
       "siteEditor",
       "taskHome",
     ]);
@@ -296,8 +296,12 @@ function programRouteComponents(
         <a data-testid="sidebar-site" href="/site">
           Site
         </a>
-        <button data-testid="intent-crm" onClick={() => navigate("/crm")} type="button">
-          CRM intent
+        <button
+          data-testid="intent-subscribers"
+          onClick={() => navigate("/site/subscribers")}
+          type="button"
+        >
+          Subscribers intent
         </button>
         <button
           data-testid="intent-routes"

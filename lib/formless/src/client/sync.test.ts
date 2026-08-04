@@ -1500,7 +1500,7 @@ describe("client sync", () => {
     });
   });
 
-  it("submits CRM command operations to the Program API and merges created rates", async () => {
+  it("submits command operations to the Program API and merges created rates", async () => {
     const createdRate = rateRecord("rate-1", "resource-1", "card-1");
 
     await saveBootstrapResponse({

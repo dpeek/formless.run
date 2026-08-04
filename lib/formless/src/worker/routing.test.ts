@@ -440,12 +440,6 @@ describe("Worker document routing", () => {
       shouldDeferToStaticAssets(documentRequest("http://example.com/tasks"), instanceProfile),
     ).toBe(true);
     expect(
-      shouldDeferToStaticAssets(
-        documentRequest("http://example.com/crm/audiences"),
-        instanceProfile,
-      ),
-    ).toBe(true);
-    expect(
       shouldDeferToStaticAssets(documentRequest("http://example.com/site/schema"), instanceProfile),
     ).toBe(false);
     expect(
@@ -857,7 +851,6 @@ describe("Worker document routing", () => {
   it("recognizes Program and preview route prefixes as client shell routes", () => {
     expect(isClientShellRoute("/pages/home")).toBe(true);
     expect(isClientShellRoute("/tasks")).toBe(true);
-    expect(isClientShellRoute("/crm/audiences")).toBe(false);
     expect(isClientShellRoute("/site/schema")).toBe(false);
     expect(isClientShellRoute("/formless/auth")).toBe(true);
     expect(isClientShellRoute("/formless/auth/profile-completion")).toBe(true);

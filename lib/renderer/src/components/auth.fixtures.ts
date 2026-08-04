@@ -451,14 +451,14 @@ function signupFixtures(): FormlessAuthFixture[] {
 function invitationFixtures(): FormlessAuthFixture[] {
   const eligibilityFacts = [
     authFact("email", "Email", "ada@example.com"),
-    authFact("surface", "Surface", "CRM"),
+    authFact("surface", "Surface", "Directory"),
     authFact("name", "Name", "Ada Lovelace"),
     authFact("expiry", "Expires", "2030-01-02T03:04:05Z"),
   ];
   const acceptedFacts = [
     authFact("principal", "Signed in as", "Ada Lovelace"),
     authFact("session-expiry", "Session expires", "2030-01-02T04:04:05Z"),
-    authFact("target-origin", "Continue to", "https://crm.example.test"),
+    authFact("target-origin", "Continue to", "https://directory.example.test"),
   ];
 
   return [

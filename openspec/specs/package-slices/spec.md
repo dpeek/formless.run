@@ -49,7 +49,8 @@ package owns schema declarations and domain-specific runtime adapters.
 
 #### Scenario: Domain package scaffold
 
-- GIVEN a domain package such as Site, Tasks, or CRM is extracted into an in-repo
+- GIVEN a domain package such as Site, Tasks, or the standard library is
+  extracted into an in-repo
   package
 - WHEN the package is scaffolded
 - THEN the package contains package-local `AGENTS.md`, `package.json`,
@@ -82,8 +83,8 @@ package owns schema declarations and domain-specific runtime adapters.
 
 #### Scenario: Domain package source replaces root app files
 
-- GIVEN a domain package such as Site, Tasks, or CRM owns package-local schema
-  authoring source and an optional `schema.json` artifact
+- GIVEN a domain package such as Site, Tasks, or the standard library owns
+  package-local schema authoring source and an optional `schema.json` artifact
 - WHEN a trusted downstream Program composition root selects its declarations
 - THEN it imports the documented schema authoring subpath
 - AND the domain package is the repository source owner for those declarations
@@ -129,11 +130,14 @@ domain declarations into the Schema package.
 - WHEN its existing schema declarations are authored in package-local
   TypeScript
 - THEN trusted composition imports `siteRecordSchemaModule`,
-  `sitePresentationSchemaModule`, and `siteSchemaSource` through
+  `sitePresentationSchemaModule`,
+  `siteContactIntakePresentationSchemaModule`, and `siteSchemaSource` through
   `@dpeek/formless-site-app/schema`
-- AND the record module owns Site entities, operations, relationships, unions,
-  and queries while the dependent presentation module owns item views, table
-  views, views, and screens
+- AND the record module owns `site`, `block`, and `block-placement` declarations
+  while the dependent core presentation module owns Site content item views,
+  table views, views, and screens
+- AND the optional contact-intake presentation module owns Site projections and
+  screens over standard inquiry and contact-subscription records
 - AND the package publishes the schema subpath with executable ESM,
   declarations, and source maps
 - AND the complete standalone source may materialize the deterministic
@@ -143,18 +147,19 @@ domain declarations into the Schema package.
 - AND publishing the schema boundary alone does not select Program ownership,
   Authority storage, routing, or runtime availability
 
-#### Scenario: CRM package publishes TypeScript-authored modules
+#### Scenario: Standard package publishes TypeScript-authored modules
 
-- GIVEN the CRM package owns its portable standalone schema artifact
-- WHEN trusted Program composition needs CRM declarations
-- THEN it imports documented CRM record, presentation, and complete standalone
-  modules through `@dpeek/formless-crm-app/schema`
+- GIVEN the standard library owns reusable inquiry and contact-subscription
+  record modules and its portable standalone schema artifact
+- WHEN trusted Program composition needs those declarations
+- THEN it imports documented granular record modules and the complete standalone
+  source through `@dpeek/formless-standard/schema`
 - AND the package may materialize deterministic `schema.json` from its
   TypeScript source for package checks and publication
-- AND CRM keeps ownership of its non-overlapping entity, relationship, query,
-  view, screen, and constraint declarations
-- AND publication alone does not select CRM install identity, Authority storage,
-  routing, or runtime availability
+- AND the standard library keeps ownership of its entities, relationships,
+  queries, operations, constraints, and executable requirement declarations
+- AND publication alone does not select Program identity, Authority storage,
+  routing, presentation, adapter implementation, or runtime availability
 
 ### Requirement: Downstream Program Composition Root
 
@@ -166,14 +171,16 @@ domain declarations.
 
 - GIVEN the explicit default Formless Program assembly composes the default
   product Program
-- WHEN it selects reusable instance, identity, Tasks, Site, and CRM schema modules
+- WHEN it selects reusable instance, identity, standard, Tasks, and Site schema
+  modules
 - THEN it imports them through their documented package `./schema` subpaths
 - AND the root owns the explicit module list, runtime owner, navigation,
   project-local modules, and deliberate replacements for conflicting
   presentation declarations
-- AND the Instance Control Plane, Identity Control Plane, Tasks, Site, and CRM
-  packages continue owning their record declarations, reusable presentation
-  declarations, stable entity ids, and domain adapters
+- AND the Instance Control Plane, Identity Control Plane, standard library,
+  Tasks, and Site packages continue owning their record declarations, stable
+  entity ids, domain adapters, and reusable presentation declarations where
+  present
 - AND the Schema package continues owning only the generic App schema
   authoring and composition contracts
 - AND generic Program runtime exports do not import or register the selected
@@ -207,25 +214,29 @@ domain declarations.
 - THEN the Program root uses deliberate same-key replacements for only those
   complete declarations
 - AND ordinary Site authoring operations require the Program `editor` role
-- AND Site anonymous public-operation policy remains package-owned and does not
-  gain Program replica access
-- AND the replacements preserve the eight Site stable entity ids, fields,
+- AND standard anonymous public-operation policy selected by Site blocks remains
+  standard-owned and does not gain Program replica access
+- AND the replacements preserve the three Site-owned stable entity ids, fields,
   relationships, queries, operation effects, public bindings, views, and
   adapter ownership
+- AND selected standard contact-intake records retain their separately owned
+  stable entity ids and declarations
 - AND the Program root owns the complete Program roles, screen paths,
   navigation, storage, replica, archive, workspace, and runtime availability
 
-#### Scenario: Program root composes CRM without duplicate contact entities
+#### Scenario: Program root composes standard contact intake once
 
-- GIVEN CRM shares four contact-subscription entity keys with Program-native Site
-- WHEN the Program root composes CRM
-- THEN it deliberately preserves the Site stable entity ids and produces one
-  complete enriched declaration for each shared key
-- AND CRM keeps its non-overlapping declarations and generated presentations
-- AND the Program root owns the final same-key replacements, access, paths,
-  navigation, storage, replica, archive, workspace, and runtime availability
-- AND no generic entity-extension mechanism, package discovery, or qualified
-  stored identity is introduced
+- GIVEN the standard library owns inquiry and contact-subscription record modules
+- WHEN the Program root composes standard contact intake with Site
+- THEN `contact`, `contact-message`, `email-address`, `audience`, and
+  `subscription` each have one complete standard-owned declaration
+- AND Site contributes public form binding, copy, placement, projection, and
+  optional generated presentations over those declarations
+- AND the Program root may deliberately replace complete declarations for
+  Program access without copying, filtering, merging, enriching, or renaming
+  competing package declarations
+- AND no generic entity-extension mechanism, package discovery, implicit merge,
+  or qualified stored identity is introduced
 
 #### Scenario: Program root supports omission and ejection
 
@@ -257,9 +268,9 @@ domain declarations.
 - WHEN storage identity, schema provenance, API routing, browser replication,
   archive, workspace, or authorization behavior is selected
 - THEN the downstream Formless Program root owns those complete-runtime choices
-- AND the Instance Control Plane, Identity Control Plane, Tasks, Site, and CRM
-  packages continue owning their schema modules, stable entity ids, field
-  policy, projections, public-operation declarations, and genuinely
+- AND the Instance Control Plane, Identity Control Plane, standard library,
+  Tasks, and Site packages continue owning their schema modules, stable entity
+  ids, field policy, projections, public-operation declarations, and genuinely
   domain-specific adapters
 - AND the root explicitly selects shared, browser, and Worker runtime entries
   independently of selecting schema modules

@@ -58,7 +58,7 @@ const createTitleSchema = {
 export function createFormlessGeneratedWorkspaceFixtures(): FormlessGeneratedWorkspaceFixture[] {
   return [
     { id: "tasks", label: "Tasks", workspace: tasksWorkspace() },
-    { id: "multi-section", label: "CRM", workspace: multiSectionWorkspace() },
+    { id: "multi-section", label: "Directory", workspace: multiSectionWorkspace() },
     { id: "list-detail", label: "List detail", workspace: listDetailWorkspace() },
     { id: "site-tree", label: "Site tree", workspace: siteTreeWorkspace("ordinary") },
     {
@@ -122,12 +122,12 @@ function tasksWorkspace(): WorkspaceContract {
 }
 
 function multiSectionWorkspace(): WorkspaceContract {
-  const companyScope = workspaceScope("crm", "companies", "companies");
-  const contactScope = workspaceScope("crm", "contacts", "contacts");
+  const companyScope = workspaceScope("directory", "companies", "companies");
+  const contactScope = workspaceScope("directory", "contacts", "contacts");
 
   return workspace(
-    "crm",
-    "CRM",
+    "directory",
+    "Directory",
     [
       section(companyScope, {
         collection: readyOrdinaryCollection(companyScope, {

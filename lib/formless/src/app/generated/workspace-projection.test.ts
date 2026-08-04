@@ -96,11 +96,11 @@ describe("generated Formless UI workspace projection", () => {
   });
 
   it("preserves multi-section order and scopes repeated view and result identities", () => {
-    const peopleScope = workspaceScope("crm", "people", "sharedView");
-    const companyScope = workspaceScope("crm", "companies", "sharedView");
+    const peopleScope = workspaceScope("directory", "people", "sharedView");
+    const companyScope = workspaceScope("directory", "companies", "sharedView");
     const workspace = projectGeneratedWorkspaceContract({
-      id: "crm",
-      label: "CRM",
+      id: "directory",
+      label: "Directory",
       width: "wide",
       sections: [
         {

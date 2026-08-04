@@ -1,6 +1,480 @@
 {
   "entities": [
     {
+      "fields": [
+        {
+          "key": "name",
+          "label": "Name",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "key": "email",
+          "label": "Email",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "format": "longText",
+          "key": "message",
+          "label": "Message",
+          "required": true,
+          "type": "text"
+        }
+      ],
+      "id": "entity_5a3667a2-a5a7-46ed-b3a4-b6364bae31a0",
+      "key": "contact-message",
+      "label": "Contact message",
+      "operations": [
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "createRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "name",
+                "key": "name",
+                "required": true
+              },
+              {
+                "field": "email",
+                "key": "email",
+                "required": true
+              },
+              {
+                "field": "message",
+                "key": "message",
+                "required": true
+              }
+            ]
+          },
+          "key": "submit",
+          "kind": "create",
+          "label": "Submit message",
+          "output": {
+            "type": "create"
+          },
+          "policy": {
+            "access": {
+              "actor": "anonymous",
+              "challenge": {
+                "kind": "turnstile"
+              },
+              "origin": {
+                "kind": "same-origin"
+              }
+            },
+            "actors": ["anonymous"]
+          },
+          "scope": "collection"
+        }
+      ]
+    },
+    {
+      "fields": [
+        {
+          "key": "label",
+          "label": "Label",
+          "required": true,
+          "type": "text"
+        }
+      ],
+      "id": "entity_dd5c1285-721a-4294-8114-efd784b6a578",
+      "key": "contact",
+      "label": "Contact",
+      "operations": [
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "patchRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "label",
+                "key": "label"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update Contact",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
+        }
+      ]
+    },
+    {
+      "constraints": [
+        {
+          "fields": ["normalizedAddress"],
+          "key": "uniqueNormalizedAddress",
+          "kind": "unique"
+        }
+      ],
+      "fields": [
+        {
+          "displayField": "label",
+          "key": "contact",
+          "label": "Contact",
+          "required": true,
+          "to": "contact",
+          "type": "reference"
+        },
+        {
+          "key": "address",
+          "label": "Address",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "key": "normalizedAddress",
+          "label": "Normalized address",
+          "required": true,
+          "type": "text"
+        }
+      ],
+      "id": "entity_9863574c-952d-41a9-b90e-b40f6eda5eba",
+      "key": "email-address",
+      "label": "Email address",
+      "operations": [
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "patchRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "contact",
+                "key": "contact"
+              },
+              {
+                "field": "address",
+                "key": "address"
+              },
+              {
+                "field": "normalizedAddress",
+                "key": "normalizedAddress"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update Email address",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
+        }
+      ]
+    },
+    {
+      "constraints": [
+        {
+          "fields": ["key"],
+          "key": "uniqueAudienceKey",
+          "kind": "unique"
+        }
+      ],
+      "fields": [
+        {
+          "key": "key",
+          "label": "Key",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "key": "label",
+          "label": "Label",
+          "required": true,
+          "type": "text"
+        }
+      ],
+      "id": "entity_8999782d-0e12-4e4b-8830-0e60cb3f1179",
+      "key": "audience",
+      "label": "Audience",
+      "operations": [
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "patchRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "key",
+                "key": "key"
+              },
+              {
+                "field": "label",
+                "key": "label"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update Audience",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
+        }
+      ]
+    },
+    {
+      "constraints": [
+        {
+          "fields": ["emailAddress", "audience"],
+          "key": "uniqueEmailAudience",
+          "kind": "unique"
+        }
+      ],
+      "fields": [
+        {
+          "displayField": "address",
+          "key": "emailAddress",
+          "label": "Email address",
+          "required": true,
+          "to": "email-address",
+          "type": "reference"
+        },
+        {
+          "displayField": "label",
+          "key": "audience",
+          "label": "Audience",
+          "required": true,
+          "to": "audience",
+          "type": "reference"
+        },
+        {
+          "default": "subscribed",
+          "key": "status",
+          "label": "Status",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "subscribed",
+              "label": "Subscribed"
+            },
+            {
+              "key": "unsubscribed",
+              "label": "Unsubscribed"
+            }
+          ]
+        },
+        {
+          "key": "consentedAt",
+          "label": "Consented at",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "default": "publicOperation",
+          "key": "sourceKind",
+          "label": "Source kind",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "publicOperation",
+              "label": "Public operation"
+            }
+          ]
+        },
+        {
+          "key": "sourceTargetKind",
+          "label": "Target kind",
+          "required": true,
+          "type": "enum",
+          "values": [
+            {
+              "key": "program",
+              "label": "Program"
+            }
+          ]
+        },
+        {
+          "key": "sourceSchemaKey",
+          "label": "Source schema key",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "key": "sourceApiRoutePrefix",
+          "label": "API route prefix",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "key": "sourceOperationKey",
+          "label": "Operation key",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "key": "sourceHost",
+          "label": "Host",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "key": "sourcePath",
+          "label": "Path",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "key": "sourceSiteBlockId",
+          "label": "Site block",
+          "required": false,
+          "type": "text"
+        }
+      ],
+      "id": "entity_da574ad0-f310-4542-927e-c76dd89402f0",
+      "key": "subscription",
+      "label": "Subscription",
+      "operations": [
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "type": "patchRecord"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "field": "emailAddress",
+                "key": "emailAddress"
+              },
+              {
+                "field": "audience",
+                "key": "audience"
+              },
+              {
+                "field": "status",
+                "key": "status"
+              },
+              {
+                "field": "consentedAt",
+                "key": "consentedAt"
+              },
+              {
+                "field": "sourceKind",
+                "key": "sourceKind"
+              },
+              {
+                "field": "sourceTargetKind",
+                "key": "sourceTargetKind"
+              },
+              {
+                "field": "sourceSchemaKey",
+                "key": "sourceSchemaKey"
+              },
+              {
+                "field": "sourceApiRoutePrefix",
+                "key": "sourceApiRoutePrefix"
+              },
+              {
+                "field": "sourceOperationKey",
+                "key": "sourceOperationKey"
+              },
+              {
+                "field": "sourceHost",
+                "key": "sourceHost"
+              },
+              {
+                "field": "sourcePath",
+                "key": "sourcePath"
+              },
+              {
+                "field": "sourceSiteBlockId",
+                "key": "sourceSiteBlockId"
+              }
+            ]
+          },
+          "key": "update",
+          "kind": "update",
+          "label": "Update Subscription",
+          "output": {
+            "type": "update"
+          },
+          "scope": "record"
+        },
+        {
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "config": {},
+            "handler": "contact-subscription.subscribe",
+            "type": "operationHandler"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "input": {
+            "fields": [
+              {
+                "key": "email",
+                "label": "Email",
+                "required": true,
+                "type": "text"
+              }
+            ]
+          },
+          "key": "subscribe",
+          "kind": "command",
+          "label": "Subscribe",
+          "output": {
+            "type": "command"
+          },
+          "policy": {
+            "access": {
+              "actor": "anonymous",
+              "challenge": {
+                "kind": "turnstile"
+              },
+              "origin": {
+                "kind": "same-origin"
+              }
+            },
+            "actors": ["anonymous"]
+          },
+          "scope": "collection"
+        }
+      ]
+    },
+    {
       "constraints": [
         {
           "fields": ["key"],
@@ -811,480 +1285,6 @@
           "scope": "record"
         }
       ]
-    },
-    {
-      "fields": [
-        {
-          "key": "label",
-          "label": "Label",
-          "required": true,
-          "type": "text"
-        }
-      ],
-      "id": "entity_dd5c1285-721a-4294-8114-efd784b6a578",
-      "key": "contact",
-      "label": "Contact",
-      "operations": [
-        {
-          "audit": {
-            "input": "summary"
-          },
-          "effect": {
-            "type": "patchRecord"
-          },
-          "idempotency": {
-            "required": true
-          },
-          "input": {
-            "fields": [
-              {
-                "field": "label",
-                "key": "label"
-              }
-            ]
-          },
-          "key": "update",
-          "kind": "update",
-          "label": "Update Contact",
-          "output": {
-            "type": "update"
-          },
-          "scope": "record"
-        }
-      ]
-    },
-    {
-      "fields": [
-        {
-          "key": "name",
-          "label": "Name",
-          "required": true,
-          "type": "text"
-        },
-        {
-          "key": "email",
-          "label": "Email",
-          "required": true,
-          "type": "text"
-        },
-        {
-          "format": "longText",
-          "key": "message",
-          "label": "Message",
-          "required": true,
-          "type": "text"
-        }
-      ],
-      "id": "entity_5a3667a2-a5a7-46ed-b3a4-b6364bae31a0",
-      "key": "contact-message",
-      "label": "Contact message",
-      "operations": [
-        {
-          "audit": {
-            "input": "summary"
-          },
-          "effect": {
-            "type": "createRecord"
-          },
-          "idempotency": {
-            "required": true
-          },
-          "input": {
-            "fields": [
-              {
-                "field": "name",
-                "key": "name",
-                "required": true
-              },
-              {
-                "field": "email",
-                "key": "email",
-                "required": true
-              },
-              {
-                "field": "message",
-                "key": "message",
-                "required": true
-              }
-            ]
-          },
-          "key": "submit",
-          "kind": "create",
-          "label": "Submit message",
-          "output": {
-            "type": "create"
-          },
-          "policy": {
-            "access": {
-              "actor": "anonymous",
-              "challenge": {
-                "kind": "turnstile"
-              },
-              "origin": {
-                "kind": "same-origin"
-              }
-            },
-            "actors": ["anonymous"]
-          },
-          "scope": "collection"
-        }
-      ]
-    },
-    {
-      "constraints": [
-        {
-          "fields": ["normalizedAddress"],
-          "key": "uniqueNormalizedAddress",
-          "kind": "unique"
-        }
-      ],
-      "fields": [
-        {
-          "displayField": "label",
-          "key": "contact",
-          "label": "Contact",
-          "required": true,
-          "to": "contact",
-          "type": "reference"
-        },
-        {
-          "key": "address",
-          "label": "Address",
-          "required": true,
-          "type": "text"
-        },
-        {
-          "key": "normalizedAddress",
-          "label": "Normalized address",
-          "required": true,
-          "type": "text"
-        }
-      ],
-      "id": "entity_9863574c-952d-41a9-b90e-b40f6eda5eba",
-      "key": "email-address",
-      "label": "Email address",
-      "operations": [
-        {
-          "audit": {
-            "input": "summary"
-          },
-          "effect": {
-            "type": "patchRecord"
-          },
-          "idempotency": {
-            "required": true
-          },
-          "input": {
-            "fields": [
-              {
-                "field": "contact",
-                "key": "contact"
-              },
-              {
-                "field": "address",
-                "key": "address"
-              },
-              {
-                "field": "normalizedAddress",
-                "key": "normalizedAddress"
-              }
-            ]
-          },
-          "key": "update",
-          "kind": "update",
-          "label": "Update Email address",
-          "output": {
-            "type": "update"
-          },
-          "scope": "record"
-        }
-      ]
-    },
-    {
-      "constraints": [
-        {
-          "fields": ["key"],
-          "key": "uniqueAudienceKey",
-          "kind": "unique"
-        }
-      ],
-      "fields": [
-        {
-          "key": "key",
-          "label": "Key",
-          "required": true,
-          "type": "text"
-        },
-        {
-          "key": "label",
-          "label": "Label",
-          "required": true,
-          "type": "text"
-        }
-      ],
-      "id": "entity_8999782d-0e12-4e4b-8830-0e60cb3f1179",
-      "key": "audience",
-      "label": "Audience",
-      "operations": [
-        {
-          "audit": {
-            "input": "summary"
-          },
-          "effect": {
-            "type": "patchRecord"
-          },
-          "idempotency": {
-            "required": true
-          },
-          "input": {
-            "fields": [
-              {
-                "field": "key",
-                "key": "key"
-              },
-              {
-                "field": "label",
-                "key": "label"
-              }
-            ]
-          },
-          "key": "update",
-          "kind": "update",
-          "label": "Update Audience",
-          "output": {
-            "type": "update"
-          },
-          "scope": "record"
-        }
-      ]
-    },
-    {
-      "constraints": [
-        {
-          "fields": ["emailAddress", "audience"],
-          "key": "uniqueEmailAudience",
-          "kind": "unique"
-        }
-      ],
-      "fields": [
-        {
-          "displayField": "address",
-          "key": "emailAddress",
-          "label": "Email address",
-          "required": true,
-          "to": "email-address",
-          "type": "reference"
-        },
-        {
-          "displayField": "label",
-          "key": "audience",
-          "label": "Audience",
-          "required": true,
-          "to": "audience",
-          "type": "reference"
-        },
-        {
-          "default": "subscribed",
-          "key": "status",
-          "label": "Status",
-          "required": true,
-          "type": "enum",
-          "values": [
-            {
-              "key": "subscribed",
-              "label": "Subscribed"
-            },
-            {
-              "key": "unsubscribed",
-              "label": "Unsubscribed"
-            }
-          ]
-        },
-        {
-          "key": "consentedAt",
-          "label": "Consented at",
-          "required": true,
-          "type": "text"
-        },
-        {
-          "default": "publicOperation",
-          "key": "sourceKind",
-          "label": "Source kind",
-          "required": true,
-          "type": "enum",
-          "values": [
-            {
-              "key": "publicOperation",
-              "label": "Public operation"
-            }
-          ]
-        },
-        {
-          "key": "sourceTargetKind",
-          "label": "Target kind",
-          "required": true,
-          "type": "enum",
-          "values": [
-            {
-              "key": "program",
-              "label": "Program"
-            }
-          ]
-        },
-        {
-          "key": "sourceSchemaKey",
-          "label": "Source schema key",
-          "required": true,
-          "type": "text"
-        },
-        {
-          "key": "sourceApiRoutePrefix",
-          "label": "API route prefix",
-          "required": true,
-          "type": "text"
-        },
-        {
-          "key": "sourceOperationKey",
-          "label": "Operation key",
-          "required": true,
-          "type": "text"
-        },
-        {
-          "key": "sourceHost",
-          "label": "Host",
-          "required": true,
-          "type": "text"
-        },
-        {
-          "key": "sourcePath",
-          "label": "Path",
-          "required": true,
-          "type": "text"
-        },
-        {
-          "key": "sourceSiteBlockId",
-          "label": "Site block",
-          "required": false,
-          "type": "text"
-        }
-      ],
-      "id": "entity_da574ad0-f310-4542-927e-c76dd89402f0",
-      "key": "subscription",
-      "label": "Subscription",
-      "operations": [
-        {
-          "audit": {
-            "input": "summary"
-          },
-          "effect": {
-            "type": "patchRecord"
-          },
-          "idempotency": {
-            "required": true
-          },
-          "input": {
-            "fields": [
-              {
-                "field": "emailAddress",
-                "key": "emailAddress"
-              },
-              {
-                "field": "audience",
-                "key": "audience"
-              },
-              {
-                "field": "status",
-                "key": "status"
-              },
-              {
-                "field": "consentedAt",
-                "key": "consentedAt"
-              },
-              {
-                "field": "sourceKind",
-                "key": "sourceKind"
-              },
-              {
-                "field": "sourceTargetKind",
-                "key": "sourceTargetKind"
-              },
-              {
-                "field": "sourceSchemaKey",
-                "key": "sourceSchemaKey"
-              },
-              {
-                "field": "sourceApiRoutePrefix",
-                "key": "sourceApiRoutePrefix"
-              },
-              {
-                "field": "sourceOperationKey",
-                "key": "sourceOperationKey"
-              },
-              {
-                "field": "sourceHost",
-                "key": "sourceHost"
-              },
-              {
-                "field": "sourcePath",
-                "key": "sourcePath"
-              },
-              {
-                "field": "sourceSiteBlockId",
-                "key": "sourceSiteBlockId"
-              }
-            ]
-          },
-          "key": "update",
-          "kind": "update",
-          "label": "Update Subscription",
-          "output": {
-            "type": "update"
-          },
-          "scope": "record"
-        },
-        {
-          "audit": {
-            "input": "summary"
-          },
-          "effect": {
-            "config": {},
-            "handler": "contact-subscription.subscribe",
-            "type": "operationHandler"
-          },
-          "idempotency": {
-            "required": true
-          },
-          "input": {
-            "fields": [
-              {
-                "key": "email",
-                "label": "Email",
-                "required": true,
-                "type": "text"
-              }
-            ]
-          },
-          "key": "subscribe",
-          "kind": "command",
-          "label": "Subscribe",
-          "output": {
-            "type": "command"
-          },
-          "policy": {
-            "access": {
-              "actor": "anonymous",
-              "challenge": {
-                "kind": "turnstile"
-              },
-              "origin": {
-                "kind": "same-origin"
-              }
-            },
-            "actors": ["anonymous"]
-          },
-          "scope": "collection"
-        }
-      ]
     }
   ],
   "itemViews": [
@@ -2012,6 +2012,38 @@
   ],
   "queries": [
     {
+      "entity": "contact-message",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "contactMessageAll",
+      "label": "All"
+    },
+    {
+      "entity": "email-address",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "emailAddressAll",
+      "label": "All"
+    },
+    {
+      "entity": "audience",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "audienceAll",
+      "label": "All"
+    },
+    {
+      "entity": "subscription",
+      "expression": {
+        "kind": "all"
+      },
+      "key": "subscriptionAll",
+      "label": "All"
+    },
+    {
       "entity": "site",
       "expression": {
         "kind": "where",
@@ -2201,38 +2233,6 @@
       "label": "Images"
     },
     {
-      "entity": "email-address",
-      "expression": {
-        "kind": "all"
-      },
-      "key": "emailAddressAll",
-      "label": "All"
-    },
-    {
-      "entity": "audience",
-      "expression": {
-        "kind": "all"
-      },
-      "key": "audienceAll",
-      "label": "All"
-    },
-    {
-      "entity": "subscription",
-      "expression": {
-        "kind": "all"
-      },
-      "key": "subscriptionAll",
-      "label": "All"
-    },
-    {
-      "entity": "contact-message",
-      "expression": {
-        "kind": "all"
-      },
-      "key": "contactMessageAll",
-      "label": "All"
-    },
-    {
       "entity": "block-placement",
       "expression": {
         "kind": "where",
@@ -2251,58 +2251,6 @@
     }
   ],
   "relationships": [
-    {
-      "from": {
-        "entity": "block-placement",
-        "field": "parent"
-      },
-      "inverse": "blockPlacements",
-      "key": "placementParent",
-      "kind": "toOne",
-      "label": "Parent block",
-      "to": {
-        "entity": "block"
-      }
-    },
-    {
-      "from": {
-        "entity": "block"
-      },
-      "inverse": "placementParent",
-      "key": "blockPlacements",
-      "kind": "toMany",
-      "label": "Placements",
-      "to": {
-        "entity": "block-placement",
-        "field": "parent"
-      }
-    },
-    {
-      "from": {
-        "entity": "block-placement",
-        "field": "block"
-      },
-      "inverse": "blockUsedInPlacements",
-      "key": "placementBlock",
-      "kind": "toOne",
-      "label": "Child block",
-      "to": {
-        "entity": "block"
-      }
-    },
-    {
-      "from": {
-        "entity": "block"
-      },
-      "inverse": "placementBlock",
-      "key": "blockUsedInPlacements",
-      "kind": "toMany",
-      "label": "Used in placements",
-      "to": {
-        "entity": "block-placement",
-        "field": "block"
-      }
-    },
     {
       "from": {
         "entity": "email-address",
@@ -2379,6 +2327,58 @@
       "to": {
         "entity": "subscription",
         "field": "audience"
+      }
+    },
+    {
+      "from": {
+        "entity": "block-placement",
+        "field": "parent"
+      },
+      "inverse": "blockPlacements",
+      "key": "placementParent",
+      "kind": "toOne",
+      "label": "Parent block",
+      "to": {
+        "entity": "block"
+      }
+    },
+    {
+      "from": {
+        "entity": "block"
+      },
+      "inverse": "placementParent",
+      "key": "blockPlacements",
+      "kind": "toMany",
+      "label": "Placements",
+      "to": {
+        "entity": "block-placement",
+        "field": "parent"
+      }
+    },
+    {
+      "from": {
+        "entity": "block-placement",
+        "field": "block"
+      },
+      "inverse": "blockUsedInPlacements",
+      "key": "placementBlock",
+      "kind": "toOne",
+      "label": "Child block",
+      "to": {
+        "entity": "block"
+      }
+    },
+    {
+      "from": {
+        "entity": "block"
+      },
+      "inverse": "placementBlock",
+      "key": "blockUsedInPlacements",
+      "kind": "toMany",
+      "label": "Used in placements",
+      "to": {
+        "entity": "block-placement",
+        "field": "block"
       }
     }
   ],
@@ -2958,94 +2958,6 @@
       ],
       "result": {
         "tableView": "blockTable",
-        "type": "table"
-      },
-      "type": "collection"
-    },
-    {
-      "defaultQuery": "emailAddressAll",
-      "entity": "email-address",
-      "key": "emailAddressHome",
-      "label": "Email addresses",
-      "navigation": {
-        "primary": false
-      },
-      "queries": [
-        {
-          "count": {
-            "type": "count"
-          },
-          "query": "emailAddressAll"
-        }
-      ],
-      "result": {
-        "tableView": "emailAddressTable",
-        "type": "table"
-      },
-      "type": "collection"
-    },
-    {
-      "defaultQuery": "audienceAll",
-      "entity": "audience",
-      "key": "audienceHome",
-      "label": "Audiences",
-      "navigation": {
-        "primary": false
-      },
-      "queries": [
-        {
-          "count": {
-            "type": "count"
-          },
-          "query": "audienceAll"
-        }
-      ],
-      "result": {
-        "tableView": "audienceTable",
-        "type": "table"
-      },
-      "type": "collection"
-    },
-    {
-      "defaultQuery": "subscriptionAll",
-      "entity": "subscription",
-      "key": "subscriptionHome",
-      "label": "Subscriptions",
-      "navigation": {
-        "primary": false
-      },
-      "queries": [
-        {
-          "count": {
-            "type": "count"
-          },
-          "query": "subscriptionAll"
-        }
-      ],
-      "result": {
-        "tableView": "subscriptionTable",
-        "type": "table"
-      },
-      "type": "collection"
-    },
-    {
-      "defaultQuery": "contactMessageAll",
-      "entity": "contact-message",
-      "key": "contactMessageHome",
-      "label": "Contact messages",
-      "navigation": {
-        "primary": false
-      },
-      "queries": [
-        {
-          "count": {
-            "type": "count"
-          },
-          "query": "contactMessageAll"
-        }
-      ],
-      "result": {
-        "tableView": "contactMessageTable",
         "type": "table"
       },
       "type": "collection"
@@ -4114,6 +4026,94 @@
       ],
       "key": "blockPlacementCreate",
       "type": "create"
+    },
+    {
+      "defaultQuery": "emailAddressAll",
+      "entity": "email-address",
+      "key": "emailAddressHome",
+      "label": "Email addresses",
+      "navigation": {
+        "primary": false
+      },
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "emailAddressAll"
+        }
+      ],
+      "result": {
+        "tableView": "emailAddressTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "defaultQuery": "audienceAll",
+      "entity": "audience",
+      "key": "audienceHome",
+      "label": "Audiences",
+      "navigation": {
+        "primary": false
+      },
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "audienceAll"
+        }
+      ],
+      "result": {
+        "tableView": "audienceTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "defaultQuery": "subscriptionAll",
+      "entity": "subscription",
+      "key": "subscriptionHome",
+      "label": "Subscriptions",
+      "navigation": {
+        "primary": false
+      },
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "subscriptionAll"
+        }
+      ],
+      "result": {
+        "tableView": "subscriptionTable",
+        "type": "table"
+      },
+      "type": "collection"
+    },
+    {
+      "defaultQuery": "contactMessageAll",
+      "entity": "contact-message",
+      "key": "contactMessageHome",
+      "label": "Contact messages",
+      "navigation": {
+        "primary": false
+      },
+      "queries": [
+        {
+          "count": {
+            "type": "count"
+          },
+          "query": "contactMessageAll"
+        }
+      ],
+      "result": {
+        "tableView": "contactMessageTable",
+        "type": "table"
+      },
+      "type": "collection"
     }
   ]
 }

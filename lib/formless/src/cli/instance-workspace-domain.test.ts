@@ -183,7 +183,7 @@ afterEach(async () => {
 });
 
 describe("workspace source sync domain", () => {
-  it("round-trips Program Task, Site, and CRM records with Program media", async () => {
+  it("round-trips Program standard, Task, and Site records with Program media", async () => {
     const tempDir = await makeTempDir();
     const workspaceRoot = path.join(tempDir, "personal-sites");
     const pullRequests: CapturedRequest[] = [];
@@ -265,8 +265,14 @@ describe("workspace source sync domain", () => {
       expect.arrayContaining([
         expect.objectContaining({ entity: "task", id: "task:program-native" }),
         expect.objectContaining({ entity: "block", id: "block:program-cover" }),
-        expect.objectContaining({ entity: "company", id: "company:program-native" }),
-        expect.objectContaining({ entity: "company", id: "company:program-native-deleted" }),
+        expect.objectContaining({
+          entity: "contact-message",
+          id: "contact-message:program-native",
+        }),
+        expect.objectContaining({
+          entity: "contact-message",
+          id: "contact-message:program-native-deleted",
+        }),
         expect.objectContaining({
           entity: "program-report",
           id: "program-report:private",
@@ -386,8 +392,14 @@ describe("workspace source sync domain", () => {
       expect.arrayContaining([
         expect.objectContaining({ entity: "task", id: "task:program-native" }),
         expect.objectContaining({ entity: "block", id: "block:program-cover" }),
-        expect.objectContaining({ entity: "company", id: "company:program-native" }),
-        expect.objectContaining({ entity: "company", id: "company:program-native-deleted" }),
+        expect.objectContaining({
+          entity: "contact-message",
+          id: "contact-message:program-native",
+        }),
+        expect.objectContaining({
+          entity: "contact-message",
+          id: "contact-message:program-native-deleted",
+        }),
         expect.objectContaining({
           entity: "program-report",
           id: "program-report:private",
@@ -414,11 +426,11 @@ describe("workspace source sync domain", () => {
     ]);
   });
 
-  it("plans CRM-only Program record drift through the Program snapshot", async () => {
+  it("plans standard inquiry record drift through the Program snapshot", async () => {
     const tempDir = await makeTempDir();
     const workspaceRoot = path.join(tempDir, "personal-sites");
     const requests: CapturedRequest[] = [];
-    const localProgramRecords = [...deployControlPlaneRecords(), ...programCrmRecords()];
+    const localProgramRecords = [...deployControlPlaneRecords(), ...programInquiryRecords()];
     const fetcher = sourceSyncFetch(requests, {
       controlPlaneRecords: deployControlPlaneRecords(),
       restoreResponses: [restorePlan()],
@@ -470,8 +482,14 @@ describe("workspace source sync domain", () => {
     });
     expect(restoreBody.archive.program.snapshot.records).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ entity: "company", id: "company:program-native" }),
-        expect.objectContaining({ entity: "company", id: "company:program-native-deleted" }),
+        expect.objectContaining({
+          entity: "contact-message",
+          id: "contact-message:program-native",
+        }),
+        expect.objectContaining({
+          entity: "contact-message",
+          id: "contact-message:program-native-deleted",
+        }),
       ]),
     );
   });
@@ -2765,33 +2783,35 @@ function programNativeRecords(): StoredRecord[] {
         title: "Program-native task",
       },
     },
-    ...programCrmRecords(),
+    ...programInquiryRecords(),
   ];
 }
 
-function programCrmRecords(): StoredRecord[] {
+function programInquiryRecords(): StoredRecord[] {
   const createdAt = "2026-05-26T00:00:00.000Z";
 
   return [
     {
       createdAt,
-      entity: "company",
-      id: "company:program-native",
+      entity: "contact-message",
+      id: "contact-message:program-native",
       updatedAt: createdAt,
       values: {
-        name: "Program Native",
-        status: "prospect",
+        name: "Ada",
+        email: "ada@example.com",
+        message: "Program Native",
       },
     },
     {
       createdAt,
       deletedAt: "2026-05-27T00:00:00.000Z",
-      entity: "company",
-      id: "company:program-native-deleted",
+      entity: "contact-message",
+      id: "contact-message:program-native-deleted",
       updatedAt: "2026-05-27T00:00:00.000Z",
       values: {
-        name: "Program Native Deleted",
-        status: "archived",
+        name: "Grace",
+        email: "grace@example.com",
+        message: "Program Native Deleted",
       },
     },
   ];

@@ -71,7 +71,7 @@ describe("Formless Program runtime contracts", () => {
     expect(await computeSourceSchemaHash(rawFormlessProgramSchema)).toBe(
       FORMLESS_PROGRAM_SOURCE_SCHEMA_HASH,
     );
-    expect(formlessProgramSchema.entities).toHaveLength(31);
+    expect(formlessProgramSchema.entities).toHaveLength(25);
     expect(formlessProgramSchemaProvenance).toEqual({
       kind: "program",
       sourceSchemaHash: FORMLESS_PROGRAM_SOURCE_SCHEMA_HASH,
@@ -93,30 +93,29 @@ describe("Formless Program runtime contracts", () => {
     const instanceEntityIds = moduleEntityIds(
       formlessProgramBuiltInModules.instanceControlPlaneRecords,
     );
-    const siteStableEntityIds = moduleEntityIds(formlessProgramBuiltInModules.siteRecords);
+    const standardEntityIds = new Set([
+      ...moduleEntityIds(formlessProgramBuiltInModules.standardInquiryRecords),
+      ...moduleEntityIds(formlessProgramBuiltInModules.standardContactSubscriptionRecords),
+    ]);
+    const siteEntityIds = moduleEntityIds(formlessProgramBuiltInModules.siteRecords);
     const taskEntityIds = moduleEntityIds(formlessProgramBuiltInModules.tasksRecords);
-    const crmEntityIds = new Set(
-      [...moduleEntityIds(formlessProgramBuiltInModules.crmRecords)].filter(
-        (entityId) => !siteStableEntityIds.has(entityId),
-      ),
-    );
 
     for (const entity of formlessProgramSchema.entities) {
       expect(
         identityEntityIds.has(entity.id) ||
           instanceEntityIds.has(entity.id) ||
+          standardEntityIds.has(entity.id) ||
           taskEntityIds.has(entity.id) ||
-          siteStableEntityIds.has(entity.id) ||
-          crmEntityIds.has(entity.id),
+          siteEntityIds.has(entity.id),
         entity.key,
       ).toBe(true);
 
       for (const operation of entity.operations ?? []) {
         const operationName = `${entity.key}.${operation.key}`;
-        const isAnonymousSiteOperation =
+        const isAnonymousPublicOperation =
           operationName === "contact-message.submit" || operationName === "subscription.subscribe";
 
-        if (isAnonymousSiteOperation) {
+        if (isAnonymousPublicOperation) {
           expect(operation.access, operationName).toBeUndefined();
           expect(operation.policy?.actors, operationName).toEqual(["anonymous"]);
           expect(operation.policy?.access, operationName).toEqual({
@@ -130,9 +129,9 @@ describe("Formless Program runtime contracts", () => {
         expect(operation.access, operationName).toBeDefined();
 
         if (
+          standardEntityIds.has(entity.id) ||
           taskEntityIds.has(entity.id) ||
-          siteStableEntityIds.has(entity.id) ||
-          crmEntityIds.has(entity.id)
+          siteEntityIds.has(entity.id)
         ) {
           expect(operation.access).toEqual({ role: "editor" });
         } else if (identityEntityIds.has(entity.id)) {
@@ -189,18 +188,18 @@ describe("Formless Program runtime contracts", () => {
       path: "/site/settings",
       type: "workspace",
     });
-    expect(resolveFormlessProgramScreenRouteTarget("/crm")).toEqual({
+    expect(resolveFormlessProgramScreenRouteTarget("/site/subscribers")).toEqual({
       access: { role: "member" },
-      key: "contacts",
-      label: "Contacts",
-      path: "/crm",
+      key: "siteSubscribers",
+      label: "Subscribers",
+      path: "/site/subscribers",
       type: "workspace",
     });
-    expect(resolveFormlessProgramScreenRouteTarget("/crm/broadcasts")).toEqual({
+    expect(resolveFormlessProgramScreenRouteTarget("/site/contacts")).toEqual({
       access: { role: "member" },
-      key: "broadcasts",
-      label: "Broadcasts",
-      path: "/crm/broadcasts",
+      key: "siteContacts",
+      label: "Contacts",
+      path: "/site/contacts",
       type: "workspace",
     });
     expect(resolveFormlessProgramScreenRouteTarget("/routes")).toBeUndefined();
@@ -265,9 +264,10 @@ describe("Formless Program runtime contracts", () => {
       ...programRecords(),
       taskRecord("task:active", { title: "Active", done: false, priority: "high" }),
       testSiteRecord("site"),
-      storedRecord("company:formless", "company", {
-        name: "Formless",
-        status: "customer",
+      storedRecord("contact-message:formless", "contact-message", {
+        name: "Ada",
+        email: "ada@example.com",
+        message: "Hello",
       }),
     ];
 
@@ -452,32 +452,6 @@ describe("Formless Program runtime contracts", () => {
     expect(canonicalizeFormlessProgramStorageSnapshot(canonical)).toEqual(canonical);
   });
 
-  it("retains active and tombstoned CRM records in the Program snapshot", () => {
-    const active = testCrmCompanyRecord("company:program-native", "Program Native");
-    const tombstone = {
-      ...testCrmCompanyRecord("company:program-native-deleted", "Program Native Deleted"),
-      deletedAt: "2026-07-31T01:00:00.000Z",
-    };
-    const canonical = canonicalizeFormlessProgramStorageSnapshot(
-      programSnapshot([tombstone, ...programRecords(), active]),
-    );
-    const canonicalCrmRecords = canonical.records.filter(({ entity }) => entity === "company");
-
-    expect(canonical.storageIdentity).toBe(FORMLESS_PROGRAM_STORAGE_IDENTITY);
-    expect(canonical.schemaKey).toBe(FORMLESS_PROGRAM_SCHEMA_KEY);
-    expect(
-      canonicalCrmRecords.map(({ id, entity, deletedAt }) => ({
-        deletedAt,
-        entity,
-        id,
-      })),
-    ).toEqual([
-      { deletedAt: undefined, entity: "company", id: active.id },
-      { deletedAt: tombstone.deletedAt, entity: "company", id: tombstone.id },
-    ]);
-    expect(canonicalizeFormlessProgramStorageSnapshot(canonical)).toEqual(canonical);
-  });
-
   it("loads workspace module records from data-only runtime artifact JSON", async () => {
     const workspaceRecords = defineAppSchemaModule({
       key: "workspace-verification-records",
@@ -572,20 +546,18 @@ describe("Formless Program runtime contracts", () => {
     expect(parseInstanceArchive(archive, options).program.snapshot.schemaKey).toBe(
       FORMLESS_PROGRAM_SCHEMA_KEY,
     );
-    for (const schemaKey of ["instance-control-plane", "crm"]) {
-      expect(() =>
-        parseInstanceArchive(
-          {
-            ...archive,
-            program: {
-              ...archive.program,
-              snapshot: { ...archive.program.snapshot, schemaKey },
-            },
+    expect(() =>
+      parseInstanceArchive(
+        {
+          ...archive,
+          program: {
+            ...archive.program,
+            snapshot: { ...archive.program.snapshot, schemaKey: "other-program" },
           },
-          options,
-        ),
-      ).toThrow(`schemaKey must be "${FORMLESS_PROGRAM_SCHEMA_KEY}"`);
-    }
+        },
+        options,
+      ),
+    ).toThrow(`schemaKey must be "${FORMLESS_PROGRAM_SCHEMA_KEY}"`);
   });
 
   it("writes and reads only the current Program workspace state shape", async () => {
@@ -846,17 +818,4 @@ function testSiteRecord(entity: "block" | "site"): StoredRecord {
   }
 
   return structuredClone(record);
-}
-
-function testCrmCompanyRecord(id: string, name: string): StoredRecord {
-  return {
-    createdAt: now,
-    entity: "company",
-    id,
-    updatedAt: now,
-    values: {
-      name,
-      status: "prospect",
-    },
-  };
 }

@@ -16,8 +16,8 @@ The system SHALL use one Program Authority storage identity.
 #### Scenario: Program identity
 
 - GIVEN the default Program storage is initialized
-- WHEN instance, identity, Task, Site, or CRM records are stored, snapshotted,
-  restored, or synced
+- WHEN instance, identity, standard, Task, or Site records are stored,
+  snapshotted, restored, or synced
 - THEN committed records, changes, schema, and operation invocations belong to
   `instance:control-plane` storage
 - AND one active `formless-program` schema and one `program` provenance hash
@@ -924,8 +924,8 @@ The system MUST guard writes when owner or admin protection is configured and SH
 
 ### Requirement: Program Control-Plane Storage
 
-The system SHALL store runtime-owned instance, identity, Tasks, Site, CRM, and
-workspace-owned domain records in one Program Authority storage identity
+The system SHALL store runtime-owned instance, identity, standard, Tasks, Site,
+and workspace-owned domain records in one Program Authority storage identity
 separate from private authentication state.
 
 #### Scenario: Program identity
@@ -937,8 +937,9 @@ separate from private authentication state.
 - AND the active schema key is `formless-program`
 - AND schema provenance has kind `program` with the complete materialized
   Program source hash
-- AND instance, identity, Task, Site, and CRM records share one record-id namespace,
-  write log, cursor, snapshot boundary, and operation-invocation store
+- AND instance, identity, standard, Task, and Site records share one record-id
+  namespace, write log, cursor, snapshot boundary, and operation-invocation
+  store
 - AND the Program runtime selects that record store directly
 - AND credentials, sessions, challenge secrets, token hashes, provider state,
   and media blobs remain outside Program Authority records
@@ -954,7 +955,7 @@ separate from private authentication state.
 
 #### Scenario: Site starts in Program Authority
 
-- GIVEN the default Program schema contains all eight package-owned Site
+- GIVEN the default Program schema contains the three package-owned Site
   entities
 - WHEN the first Site record or Site operation is committed
 - THEN it is written directly to storage identity `instance:control-plane`
@@ -962,14 +963,15 @@ separate from private authentication state.
   stable Site entity ids
 - AND Site package identity does not create another storage or media boundary
 
-#### Scenario: CRM starts in Program Authority
+#### Scenario: Standard contact intake starts in Program Authority
 
-- GIVEN the default Program schema contains the composed CRM domain
-- WHEN the first CRM record or CRM operation is committed
+- GIVEN the default Program schema contains the selected standard inquiry and
+  contact-subscription declarations
+- WHEN the first standard contact-intake record or operation is committed
 - THEN it is written directly to storage identity `instance:control-plane`
-- AND the shared contact subscription entities use the existing Site stable
-  entity ids while CRM non-overlapping entities keep their package-owned ids
-- AND CRM package identity does not create another storage boundary
+- AND the standard entities retain their stable entity ids independently of
+  Site presentation or block identity
+- AND standard package identity does not create another storage boundary
 
 #### Scenario: Program API
 
@@ -996,8 +998,8 @@ separate from private authentication state.
   the member requirement
 - AND valid admin bearer authorization remains an explicit trusted actor
   alternative where supported
-- AND the complete reviewable Program record set, including Task, Site, and CRM
-  records, is readable by every caller satisfying the member requirement
+- AND the complete reviewable Program record set, including standard, Task, and
+  Site records, is readable by every caller satisfying the member requirement
 - AND an unassigned authenticated principal or anonymous session cannot read
   the mixed Program record set
 - AND missing owner-session and admin-bearer configuration does not open the
@@ -1023,9 +1025,10 @@ separate from private authentication state.
   writes may require `administrator`, and security-sensitive writes may
   require the exact `owner` actor
 - AND Task create, update, and clear-completed operations require `editor`
-- AND ordinary Site and CRM authoring operations require `editor`
-- AND Site anonymous public operations are evaluated only by the dedicated
-  public executor and do not derive authority from Program replica admission
+- AND ordinary standard and Site authoring operations require `editor`
+- AND standard and Site-bound anonymous public operations are evaluated only by
+  the dedicated public executor and do not derive authority from Program
+  replica admission
 - AND trusted runner, deployer, or admin-bearer channels satisfy an operation
   only when its access requirement names that exact actor alternative
 - AND missing or invalid Program operation access fails closed

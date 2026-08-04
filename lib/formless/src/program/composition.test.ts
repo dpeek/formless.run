@@ -76,7 +76,7 @@ describe("Program runtime composition", () => {
         },
       }),
     ).rejects.toThrow(
-      'Schema module "site-records" requires Program runtime selection "contact-subscription.subscribe" in shared.operationAdapters.',
+      'Schema module "standard-contact-subscription-records" requires Program runtime selection "contact-subscription.subscribe" in shared.operationAdapters.',
     );
   });
 

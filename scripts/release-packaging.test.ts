@@ -64,8 +64,8 @@ const conventionalPackages = readdirSync(path.resolve(repoRoot, "lib"), {
   .sort((left, right) => left.manifest.name.localeCompare(right.manifest.name));
 
 const domainSchemaPackageNames = [
-  "@dpeek/formless-crm-app",
   "@dpeek/formless-site-app",
+  "@dpeek/formless-standard",
   "@dpeek/formless-tasks-app",
 ] as const;
 

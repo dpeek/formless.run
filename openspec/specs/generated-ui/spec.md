@@ -16,7 +16,7 @@ The system SHALL select generated surfaces from the active runtime profile and r
 #### Scenario: Dev workbench routes
 
 - **GIVEN** the dev workbench profile
-- **WHEN** the user visits Program `/tasks`, `/site`, `/crm`, or Program public
+- **WHEN** the user visits Program `/tasks`, `/site`, or Program public
   Site routes
 - **THEN** the matching Program, admin, or public Site surface
   mounts
@@ -62,7 +62,7 @@ shell.
 
 - **GIVEN** the product instance shell renders
 - **WHEN** Program screens and custom domains are available
-- **THEN** Tasks, Site, CRM, Instance, and downstream Program navigation groups
+- **THEN** Tasks, Site, Instance, and downstream Program navigation groups
   appear as top-level workspace destinations
 - **AND** only screens in the selected group appear in its screen navigation
 - **AND** custom domain management shows desired route state and provider applied

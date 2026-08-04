@@ -12,7 +12,7 @@ const eligible: ApplicationNavigationActivation = {
   currentHref: "https://formless.test/tasks?view=active",
   defaultPrevented: false,
   download: false,
-  href: "/crm?view=all#records",
+  href: "/records?view=all#records",
   metaKey: false,
   nativeNavigation: false,
   shiftKey: false,
@@ -21,9 +21,9 @@ const eligible: ApplicationNavigationActivation = {
 
 describe("application navigation bridge", () => {
   it("selects unmodified same-origin primary link activation for SPA navigation", () => {
-    expect(applicationSpaNavigationTarget(eligible)).toBe("/crm?view=all#records");
+    expect(applicationSpaNavigationTarget(eligible)).toBe("/records?view=all#records");
     expect(applicationSpaNavigationTarget({ ...eligible, target: "_self" })).toBe(
-      "/crm?view=all#records",
+      "/records?view=all#records",
     );
   });
 
@@ -38,7 +38,7 @@ describe("application navigation bridge", () => {
     ["new tab", { target: "_blank" }],
     ["named target", { target: "workspace" }],
     ["native subtree", { nativeNavigation: true }],
-    ["external", { href: "https://example.com/crm" }],
+    ["external", { href: "https://example.com/records" }],
     ["mailto", { href: "mailto:owner@formless.test" }],
     ["hash only", { href: "#records" }],
   ] as const)("preserves %s native navigation", (_label, override) => {

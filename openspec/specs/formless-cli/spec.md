@@ -761,8 +761,8 @@ snapshots and media payloads.
   workspace
 - **THEN** media payloads and schema-owned Program state are written to the
   deterministic Program workspace snapshot
-- **AND** Task, Site, and CRM records are written through the Program snapshot
-  in `state/instance.json`
+- **AND** standard, Task, and Site records are written through the Program
+  snapshot in `state/instance.json`
 - **AND** `state/instance.json` is the only workspace record state file
 - **AND** browser IndexedDB state is not used as the source of truth
 - **AND** secrets are not written to `formless.ts`, storage snapshots, or
@@ -774,8 +774,8 @@ snapshots and media payloads.
   selects persisted runtime state
 - **THEN** it selects one complete Program snapshot and referenced Program
   media
-- **AND** Task, Site, CRM, and workspace-owned domain data participate through
-  the same Program snapshot and Program source hash
+- **AND** standard, Task, Site, and workspace-owned domain data participate
+  through the same Program snapshot and Program source hash
 
 #### Scenario: Auto-save local workspace state
 
