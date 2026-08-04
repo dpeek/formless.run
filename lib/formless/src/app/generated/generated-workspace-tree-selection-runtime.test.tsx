@@ -626,12 +626,12 @@ describe("generated workspace tree selection runtime", () => {
         label: "replacement.pdf",
         provider: "r2",
         status: "ready",
-        storageKey: `media/program/documents/${replacementId}`,
+        storageKey: `media/documents/${replacementId}`,
       },
       assetId: replacementId,
       contentType: "application/pdf",
       href: `/api/formless/program/media/documents/${replacementId}`,
-      key: `media/program/documents/${replacementId}`,
+      key: `media/documents/${replacementId}`,
       size: replacementFile.size,
     });
     await dispatchTreeIntent(required(controller), {

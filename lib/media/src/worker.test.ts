@@ -362,16 +362,16 @@ describe("Media Worker adapter", () => {
           label: "bad___name.pdf",
           provider: "fake-r2",
           status: "ready",
-          storageKey: "media/program/documents/coa-fixed.pdf",
+          storageKey: "media/documents/coa-fixed.pdf",
         },
         assetId: "coa-fixed.pdf",
         contentType: "application/pdf",
         href: documentHref("coa-fixed.pdf"),
-        key: "media/program/documents/coa-fixed.pdf",
+        key: "media/documents/coa-fixed.pdf",
         size: pdfBytes.byteLength,
       },
     });
-    const stored = memory.objects.get("media/program/documents/coa-fixed.pdf");
+    const stored = memory.objects.get("media/documents/coa-fixed.pdf");
 
     expect(stored?.cacheControl).toBe(MEDIA_PRIVATE_DOCUMENT_CACHE_CONTROL);
     expect(stored?.customMetadata).toMatchObject({
@@ -381,7 +381,7 @@ describe("Media Worker adapter", () => {
       "formless-media-filename": "bad___name.pdf",
       "formless-media-kind": "document",
       "formless-media-provider": "fake-r2",
-      "formless-media-storage-key": "media/program/documents/coa-fixed.pdf",
+      "formless-media-storage-key": "media/documents/coa-fixed.pdf",
     });
 
     await expect(
@@ -499,7 +499,7 @@ describe("Media Worker adapter", () => {
       {
         include: ["customMetadata", "httpMetadata"],
         limit: 50,
-        prefix: "media/program/documents/",
+        prefix: "media/documents/",
       },
     ]);
     expect(headKeys).toEqual([key]);
@@ -531,7 +531,7 @@ describe("Media Worker adapter", () => {
 
     const allObjects = await memory.store.listObjects!({
       limit: 50,
-      prefix: "media/program/documents",
+      prefix: "media/documents",
     });
     const cursors: Array<string | undefined> = [];
     const store: MediaObjectStore = {
@@ -629,7 +629,7 @@ describe("Media Worker adapter", () => {
     });
 
     expect(upload.ok).toBe(true);
-    expect(memory.objects.get("media/program/documents/public-coa.pdf")?.cacheControl).toBe(
+    expect(memory.objects.get("media/documents/public-coa.pdf")?.cacheControl).toBe(
       MEDIA_OBJECT_CACHE_CONTROL,
     );
 

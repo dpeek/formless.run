@@ -172,7 +172,7 @@ function instanceArchive(byteSize: number): InstanceArchive {
     media: {
       objects: [
         {
-          archivePath: `media/program/${storageKey}`,
+          archivePath: "media/images/hero.png",
           byteSize,
           contentType: "image/png",
           deliveryHref,

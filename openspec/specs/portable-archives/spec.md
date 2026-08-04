@@ -91,9 +91,13 @@ browser replica state.
   target
 - AND the Program snapshot contains instance, reviewable identity, Task, Site,
   and CRM records from storage identity `instance:control-plane`
-- AND core images referenced by Program-native Site records are carried by a
-  Program media manifest using archive paths under `media/program/`
-- AND Program document media is carried by that same Program media manifest
+- AND core images referenced by Program-native Site records use canonical
+  archive paths under `media/images/`
+- AND Program document media uses canonical archive paths under
+  `media/documents/`
+- AND archive paths identify media kind independently from provider storage
+  keys while the archive envelope and Program media manifest establish Program
+  ownership
 - AND archive media files are written at manifest archive paths
 - AND protected target reads use owner session or admin bearer authorization
   supplied by the caller
@@ -207,6 +211,8 @@ portable archives and restore media before Program records.
 - GIVEN restore validation succeeds and mutation is explicitly requested
 - WHEN restore applies
 - THEN core media objects are written before Program records
+- AND each image or document is written to the validated provider storage key
+  declared separately from its archive path
 - AND Program data is restored through `instance:control-plane` storage
   identity
 - AND the complete target Program schema and canonical provenance validate the
@@ -367,6 +373,12 @@ payloads, not portable archive directories or duplicated schema source bodies.
 
 - **WHEN** workspace source contains core media referenced by Program records
 - **THEN** media payloads are stored under `state/media`
+- **AND** image payloads use canonical local paths under `state/media/images/`
+- **AND** document payloads use canonical local paths under
+  `state/media/documents/`
+- **AND** the workspace media manifest records archive path, provider storage
+  key, and local payload path as distinct facts
+- **AND** the current workspace media manifest version is `2`
 - **AND** document payload content types and metadata come from validated media
   manifest facts rather than filename-only inference
 - **AND** referenced private document payloads are included in authorized
@@ -374,6 +386,18 @@ payloads, not portable archive directories or duplicated schema source bodies.
   policy
 - **AND** media bytes, object metadata, and provider storage metadata are not
   nested into storage snapshots
+
+#### Scenario: Adopt an earlier workspace media layout safely
+
+- **GIVEN** a valid workspace media manifest addresses payloads through an
+  earlier local layout
+- **WHEN** an applied workspace save or pull adopts the current layout
+- **THEN** every existing payload is read and validated before replacement
+- **AND** current manifest and payload files are staged and validated before
+  they replace prior workspace media state
+- **AND** prior payload paths are pruned only after the current media state is
+  safely installed
+- **AND** dry-run reports the adoption without mutating workspace files
 
 #### Scenario: Portable archive envelope composition
 

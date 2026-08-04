@@ -3,6 +3,7 @@ import {
   INSTANCE_ARCHIVE_KIND,
   archiveMediaReferences,
   formatInstanceArchive,
+  instanceArchiveMediaPath,
   type ArchiveMediaObject,
   type ArchiveMediaReference,
   type ArchiveRestorePolicy,
@@ -233,7 +234,15 @@ async function exportRemoteProgramMedia(input: {
     }
 
     const bytes = new Uint8Array(await response.arrayBuffer());
-    const archivePath = `media/program/${reference.storageKey}`;
+    const archivePath = instanceArchiveMediaPath({
+      assetId:
+        reference.asset?.id ?? reference.storageKey.slice(`${CORE_IMAGE_KEY_PREFIX}/`.length),
+      kind: reference.asset?.kind ?? "image",
+    });
+
+    if (!archivePath) {
+      throw new Error(`Media key "${reference.storageKey}" has no canonical archive path.`);
+    }
     const object = {
       ...reference,
       archivePath,

@@ -11,6 +11,7 @@ import {
   ARCHIVE_VERSION,
   INSTANCE_ARCHIVE_KIND,
   INSTANCE_ARCHIVE_MANIFEST_FILE,
+  instanceArchiveMediaPath,
   type ArchiveMediaObject,
   type InstanceArchive,
 } from "../program/archive.ts";
@@ -3344,7 +3345,7 @@ describe("Formless CLI", () => {
           fetch: responseQueue().fetcher(requests),
         }),
       ),
-    ).rejects.toThrow("Instance archive version must be 2.");
+    ).rejects.toThrow(`Instance archive version must be ${ARCHIVE_VERSION}.`);
     expect(requests).toEqual([]);
   });
 
@@ -3580,7 +3581,11 @@ function instanceArchive(programs: WorkspaceProgramArchiveFixture[] = []): Insta
       objects: programs.flatMap((program) =>
         program.media.objects.map((object) => ({
           ...object,
-          archivePath: `media/program/${object.storageKey}`,
+          archivePath:
+            instanceArchiveMediaPath({
+              assetId: object.asset?.id ?? object.storageKey.slice("media/images/".length),
+              kind: object.asset?.kind ?? "image",
+            }) ?? "",
         })),
       ),
     },

@@ -150,7 +150,7 @@ describe("Media runtime-neutral contract helpers", () => {
       "formless-media-label": "Certificate of analysis",
       "formless-media-provider": "r2",
       "formless-media-status": "ready",
-      "formless-media-storage-key": "media/program/documents/coa-fixed.pdf",
+      "formless-media-storage-key": "media/documents/coa-fixed.pdf",
     });
     expect(mediaAssetFromObjectMetadata(metadata)).toEqual(asset);
     expect(
@@ -278,7 +278,7 @@ describe("Media runtime-neutral contract helpers", () => {
       assetId: "program-report.pdf",
       href: "/api/formless/program/media/documents/program-report.pdf",
       kind: "document",
-      storageKey: "media/program/documents/program-report.pdf",
+      storageKey: "media/documents/program-report.pdf",
     });
   });
 
@@ -341,7 +341,7 @@ function documentMediaAsset(): DocumentMediaAsset {
     label: "Certificate of analysis",
     provider: "r2",
     status: "ready",
-    storageKey: "media/program/documents/coa-fixed.pdf",
+    storageKey: "media/documents/coa-fixed.pdf",
   };
 }
 
@@ -357,6 +357,6 @@ function programDocumentMediaAsset(): DocumentMediaAsset {
     label: "Program report",
     provider: "r2",
     status: "ready",
-    storageKey: "media/program/documents/program-report.pdf",
+    storageKey: "media/documents/program-report.pdf",
   };
 }

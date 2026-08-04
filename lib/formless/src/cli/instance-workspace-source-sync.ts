@@ -7,6 +7,7 @@ import {
   InstanceArchiveValidationError,
   INSTANCE_ARCHIVE_KIND,
   archiveMediaReferences,
+  instanceArchiveMediaPath,
   type ArchiveMediaObject,
   type ArchiveMediaReference,
   type InstanceArchive,
@@ -51,6 +52,7 @@ import {
   readInstanceWorkspaceSecretState as readFormlessInstanceWorkspaceSecretState,
   replaceInstanceWorkspaceMediaFiles,
   resolveInstanceWorkspaceAdminToken as resolveFormlessInstanceWorkspaceAdminToken,
+  workspaceMediaPayloadPathForArchivePath,
   writeInstanceWorkspaceProgramStorageSnapshot,
 } from "../program/workspace.ts";
 import {
@@ -107,7 +109,10 @@ type WorkspaceLocalRestoreArchiveSource = {
 };
 
 type WorkspaceProgramMediaSource = WorkspaceArchiveMediaComparisonSource & {
+  manifestPayloadPaths: string[];
   objects: ArchiveMediaObject[];
+  requiresLayoutAdoption: boolean;
+  unreferencedManifestPayloadPaths: string[];
 };
 
 const WORKSPACE_LOCAL_DEV_STATE_FILE = "dev.json";
@@ -403,6 +408,7 @@ export async function pullFormlessInstanceWorkspace(
     });
     const replacement = await pullWorkspaceReplacementPlan({
       localControlPlane,
+      localProgramMedia,
       manifest: config,
       remoteArchive: pulledInstanceDirectory,
       syncPlan,
@@ -1035,8 +1041,10 @@ async function staleSavedWorkspaceSourcePaths(input: {
   const expectedProgramMedia = programMediaFromInstanceArchive(input.exported);
 
   if (
+    localProgramMedia.requiresLayoutAdoption ||
+    localProgramMedia.unreferencedManifestPayloadPaths.length > 0 ||
     comparableMediaJson(localProgramMedia, localProgramMedia.objects) !==
-    comparableMediaJson(expectedProgramMedia, expectedProgramMedia.objects)
+      comparableMediaJson(expectedProgramMedia, expectedProgramMedia.objects)
   ) {
     stalePaths.add(path.posix.join(input.config.media.root, WORKSPACE_MEDIA_MANIFEST_FILE));
 
@@ -1044,7 +1052,11 @@ async function staleSavedWorkspaceSourcePaths(input: {
       ...localProgramMedia.objects.map((object) => object.archivePath),
       ...expectedProgramMedia.objects.map((object) => object.archivePath),
     ])) {
-      stalePaths.add(path.posix.join(input.config.media.root, archivePath));
+      stalePaths.add(workspaceMediaStatePath(input.config, archivePath));
+    }
+
+    for (const payloadPath of localProgramMedia.manifestPayloadPaths) {
+      stalePaths.add(path.posix.join(input.config.media.root, payloadPath));
     }
   }
 
@@ -1077,7 +1089,14 @@ async function workspaceProgramMediaFromSnapshot(input: {
   workspaceRoot: string;
 }): Promise<WorkspaceProgramMediaSource> {
   if (input.controlPlane === undefined) {
-    return { mediaFiles: [], missingMediaFiles: [], objects: [] };
+    return {
+      manifestPayloadPaths: [],
+      mediaFiles: [],
+      missingMediaFiles: [],
+      objects: [],
+      requiresLayoutAdoption: false,
+      unreferencedManifestPayloadPaths: [],
+    };
   }
 
   const references = programMediaReferences(input.controlPlane);
@@ -1095,9 +1114,12 @@ async function workspaceProgramMediaFromSnapshot(input: {
   });
 
   return {
+    manifestPayloadPaths: diskMedia.manifestPayloadPaths,
     mediaFiles: diskMedia.mediaFiles.map(({ object: _, ...file }) => file),
     missingMediaFiles: diskMedia.missingMediaFiles,
     objects,
+    requiresLayoutAdoption: diskMedia.requiresLayoutAdoption,
+    unreferencedManifestPayloadPaths: diskMedia.unreferencedManifestPayloadPaths,
   };
 }
 
@@ -1107,11 +1129,16 @@ function programMediaFromInstanceArchive(
   const archivePaths = new Set(directory.archive.media.objects.map((object) => object.archivePath));
 
   return {
+    manifestPayloadPaths: directory.mediaFiles
+      .filter((file) => archivePaths.has(file.archivePath))
+      .map((file) => workspaceMediaPayloadPathForArchivePath(file.archivePath)),
     mediaFiles: directory.mediaFiles.filter((file) => archivePaths.has(file.archivePath)),
     missingMediaFiles: directory.missingMediaFiles.filter((archivePath) =>
       archivePaths.has(archivePath),
     ),
     objects: directory.archive.media.objects,
+    requiresLayoutAdoption: false,
+    unreferencedManifestPayloadPaths: [],
   };
 }
 
@@ -1120,6 +1147,7 @@ function workspaceProgramMediaFiles(media: WorkspaceProgramMediaSource) {
   return media.mediaFiles.map((file) => ({
     ...file,
     object: objectsByPath.get(file.archivePath),
+    payloadPath: workspaceMediaPayloadPathForArchivePath(file.archivePath),
   }));
 }
 
@@ -1136,6 +1164,7 @@ function assertWorkspaceProgramMediaComplete(
 
 async function pullWorkspaceReplacementPlan(input: {
   localControlPlane: WorkspaceControlPlaneRecords | undefined;
+  localProgramMedia: WorkspaceProgramMediaSource;
   manifest: FormlessResolvedConfig;
   remoteArchive: WorkspaceArchiveDirectory;
   syncPlan: FormlessInstanceWorkspaceSyncPlan;
@@ -1146,7 +1175,7 @@ async function pullWorkspaceReplacementPlan(input: {
   const remoteProgramMedia = programMediaFromInstanceArchive(input.remoteArchive);
   const remoteMediaPaths = new Set(
     remoteProgramMedia.mediaFiles.map((file) =>
-      path.posix.join(input.manifest.media.root, file.archivePath),
+      workspaceMediaStatePath(input.manifest, file.archivePath),
     ),
   );
   if (remoteProgramMedia.mediaFiles.length > 0) {
@@ -1158,14 +1187,59 @@ async function pullWorkspaceReplacementPlan(input: {
     }
   }
 
+  const localMediaPaths = new Set(
+    input.localProgramMedia.manifestPayloadPaths.map((payloadPath) =>
+      path.posix.join(input.manifest.media.root, payloadPath),
+    ),
+  );
+
+  if (
+    input.syncPlan.changedMedia.includes("program") ||
+    input.localProgramMedia.requiresLayoutAdoption ||
+    input.localProgramMedia.unreferencedManifestPayloadPaths.length > 0
+  ) {
+    for (const mediaPath of localMediaPaths) {
+      if (!remoteMediaPaths.has(mediaPath)) {
+        prunedStatePaths.add(mediaPath);
+      }
+    }
+
+    for (const payloadPath of input.localProgramMedia.unreferencedManifestPayloadPaths) {
+      prunedStatePaths.add(path.posix.join(input.manifest.media.root, payloadPath));
+    }
+
+    const manifestPath = path.posix.join(input.manifest.media.root, WORKSPACE_MEDIA_MANIFEST_FILE);
+
+    if (remoteProgramMedia.mediaFiles.length === 0) {
+      if (input.localProgramMedia.manifestPayloadPaths.length > 0) {
+        prunedStatePaths.add(manifestPath);
+      }
+    } else if (input.localProgramMedia.requiresLayoutAdoption) {
+      changedStatePaths.add(manifestPath);
+      for (const mediaPath of remoteMediaPaths) {
+        changedStatePaths.add(mediaPath);
+      }
+    }
+  }
+
+  for (const prunedStatePath of prunedStatePaths) {
+    changedStatePaths.delete(prunedStatePath);
+  }
+
   const sortedChangedStatePaths = [...changedStatePaths].sort((left, right) =>
+    left.localeCompare(right),
+  );
+  const sortedPrunedStatePaths = [...prunedStatePaths].sort((left, right) =>
     left.localeCompare(right),
   );
 
   return {
     changedStatePaths: sortedChangedStatePaths,
-    prunedStatePaths: [...prunedStatePaths].sort((left, right) => left.localeCompare(right)),
-    status: sortedChangedStatePaths.length === 0 ? "no-changes" : "changes",
+    prunedStatePaths: sortedPrunedStatePaths,
+    status:
+      sortedChangedStatePaths.length === 0 && sortedPrunedStatePaths.length === 0
+        ? "no-changes"
+        : "changes",
   };
 }
 
@@ -1194,8 +1268,16 @@ function programMediaReferences(
       );
     }
 
+    const archivePath = instanceArchiveMediaPath(reference);
+
+    if (!archivePath) {
+      throw new Error(
+        `Workspace Program state references invalid ${reference.kind} asset "${reference.assetId}".`,
+      );
+    }
+
     references.push({
-      archivePath: `media/program/${facts.storageKey}`,
+      archivePath,
       reference,
       storageKey: facts.storageKey,
     });
@@ -1317,7 +1399,7 @@ function createWorkspaceSyncPlan(input: {
       ...input.localProgramMedia.objects.map((object) => object.archivePath),
       ...remoteProgramMedia.objects.map((object) => object.archivePath),
     ])) {
-      changedStatePaths.add(path.posix.join(input.manifest.media.root, archivePath));
+      changedStatePaths.add(workspaceMediaStatePath(input.manifest, archivePath));
     }
   }
 
@@ -1391,7 +1473,7 @@ function createWorkspaceForcedRecoverySyncPlan(input: {
       path.posix.join(input.manifest.media.root, WORKSPACE_MEDIA_MANIFEST_FILE),
     );
     for (const object of input.localProgramMedia.objects) {
-      changedStatePaths.add(path.posix.join(input.manifest.media.root, object.archivePath));
+      changedStatePaths.add(workspaceMediaStatePath(input.manifest, object.archivePath));
     }
   }
 
@@ -1602,6 +1684,10 @@ function comparableMediaJson(
     });
 
   return JSON.stringify(stableValue(media));
+}
+
+function workspaceMediaStatePath(manifest: FormlessResolvedConfig, archivePath: string): string {
+  return path.posix.join(manifest.media.root, workspaceMediaPayloadPathForArchivePath(archivePath));
 }
 
 export type WorkspacePushSourceSyncDependencies = {

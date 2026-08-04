@@ -440,13 +440,13 @@ describe("media worker routes", () => {
       contentType: "application/pdf",
       deliveryHref: expect.stringMatching(/^\/api\/formless\/program\/media\/documents\/.+\.pdf$/),
       kind: "document",
-      storageKey: expect.stringMatching(/^media\/program\/documents\/.+\.pdf$/),
+      storageKey: expect.stringMatching(/^media\/documents\/.+\.pdf$/),
     });
     expect(privateAsset).not.toHaveProperty("ownerAppInstallId");
     expect(publicAsset).toMatchObject({
       access: "public",
       kind: "document",
-      storageKey: expect.stringMatching(/^media\/program\/documents\/.+\.pdf$/),
+      storageKey: expect.stringMatching(/^media\/documents\/.+\.pdf$/),
     });
     expect(publicAsset).not.toHaveProperty("ownerAppInstallId");
     expect(anonymousList.status).toBe(401);

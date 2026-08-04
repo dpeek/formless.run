@@ -11,7 +11,7 @@ import {
 } from "@dpeek/formless-media";
 
 export const INSTANCE_ARCHIVE_KIND = "formless.instanceArchive";
-export const ARCHIVE_VERSION = 2;
+export const ARCHIVE_VERSION = 3;
 
 export const archiveCapabilities = ["core-media-assets"] as const;
 

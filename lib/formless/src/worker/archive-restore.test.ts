@@ -303,7 +303,7 @@ function imageObject(): ArchiveMediaObject {
   const storageKey = "media/images/hero.png";
 
   return {
-    archivePath: `media/program/${storageKey}`,
+    archivePath: "media/images/hero.png",
     byteSize: bytes.byteLength,
     contentType: "image/png",
     deliveryHref: coreMediaHrefForKey(storageKey),

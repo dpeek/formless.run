@@ -31,6 +31,8 @@ import {
   DEFAULT_FORMLESS_PROGRAM_SHARED_RUNTIME_MODULE,
   DEFAULT_FORMLESS_PROGRAM_WORKER_RUNTIME_MODULE,
   FORMLESS_CONFIG_FILE,
+  WORKSPACE_MEDIA_LEGACY_MANIFEST_VERSION,
+  WORKSPACE_MEDIA_MANIFEST_VERSION,
   resolveFormlessConfig,
 } from "@dpeek/formless-workspace";
 import { formatTestFormlessConfigModule } from "./instance-workspace-config-test.ts";
@@ -280,18 +282,70 @@ describe("workspace source sync operation domain", () => {
     );
     expect(instanceState).not.toHaveProperty("media");
     await expect(
-      readFile(
-        path.join(workspaceRoot, "state/media/media/program/media/images/program-cover.png"),
-      ),
+      readFile(path.join(workspaceRoot, "state/media/images/program-cover.png")),
     ).resolves.toEqual(Buffer.from([7, 8, 9]));
     await expect(
-      readFile(
-        path.join(
-          workspaceRoot,
-          "state/media/media/program/media/program/documents/program-private.pdf",
-        ),
-      ),
+      readFile(path.join(workspaceRoot, "state/media/documents/program-private.pdf")),
     ).resolves.toEqual(Buffer.from(programDocumentBytes));
+    const workspaceMediaManifest = JSON.parse(
+      await readFile(path.join(workspaceRoot, "state/media/manifest.json"), "utf8"),
+    ) as { objects: Array<{ payloadPath: string }>; version: number };
+
+    expect(workspaceMediaManifest).toMatchObject({
+      objects: [
+        { payloadPath: "documents/program-private.pdf" },
+        { payloadPath: "images/program-cover.png" },
+      ],
+      version: WORKSPACE_MEDIA_MANIFEST_VERSION,
+    });
+
+    await rewriteWorkspaceMediaManifestAsVersion1(workspaceRoot);
+
+    const adoptionDryRun = await runPullWorkspaceSourceOperation(
+      {
+        dryRun: true,
+        kind: "pull",
+        workspacePath: workspaceRoot,
+      },
+      operationDeps(tempDir, { fetch: pullFetch }),
+    );
+
+    expect(adoptionDryRun).toMatchObject({
+      details: {
+        changedStatePaths: [
+          "state/media/documents/program-private.pdf",
+          "state/media/images/program-cover.png",
+          "state/media/manifest.json",
+        ],
+        prunedStatePaths: [
+          "state/media/media/documents/program-private.pdf",
+          "state/media/media/images/program-cover.png",
+        ],
+      },
+      summary: { fields: { mode: "dry-run", noop: false } },
+    });
+    await expect(
+      readFile(path.join(workspaceRoot, "state/media/media/images/program-cover.png")),
+    ).resolves.toEqual(Buffer.from([7, 8, 9]));
+    await expect(
+      readFile(path.join(workspaceRoot, "state/media/images/program-cover.png")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+
+    await runPullWorkspaceSourceOperation(
+      {
+        dryRun: false,
+        kind: "pull",
+        workspacePath: workspaceRoot,
+      },
+      operationDeps(tempDir, { fetch: pullFetch }),
+    );
+
+    await expect(
+      readFile(path.join(workspaceRoot, "state/media/images/program-cover.png")),
+    ).resolves.toEqual(Buffer.from([7, 8, 9]));
+    await expect(
+      readFile(path.join(workspaceRoot, "state/media/media/images/program-cover.png")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
 
     const pushRequests: CapturedRequest[] = [];
     const pushFetch = sourceSyncFetch(pushRequests, {
@@ -349,20 +403,20 @@ describe("workspace source sync operation domain", () => {
     );
     expect(restoreBody.archive.media.objects).toEqual([
       expect.objectContaining({
-        archivePath: "media/program/media/images/program-cover.png",
-        storageKey: "media/images/program-cover.png",
+        archivePath: "media/documents/program-private.pdf",
+        storageKey: "media/documents/program-private.pdf",
       }),
       expect.objectContaining({
-        archivePath: "media/program/media/program/documents/program-private.pdf",
-        storageKey: "media/program/documents/program-private.pdf",
+        archivePath: "media/images/program-cover.png",
+        storageKey: "media/images/program-cover.png",
       }),
     ]);
     expect(restoreBody.mediaFiles).toEqual([
       expect.objectContaining({
-        archivePath: "media/program/media/images/program-cover.png",
+        archivePath: "media/documents/program-private.pdf",
       }),
       expect.objectContaining({
-        archivePath: "media/program/media/program/documents/program-private.pdf",
+        archivePath: "media/images/program-cover.png",
       }),
     ]);
   });
@@ -1329,13 +1383,13 @@ describe("deployment runtime domain", () => {
       expect(restoreBody.archive.program.snapshot.sourceCursor).toBe(records.length);
       expect(restoreBody.archive.media.objects).toEqual([
         expect.objectContaining({
-          archivePath: "media/program/media/images/program-cover.png",
+          archivePath: "media/images/program-cover.png",
           storageKey: "media/images/program-cover.png",
         }),
       ]);
       expect(restoreBody.mediaFiles).toEqual([
         expect.objectContaining({
-          archivePath: "media/program/media/images/program-cover.png",
+          archivePath: "media/images/program-cover.png",
         }),
       ]);
       expect(backup.program.schemaProvenance).toEqual(targetArtifact.schemaProvenance);
@@ -1496,10 +1550,7 @@ describe("deployment runtime domain", () => {
       program: { snapshot: { records: StoredRecord[] } };
     };
     const retryBackupMedia = await readFile(
-      path.join(
-        path.dirname(retry.backup!.archivePath),
-        "media/program/media/images/program-cover.png",
-      ),
+      path.join(path.dirname(retry.backup!.archivePath), "media/images/program-cover.png"),
     );
 
     expect(
@@ -2468,7 +2519,7 @@ async function writeWorkspaceMediaFile(
   });
   const assetId = options.assetId ?? "cover.png";
   const storageKey = `media/images/${assetId}`;
-  const archivePath = `media/program/${storageKey}`;
+  const archivePath = `media/images/${assetId}`;
   const deliveryHref = `/api/formless/media/${storageKey}`;
   const object = {
     archivePath,
@@ -2502,6 +2553,44 @@ async function writeWorkspaceMediaFile(
     ],
     workspaceRoot,
   });
+}
+
+async function rewriteWorkspaceMediaManifestAsVersion1(workspaceRoot: string) {
+  const mediaRoot = path.join(workspaceRoot, "state/media");
+  const manifestPath = path.join(mediaRoot, "manifest.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as {
+    kind: string;
+    objects: Array<Record<string, unknown> & { archivePath: string; payloadPath: string }>;
+  };
+  const payloads = await Promise.all(
+    manifest.objects.map(async (object) => ({
+      archivePath: object.archivePath,
+      bytes: await readFile(path.join(mediaRoot, object.payloadPath)),
+      object: Object.fromEntries(Object.entries(object).filter(([key]) => key !== "payloadPath")),
+    })),
+  );
+
+  await rm(mediaRoot, { force: true, recursive: true });
+
+  for (const payload of payloads) {
+    const filePath = path.join(mediaRoot, payload.archivePath);
+
+    await mkdir(path.dirname(filePath), { recursive: true });
+    await writeFile(filePath, payload.bytes);
+  }
+
+  await writeFile(
+    manifestPath,
+    `${JSON.stringify(
+      {
+        kind: manifest.kind,
+        version: WORKSPACE_MEDIA_LEGACY_MANIFEST_VERSION,
+        objects: payloads.map((payload) => payload.object),
+      },
+      null,
+      2,
+    )}\n`,
+  );
 }
 
 type CapturedRequest = {
@@ -3058,7 +3147,7 @@ function programDocumentComposition() {
 
 function programDocumentAsset(): DocumentMediaAsset {
   const id = "program-private.pdf";
-  const storageKey = `media/program/documents/${id}`;
+  const storageKey = `media/documents/${id}`;
 
   return {
     access: "private",

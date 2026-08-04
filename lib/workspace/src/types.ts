@@ -27,7 +27,12 @@ export const WORKSPACE_RECORD_STATE_FILE_KIND = "formless.workspaceRecordState";
 export const WORKSPACE_RECORD_STATE_FILE_VERSION = 1;
 export const WORKSPACE_MEDIA_MANIFEST_FILE = "manifest.json";
 export const WORKSPACE_MEDIA_MANIFEST_KIND = "formless.workspaceMedia";
-export const WORKSPACE_MEDIA_MANIFEST_VERSION = 1;
+export const WORKSPACE_MEDIA_LEGACY_MANIFEST_VERSION = 1;
+export const WORKSPACE_MEDIA_MANIFEST_VERSION = 2;
+
+export type WorkspaceMediaManifestVersion =
+  | typeof WORKSPACE_MEDIA_LEGACY_MANIFEST_VERSION
+  | typeof WORKSPACE_MEDIA_MANIFEST_VERSION;
 
 export const INSTANCE_WORKSPACE_PROGRAM_SCHEMA_KEY = "formless-program";
 

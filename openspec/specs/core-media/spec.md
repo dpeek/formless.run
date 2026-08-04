@@ -42,8 +42,19 @@ Program media without app-install ownership or package namespaces.
 - WHEN the asset metadata is stored
 - THEN it has an id, kind `document`, label, filename, normalized MIME type,
   byte size, access policy, status, provider, and immutable Program storage key
+- AND the provider object key lives under `media/documents/`
 - AND it has no owner app install id or package-owned namespace
 - AND Program records store only the flat document asset id
+
+#### Scenario: Provider keys identify media kinds
+
+- GIVEN core image and Program document assets share one instance media provider
+- WHEN immutable provider storage keys are assigned
+- THEN image keys live under `media/images/`
+- AND document keys live under `media/documents/`
+- AND Program ownership is supplied by the instance media model, Program field
+  reference, and authorized route rather than a `program`, package, module,
+  entity, field, or former app-install segment in the provider key
 
 #### Scenario: Program document compatibility and access
 

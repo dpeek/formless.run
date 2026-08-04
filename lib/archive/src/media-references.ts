@@ -4,6 +4,32 @@ import {
   type TextFieldDocumentAssetPolicySchema,
 } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
+import {
+  coreImageMediaDeliveryFactsForAssetId,
+  documentMediaStorageKeyForAssetId,
+} from "@dpeek/formless-media";
+
+export const INSTANCE_ARCHIVE_IMAGE_PATH_PREFIX = "media/images";
+export const INSTANCE_ARCHIVE_DOCUMENT_PATH_PREFIX = "media/documents";
+
+export type InstanceArchiveMediaIdentity = {
+  assetId: string;
+  kind: "document" | "image";
+};
+
+export function instanceArchiveMediaPath(
+  identity: InstanceArchiveMediaIdentity,
+): string | undefined {
+  if (identity.kind === "image") {
+    return coreImageMediaDeliveryFactsForAssetId(identity.assetId)
+      ? `${INSTANCE_ARCHIVE_IMAGE_PATH_PREFIX}/${identity.assetId}`
+      : undefined;
+  }
+
+  return documentMediaStorageKeyForAssetId(identity.assetId)
+    ? `${INSTANCE_ARCHIVE_DOCUMENT_PATH_PREFIX}/${identity.assetId}`
+    : undefined;
+}
 
 export type ArchiveImageMediaReference = {
   assetId: string;

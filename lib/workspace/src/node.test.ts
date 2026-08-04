@@ -21,6 +21,8 @@ import {
   INSTANCE_WORKSPACE_OWNER_SESSION_SECRET_ENV_NAME,
   INSTANCE_WORKSPACE_SECRET_STATE_PATH,
   WORKSPACE_MEDIA_MANIFEST_FILE,
+  WORKSPACE_MEDIA_LEGACY_MANIFEST_VERSION,
+  WORKSPACE_MEDIA_MANIFEST_VERSION,
   WORKSPACE_RECORD_STATE_FILE_KIND,
   createWorkspaceOperationState,
   resolveFormlessConfig,
@@ -43,6 +45,7 @@ import {
   replaceInstanceWorkspaceMediaFiles,
   listWorkspaceOperationStates,
   updateWorkspaceOperationState,
+  workspaceMediaPayloadPathForArchivePath,
   workspaceOperationStatePath,
   workspaceOperationStateRoot,
   writeInstanceWorkspaceProgramStorageSnapshot as writeWorkspaceProgramSnapshot,
@@ -539,6 +542,7 @@ describe("workspace media source node files", () => {
           access: string;
           filename: string;
         };
+        payloadPath: string;
       }>;
       version: number;
     };
@@ -547,11 +551,15 @@ describe("workspace media source node files", () => {
     );
     expect(writtenManifest).toMatchObject({
       kind: "formless.workspaceMedia",
-      version: 1,
+      version: WORKSPACE_MEDIA_MANIFEST_VERSION,
     });
     expect(writtenManifest.objects.map((object) => object.archivePath)).toEqual([
       privateObject.archivePath,
       publicObject.archivePath,
+    ]);
+    expect(writtenManifest.objects.map((object) => object.payloadPath)).toEqual([
+      "documents/private.pdf",
+      "documents/public.pdf",
     ]);
     expect(writtenManifest.objects.map((object) => object.asset)).toMatchObject([
       { access: "private", filename: "private.pdf" },
@@ -565,29 +573,166 @@ describe("workspace media source node files", () => {
     });
 
     expect(read.missingMediaFiles).toEqual([]);
+    expect(read.manifestVersion).toBe(WORKSPACE_MEDIA_MANIFEST_VERSION);
+    expect(read.requiresLayoutAdoption).toBe(false);
     expect(read.mediaFiles.map((file) => [file.archivePath, file.contentType])).toEqual([
       [privateObject.archivePath, "application/pdf"],
       [publicObject.archivePath, "application/pdf"],
     ]);
     expect(read.mediaFiles.map((file) => file.object)).toEqual([privateObject, publicObject]);
 
+    const selected = await readInstanceWorkspaceMediaFiles({
+      archivePaths: [privateObject.archivePath],
+      manifest,
+      workspaceRoot,
+    });
+
+    expect(selected.unreferencedManifestPayloadPaths).toEqual(["documents/public.pdf"]);
+
     await replaceInstanceWorkspaceMediaFiles({
       manifest,
-      mediaFiles: [
-        {
-          archivePath: privateObject.archivePath,
-          byteSize: privateBytes.byteLength,
-          bytes: privateBytes,
-          contentType: "application/pdf",
-          object: privateObject,
-        },
-      ],
+      mediaFiles: selected.mediaFiles,
       workspaceRoot,
     });
 
     await expect(
-      readFile(instanceWorkspaceMediaFilePath(workspaceRoot, manifest, publicObject.archivePath)),
+      readFile(
+        instanceWorkspaceMediaFilePath(
+          workspaceRoot,
+          manifest,
+          workspaceMediaPayloadPathForArchivePath(publicObject.archivePath),
+        ),
+      ),
     ).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(
+      readFile(path.join(workspaceRoot, "state/media/documents/private.pdf")),
+    ).resolves.toEqual(Buffer.from(privateBytes));
+  });
+
+  it("adopts a valid version 1 layout only after version 2 is safely written", async () => {
+    const workspaceRoot = await makeTempDir();
+    const manifest = resolveFormlessConfig({ name: "documents" });
+    const bytes = new TextEncoder().encode("%PDF-1.7\nlegacy");
+    const object = workspaceDocumentObject("legacy.pdf", "private", bytes.byteLength);
+    const mediaRoot = path.join(workspaceRoot, "state/media");
+    const legacyPayloadPath = object.archivePath;
+    const legacyPayloadFile = path.join(mediaRoot, legacyPayloadPath);
+
+    await mkdir(path.dirname(legacyPayloadFile), { recursive: true });
+    await writeFile(legacyPayloadFile, bytes);
+    await writeFile(
+      path.join(mediaRoot, WORKSPACE_MEDIA_MANIFEST_FILE),
+      `${JSON.stringify(
+        {
+          kind: "formless.workspaceMedia",
+          version: WORKSPACE_MEDIA_LEGACY_MANIFEST_VERSION,
+          objects: [object],
+        },
+        null,
+        2,
+      )}\n`,
+    );
+
+    const legacy = await readInstanceWorkspaceMediaFiles({
+      archivePaths: [object.archivePath],
+      manifest,
+      workspaceRoot,
+    });
+
+    expect(legacy).toMatchObject({
+      manifestPayloadPaths: [legacyPayloadPath],
+      manifestVersion: WORKSPACE_MEDIA_LEGACY_MANIFEST_VERSION,
+      requiresLayoutAdoption: true,
+    });
+    expect(legacy.mediaFiles[0]?.payloadPath).toBe(legacyPayloadPath);
+
+    await replaceInstanceWorkspaceMediaFiles({
+      manifest,
+      mediaFiles: legacy.mediaFiles,
+      workspaceRoot,
+    });
+
+    const adoptedManifest = JSON.parse(
+      await readFile(path.join(mediaRoot, WORKSPACE_MEDIA_MANIFEST_FILE), "utf8"),
+    ) as { objects: Array<{ payloadPath: string }>; version: number };
+
+    expect(adoptedManifest).toEqual(
+      expect.objectContaining({
+        objects: [expect.objectContaining({ payloadPath: "documents/legacy.pdf" })],
+        version: WORKSPACE_MEDIA_MANIFEST_VERSION,
+      }),
+    );
+    await expect(readFile(path.join(mediaRoot, "documents/legacy.pdf"))).resolves.toEqual(
+      Buffer.from(bytes),
+    );
+    await expect(readFile(legacyPayloadFile)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("preserves version 1 media when replacement validation fails", async () => {
+    const workspaceRoot = await makeTempDir();
+    const manifest = resolveFormlessConfig({ name: "documents" });
+    const bytes = new TextEncoder().encode("%PDF-1.7\npreserved");
+    const object = workspaceDocumentObject("preserved.pdf", "private", bytes.byteLength);
+    const mediaRoot = path.join(workspaceRoot, "state/media");
+    const legacyPayloadFile = path.join(mediaRoot, object.archivePath);
+    const manifestPath = path.join(mediaRoot, WORKSPACE_MEDIA_MANIFEST_FILE);
+
+    await mkdir(path.dirname(legacyPayloadFile), { recursive: true });
+    await writeFile(legacyPayloadFile, bytes);
+    await writeFile(
+      manifestPath,
+      `${JSON.stringify({
+        kind: "formless.workspaceMedia",
+        version: WORKSPACE_MEDIA_LEGACY_MANIFEST_VERSION,
+        objects: [object],
+      })}\n`,
+    );
+    const priorManifest = await readFile(manifestPath, "utf8");
+
+    await expect(
+      replaceInstanceWorkspaceMediaFiles({
+        manifest,
+        mediaFiles: [
+          {
+            archivePath: object.archivePath,
+            byteSize: bytes.byteLength + 1,
+            bytes,
+            contentType: object.contentType,
+            object,
+          },
+        ],
+        workspaceRoot,
+      }),
+    ).rejects.toThrow("byteSize must match its payload bytes");
+
+    await expect(readFile(legacyPayloadFile)).resolves.toEqual(Buffer.from(bytes));
+    await expect(readFile(manifestPath, "utf8")).resolves.toBe(priorManifest);
+  });
+
+  it("rejects traversal and non-canonical version 2 payload paths", async () => {
+    const workspaceRoot = await makeTempDir();
+    const manifest = resolveFormlessConfig({ name: "documents" });
+    const bytes = new TextEncoder().encode("%PDF-1.7\ninvalid-path");
+    const object = workspaceDocumentObject("invalid.pdf", "private", bytes.byteLength);
+    const manifestPath = instanceWorkspaceMediaManifestPath(workspaceRoot, manifest);
+
+    await mkdir(path.dirname(manifestPath), { recursive: true });
+    await writeFile(
+      manifestPath,
+      `${JSON.stringify({
+        kind: "formless.workspaceMedia",
+        version: WORKSPACE_MEDIA_MANIFEST_VERSION,
+        objects: [{ ...object, payloadPath: "../invalid.pdf" }],
+      })}\n`,
+    );
+
+    await expect(
+      readInstanceWorkspaceMediaFiles({
+        archivePaths: [object.archivePath],
+        manifest,
+        workspaceRoot,
+      }),
+    ).rejects.toThrow("workspace media payload path");
   });
 });
 
@@ -670,11 +815,11 @@ function timestampSequence(...timestamps: string[]): () => string {
 }
 
 function workspaceDocumentObject(assetId: string, access: "private" | "public", byteSize: number) {
-  const storageKey = `media/program/documents/${assetId}`;
+  const storageKey = `media/documents/${assetId}`;
   const deliveryHref = `/api/formless/program/media/documents/${assetId}`;
 
   return {
-    archivePath: `media/program/${storageKey}`,
+    archivePath: `media/documents/${assetId}`,
     asset: {
       access,
       byteSize,

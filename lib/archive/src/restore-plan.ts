@@ -5,7 +5,7 @@ import {
   type InstanceArchive,
   parseInstanceArchive,
 } from "./types.ts";
-import { archiveMediaReferences } from "./media-references.ts";
+import { archiveMediaReferences, instanceArchiveMediaPath } from "./media-references.ts";
 import { getAppSchemaDefinitionIndex, isValidStoredFieldValue } from "@dpeek/formless-schema";
 import type { AppSchema, FieldSchema } from "@dpeek/formless-schema";
 import type { RecordValues, StoredRecord } from "@dpeek/formless-storage";
@@ -391,13 +391,22 @@ function validateMedia(
 
   for (const object of mediaObjects) {
     const isImage = isRestorableImageMediaKey(object.storageKey, { keyPrefix: coreKeyPrefix });
+    const documentAsset = object.asset?.kind === "document" ? object.asset : undefined;
     const isDocument =
-      object.asset?.kind === "document" && isRestorableDocumentMediaKey(object.storageKey);
+      documentAsset !== undefined && isRestorableDocumentMediaKey(object.storageKey);
+    const expectedArchivePath = isDocument
+      ? instanceArchiveMediaPath({ assetId: documentAsset.id, kind: "document" })
+      : isImage
+        ? instanceArchiveMediaPath({
+            assetId: object.storageKey.slice(coreKeyPrefix.length),
+            kind: "image",
+          })
+        : undefined;
 
-    if (!object.archivePath.startsWith("media/program/")) {
+    if (expectedArchivePath !== undefined && object.archivePath !== expectedArchivePath) {
       errors.push(
         planError("invalid-media", {
-          message: `Program archive media path "${object.archivePath}" must live under "media/program/".`,
+          message: `Program archive media path "${object.archivePath}" must be "${expectedArchivePath}".`,
           storageKey: object.storageKey,
         }),
       );
@@ -507,6 +516,18 @@ function validateMediaAsset(
     errors.push(
       planError("invalid-media", {
         message: `Program archive media asset metadata for "${object.storageKey}" does not match the media object.`,
+        storageKey: object.storageKey,
+      }),
+    );
+  }
+
+  if (
+    asset.kind === "image" &&
+    coreImageMediaDeliveryFactsForAssetId(asset.id)?.storageKey !== object.storageKey
+  ) {
+    errors.push(
+      planError("invalid-media", {
+        message: `Program archive image metadata for "${object.storageKey}" has the wrong asset id.`,
         storageKey: object.storageKey,
       }),
     );

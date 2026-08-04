@@ -31,7 +31,7 @@ export const MEDIA_PRIVATE_DOCUMENT_CACHE_CONTROL = "private, no-store";
 export const CORE_IMAGE_KEY_PREFIX = "media/images";
 
 /** Provider object-key prefix for global Program document media. */
-export const PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX = "media/program/documents";
+export const PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX = "media/documents";
 
 /** Core image upload endpoint owned by the Media API. */
 export const CORE_IMAGE_UPLOAD_PATH = "/api/formless/media/images";

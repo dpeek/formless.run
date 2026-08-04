@@ -6,6 +6,7 @@ import {
   archiveRecordCount,
   formatInstanceArchive,
   parseInstanceArchive,
+  instanceArchiveMediaPath,
   type ArchiveProgramSnapshotContract,
   type InstanceArchive,
 } from "./index.ts";
@@ -103,6 +104,21 @@ describe("portable Program archive protocol", () => {
     expect(() =>
       parseInstanceArchive({ ...archive, unexpected: true }, { programSnapshotContract: contract }),
     ).toThrow('Instance archive has unsupported key "unexpected".');
+    expect(() =>
+      parseInstanceArchive({ ...archive, version: 2 }, { programSnapshotContract: contract }),
+    ).toThrow(`Instance archive version must be ${ARCHIVE_VERSION}.`);
+  });
+
+  it("assigns canonical Program archive paths independently from provider keys", () => {
+    expect(instanceArchiveMediaPath({ assetId: "hero.png", kind: "image" })).toBe(
+      "media/images/hero.png",
+    );
+    expect(instanceArchiveMediaPath({ assetId: "report.pdf", kind: "document" })).toBe(
+      "media/documents/report.pdf",
+    );
+    expect(
+      instanceArchiveMediaPath({ assetId: "../report.pdf", kind: "document" }),
+    ).toBeUndefined();
   });
 
   it("rejects unsupported capabilities, policies, and Program provenance", () => {
@@ -212,7 +228,7 @@ function imageObject(name: string) {
   const deliveryHref = `/api/formless/media/${storageKey}`;
 
   return {
-    archivePath: `media/program/${storageKey}`,
+    archivePath: `media/images/${name}.png`,
     asset: {
       byteSize: 4,
       contentType: "image/png",

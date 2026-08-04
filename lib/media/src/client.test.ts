@@ -274,6 +274,6 @@ function documentMediaAsset(): DocumentMediaAsset {
     label: "Certificate of analysis",
     provider: "r2",
     status: "ready",
-    storageKey: "media/program/documents/coa-fixed.pdf",
+    storageKey: "media/documents/coa-fixed.pdf",
   };
 }

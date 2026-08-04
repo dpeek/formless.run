@@ -183,7 +183,7 @@ function note(id: string, title: string) {
 function imageObject(name: string): ArchiveMediaObject {
   const storageKey = `media/images/${name}.png`;
   return {
-    archivePath: `media/program/${storageKey}`,
+    archivePath: `media/images/${name}.png`,
     byteSize: 4,
     contentType: "image/png",
     deliveryHref: `/api/formless/media/${storageKey}`,
