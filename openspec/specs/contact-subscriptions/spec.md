@@ -2,22 +2,32 @@
 
 ## Purpose
 
-Contact subscriptions model public subscribe intent as reusable flat standard
-library records selected into a Program and projected by downstream workflows.
+Contact subscriptions model public subscribe intent for independent email
+contact points as reusable flat standard library records selected into a Program
+and projected by downstream workflows.
 
 ## Requirements
 
 ### Requirement: Contact Subscription Records
 
-The system SHALL model contacts, email addresses, audiences, and subscriptions
-as flat records owned by the standard contact-subscription schema module.
+The system SHALL model email addresses, audiences, and subscriptions as flat
+records owned by the standard contact-subscription schema module.
 
 #### Scenario: Flat contact subscription model
 
 - GIVEN contact subscription records are stored
 - WHEN records are read or written
-- THEN contact, email address, audience, and subscription state are represented by normal flat entity records
+- THEN email address, audience, and subscription state are represented by normal
+  flat entity records
 - AND relationships are represented by reference fields rather than nested stored data
+
+#### Scenario: Email address exists independently
+
+- GIVEN a Program stores an email address independently of the subscribe
+  operation
+- WHEN no person record or audience membership is established
+- THEN the email address remains a valid independent contact point
+- AND its existence does not infer a person, audience membership, or consent
 
 #### Scenario: Unique email address
 
@@ -35,8 +45,8 @@ as flat records owned by the standard contact-subscription schema module.
 
 - GIVEN a Program selects the standard contact-subscription module
 - WHEN its schema is composed with Site or another downstream workflow
-- THEN `contact`, `email-address`, `audience`, and `subscription` each have one
-  complete declaration owned by the standard module
+- THEN `email-address`, `audience`, and `subscription` each have one complete
+  declaration owned by the standard module
 - AND downstream packages contribute projections and workflows without
   redeclaring, merging, filtering, or enriching those entities
 
@@ -54,14 +64,15 @@ before explicit audience targeting, topics, or segments exist.
 
 ### Requirement: Subscribe Operation
 
-The system SHALL provide a public subscribe operation that upserts reusable contact subscription records from a visitor email address.
+The system SHALL provide a public subscribe operation that upserts a reusable
+email address, audience, and subscription from a visitor email address.
 
 #### Scenario: New email subscribes
 
 - GIVEN a visitor submits a valid email address through the subscribe operation
 - WHEN the operation commits records
-- THEN the runtime creates or reuses a contact record
-- AND creates or reuses an email address record with a normalized address
+- THEN the runtime creates or reuses an email address record with a normalized
+  address
 - AND creates or updates a subscription record with status `subscribed`
 
 #### Scenario: Duplicate email subscribes again
@@ -83,8 +94,8 @@ The system SHALL provide a public subscribe operation that upserts reusable cont
 - GIVEN a visitor submits through a Site subscribe block bound to the selected
   standard subscribe operation
 - WHEN the Program `subscription.subscribe` operation commits
-- THEN contact, email-address, audience, and subscription records are written
-  once in Program storage
+- THEN email-address, audience, and subscription records are written once in
+  Program storage
 - AND the optional Site subscriber presentation projects those standard records
 - AND the Site block invokes the narrow Program public operation route
 
@@ -100,7 +111,7 @@ selected contact-subscription operation adapter.
 - THEN the composition explicitly supplies one
   `contact-subscription.subscribe` operation adapter
 - AND missing or duplicate selection fails before request handling
-- AND the operation or contact entity ids do not discover, activate, or
+- AND the operation or standard entity ids do not discover, activate, or
   authorize that adapter
 
 #### Scenario: Omit subscription execution

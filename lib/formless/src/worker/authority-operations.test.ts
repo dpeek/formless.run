@@ -31,7 +31,7 @@ type Harness = Awaited<ReturnType<typeof createWorkerHarness>>;
 type ExecuteOperationInput = {
   actor?: OperationInvocationEnvelope["actor"];
   actorKind?: "admin" | "cliDeployer" | "owner" | "runner";
-  schemaFixture?: "program" | "tasks";
+  schemaFixture?: "program" | "standard" | "tasks";
   body?: unknown;
   beforeWriteRecordValues?: {
     recordId: string;
@@ -826,12 +826,12 @@ describe("authority operation execution", () => {
     expect(rows[0]?.output).toBeUndefined();
   });
 
-  it("executes Program public subscribe handlers with normalized membership uniqueness", async () => {
+  it("executes Standard public subscribe handlers without Site and with normalized membership uniqueness", async () => {
     const identity = programStorageIdentity();
 
     const route = `${identity.apiRoutePrefix}/public/operations/subscription/subscribe`;
     const invalid = await executeOperationFailure({
-      schemaFixture: "program",
+      schemaFixture: "standard",
       identity,
       method: "POST",
       path: "/operations/subscription/subscribe",
@@ -847,7 +847,7 @@ describe("authority operation execution", () => {
       },
     });
     const first = await executeOperation<OperationInvocationResponse>({
-      schemaFixture: "program",
+      schemaFixture: "standard",
       identity,
       method: "POST",
       path: "/operations/subscription/subscribe",
@@ -862,8 +862,22 @@ describe("authority operation execution", () => {
         turnstileToken: "first-subscribe-proof-token",
       },
     });
+    const afterFirst = await executeOperation<BootstrapResponse>({
+      schemaFixture: "standard",
+      identity,
+      method: "GET",
+      path: "/bootstrap",
+    });
+    const firstSubscriptionRecords = afterFirst.body.result.body.records;
+
+    expect(firstSubscriptionRecords.map(({ entity }) => entity).sort()).toEqual([
+      "audience",
+      "email-address",
+      "subscription",
+    ]);
+
     const duplicate = await executeOperation<OperationInvocationResponse>({
-      schemaFixture: "program",
+      schemaFixture: "standard",
       identity,
       method: "POST",
       path: "/operations/subscription/subscribe",
@@ -879,7 +893,7 @@ describe("authority operation execution", () => {
       },
     });
     const afterDuplicate = await executeOperation<BootstrapResponse>({
-      schemaFixture: "program",
+      schemaFixture: "standard",
       identity,
       method: "GET",
       path: "/bootstrap",
@@ -900,7 +914,7 @@ describe("authority operation execution", () => {
     }
 
     await executeOperation<OperationInvocationResponse>({
-      schemaFixture: "program",
+      schemaFixture: "standard",
       body: {
         idempotencyKey: "public-subscribe-unsubscribe",
         recordId: subscription.id,
@@ -912,7 +926,7 @@ describe("authority operation execution", () => {
     });
 
     const resubscribed = await executeOperation<OperationInvocationResponse>({
-      schemaFixture: "program",
+      schemaFixture: "standard",
       identity,
       method: "POST",
       path: "/operations/subscription/subscribe",
@@ -928,7 +942,7 @@ describe("authority operation execution", () => {
       },
     });
     const afterResubscribe = await executeOperation<BootstrapResponse>({
-      schemaFixture: "program",
+      schemaFixture: "standard",
       identity,
       method: "GET",
       path: "/bootstrap",
@@ -3927,6 +3941,7 @@ async function writeAuthorityOperationHarness() {
       import { taskStorageSnapshotRecords } from "${process.cwd()}/src/test/schema-app-records.ts";
       import { taskSourceSchema } from "${process.cwd()}/src/test/schema-apps.ts";
       import { formlessProgramSchema } from "${process.cwd()}/src/program/runtime.ts";
+      import { standardSchemaSource } from "${process.cwd()}/../standard/src/schema.ts";
       import { formlessProgramDefaultSharedRuntime } from "${process.cwd()}/src/program/default/shared.ts";
       import { defineProgramSharedRuntime } from "${process.cwd()}/src/program/composition.ts";
       import {
@@ -3960,7 +3975,9 @@ async function writeAuthorityOperationHarness() {
             ? taskSourceSchema
             : schemaFixture === "program"
               ? formlessProgramSchema
-              : undefined;
+              : schemaFixture === "standard"
+                ? standardSchemaSource
+                : undefined;
           const operation = selectAuthorityOperation({
             method: input.method,
             path: input.path,

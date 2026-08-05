@@ -95,17 +95,15 @@ describe("public operation runtime", () => {
 
     expect(rejectedOrigin.status).toBe(403);
     expect(accepted.status).toBe(200);
-    expect(after.records.length).toBe(before.records.length + 4);
+    expect(after.records.length).toBe(before.records.length + 3);
     expect(after.cursor).toBeGreaterThan(before.cursor);
     expect(sync.cursor).toBe(after.cursor);
     expect(
       sync.changes
         .map((change) => change.entity)
-        .filter((entity) =>
-          ["audience", "contact", "email-address", "subscription"].includes(entity),
-        )
+        .filter((entity) => ["audience", "email-address", "subscription"].includes(entity))
         .sort(),
-    ).toEqual(["audience", "contact", "email-address", "subscription"]);
+    ).toEqual(["audience", "email-address", "subscription"]);
     expect(records.subscriptions).toHaveLength(1);
     expect(records.subscriptions[0]?.values).toMatchObject({
       sourceTargetKind: "program",
@@ -135,16 +133,11 @@ describe("public operation runtime", () => {
     const records = contactSubscriptionRecords(after.records);
 
     expect(accepted.status).toBe(200);
-    expect(after.records.length).toBe(before.records.length + 4);
-    expect(records.contacts).toHaveLength(1);
+    expect(after.records.length).toBe(before.records.length + 3);
     expect(records.emailAddresses).toHaveLength(1);
     expect(records.audiences).toHaveLength(1);
     expect(records.subscriptions).toHaveLength(1);
-    expect(records.contacts[0]?.values).toEqual({
-      label: "ada@example.com",
-    });
     expect(records.emailAddresses[0]?.values).toEqual({
-      contact: records.contacts[0]?.id,
       address: "ada@example.com",
       normalizedAddress: "ada@example.com",
     });
@@ -424,7 +417,6 @@ function publicContactMessageBody(input: {
 
 function contactSubscriptionRecords(records: StoredRecord[]) {
   return {
-    contacts: records.filter((record) => record.entity === "contact"),
     emailAddresses: records.filter((record) => record.entity === "email-address"),
     audiences: records.filter((record) => record.entity === "audience"),
     subscriptions: records.filter((record) => record.entity === "subscription"),

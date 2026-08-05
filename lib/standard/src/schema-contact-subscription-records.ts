@@ -1,7 +1,6 @@
 import { defineAppSchemaModule } from "@dpeek/formless-schema";
 import {
   STANDARD_AUDIENCE_ENTITY_ID,
-  STANDARD_CONTACT_ENTITY_ID,
   STANDARD_EMAIL_ADDRESS_ENTITY_ID,
   STANDARD_SUBSCRIPTION_ENTITY_ID,
 } from "./types.ts";
@@ -15,59 +14,10 @@ export const standardContactSubscriptionRecordSchemaModule = defineAppSchemaModu
   },
   entities: [
     {
-      id: STANDARD_CONTACT_ENTITY_ID,
-      key: "contact",
-      label: "Contact",
-      fields: [
-        {
-          key: "label",
-          type: "text",
-          required: true,
-          label: "Label",
-        },
-      ],
-      operations: [
-        {
-          key: "update",
-          label: "Update Contact",
-          kind: "update",
-          scope: "record",
-          input: {
-            fields: [
-              {
-                key: "label",
-                field: "label",
-              },
-            ],
-          },
-          effect: {
-            type: "patchRecord",
-          },
-          output: {
-            type: "update",
-          },
-          idempotency: {
-            required: true,
-          },
-          audit: {
-            input: "summary",
-          },
-        },
-      ],
-    },
-    {
       id: STANDARD_EMAIL_ADDRESS_ENTITY_ID,
       key: "email-address",
       label: "Email address",
       fields: [
-        {
-          key: "contact",
-          type: "reference",
-          required: true,
-          label: "Contact",
-          to: "contact",
-          displayField: "label",
-        },
         {
           key: "address",
           type: "text",
@@ -96,10 +46,6 @@ export const standardContactSubscriptionRecordSchemaModule = defineAppSchemaModu
           scope: "record",
           input: {
             fields: [
-              {
-                key: "contact",
-                field: "contact",
-              },
               {
                 key: "address",
                 field: "address",
@@ -413,32 +359,6 @@ export const standardContactSubscriptionRecordSchemaModule = defineAppSchemaModu
     },
   ],
   relationships: [
-    {
-      key: "emailAddressContact",
-      kind: "toOne",
-      label: "Contact",
-      from: {
-        entity: "email-address",
-        field: "contact",
-      },
-      to: {
-        entity: "contact",
-      },
-      inverse: "contactEmailAddresses",
-    },
-    {
-      key: "contactEmailAddresses",
-      kind: "toMany",
-      label: "Email addresses",
-      from: {
-        entity: "contact",
-      },
-      to: {
-        entity: "email-address",
-        field: "contact",
-      },
-      inverse: "emailAddressContact",
-    },
     {
       key: "subscriptionEmailAddress",
       kind: "toOne",

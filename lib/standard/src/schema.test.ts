@@ -1,7 +1,6 @@
 import { composeAppSchema, defineAppSchemaModule, parseAppSchema } from "@dpeek/formless-schema";
 import {
   STANDARD_AUDIENCE_ENTITY_ID,
-  STANDARD_CONTACT_ENTITY_ID,
   STANDARD_CONTACT_MESSAGE_ENTITY_ID,
   STANDARD_EMAIL_ADDRESS_ENTITY_ID,
   STANDARD_SUBSCRIPTION_ENTITY_ID,
@@ -44,7 +43,6 @@ describe("standard schema authoring", () => {
       "contact-message",
     ]);
     expect(parseAppSchema(contactSubscriptionSource).entities.map(({ key }) => key)).toEqual([
-      "contact",
       "email-address",
       "audience",
       "subscription",
@@ -75,16 +73,9 @@ describe("standard schema authoring", () => {
       })),
     ).toEqual([
       {
-        id: STANDARD_CONTACT_ENTITY_ID,
-        key: "contact",
-        fields: ["label"],
-        constraints: [],
-        operations: ["update"],
-      },
-      {
         id: STANDARD_EMAIL_ADDRESS_ENTITY_ID,
         key: "email-address",
-        fields: ["contact", "address", "normalizedAddress"],
+        fields: ["address", "normalizedAddress"],
         constraints: ["uniqueNormalizedAddress"],
         operations: ["update"],
       },
@@ -119,8 +110,6 @@ describe("standard schema authoring", () => {
     expect(
       standardContactSubscriptionRecordSchemaModule.relationships?.map(({ key }) => key),
     ).toEqual([
-      "emailAddressContact",
-      "contactEmailAddresses",
       "subscriptionEmailAddress",
       "emailAddressSubscriptions",
       "subscriptionAudience",
@@ -173,7 +162,6 @@ describe("standard schema authoring", () => {
 
     expect(schema.entities.map(({ key }) => key)).toEqual([
       "contact-message",
-      "contact",
       "email-address",
       "audience",
       "subscription",

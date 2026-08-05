@@ -25,11 +25,6 @@ export const siteContactIntakePresentationSchemaModule = defineAppSchemaModule({
           field: "normalizedAddress",
           width: "lg",
         },
-        {
-          type: "field",
-          field: "contact",
-          width: "md",
-        },
       ],
     },
     {

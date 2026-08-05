@@ -220,8 +220,8 @@ domain declarations.
 
 - GIVEN the standard library owns inquiry and contact-subscription record modules
 - WHEN the Program root composes standard contact intake with Site
-- THEN `contact`, `contact-message`, `email-address`, `audience`, and
-  `subscription` each have one complete standard-owned declaration
+- THEN `contact-message`, `email-address`, `audience`, and `subscription` each
+  have one complete standard-owned declaration
 - AND Site contributes public form binding, copy, placement, projection, and
   optional generated presentations over those declarations
 - AND the Program root may deliberately replace complete declarations for

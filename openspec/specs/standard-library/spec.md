@@ -35,7 +35,7 @@ reusable standard domain declarations that are not owned by a product surface.
 
 ### Requirement: Standard Contact-Intake Records
 
-The standard library SHALL own the existing flat `contact`, `contact-message`,
+The standard library SHALL own the existing flat `contact-message`,
 `email-address`, `audience`, and `subscription` declarations as reusable Program
 record modules.
 
@@ -52,20 +52,21 @@ record modules.
 
 - GIVEN a Program selects the standard contact-subscription record module
 - WHEN its schema is composed
-- THEN the module contributes the existing `contact`, `email-address`,
-  `audience`, and `subscription` entities with their stable entity ids, fields,
-  constraints, operations, relationships, and queries
+- THEN the module contributes the existing `email-address`, `audience`, and
+  `subscription` entities with their stable entity ids, fields, constraints,
+  operations, relationships, and queries
 - AND it declares the shared `contact-subscription.subscribe` executable
   requirement for the public subscribe operation
 - AND the records remain flat and use normal reference fields
 
-#### Scenario: Contact does not assert authentication identity
+#### Scenario: Email address is an independent contact point
 
-- GIVEN the standard contact-subscription model stores a `contact` record
-- WHEN identity or authorization behavior is evaluated
-- THEN the contact is a Program record used by the current subscription model
-- AND it is not an auth principal, private credential identity, organization,
-  or assertion that one unique real-world person has been established
+- GIVEN the standard contact-subscription model stores an `email-address` record
+- WHEN subscriptions, identity, or authorization behavior is evaluated
+- THEN the email address exists without requiring a contact or person record
+- AND it is an email contact point rather than an auth principal, principal
+  email, private credential identity, organization, or assertion that one unique
+  real-world person has been established
 
 ### Requirement: Granular Standard Composition
 

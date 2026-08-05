@@ -14,11 +14,7 @@ import {
   type OperationHandlerExecutionContext,
   writePlansForOperationHandler,
 } from "./operation-handlers.ts";
-import {
-  getActiveRecordsByEntity,
-  getStoredRecord,
-  type OperationRecordWritePlan,
-} from "./storage.ts";
+import { getActiveRecordsByEntity, type OperationRecordWritePlan } from "./storage.ts";
 
 const contactSubscriptionOperationAdapterKey = "contact-subscription.subscribe";
 const defaultAudienceKey = "default";
@@ -49,7 +45,6 @@ function executeContactSubscriptionHandler(context: OperationHandlerExecutionCon
     handler: contactSubscriptionOperationAdapterKey,
     input: context.input,
   });
-  const contactEntity = requireSubscribeEntity(context.schema, "contact");
   const emailAddressEntity = requireSubscribeEntity(context.schema, "email-address");
   const audienceEntity = requireSubscribeEntity(context.schema, "audience");
   const subscriptionEntity = requireSubscribeEntity(context.schema, "subscription");
@@ -61,7 +56,6 @@ function executeContactSubscriptionHandler(context: OperationHandlerExecutionCon
     "normalizedAddress",
     email.normalizedAddress,
   );
-  const existingContact = findExistingEmailContact(context.storage, existingEmailAddress);
   const existingAudience = findActiveRecordByField(
     context.storage,
     "audience",
@@ -74,24 +68,14 @@ function executeContactSubscriptionHandler(context: OperationHandlerExecutionCon
       : undefined;
   const sourceValues = subscribeSourceValues(context.envelope);
   const plans: OperationRecordWritePlan[] = [];
-  const contactRecordIndex = existingContact
-    ? undefined
-    : pushPlan(plans, {
-        kind: "create",
-        entity: "contact",
-        values: () =>
-          validateRecordValues({ label: email.normalizedAddress }, contactEntity, validationReader),
-      });
   const emailAddressRecordIndex = existingEmailAddress
     ? undefined
     : pushPlan(plans, {
         kind: "create",
         entity: "email-address",
-        values: (writtenRecords) =>
+        values: () =>
           validateRecordValues(
             {
-              contact:
-                existingContact?.id ?? requireWrittenRecord(writtenRecords, contactRecordIndex).id,
               address: email.address,
               normalizedAddress: email.normalizedAddress,
             },
@@ -99,22 +83,6 @@ function executeContactSubscriptionHandler(context: OperationHandlerExecutionCon
             validationReader,
           ),
       });
-
-  if (existingEmailAddress && !existingContact) {
-    plans.push({
-      kind: "patch",
-      record: existingEmailAddress,
-      values: (writtenRecords) =>
-        validateRecordValues(
-          {
-            ...existingEmailAddress.values,
-            contact: requireWrittenRecord(writtenRecords, contactRecordIndex).id,
-          },
-          emailAddressEntity,
-          validationReader,
-        ),
-    });
-  }
 
   const audienceRecordIndex = existingAudience
     ? undefined
@@ -184,21 +152,6 @@ function parseSubscribeEmail(value: unknown) {
   }
 
   return { address, normalizedAddress };
-}
-
-function findExistingEmailContact(
-  storage: DurableObjectStorage,
-  emailAddress: StoredRecord | undefined,
-) {
-  const contactId = emailAddress?.values.contact;
-
-  if (typeof contactId !== "string") {
-    return undefined;
-  }
-
-  const contact = getStoredRecord(storage, contactId);
-
-  return contact?.entity === "contact" && !contact.deletedAt ? contact : undefined;
 }
 
 function findActiveSubscription(

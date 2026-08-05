@@ -2906,50 +2906,6 @@
       ]
     },
     {
-      "fields": [
-        {
-          "key": "label",
-          "label": "Label",
-          "required": true,
-          "type": "text"
-        }
-      ],
-      "id": "entity_dd5c1285-721a-4294-8114-efd784b6a578",
-      "key": "contact",
-      "label": "Contact",
-      "operations": [
-        {
-          "access": {
-            "role": "editor"
-          },
-          "audit": {
-            "input": "summary"
-          },
-          "effect": {
-            "type": "patchRecord"
-          },
-          "idempotency": {
-            "required": true
-          },
-          "input": {
-            "fields": [
-              {
-                "field": "label",
-                "key": "label"
-              }
-            ]
-          },
-          "key": "update",
-          "kind": "update",
-          "label": "Update Contact",
-          "output": {
-            "type": "update"
-          },
-          "scope": "record"
-        }
-      ]
-    },
-    {
       "constraints": [
         {
           "fields": ["normalizedAddress"],
@@ -2958,14 +2914,6 @@
         }
       ],
       "fields": [
-        {
-          "displayField": "label",
-          "key": "contact",
-          "label": "Contact",
-          "required": true,
-          "to": "contact",
-          "type": "reference"
-        },
         {
           "key": "address",
           "label": "Address",
@@ -2998,10 +2946,6 @@
           },
           "input": {
             "fields": [
-              {
-                "field": "contact",
-                "key": "contact"
-              },
               {
                 "field": "address",
                 "key": "address"
@@ -6161,32 +6105,6 @@
     },
     {
       "from": {
-        "entity": "email-address",
-        "field": "contact"
-      },
-      "inverse": "contactEmailAddresses",
-      "key": "emailAddressContact",
-      "kind": "toOne",
-      "label": "Contact",
-      "to": {
-        "entity": "contact"
-      }
-    },
-    {
-      "from": {
-        "entity": "contact"
-      },
-      "inverse": "emailAddressContact",
-      "key": "contactEmailAddresses",
-      "kind": "toMany",
-      "label": "Email addresses",
-      "to": {
-        "entity": "email-address",
-        "field": "contact"
-      }
-    },
-    {
-      "from": {
         "entity": "subscription",
         "field": "emailAddress"
       },
@@ -6765,11 +6683,6 @@
           "field": "normalizedAddress",
           "type": "field",
           "width": "lg"
-        },
-        {
-          "field": "contact",
-          "type": "field",
-          "width": "md"
         }
       ],
       "entity": "email-address",

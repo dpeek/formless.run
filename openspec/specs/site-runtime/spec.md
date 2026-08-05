@@ -123,9 +123,9 @@ records are written directly to Program Authority from first use.
   `block-placement.create`, `block-placement.update`,
   `block-placement.addTreeChild`, and
   `block-placement.removeTreePlacement` require Program `editor` access
-- AND selected standard `contact.update`, `email-address.update`,
-  `audience.update`, and `subscription.update` operations require Program
-  `editor` access through deliberate complete Program replacements
+- AND selected standard `email-address.update`, `audience.update`, and
+  `subscription.update` operations require Program `editor` access through
+  deliberate complete Program replacements
 - AND selected standard `contact-message.submit` and
   `subscription.subscribe` operations retain their anonymous public policies
   without receiving top-level Program role access

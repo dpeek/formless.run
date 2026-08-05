@@ -207,8 +207,8 @@ through an explicit actor policy and public binding.
   submitted email address, Turnstile proof, provider details, or protected
   internal storage state
 - AND replaying the same idempotency key returns the original committed public
-  operation response without duplicating standard contact, email-address,
-  audience, or subscription records
+  operation response without duplicating standard email-address, audience, or
+  subscription records
 
 ### Requirement: Program Public Operation API
 

@@ -114,6 +114,14 @@ describe("Site schema authoring", () => {
       "subscriptionTable",
       "contactMessageTable",
     ]);
+    expect(
+      siteContactIntakePresentationSchemaModule.tableViews?.find(
+        ({ key }) => key === "emailAddressTable",
+      )?.columns,
+    ).toEqual([
+      { type: "field", field: "address", width: "lg" },
+      { type: "field", field: "normalizedAddress", width: "lg" },
+    ]);
     expect(siteContactIntakePresentationSchemaModule.views?.map(({ key }) => key)).toEqual([
       "emailAddressHome",
       "audienceHome",
@@ -160,7 +168,6 @@ describe("Site schema authoring", () => {
 
     expect(schema.entities.map(({ key }) => key)).toEqual([
       "contact-message",
-      "contact",
       "email-address",
       "audience",
       "subscription",

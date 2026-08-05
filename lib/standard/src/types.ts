@@ -1,4 +1,3 @@
-export const STANDARD_CONTACT_ENTITY_ID = "entity_dd5c1285-721a-4294-8114-efd784b6a578";
 export const STANDARD_CONTACT_MESSAGE_ENTITY_ID = "entity_5a3667a2-a5a7-46ed-b3a4-b6364bae31a0";
 export const STANDARD_EMAIL_ADDRESS_ENTITY_ID = "entity_9863574c-952d-41a9-b90e-b40f6eda5eba";
 export const STANDARD_AUDIENCE_ENTITY_ID = "entity_8999782d-0e12-4e4b-8830-0e60cb3f1179";

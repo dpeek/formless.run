@@ -73,7 +73,7 @@ describe("Formless Program runtime contracts", () => {
     expect(await computeSourceSchemaHash(rawFormlessProgramSchema)).toBe(
       FORMLESS_PROGRAM_SOURCE_SCHEMA_HASH,
     );
-    expect(formlessProgramSchema.entities).toHaveLength(25);
+    expect(formlessProgramSchema.entities).toHaveLength(24);
     expect(formlessProgramSchemaProvenance).toEqual({
       kind: "program",
       sourceSchemaHash: FORMLESS_PROGRAM_SOURCE_SCHEMA_HASH,
