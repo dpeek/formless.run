@@ -162,7 +162,12 @@ export function runtimeFormlessProgramArtifactFromEnv(env: NodeJS.ProcessEnv): s
 function isSharedClientCssAsset(fileName: string): boolean {
   const baseName = path.basename(fileName);
 
-  return baseName === "global.css" || (baseName.startsWith("global-") && baseName.endsWith(".css"));
+  return (
+    baseName === "global.css" ||
+    baseName === "target.css" ||
+    ((baseName.startsWith("global-") || baseName.startsWith("target-")) &&
+      baseName.endsWith(".css"))
+  );
 }
 
 export function astryxCloudflareWorkerSourceCompilationPlugin(): Plugin {

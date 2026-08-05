@@ -19,7 +19,7 @@ import {
 
 const packageRoot = resolve(fileURLToPath(new URL("../../", import.meta.url)));
 const repoRoot = resolve(packageRoot, "../..");
-const applicationEntry = resolve(packageRoot, "src/main.tsx");
+const applicationEntry = resolve(packageRoot, "index.html");
 const publicSiteEntry = resolve(packageRoot, "src/public-site-main.tsx");
 const tempDirs: string[] = [];
 
@@ -72,7 +72,7 @@ describe("Formless Renderer Astryx StyleX root build integration", () => {
         minify: false,
         rollupOptions: {
           input: {
-            application: applicationEntry,
+            app: applicationEntry,
             "public-site": publicSiteEntry,
           },
         },
