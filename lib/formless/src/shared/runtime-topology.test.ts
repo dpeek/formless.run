@@ -28,7 +28,6 @@ import {
 describe("runtime topology", () => {
   it("parses the shared runtime profile vocabulary", () => {
     expect(parseRuntimeProfileKind("instance")).toBe("instance");
-    expect(parseRuntimeProfileKind("dev")).toBe("dev");
     expect(parseRuntimeProfileKind("siteAuthoring")).toBeUndefined();
     expect(parseRuntimeProfileKind("publishedSite")).toBe("publishedSite");
     expect(parseRuntimeProfileKind("")).toBeUndefined();
@@ -81,33 +80,31 @@ describe("runtime topology", () => {
     expect(runtimeProfileKindFromHost("formless.local")).toBeUndefined();
   });
 
-  it("uses explicit profile intent before host inference and falls back to dev", () => {
+  it("uses explicit profile intent before host inference and defaults to instance", () => {
     expect(
       resolveRuntimeProfileKind({
         hostname: "published-site.formless.local",
         profile: "instance",
       }),
     ).toBe("instance");
-    expect(resolveRuntimeProfileKind({ hostname: "formless.local" })).toBe("dev");
-    expect(resolveRuntimeProfileKind({ fallback: "instance", profile: "missing" })).toBe(
-      "instance",
-    );
+    expect(
+      resolveRuntimeProfileKind({
+        hostname: "published-site.formless.local",
+        profile: "missing",
+      }),
+    ).toBe("publishedSite");
+    expect(resolveRuntimeProfileKind({ hostname: "formless.local" })).toBe("instance");
+    expect(resolveRuntimeProfileKind({ profile: "missing" })).toBe("instance");
   });
 
   it("answers shared route policy by profile kind", () => {
     expect(runtimeRoutePolicyForProfileKind("instance")).toEqual({
       instanceBrowserRoutes: true,
       accountSessionBrowserRoutes: true,
-      workspaceGatewayApiRoutes: true,
-    });
-    expect(runtimeRoutePolicyForProfileKind("dev")).toEqual({
-      instanceBrowserRoutes: true,
-      accountSessionBrowserRoutes: true,
-      workspaceGatewayApiRoutes: true,
     });
     expect(runtimeRoutePolicyForProfileKind("publishedSite")).toMatchObject({
       accountSessionBrowserRoutes: true,
-      workspaceGatewayApiRoutes: false,
+      instanceBrowserRoutes: false,
     });
   });
 

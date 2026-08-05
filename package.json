@@ -16,7 +16,7 @@
     "pack:release": "bun run scripts/release-packaging.ts",
     "smoke:release-packaging": "bun run scripts/release-packaging-smoke.ts",
     "dev": "bun lib/formless/bin/formless.ts dev --workspace tmp/dev-workspace --reset",
-    "dev:instance": "bun run --cwd lib/formless dev:instance"
+    "dev:vite": "bun run --cwd lib/formless dev:vite"
   },
   "devDependencies": {
     "@arethetypeswrong/core": "^0.18.2",

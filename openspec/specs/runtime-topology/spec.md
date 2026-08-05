@@ -4,8 +4,8 @@
 
 Runtime topology defines the observable profile, route policy, route access,
 mapped host, and request routing contracts for a Formless instance. It keeps
-product instance, dev workbench, and published Site
-behavior coherent across browser shells, APIs, static assets, SSR documents,
+instance administration and published Site behavior coherent across browser
+shells, APIs, static assets, SSR documents,
 indexing, icons, public Site routes, cross-domain auth callback routes, and
 local workspace gateway route eligibility.
 
@@ -14,7 +14,7 @@ local workspace gateway route eligibility.
 ### Requirement: Profile Resolution
 
 The system SHALL resolve each runtime request to one runtime profile kind:
-`instance`, `dev`, or `publishedSite`.
+`instance` or `publishedSite`.
 
 #### Scenario: Explicit profile wins
 
@@ -31,29 +31,41 @@ The system SHALL resolve each runtime request to one runtime profile kind:
   profile
 - AND a `*.workers.dev` host resolves to `publishedSite`
 
+#### Scenario: Runtime-specific explicit profile hints
+
+- GIVEN browser document metadata, browser build environment, Worker
+  environment, and host conventions may supply profile hints
+- WHEN the browser resolves its profile
+- THEN a recognized `formless-runtime-profile` document value wins over a
+  recognized `VITE_FORMLESS_RUNTIME_PROFILE` value and host convention
+- AND when the Worker resolves its profile, a recognized
+  `FORMLESS_RUNTIME_PROFILE` value wins over host convention
+- AND missing or unrecognized hints continue to the next resolution source
+
+#### Scenario: Unresolved profile uses instance
+
+- GIVEN document metadata, environment input, and host conventions do not
+  resolve a recognized runtime profile
+- WHEN runtime topology selects a profile
+- THEN the request uses the `instance` profile
+- AND only recognized profile values participate in explicit profile selection
+
 ### Requirement: Profile Route Policy
 
 The system MUST apply profile route policy before selecting browser shell, API,
-static asset, SSR handling, or local workspace gateway proxy behavior. The
-Program API is the only generic data route family.
+static asset, or SSR handling. The Program API is the only generic data route
+family. Local workspace capability selection remains a separate explicit
+runtime fact.
 
 #### Scenario: Product instance route policy
 
 - GIVEN the runtime profile is `instance`
 - WHEN a request targets browser or API behavior
-- THEN the Program browser and `/api/formless/program` route family,
-  Program-native Site preview and public routes, account auth routes,
-  principal-backed browser session routes, instance browser routes, and the
-  workspace gateway API route family remain route-policy eligible
-
-#### Scenario: Dev route policy
-
-- GIVEN the runtime profile is `dev`
-- WHEN a request targets the Program, Program public Site,
-  instance, account auth, or workspace gateway API routes
-- THEN those route families remain available
-- AND the dev workbench composes Program and product instance surfaces together
-- AND Tasks and Site are available through Program-owned paths
+- THEN declared Program browser routes, the `/api/formless/program` route
+  family, origin-scoped account auth routes, principal-backed browser session
+  routes, and instance browser routes remain route-policy eligible
+- AND Program public Site behavior is selected separately by an enabled mapped
+  route rather than by the `instance` profile
 
 ### Requirement: Browser Route Mounts
 
@@ -63,10 +75,18 @@ The system SHALL mount browser surfaces according to the active runtime profile.
 
 - GIVEN the runtime profile is `instance`
 - WHEN a browser navigates to `/tasks`, `/site`, `/site/settings`,
-  `/site/contacts`, `/site/subscribers`, `/pages`, `/pages/*`,
-  `/settings/routes`, or `/settings/access`
+  `/site/contacts`, `/site/subscribers`, `/settings/routes`, or
+  `/settings/access`
 - THEN the request is eligible for the client shell
 - AND route selection uses the Program route table
+
+#### Scenario: Unknown instance route stays outside the Program shell
+
+- GIVEN the runtime profile is `instance`
+- WHEN a browser navigates to a path that is not an active Program screen or
+  an intrinsic runtime route
+- THEN the path is not eligible for the client shell
+- AND static asset fallback does not turn the unknown path into a Program route
 
 #### Scenario: Authorize a direct Program deep link
 
@@ -105,8 +125,6 @@ The system SHALL mount browser surfaces according to the active runtime profile.
 - AND `/site`, `/site/settings`, `/site/contacts`, and `/site/subscribers`
   select package-owned Site screens through Program-owned paths and `member`
   access requirements
-- AND `/pages` and nested `/pages/*` paths select the authenticated
-  Program-native Site preview
 - AND Program navigation order comes from the materialized Program artifact
 - AND Routes and Access each declare the schema-defined Program
   `administrator` role requirement
@@ -373,8 +391,7 @@ Site from enabled schema-owned `route` records.
 
 #### Scenario: Program-native Site public route
 
-- **GIVEN** a browser requests the default Program Site preview or an enabled
-  public-Site mapping
+- **GIVEN** a browser requests an enabled public-Site mapping
 - **WHEN** runtime topology resolves the route
 - **THEN** public reads use Program storage identity `instance:control-plane`
 - **AND** behavior uses the Site public runtime surface selected explicitly by
@@ -455,25 +472,26 @@ host-specific request handling.
 
 ### Requirement: Local Workspace Gateway Route Policy
 
-The system SHALL expose workspace gateway API routes only for local workspace
-runtime profiles that have local gateway sidecar proxy configuration.
+The system SHALL expose workspace gateway API routes only for a local instance
+runtime with explicit gateway sidecar proxy configuration.
 
 #### Scenario: Shared gateway route policy fact
 
 - **WHEN** Worker runtime routing or local Node runtime proxy composition derives
   workspace gateway route availability for a request
-- **THEN** shared runtime topology route policy marks the workspace gateway API
-  route family eligible only for the `instance` and `dev` runtime profiles
-- **AND** the `publishedSite` runtime profile marks the workspace gateway API
-  route family unavailable
-- **AND** Worker and local Node runtime adapters may combine that shared route
-  policy fact with adapter-local sidecar target, gateway enabled, proxy token,
-  and mapped-host facts before injecting route availability into Gateway proxy
-  rules
+- **THEN** Worker and local Node runtime adapters derive an explicit capability
+  from the `instance` profile, sidecar target, gateway enabled, proxy token, and
+  exact-host mapped-route facts
+- **AND** the `instance` profile alone does not make the workspace gateway API
+  route family available
+- **AND** the `publishedSite` profile and exact-host mapped routes do not expose
+  the workspace gateway API route family
+- **AND** adapters inject resolved route availability and sidecar target facts
+  into Gateway proxy rules
 - **AND** the Gateway package consumes injected route availability and sidecar
   target facts without owning runtime topology selection
 
-#### Scenario: Local dev gateway route
+#### Scenario: Local instance gateway route
 
 - **WHEN** a local workspace runtime handles a request for the workspace gateway
   API family

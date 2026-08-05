@@ -28,8 +28,9 @@ describe("instance auth origin and protected-route handoff decisions", () => {
   it("plans local and configured production auth config without storage readers", () => {
     expect(
       planRuntimeInstanceAuthConfig({
+        localRuntime: true,
         requestOrigin: "https://local.formless.local",
-        runtimeProfile: "dev",
+        runtimeProfile: "instance",
       }),
     ).toEqual({
       config: {
@@ -39,6 +40,13 @@ describe("instance auth origin and protected-route handoff decisions", () => {
       },
       kind: "write",
     });
+
+    expect(
+      planRuntimeInstanceAuthConfig({
+        requestOrigin: "https://ordinary-instance.example.com",
+        runtimeProfile: "instance",
+      }),
+    ).toEqual({ kind: "keep" });
 
     expect(
       planRuntimeInstanceAuthConfig({

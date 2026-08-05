@@ -3,8 +3,8 @@
 ## Purpose
 
 Site runtime turns flat Site records into authorable Program surfaces, nested
-public trees, and public documents for preview, mapped, and published Program
-Site targets.
+public trees, and public documents for mapped and published Program Site
+targets.
 
 ## Requirements
 
@@ -117,7 +117,6 @@ records are written directly to Program Authority from first use.
 - WHEN the Program root composes Site
 - THEN deliberate same-key replacements mount Site at `/site`,
   `/site/settings`, `/site/contacts`, and `/site/subscribers`
-- AND `/pages` remains the authenticated singleton public preview
 - AND Site screens require Program `member` access and appear once in Program
   navigation
 - AND `site.update`, `block.create`, `block.update`, `block.delete`,
@@ -174,8 +173,8 @@ browser and Worker runtime composition and the one Program storage target.
 
 #### Scenario: Adapter owns public document behavior
 
-- GIVEN a Program preview route, mapped host, or published Site profile selects
-  the Program public Site runtime target
+- GIVEN a mapped host or published Site profile selects the Program public Site
+  runtime target
 - WHEN the runtime handles a public document, metadata, indexing, or root icon
   request for that target
 - THEN Worker dispatch selects the explicitly composed Site Worker surface
@@ -183,17 +182,16 @@ browser and Worker runtime composition and the one Program storage target.
   icon, PNG icon, and ICO icon behavior
 - AND request routing, route access, Program storage identity, and core media
   delivery remain owned by Formless core runtime boundaries
-- AND every preview, mapped, and published target uses Program storage identity
+- AND every mapped and published target uses Program storage identity
   `instance:control-plane`
 
 #### Scenario: Resolve the explicitly composed Site target
 
-- GIVEN preview, mapped-host, or published rendering selects the Site surface
+- GIVEN mapped-host or published rendering selects the Site surface
 - WHEN its public runtime target is resolved
 - THEN it uses the Site adapter explicitly selected by the default or downstream
   Worker composition with Program storage identity
   `instance:control-plane`
-- AND preview uses `/pages` with API prefix `/api/formless/program`
 - AND Program route policy and the selected Site adapter supply the complete target
 
 #### Scenario: Compose Site behavior by runtime target
@@ -225,7 +223,7 @@ storage contracts.
 #### Scenario: Renderer input stays projection based
 
 - GIVEN a workspace declares a `site.publicRenderer` extension
-- WHEN preview, mapped-host, or published Site rendering needs a
+- WHEN mapped-host or published Site rendering needs a
   public page body
 - THEN the extension renderer receives the canonical `SitePublicRendererProps`
   contract owned by the Site package
@@ -252,7 +250,8 @@ storage contracts.
 #### Scenario: Browser and Worker entrypoints are explicit
 
 - GIVEN a workspace configures `site.publicRenderer`
-- WHEN the runtime builds browser preview assets and the deployed Worker bundle
+- WHEN the runtime builds public Site client assets and the deployed Worker
+  bundle
 - THEN the config supplies explicit browser and Worker renderer entrypoints
 - AND both entrypoints may re-export the same shared renderer component
 - AND each entrypoint exports the renderer component as a default export or
@@ -269,7 +268,7 @@ storage contracts.
 #### Scenario: Built-in renderer selection is explicit
 
 - GIVEN root browser or Worker assembly configures a Site runtime adapter
-- WHEN source preview, mapped-host, or published Site rendering runs
+- WHEN mapped-host or published Site rendering runs
 - THEN the assembly supplies one required built-in page renderer
 - AND an optional workspace `site.publicRenderer` takes precedence over that
   built-in renderer for successful public pages
@@ -708,8 +707,8 @@ The system SHALL resolve public Site routes from live routable block hrefs and r
 
 ### Requirement: Subscribe Form Rendering
 
-The system SHALL render subscribe form blocks as public forms on preview,
-mapped, and published public Site routes.
+The system SHALL render subscribe form blocks as public forms on mapped and
+published public Site routes.
 
 #### Scenario: Render Turnstile-protected subscribe form
 
@@ -733,8 +732,8 @@ mapped, and published public Site routes.
 
 ### Requirement: Contact Form Rendering
 
-The system SHALL render contact form blocks as public forms on preview, mapped,
-and published public Site routes.
+The system SHALL render contact form blocks as public forms on mapped and
+published public Site routes.
 
 #### Scenario: Render Turnstile-protected contact form
 
@@ -764,7 +763,7 @@ and published public Site routes.
 ### Requirement: Public Operation Form Rendering
 
 The system SHALL render public operation form blocks as schema-driven public
-forms on preview, mapped, and published public Site routes.
+forms on mapped and published public Site routes.
 
 #### Scenario: Render Turnstile-protected public operation form
 
@@ -882,8 +881,8 @@ operation execution behavior.
 
 ### Requirement: Public Site Client Runtime
 
-The system SHALL keep preview, published, and mapped public Site browser assets
-scoped to public Site interactivity rather than the
+The system SHALL keep published and mapped public Site browser assets scoped to
+public Site interactivity rather than the
 generated admin app shell or authenticated Program replica.
 
 #### Scenario: Published documents inject public Site assets
@@ -923,7 +922,7 @@ generated admin app shell or authenticated Program replica.
 ### Requirement: Schema-backed Public Site Theme
 
 The system SHALL derive public Site document theming from the primary Site
-settings record on preview, published, and mapped-host surfaces.
+settings record on published and mapped-host surfaces.
 
 The Site settings fields are:
 
@@ -1081,13 +1080,13 @@ The system SHALL generate public document metadata, robots output, and sitemap o
 - GIVEN live routable page and dated post blocks exist
 - WHEN `/sitemap.xml` is requested
 - THEN sitemap entries come from those routable blocks
-- AND settings records, preview routes, generated app routes, tombstones, and non-routable blocks are excluded
+- AND settings records, generated app routes, tombstones, and non-routable blocks
+  are excluded
 
 ### Requirement: Program Public Sites
 
-The system SHALL support one Program-native Site across preview, mapped public
-Site hosts, and published Site profile redirects with consistent public
-rendering.
+The system SHALL support one Program-native Site across mapped public Site hosts
+and published Site profile redirects with consistent public rendering.
 
 #### Scenario: Program Site remains the route contract
 
@@ -1098,15 +1097,6 @@ rendering.
   behavior from Program storage
 - AND no package capability, app install, or installed storage target is
   selected
-
-#### Scenario: Program-native preview route
-
-- GIVEN an authenticated Program member opens the built-in Site preview
-- WHEN the browser requests `/pages` or `/pages/*`
-- THEN public rendering reads the Program-native Site tree
-- AND public links keep the `/pages` preview route base
-- AND preview change synchronization uses an authenticated content-free Program
-  WebSocket followed by authorized HTTP Program catch-up and Site tree refresh
 
 #### Scenario: Mapped public Site host
 

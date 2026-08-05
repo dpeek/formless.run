@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import {
+  WORKSPACE_GATEWAY_ENABLED_ENV,
   WORKSPACE_GATEWAY_PROXY_TOKEN_ENV,
   WORKSPACE_GATEWAY_SIDECAR_URL_ENV,
   WORKSPACE_GATEWAY_STATUS_API_PATH,
@@ -23,7 +24,7 @@ afterEach(async () => {
 
 describe("Worker workspace gateway proxy routes", () => {
   it("advertises workspace operation capabilities before proxying", async () => {
-    const response = await harness.fetch(WORKSPACE_GATEWAY_STATUS_API_PATH, {
+    const response = await fetchHost("instance.example.com", WORKSPACE_GATEWAY_STATUS_API_PATH, {
       headers: gatewayAuthHeaders(),
     });
 
@@ -33,7 +34,7 @@ describe("Worker workspace gateway proxy routes", () => {
     });
   });
 
-  it("injects gateway route availability only for shared-policy eligible runtime profiles", async () => {
+  it("injects gateway route availability for local instance targets", async () => {
     for (const testCase of [
       { expectedStatus: 503, host: "instance.example.com" },
       { expectedStatus: 503, host: "example.com" },
@@ -82,6 +83,7 @@ function createGatewayHarness() {
     {
       bindings: {
         FORMLESS_ADMIN_TOKEN: adminToken,
+        [WORKSPACE_GATEWAY_ENABLED_ENV]: "1",
         [WORKSPACE_GATEWAY_PROXY_TOKEN_ENV]: "test-proxy-token",
         [WORKSPACE_GATEWAY_SIDECAR_URL_ENV]: "http://127.0.0.1:1",
       },

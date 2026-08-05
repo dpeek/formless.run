@@ -65,7 +65,7 @@ The runtime already has:
 - portable instance archives;
 - schema-owned instance control-plane records for routes, domain
   intent, and deployment intent;
-- product instance, dev workbench, and published Site runtime profiles;
+- instance administration and published Site runtime profiles;
 - owner passkey setup, owner sessions, logout, and admin bearer recovery boundaries;
 - public action execution and standard contact subscription records;
 - deployment desired-state versions, attempts, leases, status, and upgrade metadata;

@@ -46,11 +46,8 @@ export async function handleClientShellDocumentRequest(
 function shouldServeRuntimeClientShellDocument(
   runtimeTopology?: WorkerRuntimeRequestTopology,
 ): boolean {
-  const instanceBrowserProfile =
-    runtimeTopology?.profileKind === "instance" || runtimeTopology?.profileKind === "dev";
-
   return Boolean(
-    instanceBrowserProfile &&
+    runtimeTopology?.routePolicy.instanceBrowserRoutes &&
     runtimeTopology?.readMethod &&
     runtimeTopology.acceptsHtml &&
     !runtimeTopology.apiPath &&

@@ -13,14 +13,13 @@ requiring custom app code.
 
 The system SHALL select generated surfaces from the active runtime profile and route policy.
 
-#### Scenario: Dev workbench routes
+#### Scenario: Instance Program routes
 
-- **GIVEN** the dev workbench profile
-- **WHEN** the user visits Program `/tasks`, `/site`, or Program public
-  Site routes
-- **THEN** the matching Program, admin, or public Site surface
-  mounts
+- **GIVEN** the instance profile
+- **WHEN** the user visits an active Program route such as `/tasks` or `/site`
+- **THEN** the matching Program administration surface mounts
 - **AND** `/tasks` does not mount a schema-key surface
+- **AND** public Site surfaces remain selected by mapped public Site routing
 
 #### Scenario: Published public Site avoids generated admin entrypoint
 
@@ -47,9 +46,7 @@ shell.
 - **GIVEN** React routing selects a generated admin, management, auth, or public
   surface
 - **WHEN** the runtime selects application chrome
-- **THEN** the dev workbench profile uses one Program shell for instance
-  settings, instance access, Program screens, and unknown dev routes
-- **AND** the product instance profile uses the Program shell for instance
+- **THEN** the product instance profile uses the Program shell for instance
   settings, instance access, and Program screens
 - **AND** Site authoring admin uses the same Program shell
 - **AND** unknown product instance routes, owner setup and login routes,
@@ -939,7 +936,7 @@ data reads, session behavior, operations, and effects.
 - **THEN** one subscribed Formless Renderer shell entrypoint reads only shell
   references and snapshots, renders the selected route workspace as its child,
   and dispatches canonical shell intents
-- **AND** production dev workbench and instance Program routes use that renderer
+- **AND** local and deployed instance Program routes use that renderer
 - **AND** no-shell routes remain outside the shell host and renderer
 - **AND** application source consumes contracts and host behavior
   through documented `@dpeek/formless-presentation` exports and concrete

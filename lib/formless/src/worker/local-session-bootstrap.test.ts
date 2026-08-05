@@ -222,6 +222,9 @@ describe("local session bootstrap API routes", () => {
     const nonLocalHarness = await createLocalBootstrapHarness({
       FORMLESS_RUNTIME_PROFILE: "publishedSite",
     });
+    const unconfiguredHarness = await createLocalBootstrapHarness({
+      [WORKSPACE_GATEWAY_SIDECAR_URL_ENV]: "",
+    });
 
     try {
       const nonLocal = await nonLocalHarness.fetch(
@@ -229,6 +232,11 @@ describe("local session bootstrap API routes", () => {
         { redirect: "manual" },
       );
       const nonLocalBody = await nonLocal.json();
+      const unconfigured = await unconfiguredHarness.fetch(
+        `${LOCAL_SESSION_BOOTSTRAP_API_PATH}?token=${localSessionBootstrapToken}`,
+        { redirect: "manual" },
+      );
+      const unconfiguredBody = await unconfigured.json();
 
       expect(invalid.status).toBe(401);
       expect(invalidBody).toEqual({ code: "unauthorized" });
@@ -245,8 +253,12 @@ describe("local session bootstrap API routes", () => {
       expect(nonLocal.status).toBe(404);
       expect(nonLocalBody).toEqual({ code: "not-found" });
       expect(nonLocal.headers.get("Set-Cookie")).toBeNull();
+      expect(unconfigured.status).toBe(404);
+      expect(unconfiguredBody).toEqual({ code: "not-found" });
+      expect(unconfigured.headers.get("Set-Cookie")).toBeNull();
     } finally {
       await nonLocalHarness.dispose();
+      await unconfiguredHarness.dispose();
     }
   });
 });

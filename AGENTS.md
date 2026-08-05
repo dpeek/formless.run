@@ -88,8 +88,7 @@ Data stays flat. Compose in query, view, projection, action layer.
 ## Runtime Terms
 
 - Formless instance: Program data, media, auth, and deploy config.
-- Product instance profile: Program and instance management runtime.
-- Dev workbench profile: local Program development runtime.
+- Instance profile: local Program development and deployed Program administration runtime.
 - Browser replica: IndexedDB copy of the Program keyed by Program storage identity.
 - Authority: Durable Object that owns committed storage and invariants.
 - Storage: records, changes, schema, action executions.

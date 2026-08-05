@@ -1,14 +1,12 @@
 import {
   createWorkspaceGatewayLocalProxyMiddleware,
+  workspaceGatewayProxyTargetFromEnv,
   type WorkspaceGatewayLocalProxyDependencies,
   type WorkspaceGatewayLocalProxyEnv,
 } from "@dpeek/formless-gateway/sidecar";
 import type { WorkspaceOperationRequiredCapability } from "@dpeek/formless-workspace";
 
-import {
-  resolveRuntimeProfileKind,
-  runtimeRoutePolicyForProfileKind,
-} from "../shared/runtime-topology.ts";
+import { resolveRuntimeProfileKind } from "../shared/runtime-topology.ts";
 import { validateOwnerSessionCookie } from "../worker/owner-session.ts";
 import { workspaceGatewayRuntimeCapabilities } from "./workspace-gateway-operation-adapter.ts";
 
@@ -64,7 +62,9 @@ export function workspaceGatewayRouteAvailable(
     profile: env.FORMLESS_RUNTIME_PROFILE,
   });
 
-  return runtimeRoutePolicyForProfileKind(profileKind).workspaceGatewayApiRoutes;
+  return (
+    profileKind === "instance" && workspaceGatewayProxyTargetFromEnv(request, env) !== undefined
+  );
 }
 
 async function readLocalRuntimeOwnerSetupStatus(

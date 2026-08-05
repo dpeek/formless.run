@@ -160,7 +160,7 @@ export function isLocalOwnerSessionRuntime(
   });
 
   return (
-    (profileKind === "instance" || profileKind === "dev") &&
+    profileKind === "instance" &&
     normalizedSecret(env[LOCAL_SESSION_BOOTSTRAP_TOKEN_ENV]) !== undefined &&
     normalizedSecret(env[WORKSPACE_GATEWAY_PROXY_TOKEN_ENV]) !== undefined &&
     normalizedSecret(env[WORKSPACE_GATEWAY_SIDECAR_URL_ENV]) !== undefined &&

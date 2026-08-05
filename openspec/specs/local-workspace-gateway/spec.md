@@ -3,17 +3,18 @@
 ## Purpose
 
 Local workspace gateway exposes one browser-visible Push capability from local
-runtime profiles through a same-origin proxy and a filesystem-capable loopback
-sidecar. Gateway owns the exact Push transport and process-local observation
-registry while typed Push execution, owner sessions, runtime topology, provider
-credentials, and app records stay owned by their existing runtime modules.
+instance runtimes through a same-origin proxy and a filesystem-capable loopback
+sidecar. Explicit local configuration selects the capability. Gateway owns the
+exact Push transport and process-local observation registry while typed Push
+execution, owner sessions, runtime topology, provider credentials, and app
+records stay owned by their existing runtime modules.
 
 ## Requirements
 
 ### Requirement: Local Workspace Gateway
 
-The system SHALL expose browser-safe workspace Push from local workspace runtime
-profiles through a filesystem-capable local gateway sidecar process.
+The system SHALL expose browser-safe workspace Push from a local instance
+runtime through a filesystem-capable local gateway sidecar process.
 
 #### Scenario: Gateway availability
 
@@ -32,8 +33,10 @@ profiles through a filesystem-capable local gateway sidecar process.
   process-scoped gateway and local session tokens, builds the child runtime
   environment, produces the browser session entrypoint, and closes the sidecar
   when the child runtime exits
-- **AND** the same API family is unavailable in deployed instance, app,
-  site-authoring, and published Site profiles
+- **AND** an instance runtime without explicit local sidecar and proxy
+  capability facts does not expose the API family
+- **AND** exact-host mapped routes and the published Site profile do not expose
+  the API family
 
 #### Scenario: Gateway Push surface
 
@@ -323,8 +326,8 @@ bootstrap boundary.
   Cloudflare mutation, Alchemy mutation, or provider mutation
 - **AND** the token expires when the local runtime process exits or after a
   successful exchange
-- **AND** the local session bootstrap endpoint is unavailable outside local
-  workspace runtime profiles
+- **AND** the local session bootstrap endpoint is unavailable without the
+  CLI-minted token and explicit local session capability facts
 
 #### Scenario: Local agent session reset entrypoint
 
@@ -346,8 +349,8 @@ bootstrap boundary.
 #### Scenario: Browser starts Push or answers an interaction
 
 - **WHEN** a browser starts Push or submits an account choice for current Push
-- **THEN** the request must be served by a local workspace runtime profile with
-  a configured local gateway sidecar target
+- **THEN** the request must be served by the `instance` profile with a
+  configured local gateway sidecar target and explicit gateway capability
 - **AND** the request must have a same-origin `Origin` header for the local
   workspace origin
 - **AND** the request must include a valid owner session cookie
@@ -700,10 +703,10 @@ runtime code and bundles.
   `FORMLESS_WORKSPACE_GATEWAY_SIDECAR_URL` and
   `FORMLESS_WORKSPACE_GATEWAY_PROXY_TOKEN` are present
 - **THEN** the Worker authorizes the browser or automation request, classifies
-  exact Gateway route intent, validates shared runtime topology eligibility and
-  configured sidecar target availability, validates that the configured gateway
-  route can satisfy requirements that need sidecar execution, and proxies the
-  request to the configured sidecar over HTTP
+  exact Gateway route intent, validates instance-route eligibility and explicit
+  configured sidecar capability, validates that the configured gateway route
+  can satisfy requirements that need sidecar execution, and proxies the request
+  to the configured sidecar over HTTP
 - **AND** the Worker does not read or write workspace source files, Push registry
   state, local secret state, or provider credentials
 

@@ -12,7 +12,7 @@ describe("client shell asset handling", () => {
       headers: { Accept: "text/html" },
     });
     const response = await handleClientAssetRequest(request, assetEnv(assetRequests), {
-      runtimeTopology: resolveWorkerRuntimeRequestTopology(request, { profile: "instance" }),
+      runtimeTopology: resolveWorkerRuntimeRequestTopology(request),
     });
 
     expect(response?.status).toBe(200);

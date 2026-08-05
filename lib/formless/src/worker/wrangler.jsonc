@@ -6,20 +6,7 @@
   "assets": {
     "not_found_handling": "single-page-application",
     "binding": "ASSETS",
-    "run_worker_first": [
-      "/*",
-      "!/pages",
-      "!/pages/*",
-      "!/tasks",
-      "!/tasks/*",
-      "!/site",
-      "!/site/*",
-      "!/schema",
-      "!/assets/*",
-      "!/src/*",
-      "!/@vite/*",
-      "!/@react-refresh",
-    ],
+    "run_worker_first": ["/*", "!/assets/*", "!/src/*", "!/@vite/*", "!/@react-refresh"],
   },
   "durable_objects": {
     "bindings": [

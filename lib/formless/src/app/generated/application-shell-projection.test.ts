@@ -8,7 +8,6 @@ import { FORMLESS_PROGRAM_SCREEN_PATHS, formlessProgramSchema } from "../../prog
 import { testSiteRecords } from "../../test/site-records.ts";
 import { siteSourceSchema } from "../../test/schema-apps.ts";
 import {
-  createDevRuntimeProfile,
   createInstanceRuntimeProfile,
   createPublishedSiteRuntimeProfile,
 } from "../runtime-profile.ts";
@@ -26,13 +25,14 @@ import {
 
 describe("generated application shell projection", () => {
   it("selects the Program shell from profile and current route", () => {
-    const dev = createDevRuntimeProfile();
     const instance = createInstanceRuntimeProfile();
 
     expect(
-      shouldRenderGeneratedShell({ currentPath: "/settings/routes", runtimeProfile: dev }),
+      shouldRenderGeneratedShell({ currentPath: "/settings/routes", runtimeProfile: instance }),
     ).toBe(true);
-    expect(shouldRenderGeneratedShell({ currentPath: "/unknown", runtimeProfile: dev })).toBe(true);
+    expect(shouldRenderGeneratedShell({ currentPath: "/unknown", runtimeProfile: instance })).toBe(
+      false,
+    );
     expect(
       shouldRenderGeneratedShell({ currentPath: "/principals", runtimeProfile: instance }),
     ).toBe(false);
@@ -51,12 +51,12 @@ describe("generated application shell projection", () => {
     expect(
       shouldRenderGeneratedShell({
         currentPath: "/formless/auth/sign-in",
-        runtimeProfile: dev,
+        runtimeProfile: instance,
       }),
     ).toBe(false);
-    expect(shouldRenderGeneratedShell({ currentPath: "/local-session", runtimeProfile: dev })).toBe(
-      false,
-    );
+    expect(
+      shouldRenderGeneratedShell({ currentPath: "/local-session", runtimeProfile: instance }),
+    ).toBe(false);
     expect(
       shouldRenderGeneratedShell({
         currentPath: "/blog/launch",
@@ -236,7 +236,7 @@ describe("generated application shell projection", () => {
         projectGeneratedApplicationShell({
           authorizedProgramScreenPaths: ["/settings/routes"],
           currentPath: "/settings/routes",
-          runtimeProfile: createDevRuntimeProfile(),
+          runtimeProfile: createInstanceRuntimeProfile(),
           sync: {
             cursor: 27,
             lastSyncedAt: "2026-07-16T01:00:00.000Z",
@@ -260,7 +260,7 @@ describe("generated application shell projection", () => {
   });
 
   it("presents the default Program workspaces and active Instance screens", () => {
-    const runtimeProfile = createDevRuntimeProfile();
+    const runtimeProfile = createInstanceRuntimeProfile();
     const routesProjection = required(
       projectGeneratedApplicationShell({
         authorizedProgramScreenPaths: FORMLESS_PROGRAM_SCREEN_PATHS,
@@ -333,7 +333,7 @@ describe("generated application shell projection", () => {
   });
 
   it("projects only server-authorized Program destinations in artifact order", () => {
-    const runtimeProfile = createDevRuntimeProfile();
+    const runtimeProfile = createInstanceRuntimeProfile();
     const filtered = required(
       projectGeneratedApplicationShell({
         authorizedProgramScreenPaths: ["/settings/access"],
@@ -356,7 +356,7 @@ describe("generated application shell projection", () => {
 
   it("projects ordered authorized workspaces from the resolved stable screen key", () => {
     const programSchema = groupedProgramScreenSchema();
-    const runtimeProfile = createDevRuntimeProfile();
+    const runtimeProfile = createInstanceRuntimeProfile();
     const authorizedProgramScreenPaths = [
       "/tasks",
       "/site",
@@ -431,9 +431,9 @@ describe("generated application shell projection", () => {
   it("projects anonymous session state", () => {
     const projection = required(
       projectGeneratedApplicationShell({
-        currentPath: "/unknown",
+        currentPath: "/tasks",
         accountSession: { authenticated: false, setupComplete: true },
-        runtimeProfile: createDevRuntimeProfile(),
+        runtimeProfile: createInstanceRuntimeProfile(),
       }),
     );
     const session = required(

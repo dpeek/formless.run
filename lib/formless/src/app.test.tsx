@@ -5,7 +5,6 @@ import type { AppSchema } from "@dpeek/formless-schema";
 import { App, type AppRouteComponents } from "./app.tsx";
 import type { ProgramBrowserRuntimeDefinition } from "./program/composition.ts";
 import {
-  createDevRuntimeProfile,
   createInstanceRuntimeProfile,
   createPublishedSiteRuntimeProfile,
   type RuntimeProfile,
@@ -36,7 +35,6 @@ describe("application route selection", () => {
     const publishedSite = renderRoute("/blog/shipping", {
       runtimeProfile: createPublishedSiteRuntimeProfile(),
     });
-    const previewSite = renderRoute("/pages/blog/shipping");
 
     expect(localSession).toContain('data-route="local-session"');
     expect(account).toContain('data-route="auth-account"');
@@ -44,27 +42,23 @@ describe("application route selection", () => {
     expect(publishedSite).toContain('data-route="public-site"');
     expect(publishedSite).toContain('data-link-mode="published"');
     expect(publishedSite).toContain('data-slug="blog/shipping"');
-    expect(previewSite).toContain('data-link-mode="preview"');
-    expect(previewSite).toContain('data-slug="blog/shipping"');
-    expect(`${localSession}${account}${publishedSite}${previewSite}`).not.toContain(
+    expect(`${localSession}${account}${publishedSite}`).not.toContain(
       'data-surface="application-shell"',
     );
   });
 
-  it("does not mount Site routes when the Program has no Site browser surface", () => {
+  it("does not mount a published Site route when the Program has no Site browser surface", () => {
     const runtimeWithoutSite: ProgramBrowserRuntimeDefinition = {
       target: "browser",
       projections: [],
       surfaces: [],
     };
 
-    const preview = renderRoute("/pages/home", { browserRuntime: runtimeWithoutSite });
     const published = renderRoute("/", {
       browserRuntime: runtimeWithoutSite,
       runtimeProfile: createPublishedSiteRuntimeProfile(),
     });
 
-    expect(preview).not.toContain('data-route="public-site"');
     expect(published).not.toContain('data-route="public-site"');
   });
 
@@ -121,7 +115,7 @@ function renderRoute(
         localWorkspaceGatewayAvailable={options.localWorkspaceGatewayAvailable}
         programSchema={options.programSchema}
         routeComponents={routeComponents()}
-        runtimeProfile={options.runtimeProfile ?? createDevRuntimeProfile()}
+        runtimeProfile={options.runtimeProfile ?? createInstanceRuntimeProfile()}
       />
     </Router>,
   );

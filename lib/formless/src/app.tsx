@@ -158,9 +158,7 @@ export function App({
   const programScreen = resolveFormlessProgramScreenRouteTarget(normalizedLocation, programSchema);
   const browserRoutes = runtimeBrowserRoutePatterns(runtimeProfile);
   const programRuntimeSelected =
-    (browserRoutes.instanceShellRoute !== undefined && programScreen !== undefined) ||
-    (resolveSitePublicBrowserRuntimeSurface(browserRuntime) !== undefined &&
-      isPublicSitePreviewPath(normalizedLocation, runtimeProfile));
+    browserRoutes.instanceShellRoute !== undefined && programScreen !== undefined;
   const runtime = (programRuntime?: ProgramRuntimeSnapshot) => (
     <AppRuntime
       browserRuntime={browserRuntime}
@@ -232,7 +230,6 @@ function AppRuntime({
         browserRuntime={browserRuntime}
         localWorkspaceGatewayAvailable={localWorkspaceGatewayAvailable}
         programSchema={programSchema}
-        programSyncManaged={programRuntime !== undefined}
         routeComponents={routeComponents}
         runtimeProfile={runtimeProfile}
       />
@@ -245,7 +242,6 @@ function AppRuntime({
       browserRuntime={browserRuntime}
       localWorkspaceGatewayAvailable={localWorkspaceGatewayAvailable}
       programSchema={programSchema}
-      programSyncManaged={programRuntime !== undefined}
       routeComponents={routeComponents}
       runtimeProfile={runtimeProfile}
     />
@@ -413,14 +409,12 @@ function AppRoutes({
   browserRuntime,
   localWorkspaceGatewayAvailable,
   programSchema,
-  programSyncManaged,
   routeComponents,
   runtimeProfile,
 }: {
   browserRuntime: ProgramBrowserRuntimeDefinition;
   localWorkspaceGatewayAvailable: boolean;
   programSchema: AppSchema;
-  programSyncManaged: boolean;
   routeComponents: AppRouteComponents;
   runtimeProfile: RuntimeProfile;
 }) {
@@ -436,7 +430,6 @@ function AppRoutes({
   const browserRoutes = runtimeBrowserRoutePatterns(runtimeProfile);
   const siteSurfaceSelected = resolveSitePublicBrowserRuntimeSurface(browserRuntime) !== undefined;
   const publishedSite = siteSurfaceSelected ? runtimeProfile.publishedSite : undefined;
-  const publicSitePreview = siteSurfaceSelected ? runtimeProfile.publicSitePreview : undefined;
   const programScreens = formlessProgramScreenRouteTargets(programSchema);
   const routesScreenPath = resolveFormlessProgramScreenRouteTargetByKey(
     "routes",
@@ -518,38 +511,6 @@ function AppRoutes({
               routeProps={{
                 browserRuntime,
                 linkMode: "published",
-                slug: runtimeWildcardSiteSlug(params),
-              }}
-            />
-          )}
-        </Route>
-      ) : null}
-      {publicSitePreview ? (
-        <Route path={publicSitePreview.rootRoute}>
-          {publicSitePreview.homeRoute ? (
-            <Redirect replace to={publicSitePreview.homeRoute} />
-          ) : (
-            <PublicSiteRoute
-              RouteComponent={SitePageRoute}
-              routeProps={{
-                browserRuntime,
-                linkMode: publicSitePreview.linkMode,
-                programSyncManaged,
-                slug: publicSitePreview.homeSlug,
-              }}
-            />
-          )}
-        </Route>
-      ) : null}
-      {publicSitePreview ? (
-        <Route path={publicSitePreview.routePattern}>
-          {(params) => (
-            <PublicSiteRoute
-              RouteComponent={SitePageRoute}
-              routeProps={{
-                browserRuntime,
-                linkMode: publicSitePreview.linkMode,
-                programSyncManaged,
                 slug: runtimeWildcardSiteSlug(params),
               }}
             />
@@ -764,12 +725,6 @@ function protectedRouteTarget(location: string): AccountRedirectTarget {
   }
 
   return protectedRouteTargetFromLocation(`${window.location.pathname}${window.location.search}`);
-}
-
-function isPublicSitePreviewPath(path: string, runtimeProfile: RuntimeProfile): boolean {
-  const rootRoute = runtimeProfile.publicSitePreview?.rootRoute;
-
-  return rootRoute !== undefined && (path === rootRoute || path.startsWith(`${rootRoute}/`));
 }
 
 function protectedRouteTargetFromLocation(location: string): AccountRedirectTarget {

@@ -39,7 +39,6 @@ export type PublishedSiteRedirect = {
 
 export type WorkerRuntimeRoutePolicy = {
   instanceBrowserRoutes: boolean;
-  workspaceGatewayApiRoutes: boolean;
 };
 
 export type WorkerRuntimeRequestTopology = {
@@ -288,11 +287,7 @@ export function resolveProgramScreenRouteTargetFromFacts(input: {
     return undefined;
   }
 
-  if (
-    mountRoute === undefined &&
-    input.topology.profileKind !== "instance" &&
-    input.topology.profileKind !== "dev"
-  ) {
+  if (mountRoute === undefined && input.topology.profileKind !== "instance") {
     return undefined;
   }
 
@@ -443,11 +438,25 @@ export function shouldDeferToStaticAssets(
     return topology.publishedProfileClientShellRoute || topology.staticAssetPath;
   }
 
-  if (topology.profileKind === "instance") {
+  if (topology.routePolicy.instanceBrowserRoutes) {
     return topology.instanceProfileClientShellRoute || topology.staticAssetPath;
   }
 
-  return true;
+  return false;
+}
+
+export function workerWorkspaceGatewayRouteAvailableFromFacts(input: {
+  exactHostMapped: boolean;
+  gatewayEnabled: boolean;
+  profileKind: RuntimeProfileKind;
+  sidecarTargetAvailable: boolean;
+}): boolean {
+  return (
+    input.profileKind === "instance" &&
+    input.gatewayEnabled &&
+    input.sidecarTargetAvailable &&
+    !input.exactHostMapped
+  );
 }
 
 export function shouldRedirectAnonymousOwnerBrowserRoute(
@@ -526,10 +535,7 @@ export function ownerBrowserRouteAccessFromFacts(
     return mountRoute.access;
   }
 
-  const instanceBrowserProfile =
-    topology.profileKind === "instance" || topology.profileKind === "dev";
-
-  if (!instanceBrowserProfile) {
+  if (topology.profileKind !== "instance") {
     return "anonymous";
   }
 
@@ -600,7 +606,6 @@ function workerRuntimeRoutePolicyFromKind(
 
   return {
     instanceBrowserRoutes: policy.instanceBrowserRoutes,
-    workspaceGatewayApiRoutes: policy.workspaceGatewayApiRoutes,
   };
 }
 

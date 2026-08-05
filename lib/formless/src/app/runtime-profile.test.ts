@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
-  createDevWorkbenchRuntimeProfile,
   createInstanceRuntimeProfile,
   createPublishedSiteRuntimeProfile,
   FORMLESS_RUNTIME_PROFILE_META_NAME,
@@ -12,12 +11,10 @@ import {
 } from "./runtime-profile.ts";
 
 describe("runtime profile resolver", () => {
-  it("resolves instance and dev Program shell profiles", () => {
+  it("resolves the instance Program shell profile", () => {
     const instance = createInstanceRuntimeProfile();
-    const dev = createDevWorkbenchRuntimeProfile();
 
     expect(instance).toMatchObject({ instanceShell: true, kind: "instance", shell: "instance" });
-    expect(dev).toMatchObject({ instanceShell: true, kind: "dev", shell: "dev" });
     expect(runtimeRoutePolicy(instance)).toEqual({
       accountSessionBrowserRoutes: true,
       instanceBrowserRoutes: true,
@@ -29,16 +26,6 @@ describe("runtime profile resolver", () => {
       authAccountSignInRoute: "/formless/auth/sign-in",
       instanceShellRoute: "/",
       localSessionRoute: "/local-session",
-    });
-  });
-
-  it("keeps the dev public Site preview on current preview routes", () => {
-    const profile = createDevWorkbenchRuntimeProfile();
-
-    expect(profile.publicSitePreview).toMatchObject({
-      homeRoute: "/pages/home",
-      linkMode: "preview",
-      rootRoute: "/pages",
     });
   });
 
@@ -55,9 +42,9 @@ describe("runtime profile resolver", () => {
     });
   });
 
-  it("uses the dev profile as the fallback", () => {
-    expect(resolveRuntimeProfile({ profile: "unknown" }).kind).toBe("dev");
-    expect(resolveRuntimeProfile({ hostname: "unknown.formless.local" }).kind).toBe("dev");
+  it("uses the instance profile as the fallback", () => {
+    expect(resolveRuntimeProfile({ profile: "unknown" }).kind).toBe("instance");
+    expect(resolveRuntimeProfile({ hostname: "unknown.formless.local" }).kind).toBe("instance");
     expect(resolveRuntimeProfile({ profile: "instance" }).kind).toBe("instance");
     expect(resolveRuntimeProfile({ profile: "publishedSite" }).kind).toBe("publishedSite");
   });
@@ -77,5 +64,11 @@ describe("runtime profile resolver", () => {
         envProfile: "instance",
       }),
     ).toBe("publishedSite");
+    expect(
+      selectBrowserRuntimeProfileHint({
+        documentProfile: "unknown",
+        envProfile: "instance",
+      }),
+    ).toBe("instance");
   });
 });

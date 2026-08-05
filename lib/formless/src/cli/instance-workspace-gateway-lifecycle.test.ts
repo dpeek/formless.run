@@ -7,6 +7,7 @@ import {
   LOCAL_SESSION_BOOTSTRAP_TOKEN_ENV,
   WORKSPACE_GATEWAY_BOOTSTRAP_TOKEN_ENV,
   WORKSPACE_GATEWAY_CSRF_TOKEN_ENV,
+  WORKSPACE_GATEWAY_ENABLED_ENV,
   WORKSPACE_GATEWAY_PROXY_TOKEN_ENV,
   WORKSPACE_GATEWAY_ROOT_ENV,
   WORKSPACE_GATEWAY_SIDECAR_URL_ENV,
@@ -40,7 +41,7 @@ describe("local gateway lifecycle child runtime env", () => {
     const env = formlessInstanceWorkspaceDevEnv(
       {
         FORMLESS_ADMIN_TOKEN: "ambient-admin-token",
-        FORMLESS_LOCAL_WORKSPACE_GATEWAY: "1",
+        [WORKSPACE_GATEWAY_ENABLED_ENV]: "0",
         FORMLESS_OWNER_SESSION_SECRET: "ambient-owner-session-secret",
         [FORMLESS_PROGRAM_ARTIFACT_PATH_ENV_NAME]: "/stale/formless-program.json",
         [FORMLESS_WORKSPACE_PROGRAM_RUNTIME_ENV_NAME]: "stale-program-runtime-payload",
@@ -79,6 +80,7 @@ describe("local gateway lifecycle child runtime env", () => {
       [LOCAL_SESSION_BOOTSTRAP_TOKEN_ENV]: expect.any(String),
       [WORKSPACE_GATEWAY_BOOTSTRAP_TOKEN_ENV]: expect.any(String),
       [WORKSPACE_GATEWAY_CSRF_TOKEN_ENV]: expect.any(String),
+      [WORKSPACE_GATEWAY_ENABLED_ENV]: "1",
       [WORKSPACE_GATEWAY_PROXY_TOKEN_ENV]: "sidecar-proxy-token",
       [WORKSPACE_GATEWAY_SIDECAR_URL_ENV]: "http://127.0.0.1:4321/",
       FORMLESS_RUNTIME_PROFILE: "instance",
@@ -88,7 +90,6 @@ describe("local gateway lifecycle child runtime env", () => {
       VITE_FORMLESS_RUNTIME_PROFILE: "instance",
     });
     expect(env[LOCAL_SESSION_BOOTSTRAP_TOKEN_ENV]).not.toBe("old-session-bootstrap-token");
-    expect(env).not.toHaveProperty("FORMLESS_LOCAL_WORKSPACE_GATEWAY");
     expect(env).not.toHaveProperty(WORKSPACE_GATEWAY_ROOT_ENV);
     expect(env).not.toHaveProperty(FORMLESS_PROGRAM_ARTIFACT_PATH_ENV_NAME);
     expect(env).not.toHaveProperty(FORMLESS_WORKSPACE_PROGRAM_RUNTIME_ENV_NAME);
@@ -156,6 +157,7 @@ describe("local gateway lifecycle child runtime env", () => {
     });
     expect(env).not.toHaveProperty(WORKSPACE_GATEWAY_PROXY_TOKEN_ENV);
     expect(env).not.toHaveProperty(WORKSPACE_GATEWAY_SIDECAR_URL_ENV);
+    expect(env).not.toHaveProperty(WORKSPACE_GATEWAY_ENABLED_ENV);
   });
 });
 

@@ -175,14 +175,6 @@ async function runtimeInstanceAuthConfigFactsForRequest(
 function runtimeInstanceAuthConfigFromFacts(
   facts: RuntimeInstanceAuthConfigFacts,
 ): InstanceAuthConfigInput | undefined {
-  if (
-    facts.runtimeProfile !== "instance" &&
-    facts.runtimeProfile !== "dev" &&
-    facts.runtimeProfile !== "publishedSite"
-  ) {
-    return undefined;
-  }
-
   const relyingPartyName = facts.explicitRelyingPartyName ?? defaultRelyingPartyName;
 
   if (facts.explicitCanonicalOrigin !== undefined) {
@@ -194,14 +186,6 @@ function runtimeInstanceAuthConfigFromFacts(
   }
 
   if (facts.localRuntime) {
-    return parseRuntimeAuthConfig({
-      canonicalOrigin: facts.requestOrigin,
-      relyingPartyId: facts.explicitRelyingPartyId,
-      relyingPartyName,
-    });
-  }
-
-  if (facts.runtimeProfile === "dev") {
     return parseRuntimeAuthConfig({
       canonicalOrigin: facts.requestOrigin,
       relyingPartyId: facts.explicitRelyingPartyId,

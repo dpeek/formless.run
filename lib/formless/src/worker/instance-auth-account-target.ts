@@ -40,10 +40,7 @@ export function sameOriginAccountCompletionTargetForRuntimeRouteFacts(input: {
     };
   }
 
-  if (
-    input.runtimeRoute !== undefined ||
-    (input.runtimeProfile !== "instance" && input.runtimeProfile !== "dev")
-  ) {
+  if (input.runtimeRoute !== undefined || input.runtimeProfile !== "instance") {
     return undefined;
   }
 

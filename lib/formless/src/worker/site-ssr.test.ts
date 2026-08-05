@@ -80,7 +80,7 @@ describe("published Site Worker SSR", () => {
       new Request("https://example.com/", {
         headers: { Accept: "text/html" },
       }),
-      envWithTreeResponse(Response.json(testSitePageTree("home")), undefined, "dev"),
+      envWithTreeResponse(Response.json(testSitePageTree("home")), undefined, "instance"),
     );
 
     expect(response).toBeUndefined();

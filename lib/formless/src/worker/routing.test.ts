@@ -23,14 +23,22 @@ import {
   shouldHandlePublishedSiteIndexingResource,
   shouldRedirectAnonymousProtectedBrowserRoute,
   shouldRedirectAnonymousOwnerBrowserRoute,
+  workerWorkspaceGatewayRouteAvailableFromFacts,
   workerRuntimeRoutePolicy,
 } from "./routing.ts";
 import { formlessProgramSchema } from "../program/runtime.ts";
 
 describe("Worker document routing", () => {
   it("classifies Worker request topology from shared runtime policy", () => {
+    const instance = resolveWorkerRuntimeRequestTopology(
+      documentRequest("http://example.com/tasks"),
+    );
     const preview = resolveWorkerRuntimeRequestTopology(
       documentRequest("http://published-site.example.com/pages/home?ref=old"),
+    );
+    const inferredPreview = resolveWorkerRuntimeRequestTopology(
+      documentRequest("https://formless.twitchy.workers.dev/"),
+      { profile: "unknown" },
     );
     const robots = resolveWorkerRuntimeRequestTopology(
       new Request("http://example.com/robots.txt"),
@@ -49,10 +57,12 @@ describe("Worker document routing", () => {
       { profile: "instance" },
     );
 
+    expect(instance.profileKind).toBe("instance");
+    expect(instance.routePolicy).toEqual({ instanceBrowserRoutes: true });
     expect(preview.profileKind).toBe("publishedSite");
+    expect(inferredPreview.profileKind).toBe("publishedSite");
     expect(preview.routePolicy).toEqual({
       instanceBrowserRoutes: false,
-      workspaceGatewayApiRoutes: false,
     });
     expect(preview.clientShellRoute).toBe(true);
     expect(preview.publishedSitePreviewRedirectLocation).toBe("/?ref=old");
@@ -340,19 +350,14 @@ describe("Worker document routing", () => {
     expect(shouldHandlePublishedSiteDocument(documentRequest("http://example.com/"))).toBe(false);
     expect(
       shouldHandlePublishedSiteDocument(documentRequest("http://published-site.example.com/"), {
-        profile: "dev",
-      }),
-    ).toBe(false);
-    expect(
-      shouldHandlePublishedSiteDocument(documentRequest("http://example.com/"), {
-        profile: "dev",
+        profile: "instance",
       }),
     ).toBe(false);
   });
 
-  it("marks non-published document routes for asset serving fallback", () => {
-    expect(shouldDeferToStaticAssets(documentRequest("http://example.com/"))).toBe(true);
-    expect(shouldDeferToStaticAssets(documentRequest("http://example.com/blog/post"))).toBe(true);
+  it("keeps non-published unknown document routes out of static fallback", () => {
+    expect(shouldDeferToStaticAssets(documentRequest("http://example.com/"))).toBe(false);
+    expect(shouldDeferToStaticAssets(documentRequest("http://example.com/blog/post"))).toBe(false);
     expect(
       shouldDeferToStaticAssets(documentRequest("http://example.com/"), {
         profile: "publishedSite",
@@ -366,14 +371,14 @@ describe("Worker document routing", () => {
     ).toBe(false);
     expect(
       shouldDeferToStaticAssets(documentRequest("http://published-site.example.com/"), {
-        profile: "dev",
+        profile: "instance",
       }),
-    ).toBe(true);
+    ).toBe(false);
     expect(
       shouldDeferToStaticAssets(documentRequest("http://example.com/admin"), {
-        profile: "dev",
+        profile: "instance",
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("keeps product instance browser fallback to instance route roots", () => {
@@ -505,21 +510,37 @@ describe("Worker document routing", () => {
 
       expect(workerRuntimeRoutePolicy({ profile: profileKind })).toEqual({
         instanceBrowserRoutes: sharedPolicy.instanceBrowserRoutes,
-        workspaceGatewayApiRoutes: sharedPolicy.workspaceGatewayApiRoutes,
       });
     }
+  });
+
+  it("derives Worker Gateway route availability outside shared profile route policy", () => {
+    const localInstance = {
+      exactHostMapped: false,
+      gatewayEnabled: true,
+      profileKind: "instance" as const,
+      sidecarTargetAvailable: true,
+    };
+
+    expect(workerWorkspaceGatewayRouteAvailableFromFacts(localInstance)).toBe(true);
     expect(
-      Object.fromEntries(
-        runtimeProfileKinds.map((profileKind) => [
-          profileKind,
-          workerRuntimeRoutePolicy({ profile: profileKind }).workspaceGatewayApiRoutes,
-        ]),
-      ),
-    ).toEqual({
-      dev: true,
-      instance: true,
-      publishedSite: false,
-    });
+      workerWorkspaceGatewayRouteAvailableFromFacts({ ...localInstance, gatewayEnabled: false }),
+    ).toBe(false);
+    expect(
+      workerWorkspaceGatewayRouteAvailableFromFacts({
+        ...localInstance,
+        sidecarTargetAvailable: false,
+      }),
+    ).toBe(false);
+    expect(
+      workerWorkspaceGatewayRouteAvailableFromFacts({ ...localInstance, exactHostMapped: true }),
+    ).toBe(false);
+    expect(
+      workerWorkspaceGatewayRouteAvailableFromFacts({
+        ...localInstance,
+        profileKind: "publishedSite",
+      }),
+    ).toBe(false);
   });
 
   it("lets explicit profile config override host-derived profile config", () => {
@@ -533,14 +554,6 @@ describe("Worker document routing", () => {
         profile: "publishedSite",
       }),
     ).toBe(true);
-    expect(
-      shouldHandlePublishedSiteDocument(
-        documentRequest("https://formless.twitchy.workers.dev/blog"),
-        {
-          profile: "dev",
-        },
-      ),
-    ).toBe(false);
   });
 
   it("keeps API, Formless view, preview redirect, assets, and non-HTML routes out of SSR", () => {
@@ -645,9 +658,9 @@ describe("Worker document routing", () => {
   });
 
   it("marks client-shell and static asset requests for asset serving fallback", () => {
-    expect(shouldDeferToStaticAssets(documentRequest("http://example.com/pages/home"))).toBe(true);
+    expect(shouldDeferToStaticAssets(documentRequest("http://example.com/pages/home"))).toBe(false);
     expect(shouldDeferToStaticAssets(documentRequest("http://example.com/sites/personal"))).toBe(
-      true,
+      false,
     );
     expect(
       shouldDeferToStaticAssets(
@@ -659,14 +672,14 @@ describe("Worker document routing", () => {
         documentRequest(`http://example.com${runtimeTopologyRoutes.authAccountSignInRoute}`),
       ),
     ).toBe(true);
-    expect(shouldDeferToStaticAssets(documentRequest("http://example.com/setup"))).toBe(true);
-    expect(shouldDeferToStaticAssets(documentRequest("http://example.com/login"))).toBe(true);
+    expect(shouldDeferToStaticAssets(documentRequest("http://example.com/setup"))).toBe(false);
+    expect(shouldDeferToStaticAssets(documentRequest("http://example.com/login"))).toBe(false);
     expect(shouldDeferToStaticAssets(documentRequest("http://example.com/local-session"))).toBe(
       true,
     );
     expect(shouldDeferToStaticAssets(documentRequest("http://example.com/site"))).toBe(true);
-    expect(shouldDeferToStaticAssets(documentRequest("http://app.example.com/setup"))).toBe(true);
-    expect(shouldDeferToStaticAssets(documentRequest("http://app.example.com/login"))).toBe(true);
+    expect(shouldDeferToStaticAssets(documentRequest("http://app.example.com/setup"))).toBe(false);
+    expect(shouldDeferToStaticAssets(documentRequest("http://app.example.com/login"))).toBe(false);
     expect(shouldDeferToStaticAssets(documentRequest("http://example.com/assets/index.js"))).toBe(
       true,
     );
@@ -822,11 +835,6 @@ describe("Worker document routing", () => {
     expect(publishedSiteRedirectForRequest(documentRequest("http://example.com/pages/home"))).toBe(
       undefined,
     );
-    expect(
-      publishedSiteRedirectForRequest(documentRequest("http://example.com/pages/home"), {
-        profile: "dev",
-      }),
-    ).toBe(undefined);
     expect(
       publishedSiteRedirectForRequest(documentRequest("http://example.com/api/site/pages/home"), {
         profile: "publishedSite",

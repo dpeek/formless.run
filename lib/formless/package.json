@@ -30,7 +30,7 @@
   "scripts": {
     "check": "vp check --fix && vp test --configLoader runner",
     "dev": "bun bin/formless.ts dev --workspace ../../tmp/dev-workspace --reset",
-    "dev:instance": "FORMLESS_RUNTIME_PROFILE=instance VITE_FORMLESS_RUNTIME_PROFILE=instance vp dev",
+    "dev:vite": "vp dev",
     "schema:materialize": "bun run scripts/materialize-program-schema.ts"
   },
   "dependencies": {

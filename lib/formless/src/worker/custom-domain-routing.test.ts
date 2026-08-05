@@ -13,7 +13,7 @@ import {
   IDENTITY_COLLABORATOR_INVITATIONS_API_PATH,
   IDENTITY_CONTROL_PLANE_API_ROUTE_PREFIX,
 } from "@dpeek/formless-identity-control-plane";
-import { runtimeTopologyRoutes } from "../shared/runtime-topology.ts";
+import { runtimeTopologyRoutes, type RuntimeProfileKind } from "../shared/runtime-topology.ts";
 import {
   COLLABORATOR_INVITATION_ACCEPT_PATH,
   accountRedirectLocationForRoute,
@@ -437,7 +437,7 @@ describe("instance custom-domain Worker routing", () => {
 
   it("returns a ready Program session through the local owner-session reader", async () => {
     await withHarness(
-      await createCustomDomainHarness("dev", {
+      await createCustomDomainHarness("instance", {
         FORMLESS_LOCAL_SESSION_BOOTSTRAP_TOKEN: "local-bootstrap-token",
         FORMLESS_WORKSPACE_GATEWAY_CSRF_TOKEN: "local-csrf-token",
         FORMLESS_WORKSPACE_GATEWAY_PROXY_TOKEN: "local-proxy-token",
@@ -2099,7 +2099,7 @@ async function withWorkersDevAuthHarness(run: (deploymentOrigin: string) => Prom
 }
 
 async function createCustomDomainHarness(
-  runtimeProfile?: "dev" | "instance" | "publishedSite",
+  runtimeProfile?: RuntimeProfileKind,
   bindings: Record<string, string> = {},
 ) {
   return createWorkerHarness(

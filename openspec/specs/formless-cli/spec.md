@@ -626,10 +626,13 @@ credential setup, and push operations.
   workspace name, prepares
   ignored `.formless/local` state, persists local dev secrets, and mints
   process-scoped local session, gateway proxy, gateway CSRF, and sidecar tokens
-  before the product instance runtime starts
+  before the `instance` runtime profile starts
 - **AND** local gateway lifecycle code owns sidecar creation, process token
   minting, child runtime gateway environment assembly, browser session
   entrypoint creation, and sidecar shutdown
+- **AND** the CLI selects local session bootstrap, gateway proxying, local
+  persistence, auto-save, reset, and development Turnstile behavior through
+  explicit CLI and child runtime facts rather than a separate runtime profile
 - **AND** workspace configuration bootstrap, Program materialization, local Authority
   bootstrap, operation execution, and auto-save scheduling remain outside the
   local gateway lifecycle code
@@ -645,7 +648,8 @@ credential setup, and push operations.
 
 - **WHEN** `formless dev` runs for a config-only workspace or workspace
   source with storage snapshots and media payloads
-- **THEN** the product instance runtime starts with workspace-local persistence
+- **THEN** the `instance` runtime profile starts with workspace-local
+  persistence
 - **AND** the CLI materializes the complete Program from trusted downstream
   `formless.ts` composition before the Worker starts
 - **AND** first-run local runtime state starts from workspace storage snapshots
@@ -734,6 +738,8 @@ bundled Worker and browser runtime build setup used by local dev and push.
 - **AND** workspace-relative runtime extension paths are resolved during build
   setup rather than stored as Program data, deployment intent, domain schema
   source, or Worker runtime bindings
+- **AND** Vite owns local development module loading and hot-module replacement
+  without changing runtime profile or route policy
 - **AND** workspace-relative Program runtime composition paths are resolved into
   target-specific static or virtual-module imports during build setup
 - **AND** browser runtime extensions share singleton React and React DOM modules
@@ -885,7 +891,7 @@ without storing executable code configuration in app data.
 #### Scenario: Local dev uses runtime extensions
 
 - **WHEN** `formless dev` starts for a workspace with `site.publicRenderer`
-- **THEN** the local browser preview bundle resolves the configured browser
+- **THEN** the local public Site client bundle resolves the configured browser
   renderer entrypoint
 - **AND** the local Worker runtime resolves the configured Worker renderer
   entrypoint
@@ -904,7 +910,7 @@ without storing executable code configuration in app data.
 - **THEN** the deployed Worker bundle includes the configured trusted
   owner-authored Worker renderer entrypoint
 - **AND** the deployed browser assets include the configured browser renderer
-  entrypoint needed for preview or hydration
+  entrypoint needed for public Site hydration
 - **AND** workspace-relative renderer paths are resolved from the workspace root
   during deploy build setup rather than exposed as Worker runtime bindings
 - **AND** the deployed browser renderer uses the same React and React DOM module

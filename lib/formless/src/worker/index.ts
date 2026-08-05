@@ -1,5 +1,9 @@
 import { FormlessAuthority } from "./authority.ts";
-import { handleWorkspaceGatewayProxyRequest } from "@dpeek/formless-gateway/worker";
+import { WORKSPACE_GATEWAY_ENABLED_ENV } from "@dpeek/formless-gateway";
+import {
+  handleWorkspaceGatewayProxyRequest,
+  workspaceGatewayProxyConfigFromEnv,
+} from "@dpeek/formless-gateway/worker";
 import {
   parseAuthorityApiRoute,
   parseProgramApiRoute,
@@ -71,6 +75,7 @@ import {
   resolveProtectedBrowserRouteTargetFromFacts,
   resolveWorkerRuntimeRequestTopology,
   shouldDeferToStaticAssets,
+  workerWorkspaceGatewayRouteAvailableFromFacts,
   workerRuntimeProfileInput,
   type WorkerRuntimeRequestTopology,
 } from "./routing.ts";
@@ -125,6 +130,7 @@ export type Env = TurnstileRuntimeEnv & {
   FORMLESS_INSTANCE_AUTH_RELYING_PARTY_ID?: string;
   FORMLESS_INSTANCE_AUTH_RELYING_PARTY_NAME?: string;
   FORMLESS_LOCAL_SESSION_BOOTSTRAP_TOKEN?: string;
+  [WORKSPACE_GATEWAY_ENABLED_ENV]?: string;
   FORMLESS_MEDIA: R2Bucket;
   FORMLESS_OWNER_SESSION_SECRET?: string;
   FORMLESS_RUNTIME_PROFILE?: string;
@@ -199,6 +205,7 @@ export default {
     const effectiveRuntimeProfile = workerRuntimeProfileInput(mappedRoutePolicy.runtimeProfile);
     const requestTopology = resolveWorkerRuntimeRequestTopology(request, effectiveRuntimeProfile);
     const workspaceGatewayRouteAvailable = workerWorkspaceGatewayRouteAvailable(
+      env,
       requestTopology,
       runtimeRoute,
     );
@@ -876,13 +883,16 @@ function authOriginLocationForRequest(authOrigin: string, request: Request): str
 }
 
 function workerWorkspaceGatewayRouteAvailable(
+  env: Env,
   requestTopology: WorkerRuntimeRequestTopology,
   runtimeRoute: Awaited<ReturnType<typeof resolveInstanceRuntimeRouteForRequest>>,
 ): boolean {
-  return (
-    requestTopology.routePolicy.workspaceGatewayApiRoutes &&
-    !(runtimeRoute?.kind === "mount" && runtimeRoute.matchHost !== undefined)
-  );
+  return workerWorkspaceGatewayRouteAvailableFromFacts({
+    exactHostMapped: runtimeRoute?.kind === "mount" && runtimeRoute.matchHost !== undefined,
+    gatewayEnabled: env[WORKSPACE_GATEWAY_ENABLED_ENV] === "1",
+    profileKind: requestTopology.profileKind,
+    sidecarTargetAvailable: workspaceGatewayProxyConfigFromEnv(env) !== undefined,
+  });
 }
 
 async function redirectAnonymousProtectedBrowserRoute(

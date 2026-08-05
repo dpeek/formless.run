@@ -4,7 +4,7 @@ import {
   resolveFormlessProgramScreenRouteTarget,
 } from "../program/runtime.ts";
 
-export const runtimeProfileKinds = ["instance", "dev", "publishedSite"] as const;
+export const runtimeProfileKinds = ["instance", "publishedSite"] as const;
 
 export type RuntimeProfileKind = (typeof runtimeProfileKinds)[number];
 
@@ -20,11 +20,9 @@ export type RuntimeRouteAccess = (typeof runtimeRouteAccessKinds)[number];
 export type RuntimeTopologyRoutePolicy = {
   instanceBrowserRoutes: boolean;
   accountSessionBrowserRoutes: boolean;
-  workspaceGatewayApiRoutes: boolean;
 };
 
 export type RuntimeProfileKindResolverInput = {
-  fallback?: RuntimeProfileKind | undefined;
   hostname?: string | undefined;
   profile?: string | undefined;
 };
@@ -87,15 +85,13 @@ export function resolveRuntimeProfileKind(
   return (
     parseRuntimeProfileKind(input.profile) ??
     runtimeProfileKindFromHost(input.hostname) ??
-    input.fallback ??
-    "dev"
+    "instance"
   );
 }
 
 export function parseRuntimeProfileKind(value: string | undefined): RuntimeProfileKind | undefined {
   switch (value) {
     case "instance":
-    case "dev":
     case "publishedSite":
       return value;
     default:
@@ -176,13 +172,11 @@ export function runtimeProfileKindFromHost(
 export function runtimeRoutePolicyForProfileKind(
   profileKind: RuntimeProfileKind,
 ): RuntimeTopologyRoutePolicy {
-  const instanceBrowserRoutes = profileKind === "instance" || profileKind === "dev";
-  const workspaceGatewayApiRoutes = profileKind === "instance" || profileKind === "dev";
+  const instanceBrowserRoutes = profileKind === "instance";
 
   return {
     instanceBrowserRoutes,
     accountSessionBrowserRoutes: instanceBrowserRoutes || profileKind === "publishedSite",
-    workspaceGatewayApiRoutes,
   };
 }
 

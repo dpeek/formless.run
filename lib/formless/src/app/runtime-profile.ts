@@ -1,5 +1,6 @@
 import {
   FORMLESS_RUNTIME_PROFILE_META_NAME,
+  parseRuntimeProfileKind,
   resolveRuntimeProfileKind,
   runtimeRoutePolicyForProfileKind,
   runtimeTopologyRoutes,
@@ -10,17 +11,7 @@ import {
 export type { RuntimeProfileKind };
 export { FORMLESS_RUNTIME_PROFILE_META_NAME };
 
-export type RuntimeShellKind = "instance" | "dev" | "publishedSite";
-
-export type RuntimePublicSitePreviewLinkMode = "preview" | "authoring";
-
-export type RuntimePublicSitePreview = {
-  rootRoute: `/${string}`;
-  routePattern: `/${string}`;
-  homeRoute?: `/${string}`;
-  homeSlug: string;
-  linkMode: RuntimePublicSitePreviewLinkMode;
-};
+export type RuntimeShellKind = RuntimeProfileKind;
 
 export type RuntimePublishedSiteRoutes = {
   homeSlug: "home";
@@ -33,7 +24,6 @@ export type RuntimeProfile = {
   shell: RuntimeShellKind;
   defaultRedirect?: `/${string}`;
   instanceShell?: boolean;
-  publicSitePreview?: RuntimePublicSitePreview;
   publishedSite?: RuntimePublishedSiteRoutes;
 };
 
@@ -68,8 +58,6 @@ export function resolveRuntimeProfile(
       return createInstanceRuntimeProfile();
     case "publishedSite":
       return createPublishedSiteRuntimeProfile();
-    case "dev":
-      return createDevRuntimeProfile();
   }
 }
 
@@ -78,25 +66,6 @@ export function createInstanceRuntimeProfile(): RuntimeProfile {
     kind: "instance",
     shell: "instance",
     instanceShell: true,
-  };
-}
-
-export function createDevRuntimeProfile(): RuntimeProfile {
-  return createDevWorkbenchRuntimeProfile();
-}
-
-export function createDevWorkbenchRuntimeProfile(): RuntimeProfile {
-  return {
-    kind: "dev",
-    shell: "dev",
-    instanceShell: true,
-    publicSitePreview: {
-      rootRoute: runtimeTopologyRoutes.publicSitePreviewRouteBase,
-      routePattern: `${runtimeTopologyRoutes.publicSitePreviewRouteBase}/*`,
-      homeRoute: `${runtimeTopologyRoutes.publicSitePreviewRouteBase}/home`,
-      homeSlug: runtimeTopologyRoutes.publicSiteHomeSlug,
-      linkMode: "preview",
-    },
   };
 }
 
@@ -147,21 +116,6 @@ export function normalizeRuntimeBrowserPath(path: string): string {
   return path.split("?")[0] ?? path;
 }
 
-export function isRuntimePublicSiteRoute(profile: RuntimeProfile, pathname: string): boolean {
-  const preview = profile.publicSitePreview;
-
-  if (!preview) {
-    return false;
-  }
-
-  return Boolean(
-    pathname === preview.rootRoute ||
-    (preview.rootRoute === "/"
-      ? pathname.startsWith("/")
-      : pathname.startsWith(`${preview.rootRoute}/`)),
-  );
-}
-
 function browserRuntimeProfileConfig(): RuntimeProfileResolverInput {
   return {
     profile: selectBrowserRuntimeProfileHint({
@@ -185,9 +139,10 @@ export function readRuntimeProfileDocumentHint(
 export function selectBrowserRuntimeProfileHint(input: {
   documentProfile?: string;
   envProfile?: string;
-}): string | undefined {
+}): RuntimeProfileKind | undefined {
   return (
-    stringRuntimeConfigValue(input.documentProfile) ?? stringRuntimeConfigValue(input.envProfile)
+    parseRuntimeProfileKind(stringRuntimeConfigValue(input.documentProfile)) ??
+    parseRuntimeProfileKind(stringRuntimeConfigValue(input.envProfile))
   );
 }
 

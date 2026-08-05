@@ -15,10 +15,6 @@ import {
 import { WORKSPACE_OPERATION_CAPABILITIES } from "@dpeek/formless-workspace";
 import { describe, expect, it } from "vite-plus/test";
 
-import {
-  runtimeProfileKinds,
-  runtimeRoutePolicyForProfileKind,
-} from "../shared/runtime-topology.ts";
 import { createOwnerSessionCookie } from "../worker/owner-session.ts";
 import {
   createWorkspaceGatewayProxyDependencies,
@@ -85,28 +81,18 @@ describe("workspace gateway proxy composition", () => {
     });
   });
 
-  it("injects route eligibility from runtime profile", () => {
+  it("injects route eligibility from explicit local instance facts", () => {
     const request = statusRequest();
 
-    expect(
-      Object.fromEntries(
-        runtimeProfileKinds.map((profileKind) => [
-          profileKind,
-          workspaceGatewayRouteAvailable(
-            request,
-            gatewayEnv({ FORMLESS_RUNTIME_PROFILE: profileKind }),
-          ),
-        ]),
-      ),
-    ).toEqual(
-      Object.fromEntries(
-        runtimeProfileKinds.map((profileKind) => [
-          profileKind,
-          runtimeRoutePolicyForProfileKind(profileKind).workspaceGatewayApiRoutes,
-        ]),
-      ),
-    );
     expect(workspaceGatewayRouteAvailable(request, gatewayEnv())).toBe(true);
+    for (const overrides of [
+      { FORMLESS_RUNTIME_PROFILE: "publishedSite" },
+      { [WORKSPACE_GATEWAY_ENABLED_ENV]: "0" },
+      { [WORKSPACE_GATEWAY_PROXY_TOKEN_ENV]: "" },
+      { [WORKSPACE_GATEWAY_SIDECAR_URL_ENV]: "" },
+    ]) {
+      expect(workspaceGatewayRouteAvailable(request, gatewayEnv(overrides))).toBe(false);
+    }
   });
 
   it("creates default middleware with focused proxy composition", async () => {

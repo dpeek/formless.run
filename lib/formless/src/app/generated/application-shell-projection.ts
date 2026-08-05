@@ -25,7 +25,6 @@ import { COLLABORATOR_INVITATION_ACCEPT_PATH } from "../../shared/instance-auth.
 import { isRuntimeAuthAccountRoutePath } from "../../shared/runtime-topology.ts";
 import { formatGeneratedWorkspaceCount } from "./workspace-projection.ts";
 import {
-  isRuntimePublicSiteRoute,
   normalizeRuntimeBrowserPath,
   runtimeBrowserRoutePatterns,
   type RuntimeProfile,
@@ -87,21 +86,15 @@ export function shouldRenderGeneratedShell({
     isRuntimeAuthAccountRoutePath(path) ||
     path === COLLABORATOR_INVITATION_ACCEPT_PATH ||
     path === routes.localSessionRoute ||
-    runtimeProfile.shell === "publishedSite" ||
-    isRuntimePublicSiteRoute(runtimeProfile, path)
+    runtimeProfile.shell === "publishedSite"
   ) {
     return false;
   }
 
-  if (runtimeProfile.shell === "dev") {
-    return true;
-  }
-
-  if (runtimeProfile.shell === "instance") {
-    return resolveFormlessProgramScreenRouteTarget(path, programSchema) !== undefined;
-  }
-
-  return false;
+  return (
+    routes.instanceShellRoute !== undefined &&
+    resolveFormlessProgramScreenRouteTarget(path, programSchema) !== undefined
+  );
 }
 
 export function selectGeneratedShellActiveHref(

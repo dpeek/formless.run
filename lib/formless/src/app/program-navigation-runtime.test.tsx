@@ -12,7 +12,7 @@ import type {
   ProgramSessionTargetBinding,
 } from "../shared/instance-auth.ts";
 import { ApplicationNavigationBridge } from "./application-navigation.tsx";
-import { createDevRuntimeProfile, createInstanceRuntimeProfile } from "./runtime-profile.ts";
+import { createInstanceRuntimeProfile } from "./runtime-profile.ts";
 import type { ProgramRuntimeDependencies } from "./program-runtime-boundary.tsx";
 
 vi.mock("./routes/application-system-state-runtime.tsx", () => ({
@@ -106,48 +106,6 @@ describe("Program navigation runtime", () => {
     expect(shellUnmounts).toEqual(["shell"]);
   });
 
-  it("runs authenticated Site preview through the persistent Program sync lifetime", async () => {
-    window.history.replaceState(null, "", "/pages/home");
-    const calls: string[] = [];
-    const routeComponents: AppRouteComponents = {
-      ...programRouteComponents(),
-      SitePageRoute: ({ programSyncManaged }) => (
-        <output data-preview-sync-managed={String(programSyncManaged)} />
-      ),
-    };
-    const renderer = render(
-      <BrowserHarness>
-        <App
-          localWorkspaceGatewayAvailable={false}
-          programRuntimeDependencies={runtimeDependencies(
-            calls,
-            readySession("member", "authenticated"),
-          )}
-          routeComponents={routeComponents}
-          runtimeProfile={createDevRuntimeProfile()}
-        />
-      </BrowserHarness>,
-    );
-
-    await waitFor(() =>
-      expect(startupCalls(calls)).toEqual([
-        "session:/pages/home",
-        "broadcast:start",
-        "hydrate",
-        "bootstrap",
-        "push:start",
-      ]),
-    );
-    expect(
-      renderer.container
-        .querySelector("[data-preview-sync-managed]")
-        ?.getAttribute("data-preview-sync-managed"),
-    ).toBe("true");
-
-    renderer.unmount();
-    expect(calls.slice(-2)).toEqual(["broadcast:stop", "push:stop"]);
-  });
-
   it("fails closed at the workspace outlet for a locally forbidden Program screen", async () => {
     const calls: string[] = [];
     const workspaceMounts: string[] = [];
@@ -204,7 +162,7 @@ describe("Program navigation runtime", () => {
     );
 
     await waitFor(() => expect(selectedWorkspace(renderer)).toBe("access"));
-    expect(workspaceMounts).toEqual(["access"]);
+    await waitFor(() => expect(workspaceMounts).toEqual(["access"]));
     renderer.unmount();
   });
 
