@@ -52,6 +52,7 @@ export type PublicSiteDocumentRenderInput = {
   builtInRenderer: SitePublicRendererComponent;
   builtInSystemStateRenderer: SitePublicSystemStateRendererComponent;
   clientAssets: PublicSiteDocumentClientAssets;
+  documentKind?: "preview" | "published";
   rendererDocumentTheme: SitePublicRendererDocumentTheme;
   requestUrl: URL;
   routeBase?: `/${string}`;
@@ -68,11 +69,13 @@ export async function renderPublishedSiteDocumentResponse(
 ): Promise<PublicSiteDocumentRenderResponse> {
   const slug = input.slug ?? publishedSiteSlugFromUrl(input.requestUrl);
   const requestUrl = input.requestUrl;
+  const documentKind = input.documentKind ?? "published";
 
   try {
     if (input.treeResult.kind === "not-found") {
       return htmlResponse(await renderNotFoundDocument(slug, requestUrl, input), {
         cacheKind: "not-found",
+        documentKind,
         status: 404,
       });
     }
@@ -80,6 +83,7 @@ export async function renderPublishedSiteDocumentResponse(
     if (input.treeResult.kind === "error") {
       return htmlResponse(await renderErrorDocument(slug, requestUrl, input), {
         cacheKind: "error",
+        documentKind,
         status: 500,
       });
     }
@@ -92,7 +96,11 @@ export async function renderPublishedSiteDocumentResponse(
     const appHtml = await renderReactToString(
       <PublishedSiteDocumentShell>
         <PublicSiteThemeProvider site={tree.site}>
-          <Renderer linkMode="published" routeBase={input.routeBase} tree={tree} />
+          <Renderer
+            linkMode={documentKind === "preview" ? "preview" : "published"}
+            routeBase={input.routeBase}
+            tree={tree}
+          />
         </PublicSiteThemeProvider>
       </PublishedSiteDocumentShell>,
     );
@@ -100,6 +108,7 @@ export async function renderPublishedSiteDocumentResponse(
     return htmlResponse(
       renderDocument(appHtml, {
         clientAssets: input.clientAssets,
+        documentKind,
         initialTree: tree,
         metadata: buildPublicDocumentMetadata({
           kind: "success",
@@ -111,10 +120,14 @@ export async function renderPublishedSiteDocumentResponse(
         rendererDocumentTheme: input.rendererDocumentTheme,
         site: tree.site,
       }),
+      {
+        documentKind,
+      },
     );
   } catch {
     return htmlResponse(await renderErrorDocument(slug, requestUrl, input), {
       cacheKind: "error",
+      documentKind,
       status: 500,
     });
   }
@@ -139,6 +152,7 @@ async function renderNotFoundDocument(
     ),
     {
       clientAssets: input.clientAssets,
+      documentKind: input.documentKind ?? "published",
       metadata: buildPublicDocumentMetadata({
         kind: "not-found",
         requestUrl,
@@ -165,6 +179,7 @@ async function renderErrorDocument(
     ),
     {
       clientAssets: input.clientAssets,
+      documentKind: input.documentKind ?? "published",
       metadata: buildPublicDocumentMetadata({
         kind: "error",
         requestUrl,
@@ -192,6 +207,7 @@ function renderDocument(
   appHtml: string,
   options: {
     clientAssets: PublicSiteDocumentClientAssets;
+    documentKind: "preview" | "published";
     initialTree?: SitePageTree;
     metadata: PublicDocumentMetadata;
     rendererDocumentTheme: SitePublicRendererDocumentTheme;
@@ -205,15 +221,16 @@ function renderDocument(
     : "";
   const clientAssetHeadTags = options.clientAssets.head ? `\n    ${options.clientAssets.head}` : "";
   const clientAssetBodyTags = options.clientAssets.body ? `\n    ${options.clientAssets.body}` : "";
-  const metadataTags = renderMetadataTags(options.metadata);
+  const metadataTags = renderMetadataTags(options.metadata, options.documentKind);
+  const iconTags =
+    options.documentKind === "published"
+      ? `\n    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />\n    <link rel="icon" sizes="any" href="/favicon.ico" />\n    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />`
+      : "";
 
   return `<!doctype html>
 <html lang="en" ${options.rendererDocumentTheme.attribute}="${escapeHtmlAttribute(options.rendererDocumentTheme.value)}" ${themeMarker.rendererModeAttribute}="${themeMarker.rendererModeValue}" ${themeMarker.dataAttribute}="${themeMarker.dataValue}" style="${themeMarker.style}">
   <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="icon" sizes="any" href="/favicon.ico" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+	    <meta charset="UTF-8" />${iconTags}
 	    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	    <meta name="color-scheme" content="${themeMarker.colorScheme}" />
 	    ${renderRuntimeHints(options.runtimeHints)}
@@ -239,19 +256,27 @@ function renderRuntimeHints(hints: readonly PublicSiteDocumentRuntimeHint[] | un
     .join("\n    ");
 }
 
-function renderMetadataTags(metadata: PublicDocumentMetadata): string {
+function renderMetadataTags(
+  metadata: PublicDocumentMetadata,
+  documentKind: "preview" | "published",
+): string {
   const title = escapeHtmlText(metadata.title);
   const description = escapeHtmlAttribute(metadata.description);
   const canonicalUrl = escapeHtmlAttribute(metadata.canonicalUrl);
   const siteName = escapeHtmlAttribute(metadata.siteName);
 
+  const canonicalTag =
+    documentKind === "published" ? `\n    <link rel="canonical" href="${canonicalUrl}" />` : "";
+  const openGraphUrlTag =
+    documentKind === "published"
+      ? `\n    <meta property="og:url" content="${canonicalUrl}" />`
+      : "";
+
   return `<title>${title}</title>
-    <meta name="description" content="${description}" />
-    <link rel="canonical" href="${canonicalUrl}" />
+    <meta name="description" content="${description}" />${canonicalTag}
     <meta property="og:title" content="${escapeHtmlAttribute(metadata.title)}" />
     <meta property="og:description" content="${description}" />
-    <meta property="og:type" content="${escapeHtmlAttribute(metadata.ogType)}" />
-    <meta property="og:url" content="${canonicalUrl}" />
+    <meta property="og:type" content="${escapeHtmlAttribute(metadata.ogType)}" />${openGraphUrlTag}
     <meta property="og:site_name" content="${siteName}" />
     <meta name="twitter:card" content="${escapeHtmlAttribute(metadata.twitterCard)}" />`;
 }
@@ -266,13 +291,22 @@ function escapeHtmlAttribute(value: string): string {
 
 function htmlResponse(
   html: string,
-  options: { cacheKind?: PublishedSiteDocumentCacheKind; status?: number } = {},
+  options: {
+    cacheKind?: PublishedSiteDocumentCacheKind;
+    documentKind?: "preview" | "published";
+    status?: number;
+  } = {},
 ): Response {
+  const preview = options.documentKind === "preview";
+
   return new Response(html, {
     headers: {
-      "Cache-Control": publishedSiteDocumentCacheControl(options.cacheKind ?? "success"),
+      "Cache-Control": preview
+        ? "private, no-store"
+        : publishedSiteDocumentCacheControl(options.cacheKind ?? "success"),
       "Content-Type": "text/html; charset=utf-8",
-      Vary: "Accept",
+      Vary: preview ? "Accept, Cookie" : "Accept",
+      ...(preview ? { "X-Robots-Tag": "noindex, nofollow, noarchive" } : {}),
     },
     status: options.status ?? 200,
   });

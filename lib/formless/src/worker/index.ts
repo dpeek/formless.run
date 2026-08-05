@@ -69,9 +69,7 @@ import {
 import {
   mappedAuthOriginRouteDecisionFromFacts,
   mappedRuntimeRoutePolicyFromFacts,
-  mappedSiteHostRedirectForRequest,
   protectedBrowserRouteDecisionFromFacts,
-  publishedSiteRedirectForRequest,
   resolveProtectedBrowserRouteTargetFromFacts,
   resolveWorkerRuntimeRequestTopology,
   shouldDeferToStaticAssets,
@@ -80,6 +78,7 @@ import {
   type WorkerRuntimeRequestTopology,
 } from "./routing.ts";
 import {
+  handleProgramSitePreviewRequest,
   handlePublicSiteDocumentRequest,
   handlePublicSiteIconRequest,
   handlePublicSiteIndexingRequest,
@@ -273,14 +272,6 @@ export default {
 
     if (siteIconResponse) {
       return siteIconResponse;
-    }
-
-    const publishedSiteRedirect = mappedSiteHost
-      ? mappedSiteHostRedirectForRequest(request, requestTopology)
-      : publishedSiteRedirectForRequest(request, requestTopology);
-
-    if (publishedSiteRedirect) {
-      return redirectResponse(publishedSiteRedirect.location, publishedSiteRedirect.status);
     }
 
     const publishedSiteIndexingResponse = await handlePublicSiteIndexingRequest(request, env, {
@@ -518,6 +509,16 @@ export default {
 
     if (ownerBrowserRedirect) {
       return ownerBrowserRedirect;
+    }
+
+    const sitePreviewResponse = await handleProgramSitePreviewRequest(request, env, {
+      runtimeRoute,
+      runtimeTopology: requestTopology,
+      workspaceRenderer: workspaceSitePublicRenderer,
+    });
+
+    if (sitePreviewResponse) {
+      return sitePreviewResponse;
     }
 
     const siteDocumentResponse = await handlePublicSiteDocumentRequest(request, env, {
@@ -779,7 +780,7 @@ async function resolveAuthAccountReturnTargetContinuation(
 
   const accountCompletionTarget = sameOriginAccountCompletionTargetForRuntimeRouteFacts({
     accountOrigin: requestOriginForAuth(request),
-    ...(target.programScreen === undefined ? { minimumAccess: "authenticated" as const } : {}),
+    ...(target.programRoute === undefined ? { minimumAccess: "authenticated" as const } : {}),
     requestOrigin: requestOriginForAuth(targetRequest),
     returnTo,
     runtimeProfile: targetTopology.profileKind,
@@ -790,9 +791,9 @@ async function resolveAuthAccountReturnTargetContinuation(
     return { error: "Account completion target is unavailable.", kind: "invalid" };
   }
   const session = await validateRouteAccessSession(targetRequest, env, {
-    ...(target.programScreen === undefined
+    ...(target.programRoute === undefined
       ? {}
-      : { programScreenAccess: target.programScreen.access }),
+      : { programRouteAccess: target.programRoute.access }),
     requiredAccess,
     ...(runtimeRoute?.kind === "mount" ? { runtimeRoute } : {}),
   });
@@ -927,14 +928,14 @@ async function redirectAnonymousProtectedBrowserRoute(
   }
 
   const session = await validateRouteAccessSession(request, env, {
-    ...(decision.programScreen === undefined
+    ...(decision.programRoute === undefined
       ? {}
-      : { programScreenAccess: decision.programScreen.access }),
+      : { programRouteAccess: decision.programRoute.access }),
     requiredAccess: decision.requiredAccess,
     ...(runtimeRoute?.kind === "mount" ? { runtimeRoute } : {}),
   });
   const requiredAccess = decision.requiredAccess;
-  const programScreen = decision.programScreen;
+  const programRoute = decision.programRoute;
 
   decision = protectedBrowserRouteDecisionFromFacts({
     runtimeRoute,
@@ -953,7 +954,7 @@ async function redirectAnonymousProtectedBrowserRoute(
   if (decision.kind === "account-completion" && !session.ok && session.accountCompletion) {
     return (
       (await startProtectedRouteAuthAccount(request, env, runtimeRoute, requiredAccess, {
-        allowRouteAccessElevation: programScreen !== undefined,
+        allowRouteAccessElevation: programRoute !== undefined,
       })) ?? accountCompletionBlockedResponse(session.accountCompletion)
     );
   }
@@ -970,7 +971,7 @@ async function redirectAnonymousProtectedBrowserRoute(
     runtimeRoute,
     requiredAccess,
     {
-      allowRouteAccessElevation: programScreen !== undefined,
+      allowRouteAccessElevation: programRoute !== undefined,
     },
   );
 

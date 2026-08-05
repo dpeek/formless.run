@@ -64,6 +64,19 @@ describe("client shell asset handling", () => {
     expect(await response?.text()).toContain('<div id="app"></div>');
     expect(assetRequests).toEqual(["/index.html"]);
   });
+
+  it("serves browser surface-mount deep links from the index document", async () => {
+    const assetRequests: string[] = [];
+    const request = new Request("https://example.com/site/preview/blog/shipping", {
+      headers: { Accept: "text/html" },
+    });
+    const response = await handleClientAssetRequest(request, assetEnv(assetRequests), {
+      runtimeTopology: resolveWorkerRuntimeRequestTopology(request),
+    });
+
+    expect(await response?.text()).toContain('<div id="app"></div>');
+    expect(assetRequests).toEqual(["/index.html"]);
+  });
 });
 
 function relocatedAccessScreenSchema(): AppSchema {

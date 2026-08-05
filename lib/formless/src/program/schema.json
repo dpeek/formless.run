@@ -6506,6 +6506,24 @@
       "type": "workspace"
     }
   ],
+  "surfaceMounts": [
+    {
+      "access": {
+        "actor": "authenticated"
+      },
+      "key": "site.preview.browser",
+      "path": "/site/preview",
+      "target": "browser"
+    },
+    {
+      "access": {
+        "actor": "authenticated"
+      },
+      "key": "site.preview.worker",
+      "path": "/site/public",
+      "target": "worker"
+    }
+  ],
   "tableViews": [
     {
       "columns": [

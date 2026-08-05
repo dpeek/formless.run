@@ -14,5 +14,6 @@ export default defineProgramWorkerRuntime({
   target: "worker",
   publicReads: [workspaceWorkerRead],
   surfaces: [],
+  mounts: [],
   afterCommit: [],
 });

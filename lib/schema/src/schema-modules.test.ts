@@ -445,6 +445,10 @@ const declarationCollisionCases: Array<{
   { path: "tableViews.shared", declarations: { tableViews: [{ key: "shared" } as never] } },
   { path: "views.shared", declarations: { views: [{ key: "shared" } as never] } },
   { path: "screens.shared", declarations: { screens: [{ key: "shared" } as never] } },
+  {
+    path: "surfaceMounts.shared",
+    declarations: { surfaceMounts: [{ key: "shared" } as never] },
+  },
 ];
 function taskRecordsModule(operationAccess?: AccessRequirementSource) {
   return defineAppSchemaModule({

@@ -53,8 +53,10 @@ import {
   formlessProgramWorkspaceSnapshotContract,
   parseFormlessProgramSchemaArtifact,
   parseRuntimeFormlessProgramArtifactJson,
+  resolveFormlessProgramBrowserRouteTarget,
   resolveFormlessProgramScreenRouteTarget,
   resolveFormlessProgramScreenRouteTargetByKey,
+  resolveFormlessProgramSurfaceMountRouteTarget,
   validateFormlessProgramRecords,
 } from "./runtime.ts";
 import { formlessProgramTarget } from "./target.ts";
@@ -210,7 +212,6 @@ describe("Formless Program runtime contracts", () => {
     expect(resolveFormlessProgramScreenRouteTarget("/organizations")).toBeUndefined();
     expect(resolveFormlessProgramScreenRouteTarget("/invitations")).toBeUndefined();
     expect(resolveFormlessProgramScreenRouteTarget("/policies")).toBeUndefined();
-    expect(resolveFormlessProgramScreenRouteTarget("/pages")).toBeUndefined();
     expect(resolveFormlessProgramScreenRouteTarget("/unknown")).toBeUndefined();
 
     const runtimeAccessSchema = {
@@ -257,6 +258,56 @@ describe("Formless Program runtime contracts", () => {
     expect(() => parseFormlessProgramSchemaArtifact(missingAccess)).toThrow(
       'Formless Program schema screen "routes" must declare explicit access.',
     );
+  });
+
+  it("resolves browser surface mounts as segment-boundary Program subtrees", () => {
+    expect(resolveFormlessProgramBrowserRouteTarget("/site/preview")).toEqual({
+      access: { actor: "authenticated" },
+      key: "site.preview.browser",
+      path: "/site/preview",
+      pathSuffix: "",
+      target: "browser",
+    });
+    expect(resolveFormlessProgramBrowserRouteTarget("/site/preview/")).toMatchObject({
+      key: "site.preview.browser",
+      pathSuffix: "",
+    });
+    expect(
+      resolveFormlessProgramBrowserRouteTarget("/site/preview/blog/shipping?draft=1"),
+    ).toMatchObject({
+      key: "site.preview.browser",
+      pathSuffix: "/blog/shipping",
+    });
+    expect(resolveFormlessProgramBrowserRouteTarget("/site/previewed")).toBeUndefined();
+    expect(resolveFormlessProgramBrowserRouteTarget("/site/public")).toBeUndefined();
+    expect(
+      resolveFormlessProgramSurfaceMountRouteTarget("/site/public/blog", "worker"),
+    ).toMatchObject({
+      key: "site.preview.worker",
+      path: "/site/public",
+      pathSuffix: "/blog",
+      target: "worker",
+    });
+
+    const downstream = structuredClone(formlessProgramSchema);
+    const browserMount = downstream.surfaceMounts?.find(
+      (mount) => mount.key === "site.preview.browser",
+    );
+
+    if (!browserMount) {
+      throw new Error("Expected the Program schema to include the Site browser preview mount.");
+    }
+
+    browserMount.path = "/review/site";
+
+    expect(
+      resolveFormlessProgramBrowserRouteTarget("/review/site/projects", downstream),
+    ).toMatchObject({
+      key: "site.preview.browser",
+      path: "/review/site",
+      pathSuffix: "/projects",
+    });
+    expect(resolveFormlessProgramBrowserRouteTarget("/site/preview", downstream)).toBeUndefined();
   });
 
   it("validates mixed records through stable-id-owned package constraints", () => {

@@ -925,7 +925,7 @@ describe("Authority record validation readers", () => {
           kind: "create",
           values: {
             enabled: true,
-            matchPath: "/pages",
+            matchPath: "/campaign",
             kind: "mount",
             targetProfile: "public-site",
             surface: "public-site",

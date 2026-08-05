@@ -9,7 +9,7 @@ export {
   SitePageRouteView,
   startSitePageRouteSession,
 } from "./react/route.tsx";
-export type { SitePageRouteState } from "./react/route.tsx";
+export type { SitePageRouteProps, SitePageRouteState } from "./react/route.tsx";
 export { PublicSiteThemeProvider, usePublicSiteTheme } from "./react/theme.ts";
 export type { PublicSiteThemeController } from "./react/theme.ts";
 export { TurnstileChallenge as SitePublicTurnstileChallenge } from "./react/turnstile.tsx";

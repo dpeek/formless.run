@@ -15,6 +15,7 @@ export {
   formlessProgramDefaultRuntime,
   formlessProgramSchemaModules,
   formlessProgramSourceSchema,
+  formlessSitePreviewSurfaceMountSchemaModule,
 } from "./schema.ts";
 
 export const formlessProgramDefaultRuntimeComposition = defineProgramRuntimeComposition({

@@ -83,4 +83,31 @@ describe("source schema hash", () => {
       }),
     ).resolves.not.toBe(baseHash);
   });
+
+  it("includes ordered portable surface-mount facts in the source schema hash", async () => {
+    const mounts = [
+      {
+        key: "site.preview.browser",
+        target: "browser",
+        path: "/site/preview",
+        access: { actor: "authenticated" },
+      },
+      {
+        key: "site.preview.worker",
+        target: "worker",
+        path: "/site/public",
+        access: { actor: "authenticated" },
+      },
+    ];
+    const baseHash = await computeSourceSchemaHash({ surfaceMounts: mounts });
+
+    await expect(
+      computeSourceSchemaHash({
+        surfaceMounts: [{ ...mounts[0], path: "/preview" }, mounts[1]],
+      }),
+    ).resolves.not.toBe(baseHash);
+    await expect(
+      computeSourceSchemaHash({ surfaceMounts: [...mounts].reverse() }),
+    ).resolves.not.toBe(baseHash);
+  });
 });

@@ -106,7 +106,6 @@ Sitemap: http://example.com/sitemap.xml
     expect(body).toContain("<loc>http://example.com/launch-check</loc>");
     expect(body).toContain("<loc>http://example.com/blog/sitemap-post</loc>");
     expect(body).not.toContain("<html");
-    expect(body).not.toContain("/pages/");
     expect(body).not.toContain("undated-draft");
   });
 

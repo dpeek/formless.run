@@ -66,4 +66,4 @@ export {
   SitePageRouteView,
   startSitePageRouteSession,
 } from "./react/route.tsx";
-export type { SitePageRouteState } from "./react/route.tsx";
+export type { SitePageRouteProps, SitePageRouteState } from "./react/route.tsx";

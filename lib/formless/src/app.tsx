@@ -42,6 +42,7 @@ import { initialInstanceAccessRuntimeContribution } from "./app/routes/access-co
 import {
   formlessProgramSchema,
   formlessProgramScreenRouteTargets,
+  resolveFormlessProgramBrowserRouteTarget,
   resolveFormlessProgramScreenRouteTarget,
   resolveFormlessProgramScreenRouteTargetByKey,
 } from "./program/runtime.ts";
@@ -57,7 +58,7 @@ import {
   type ProgramRuntimeDependencies,
   type ProgramRuntimeSnapshot,
 } from "./app/program-runtime-boundary.tsx";
-import { programScreenIsLocallyAuthorized } from "./app/program-screen-access.ts";
+import { programRouteIsLocallyAuthorized } from "./app/program-screen-access.ts";
 
 type InstanceShellRouteProps = {
   localWorkspaceGatewayAvailable?: boolean | undefined;
@@ -155,10 +156,10 @@ export function App({
     [runtimeProfileProp],
   );
   const normalizedLocation = normalizeRuntimeBrowserPath(location);
-  const programScreen = resolveFormlessProgramScreenRouteTarget(normalizedLocation, programSchema);
+  const programRoute = resolveFormlessProgramBrowserRouteTarget(normalizedLocation, programSchema);
   const browserRoutes = runtimeBrowserRoutePatterns(runtimeProfile);
   const programRuntimeSelected =
-    browserRoutes.instanceShellRoute !== undefined && programScreen !== undefined;
+    browserRoutes.instanceShellRoute !== undefined && programRoute !== undefined;
   const runtime = (programRuntime?: ProgramRuntimeSnapshot) => (
     <AppRuntime
       browserRuntime={browserRuntime}
@@ -225,7 +226,7 @@ function AppRuntime({
   });
 
   if (!renderShell) {
-    return (
+    const routeOutlet = (
       <AppRoutes
         browserRuntime={browserRuntime}
         localWorkspaceGatewayAvailable={localWorkspaceGatewayAvailable}
@@ -233,6 +234,18 @@ function AppRuntime({
         routeComponents={routeComponents}
         runtimeProfile={runtimeProfile}
       />
+    );
+
+    return programRuntime ? (
+      <ProgramRuntimeOutlet
+        currentPath={protectedRouteTarget(location)}
+        programSchema={programSchema}
+        runtime={programRuntime}
+      >
+        {routeOutlet}
+      </ProgramRuntimeOutlet>
+    ) : (
+      routeOutlet
     );
   }
 
@@ -291,7 +304,7 @@ function ProgramRuntimeOutlet({
     case "server":
       return <>{children}</>;
     case "ready":
-      return programScreenIsLocallyAuthorized({
+      return programRouteIsLocallyAuthorized({
         path: normalizeRuntimeBrowserPath(currentPath),
         programSchema,
         session: runtime.session,
@@ -430,6 +443,11 @@ function AppRoutes({
   const browserRoutes = runtimeBrowserRoutePatterns(runtimeProfile);
   const siteSurfaceSelected = resolveSitePublicBrowserRuntimeSurface(browserRuntime) !== undefined;
   const publishedSite = siteSurfaceSelected ? runtimeProfile.publishedSite : undefined;
+  const sitePreviewMounts = (programSchema.surfaceMounts ?? []).filter(
+    (mount) =>
+      mount.target === "browser" &&
+      resolveSitePublicBrowserRuntimeSurface(browserRuntime, mount.key) !== undefined,
+  );
   const programScreens = formlessProgramScreenRouteTargets(programSchema);
   const routesScreenPath = resolveFormlessProgramScreenRouteTargetByKey(
     "routes",
@@ -466,6 +484,51 @@ function AppRoutes({
           <LocalSessionRoute />
         </Route>
       ) : null}
+      {browserRoutes.instanceShellRoute
+        ? sitePreviewMounts.flatMap((mount) => [
+            <Route key={`${mount.key}:root`} path={mount.path}>
+              <PublicSiteRoute
+                RouteComponent={SitePageRoute}
+                routeProps={{
+                  browserRuntime,
+                  linkMode: "preview",
+                  programReplica: true,
+                  routeBase: mount.path as `/${string}`,
+                  slug: "home",
+                  surfaceMountKey: mount.key,
+                }}
+              />
+            </Route>,
+            <Route key={`${mount.key}:trailing-root`} path={`${mount.path}/`}>
+              <PublicSiteRoute
+                RouteComponent={SitePageRoute}
+                routeProps={{
+                  browserRuntime,
+                  linkMode: "preview",
+                  programReplica: true,
+                  routeBase: mount.path as `/${string}`,
+                  slug: "home",
+                  surfaceMountKey: mount.key,
+                }}
+              />
+            </Route>,
+            <Route key={`${mount.key}:nested`} path={`${mount.path}/*`}>
+              {(params) => (
+                <PublicSiteRoute
+                  RouteComponent={SitePageRoute}
+                  routeProps={{
+                    browserRuntime,
+                    linkMode: "preview",
+                    programReplica: true,
+                    routeBase: mount.path as `/${string}`,
+                    slug: runtimeWildcardSiteSlug(params),
+                    surfaceMountKey: mount.key,
+                  }}
+                />
+              )}
+            </Route>,
+          ])
+        : null}
       {browserRoutes.instanceShellRoute
         ? programScreens.map((screen) => {
             const childKind = selectProgramScreenRouteChildKind({

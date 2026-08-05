@@ -3,8 +3,8 @@
 ## Purpose
 
 Site runtime turns flat Site records into authorable Program surfaces, nested
-public trees, and public documents for mapped and published Program Site
-targets.
+public trees, authenticated Program previews, and public documents for mapped
+and published Program Site targets.
 
 ## Requirements
 
@@ -212,6 +212,87 @@ browser and Worker runtime composition and the one Program storage target.
   public Site build inputs
 - AND Worker request handling does not evaluate workspace TypeScript or discover
   a Site adapter dynamically
+
+### Requirement: Program-Owned Site Preview Mounts
+
+The Site package SHALL expose stable browser and Worker preview mount identities
+whose final paths and access requirements are owned by the complete Program
+schema.
+
+#### Scenario: Compose the default preview mounts
+
+- GIVEN the default Program composes the Site schema and its trusted browser and
+  Worker runtime surfaces
+- WHEN the Program schema is materialized
+- THEN stable mount key `site.preview.browser` selects browser delivery at
+  `/site/preview` with `authenticated` access
+- AND stable mount key `site.preview.worker` selects Worker delivery at
+  `/site/public` with `authenticated` access
+- AND `public` names the public Site renderer rather than anonymous access
+- AND a downstream Program may replace the mount module by its module key while
+  preserving each stable mount key and target and selecting another valid path
+  or access requirement
+- AND browser and Worker runtime composition bind the existing Site public
+  surface by stable mount identity rather than by either default path
+
+#### Scenario: Render browser preview from the Program replica
+
+- GIVEN the instance profile admits an authenticated request for the materialized
+  `site.preview.browser` mount
+- WHEN the browser opens the mount root or a nested path
+- THEN the Site public renderer reads the live Program replica and uses the same
+  Program records, media references, storage identity, cursor, and invalidation
+  connection as ordinary Program screens
+- AND a local Vite runtime may update the preview through its normal hot-module
+  replacement behavior without a separate runtime profile or preview data copy
+- AND a deployed instance may serve the same browser preview without implying
+  local hot-module replacement availability
+
+#### Scenario: Render Worker preview from Program storage
+
+- GIVEN the instance profile admits an authenticated `GET` or `HEAD` request for
+  the materialized `site.preview.worker` mount
+- WHEN the Worker renders the preview document
+- THEN it resolves the same Site page tree and core media from current Program
+  Authority storage through the explicitly composed Site Worker surface
+- AND it uses the public Site renderer without selecting anonymous published
+  Site route policy, public indexing resources, or a second Site target
+- AND public client hydration receives the resolved mount base and page slug so
+  browser and Worker route interpretation agree
+
+#### Scenario: Resolve preview roots and nested slugs
+
+- GIVEN either Site preview mount has materialized path `base`
+- WHEN a request targets exact `base`, `base/`, or a nested segment-boundary path
+- THEN exact `base` and `base/` resolve the Site home page directly
+- AND the suffix below `base` resolves the normal Site page slug
+- AND no synthetic home redirect or literal default path participates in
+  resolution
+
+#### Scenario: Generate links relative to the selected Site route base
+
+- GIVEN the Site public renderer is selected for browser preview, Worker
+  preview, mapped public Site, or published Site delivery
+- WHEN it resolves a canonical Site href for navigation or active-route state
+- THEN stored Site hrefs remain root-relative Site paths
+- AND preview links prepend the matched materialized mount path
+- AND mapped and published Site links use their top-level public route base
+- AND link generation, route matching, SSR, and hydration consume the same
+  explicit route base rather than infer one from runtime profile or a literal
+  prefix
+
+#### Scenario: Keep Worker preview private and unindexed
+
+- GIVEN Worker Site preview returns a document, not-found result, or rendering
+  failure
+- WHEN response policy is applied
+- THEN the response uses `Cache-Control: private, no-store`
+- AND it supplies `Vary: Accept, Cookie`
+- AND it supplies `X-Robots-Tag: noindex, nofollow, noarchive`
+- AND preview delivery does not expose sitemap, robots, or root-icon subroutes
+  below the mount
+- AND preview metadata does not derive canonical or OpenGraph URLs from the
+  preview origin unless an independent published canonical target is known
 
 ### Requirement: Workspace Site Renderer Extension
 

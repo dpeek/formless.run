@@ -6,6 +6,7 @@ import { parseReadModels } from "./schema-read-models.ts";
 import { parseRelationships } from "./schema-relationships.ts";
 import { parseRuntimeMetadata } from "./schema-runtime.ts";
 import { parseAppNavigation, parseScreens } from "./schema-screens.ts";
+import { parseSurfaceMounts } from "./schema-surface-mounts.ts";
 import { parseTableViews } from "./schema-table-views.ts";
 import { parseUnions } from "./schema-unions.ts";
 import { parseCollectionQueries, parseItemViews, parseViews } from "./schema-views.ts";
@@ -26,7 +27,16 @@ export function parseAppSchema(value: unknown): AppSchema {
     "Schema",
     value,
     ["version", "entities", "queries", "itemViews", "tableViews", "views"],
-    ["authorization", "navigation", "relationships", "readModels", "runtime", "screens", "unions"],
+    [
+      "authorization",
+      "navigation",
+      "relationships",
+      "readModels",
+      "runtime",
+      "screens",
+      "surfaceMounts",
+      "unions",
+    ],
   );
   const version = value.version;
   if (version !== 1) {
@@ -74,6 +84,7 @@ export function parseAppSchema(value: unknown): AppSchema {
   );
   const screens = parseScreens(value.screens, definitionsToRecord(views), authorization);
   const navigation = parseAppNavigation(value.navigation, screens);
+  const surfaceMounts = parseSurfaceMounts(value.surfaceMounts, screens, authorization);
   const runtime = parseRuntimeMetadata(value.runtime, entitiesWithOperationsByKey);
   const schema: AppSchema = {
     version,
@@ -87,6 +98,7 @@ export function parseAppSchema(value: unknown): AppSchema {
     tableViews,
     views,
     screens,
+    surfaceMounts,
     ...(navigation === undefined ? {} : { navigation }),
     ...(runtime === undefined ? {} : { runtime }),
   };

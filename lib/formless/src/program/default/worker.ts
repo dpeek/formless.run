@@ -3,6 +3,7 @@ import {
   sitePublicWorkerReadDefinition,
   sitePublicWorkerSurfaceDefinition,
 } from "@dpeek/formless-site-app/runtime/worker";
+import { SITE_PREVIEW_WORKER_MOUNT_KEY } from "@dpeek/formless-site-app/schema";
 import type { OperationInvocationResponse } from "../../shared/operation-invocation.ts";
 import {
   createSiteContactNotificationAdapters,
@@ -56,6 +57,13 @@ export const formlessProgramDefaultWorkerRuntime = defineProgramWorkerRuntime({
   target: "worker",
   publicReads: [sitePublicWorkerReadDefinition],
   surfaces: [sitePublicWorkerSurfaceDefinition],
+  mounts: [
+    {
+      target: "worker",
+      mountKey: SITE_PREVIEW_WORKER_MOUNT_KEY,
+      surfaceKey: sitePublicWorkerSurfaceDefinition.key,
+    },
+  ],
   afterCommit: [
     siteContactNotificationAfterCommitAdapter,
     siteOperationInputNotificationAfterCommitAdapter,

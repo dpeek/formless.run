@@ -32,17 +32,17 @@ import {
   type InstanceRuntimeRouteResolution,
 } from "./instance-runtime-routes.ts";
 import {
-  resolveProgramScreenRouteTargetFromFacts,
+  resolveProgramRouteTargetFromFacts,
   resolveWorkerRuntimeRequestTopology,
   workerRuntimeProfileInput,
-  type ProgramScreenRouteTarget,
+  type ProgramRouteTarget,
 } from "./routing.ts";
 import type { InstanceAuthSessionTargetBinding } from "./instance-auth-state.ts";
 
 export { PROGRAM_SESSION_API_PATH };
 
 type ProgramSessionRouteResolution = {
-  programScreen: ProgramScreenRouteTarget;
+  programRoute: ProgramRouteTarget;
   requiredAccess: ProtectedRouteAccess;
   sessionTarget: InstanceAuthSessionTargetBinding;
   target: ProgramSessionTargetBinding;
@@ -102,7 +102,7 @@ export async function handleProgramSessionRequest(
         returnTo: input.returnTo,
       },
       programSchema,
-      programScreenAccess: route.programScreen.access,
+      programRouteAccess: route.programRoute.access,
       readers: {
         readActivePrincipal: async (session) => {
           current.principal = await readInternalActiveIdentityPrincipal(env, session.principalId);
@@ -182,12 +182,12 @@ export function resolveProgramSessionRouteFromFacts(input: {
     ...workerRuntimeProfileInput(input.runtimeProfile),
     programSchema: input.programSchema,
   });
-  const programScreen = resolveProgramScreenRouteTargetFromFacts({
+  const programRoute = resolveProgramRouteTargetFromFacts({
     runtimeRoute: input.runtimeRoute,
     topology,
   });
 
-  if (!programScreen || programScreen.requiredAccess === "anonymous") {
+  if (!programRoute || programRoute.requiredAccess === "anonymous") {
     return undefined;
   }
 
@@ -205,21 +205,21 @@ export function resolveProgramSessionRouteFromFacts(input: {
   }
 
   const sessionTarget = routeAccessTargetForRuntimeRoute(input.request, input.runtimeRoute, {
-    effectiveAccess: programScreen.requiredAccess,
-    minimumAccess: programScreen.requiredAccess,
+    effectiveAccess: programRoute.requiredAccess,
+    minimumAccess: programRoute.requiredAccess,
   }) ?? {
-    access: programScreen.requiredAccess,
+    access: programRoute.requiredAccess,
     routeId: accountTarget.routeId,
     targetOrigin: accountTarget.targetOrigin,
     targetProfile: accountTarget.targetProfile,
   };
 
   return {
-    programScreen,
-    requiredAccess: programScreen.requiredAccess,
+    programRoute,
+    requiredAccess: programRoute.requiredAccess,
     sessionTarget,
     target: {
-      routeAccess: programScreen.routeAccess,
+      routeAccess: programRoute.routeAccess,
       routeId: accountTarget.routeId,
       storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
       targetOrigin: accountTarget.targetOrigin,

@@ -251,7 +251,7 @@ describe("public Site page route rendering", () => {
         builtInRenderer={PageRendererProbe}
         builtInSystemStateRenderer={SystemStateRendererProbe}
         linkMode="preview"
-        routeBase="/pages"
+        routeBase="/preview"
         state={{ status: "ready", tree: sitePageTree("home") }}
         workspaceRenderer={CustomRenderer}
       />,
@@ -259,7 +259,7 @@ describe("public Site page route rendering", () => {
 
     expect(html).toContain('data-custom-public-site-renderer="home"');
     expect(html).toContain('data-link-mode="preview"');
-    expect(html).toContain('data-route-base="/pages"');
+    expect(html).toContain('data-route-base="/preview"');
     expect(html).toContain("Custom page home");
     expect(html).not.toContain("data-built-in-public-site-renderer");
   });

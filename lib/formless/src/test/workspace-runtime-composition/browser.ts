@@ -14,4 +14,5 @@ export default defineProgramBrowserRuntime({
   target: "browser",
   projections: [workspaceBrowserProjection],
   surfaces: [],
+  mounts: [],
 });

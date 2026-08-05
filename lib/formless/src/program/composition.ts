@@ -71,6 +71,12 @@ export type ProgramBrowserSurfaceDefinition = {
   target: "browser";
 };
 
+export type ProgramBrowserSurfaceMountBinding = {
+  mountKey: string;
+  surfaceKey: string;
+  target: "browser";
+};
+
 export type ProgramWorkerPublicReadDefinition = {
   entityIds: readonly string[];
   key: string;
@@ -84,6 +90,12 @@ export type ProgramWorkerSurfaceDefinition = {
   key: string;
   kind: "surface";
   surface: object;
+  target: "worker";
+};
+
+export type ProgramWorkerSurfaceMountBinding = {
+  mountKey: string;
+  surfaceKey: string;
   target: "worker";
 };
 
@@ -107,12 +119,14 @@ export type ProgramBrowserRuntimeDefinition = {
   target: "browser";
   projections: readonly ProgramBrowserProjectionDefinition[];
   surfaces: readonly ProgramBrowserSurfaceDefinition[];
+  mounts: readonly ProgramBrowserSurfaceMountBinding[];
 };
 
 export type ProgramWorkerRuntimeDefinition = {
   target: "worker";
   publicReads: readonly ProgramWorkerPublicReadDefinition[];
   surfaces: readonly ProgramWorkerSurfaceDefinition[];
+  mounts: readonly ProgramWorkerSurfaceMountBinding[];
   afterCommit: readonly ProgramWorkerAfterCommitDefinition[];
 };
 
@@ -180,6 +194,7 @@ export function validateProgramRuntimeComposition(input: {
     "after-commit",
     entityIds,
   );
+  validateSurfaceMountBindings(input.sourceSchema, runtime);
 
   validateSharedRequirements(input.composition, runtime.shared);
   validateTargetRequirements(input.composition, runtime, "browser");
@@ -242,8 +257,8 @@ const emptyProgramRuntimeComposition: ProgramRuntimeComposition = {
     bootstrapContributions: [],
     createIdContributions: [],
   },
-  browser: { target: "browser", projections: [], surfaces: [] },
-  worker: { target: "worker", publicReads: [], surfaces: [], afterCommit: [] },
+  browser: { target: "browser", projections: [], surfaces: [], mounts: [] },
+  worker: { target: "worker", publicReads: [], surfaces: [], mounts: [], afterCommit: [] },
 };
 
 type RuntimeSelection = {
@@ -325,6 +340,77 @@ function validateSelections(
         }
         entityOwners.set(entityId, selection.key);
       }
+    }
+  }
+}
+
+type ProgramSurfaceMountBinding =
+  | ProgramBrowserSurfaceMountBinding
+  | ProgramWorkerSurfaceMountBinding;
+
+function validateSurfaceMountBindings(
+  schema: AppSchemaSource,
+  runtime: ProgramRuntimeComposition,
+): void {
+  validateSurfaceMountBindingTargets("browser.mounts", runtime.browser.mounts, "browser");
+  validateSurfaceMountBindingTargets("worker.mounts", runtime.worker.mounts, "worker");
+  const declarations = new Map((schema.surfaceMounts ?? []).map((mount) => [mount.key, mount]));
+  const bindings: readonly ProgramSurfaceMountBinding[] = [
+    ...runtime.browser.mounts,
+    ...runtime.worker.mounts,
+  ];
+  const boundMountKeys = new Set<string>();
+  const surfacesByTarget = {
+    browser: new Set(runtime.browser.surfaces.map(({ key }) => key)),
+    worker: new Set(runtime.worker.surfaces.map(({ key }) => key)),
+  };
+
+  for (const binding of bindings) {
+    if (binding.mountKey.trim() === "" || binding.surfaceKey.trim() === "") {
+      throw new Error("Program runtime surface mount bindings must use non-empty keys.");
+    }
+    if (boundMountKeys.has(binding.mountKey)) {
+      throw new Error(`Program surface mount "${binding.mountKey}" is bound more than once.`);
+    }
+    boundMountKeys.add(binding.mountKey);
+
+    const declaration = declarations.get(binding.mountKey);
+    if (declaration === undefined) {
+      throw new Error(
+        `Program runtime surface mount binding "${binding.mountKey}" does not match a declared surface mount.`,
+      );
+    }
+    if (binding.target !== declaration.target) {
+      throw new Error(
+        `Program runtime surface mount binding "${binding.mountKey}" targets "${binding.target}" instead of declared target "${declaration.target}".`,
+      );
+    }
+    if (!surfacesByTarget[binding.target].has(binding.surfaceKey)) {
+      throw new Error(
+        `Program runtime surface mount binding "${binding.mountKey}" references missing surface "${binding.surfaceKey}" in ${binding.target}.surfaces.`,
+      );
+    }
+  }
+
+  for (const declaration of declarations.values()) {
+    if (!boundMountKeys.has(declaration.key)) {
+      throw new Error(
+        `Program surface mount "${declaration.key}" has no ${declaration.target} runtime binding.`,
+      );
+    }
+  }
+}
+
+function validateSurfaceMountBindingTargets(
+  path: string,
+  bindings: readonly ProgramSurfaceMountBinding[],
+  target: "browser" | "worker",
+): void {
+  for (const binding of bindings) {
+    if (binding.target !== target) {
+      throw new Error(
+        `Program runtime surface mount binding "${binding.mountKey}" in ${path} targets "${binding.target}" instead of "${target}".`,
+      );
     }
   }
 }

@@ -20,6 +20,8 @@ import {
   siteContactIntakePresentationSchemaModule,
   sitePresentationSchemaModule,
   siteRecordSchemaModule,
+  SITE_PREVIEW_BROWSER_MOUNT_KEY,
+  SITE_PREVIEW_WORKER_MOUNT_KEY,
 } from "@dpeek/formless-site-app/schema";
 import { parseAppSchema, type AppSchemaSource } from "@dpeek/formless-schema";
 import { describe, expect, it } from "vite-plus/test";
@@ -31,6 +33,7 @@ import {
   formlessProgramSourceSchema,
   formlessSiteContactIntakePresentationSchemaModule,
   formlessSitePresentationSchemaModule,
+  formlessSitePreviewSurfaceMountSchemaModule,
   formlessSiteRecordSchemaModule,
   formlessStandardContactSubscriptionRecordSchemaModule,
   formlessStandardInquiryRecordSchemaModule,
@@ -78,13 +81,14 @@ describe("Formless Program schema", () => {
   });
 
   it("uses whole package declaration replacements for Program access and paths", () => {
-    expect(formlessProgramSchemaModules.slice(0, 6)).toEqual([
+    expect(formlessProgramSchemaModules.slice(0, 7)).toEqual([
       instanceControlPlaneRecordSchemaModule,
       identityControlPlaneRecordSchemaModule,
       formlessStandardInquiryRecordSchemaModule,
       formlessStandardContactSubscriptionRecordSchemaModule,
       formlessTasksRecordSchemaModule,
       formlessSiteRecordSchemaModule,
+      formlessSitePreviewSurfaceMountSchemaModule,
     ]);
     expect(formlessStandardInquiryRecordSchemaModule).toBe(standardInquiryRecordSchemaModule);
     expect(formlessStandardContactSubscriptionRecordSchemaModule.key).toBe(
@@ -100,6 +104,24 @@ describe("Formless Program schema", () => {
     );
     expect(formlessSiteRecordSchemaModule.key).toBe(siteRecordSchemaModule.key);
     expect(formlessTasksRecordSchemaModule.key).toBe(tasksRecordSchemaModule.key);
+    expect(formlessSitePreviewSurfaceMountSchemaModule).toEqual({
+      key: "site-preview-surface-mounts",
+      requires: [siteRecordSchemaModule.key],
+      surfaceMounts: [
+        {
+          key: SITE_PREVIEW_BROWSER_MOUNT_KEY,
+          target: "browser",
+          path: "/site/preview",
+          access: { actor: "authenticated" },
+        },
+        {
+          key: SITE_PREVIEW_WORKER_MOUNT_KEY,
+          target: "worker",
+          path: "/site/public",
+          access: { actor: "authenticated" },
+        },
+      ],
+    });
 
     const recordModules = [
       formlessStandardInquiryRecordSchemaModule,
@@ -180,6 +202,7 @@ describe("Formless Program schema", () => {
       { access: { role: "member" }, key: "siteSubscribers" },
       { access: { role: "member" }, key: "siteContacts" },
     ]);
+    expect(parsed.surfaceMounts).toEqual(formlessSitePreviewSurfaceMountSchemaModule.surfaceMounts);
     expect(screens.routes?.path).toBe("/settings/routes");
     expect(screens.access).toMatchObject({ type: "runtime", path: "/settings/access" });
     expect(screens.taskHome?.path).toBe("/tasks");
@@ -229,6 +252,7 @@ describe("Formless Program schema", () => {
     expect(artifactText).not.toContain("site-records");
     expect(artifactText).not.toContain("site-presentation");
     expect(artifactText).not.toContain("site-contact-intake-presentation");
+    expect(artifactText).not.toContain("site-preview-surface-mounts");
     expect(artifactText).not.toContain("@dpeek/");
   });
 });

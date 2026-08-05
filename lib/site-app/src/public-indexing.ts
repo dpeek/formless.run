@@ -11,7 +11,7 @@ export type BuildPublicSiteRouteEntriesOptions = {
   clientRoutePrefixes?: readonly `/${string}`[];
 };
 
-const defaultClientRoutePrefixes = ["/pages", "/schema"] as const;
+const defaultClientRoutePrefixes = ["/schema"] as const;
 const staticAssetPathPrefixes = ["/@fs/", "/@id/", "/@vite/", "/@react-refresh"] as const;
 
 export function buildPublicSiteRouteEntries(
@@ -100,16 +100,6 @@ function canonicalPublicPathFromHref(href: string | undefined): string | undefin
 
   if (path === "/") {
     return "/";
-  }
-
-  if (path === "/pages" || path === "/pages/home") {
-    return "/";
-  }
-
-  if (path.startsWith("/pages/")) {
-    const cleanPath = trimTrailingSlash(path.slice("/pages/".length).replace(/^\/+/, ""));
-
-    return cleanPath === "home" ? "/" : `/${cleanPath}`;
   }
 
   return path;

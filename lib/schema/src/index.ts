@@ -31,6 +31,7 @@ export * from "./schema-relationships.ts";
 export * from "./schema-runtime.ts";
 export * from "./schema-screens.ts";
 export * from "./schema-state-machines.ts";
+export * from "./schema-surface-mounts.ts";
 export * from "./source-schema-hash.ts";
 export * from "./schema-table-views.ts";
 export * from "./schema-union-presentations.ts";

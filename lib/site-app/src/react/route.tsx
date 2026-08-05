@@ -41,7 +41,35 @@ type SitePageRouteSessionOptions = {
   startPreviewSync?: (onSynced: () => void) => () => void;
 };
 
-export function SitePageRoute({
+export type SitePageRouteProps = {
+  apiRoutePrefix?: `/${string}`;
+  builtInRenderer: SitePublicRendererComponent;
+  builtInSystemStateRenderer: SitePublicSystemStateRendererComponent;
+  linkMode?: SitePageLinkMode;
+  listenForPreviewChanges?: (onChanged: () => void) => () => void;
+  routeBase?: `/${string}`;
+  slug: string;
+  startPreviewSync?: (onSynced: () => void) => () => void;
+  state?: SitePageRouteState;
+  workspaceRenderer?: SitePublicRendererComponent;
+};
+
+export function SitePageRoute({ state, ...props }: SitePageRouteProps) {
+  return state === undefined ? (
+    <SitePageFetchedRoute {...props} />
+  ) : (
+    <SitePageRouteView
+      builtInRenderer={props.builtInRenderer}
+      builtInSystemStateRenderer={props.builtInSystemStateRenderer}
+      linkMode={props.linkMode}
+      routeBase={props.routeBase}
+      state={state}
+      workspaceRenderer={props.workspaceRenderer}
+    />
+  );
+}
+
+function SitePageFetchedRoute({
   apiRoutePrefix = DEFAULT_SITE_API_ROUTE_PREFIX,
   builtInRenderer,
   builtInSystemStateRenderer,
@@ -51,17 +79,7 @@ export function SitePageRoute({
   slug,
   startPreviewSync,
   workspaceRenderer,
-}: {
-  apiRoutePrefix?: `/${string}`;
-  builtInRenderer: SitePublicRendererComponent;
-  builtInSystemStateRenderer: SitePublicSystemStateRendererComponent;
-  linkMode?: SitePageLinkMode;
-  listenForPreviewChanges?: (onChanged: () => void) => () => void;
-  routeBase?: `/${string}`;
-  slug: string;
-  startPreviewSync?: (onSynced: () => void) => () => void;
-  workspaceRenderer?: SitePublicRendererComponent;
-}) {
+}: Omit<SitePageRouteProps, "state">) {
   const normalizedSlug = normalizeSitePageSlug(slug);
   const initialTree = useMemo(
     () => (linkMode === "published" ? readInitialSitePageTree(normalizedSlug) : undefined),

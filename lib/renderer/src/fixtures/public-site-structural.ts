@@ -110,7 +110,7 @@ const denseLayout = structuralLayout(
               "feature-left-action",
               2000,
               block("dense", "feature-left-action", "link", "Read the discovery approach", {
-                href: "/pages/discovery",
+                href: "/discovery",
               }),
               { slot: "actions" },
             ),
@@ -130,7 +130,7 @@ const denseLayout = structuralLayout(
               "feature-right-action",
               1000,
               block("dense", "feature-right-action", "link", "See the delivery practice", {
-                href: "/pages/delivery",
+                href: "/delivery",
               }),
               { slot: "actions" },
             ),

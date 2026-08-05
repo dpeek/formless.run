@@ -1,4 +1,4 @@
-import { parseAccessRequirement, trustedAccessActors } from "./schema-authorization.ts";
+import { parseBrowserAccessRequirement } from "./schema-authorization.ts";
 import {
   assertExactKeys,
   definitionsToRecord,
@@ -12,8 +12,8 @@ import type {
   AppNavigationGroupSchema,
   AppNavigationSchema,
   CollectionScreenSectionSchema,
-  ScreenAccessRequirement,
   RuntimeScreenSchema,
+  ScreenAccessRequirement,
   ScreenLayoutSchema,
   ScreenLayoutWidthSchema,
   ScreenSchema,
@@ -199,21 +199,7 @@ function parseScreenAccess(
     return undefined;
   }
 
-  const context = `Screen "${screenName}" access`;
-  const access = parseAccessRequirement(value, { authorization }, context);
-  const alternatives = "anyOf" in access ? access.anyOf : [access];
-  for (const alternative of alternatives) {
-    if (
-      "actor" in alternative &&
-      trustedAccessActors.some((actor) => actor === alternative.actor)
-    ) {
-      throw new Error(
-        `${context} actor "${alternative.actor}" is not available to browser presentation.`,
-      );
-    }
-  }
-
-  return access as ScreenAccessRequirement;
+  return parseBrowserAccessRequirement(value, { authorization }, `Screen "${screenName}" access`);
 }
 
 function parseScreenPath(screenName: string, value: unknown): string | undefined {
@@ -228,7 +214,7 @@ function parseScreenPath(screenName: string, value: unknown): string | undefined
   return value;
 }
 
-function isStaticAppRelativePath(value: string): boolean {
+export function isStaticAppRelativePath(value: string): boolean {
   if (value === "/") {
     return true;
   }

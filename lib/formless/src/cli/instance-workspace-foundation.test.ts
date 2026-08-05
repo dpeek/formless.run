@@ -184,11 +184,11 @@ describe("TypeScript workspace configuration", () => {
       ),
       writeFile(
         path.join(workspaceRoot, "runtime/browser.ts"),
-        'export default { target: "browser", projections: [], surfaces: [] };\n',
+        'export default { target: "browser", projections: [], surfaces: [], mounts: [] };\n',
       ),
       writeFile(
         path.join(workspaceRoot, "runtime/worker.ts"),
-        'export default { target: "worker", publicReads: [], surfaces: [], afterCommit: [] };\n',
+        'export default { target: "worker", publicReads: [], surfaces: [], mounts: [], afterCommit: [] };\n',
       ),
     ]);
 

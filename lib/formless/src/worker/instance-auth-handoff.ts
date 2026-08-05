@@ -76,7 +76,7 @@ import {
   isLocalOwnerSessionRuntime,
   type LocalSessionBootstrapEnv,
 } from "./local-session-bootstrap.ts";
-import { resolveProgramScreenRouteTargetFromFacts } from "./routing.ts";
+import { resolveProgramRouteTargetFromFacts } from "./routing.ts";
 
 export type {
   HostAuthSession,
@@ -454,9 +454,9 @@ export async function resolveAuthAccountHandoffContinuation(
   const accountCompletionTarget = accountCompletionTargetForHandoffTarget(target);
   const session = await validateAuthOriginSession(request, env, target.requiredAccess, {
     accountCompletionTarget,
-    ...(target.programScreenAccess === undefined
+    ...(target.programRouteAccess === undefined
       ? {}
-      : { programScreenAccess: target.programScreenAccess }),
+      : { programRouteAccess: target.programRouteAccess }),
     target,
   });
 
@@ -541,9 +541,9 @@ export async function handleInstanceAuthHandoffDurableObjectRequest(
     const target = await verifiedHandoffStartTargetFromSearch(request, env, url);
     const session = await validateAuthOriginSession(request, env, target.requiredAccess, {
       accountCompletionTarget: accountCompletionTargetForHandoffTarget(target),
-      ...(target.programScreenAccess === undefined
+      ...(target.programRouteAccess === undefined
         ? {}
-        : { programScreenAccess: target.programScreenAccess }),
+        : { programRouteAccess: target.programRouteAccess }),
       target,
     });
 
@@ -930,7 +930,7 @@ async function validateAuthOriginSession(
     accountCompletionTarget?: AccountCompletionGateTarget;
     now?: string;
     programSchema?: AppSchema;
-    programScreenAccess?: ScreenAccessRequirement;
+    programRouteAccess?: ScreenAccessRequirement;
     target?: InstanceAuthSessionTargetBinding;
   } = {},
 ): Promise<
@@ -948,9 +948,9 @@ async function validateAuthOriginSession(
         : { accountCompletionTarget: options.accountCompletionTarget }),
       localOwnerSessionFallbackAllowed: isLocalOwnerSessionRuntime(request, env),
       ...(options.programSchema === undefined ? {} : { programSchema: options.programSchema }),
-      ...(options.programScreenAccess === undefined
+      ...(options.programRouteAccess === undefined
         ? {}
-        : { programScreenAccess: options.programScreenAccess }),
+        : { programRouteAccess: options.programRouteAccess }),
       requiredAuthority: requiredAccess,
       ...(options.target === undefined ? {} : { target: options.target }),
     },
@@ -1021,7 +1021,7 @@ export async function validateInstanceAuthAccessSession(
     accountCompletionTarget?: AccountCompletionGateTarget;
     now?: string;
     programSchema?: AppSchema;
-    programScreenAccess?: ScreenAccessRequirement;
+    programRouteAccess?: ScreenAccessRequirement;
     readers?: InstanceAuthAccessReaderOverrides;
     requiredAuthority: InstanceAuthAuthorityRequirement;
     storage?: DurableObjectStorage;
@@ -1035,9 +1035,9 @@ export async function validateInstanceAuthAccessSession(
         : { accountCompletionTarget: options.accountCompletionTarget }),
       localOwnerSessionFallbackAllowed: isLocalOwnerSessionRuntime(request, env),
       ...(options.programSchema === undefined ? {} : { programSchema: options.programSchema }),
-      ...(options.programScreenAccess === undefined
+      ...(options.programRouteAccess === undefined
         ? {}
-        : { programScreenAccess: options.programScreenAccess }),
+        : { programRouteAccess: options.programRouteAccess }),
       requiredAuthority: options.requiredAuthority,
       ...(options.target === undefined ? {} : { target: options.target }),
     },
@@ -1055,7 +1055,7 @@ export async function validateRouteAccessSession(
   options: {
     now?: string;
     programSchema?: AppSchema;
-    programScreenAccess?: ScreenAccessRequirement;
+    programRouteAccess?: ScreenAccessRequirement;
     requiredAccess: ProtectedRouteAccess;
     runtimeRoute?: InstanceRuntimeRouteResolution | undefined;
     target?: InstanceAuthSessionTargetBinding | undefined;
@@ -1066,7 +1066,7 @@ export async function validateRouteAccessSession(
     (options.runtimeRoute === undefined
       ? undefined
       : routeAccessTargetForRuntimeRoute(request, options.runtimeRoute, {
-          ...(options.programScreenAccess === undefined
+          ...(options.programRouteAccess === undefined
             ? {}
             : { effectiveAccess: options.requiredAccess }),
           minimumAccess: options.requiredAccess,
@@ -1079,9 +1079,9 @@ export async function validateRouteAccessSession(
       : {}),
     now: options.now,
     ...(options.programSchema === undefined ? {} : { programSchema: options.programSchema }),
-    ...(options.programScreenAccess === undefined
+    ...(options.programRouteAccess === undefined
       ? {}
-      : { programScreenAccess: options.programScreenAccess }),
+      : { programRouteAccess: options.programRouteAccess }),
     requiredAuthority,
     target,
   });
@@ -1581,7 +1581,7 @@ async function verifiedHandoffStartTargetFromSearch(
   url: URL,
 ): Promise<
   Omit<CreateHandoffGrantInput, "expiresAt" | "grantSecretHash" | "instanceId" | "principalId"> & {
-    programScreenAccess?: ScreenAccessRequirement;
+    programRouteAccess?: ScreenAccessRequirement;
     requiredAccess: ProtectedRouteAccess;
   }
 > {
@@ -1593,14 +1593,14 @@ async function verifiedHandoffStartTargetFromSearch(
   }
 
   const targetUrl = new URL(target.returnTo, target.targetOrigin);
-  const programScreen = resolveProgramScreenRouteTargetFromFacts({
+  const programRoute = resolveProgramRouteTargetFromFacts({
     runtimeRoute: route,
     topology: {
       pathname: targetUrl.pathname,
       profileKind: route.targetProfile === "instance" ? "instance" : "publishedSite",
     },
   });
-  const requiredAccess = programScreen?.requiredAccess ?? route.access;
+  const requiredAccess = programRoute?.requiredAccess ?? route.access;
 
   if (requiredAccess === "anonymous") {
     throw new Error("Handoff target route is not protected.");
@@ -1610,7 +1610,7 @@ async function verifiedHandoffStartTargetFromSearch(
     new Request(targetUrl.toString()),
     route,
     {
-      ...(programScreen === undefined ? {} : { effectiveAccess: requiredAccess }),
+      ...(programRoute === undefined ? {} : { effectiveAccess: requiredAccess }),
       minimumAccess: "authenticated",
     },
   );
@@ -1621,7 +1621,7 @@ async function verifiedHandoffStartTargetFromSearch(
 
   return {
     ...target,
-    ...(programScreen === undefined ? {} : { programScreenAccess: programScreen.access }),
+    ...(programRoute === undefined ? {} : { programRouteAccess: programRoute.access }),
     requiredAccess,
   };
 }

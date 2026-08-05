@@ -168,6 +168,76 @@ describe("workspace Program artifact", () => {
     await expect(parseFormlessProgramArtifact(artifact)).resolves.toEqual(artifact);
   });
 
+  it("materializes a same-key Site preview mount module replacement", async () => {
+    const replacement = defineAppSchemaModule({
+      ...formlessProgramBuiltInModules.sitePreviewSurfaceMounts,
+      surfaceMounts: formlessProgramBuiltInModules.sitePreviewSurfaceMounts.surfaceMounts.map(
+        (mount) => ({
+          ...mount,
+          path: mount.target === "browser" ? "/preview/live" : "/preview/server-rendered",
+        }),
+      ),
+    });
+    const artifact = await materializeFormlessProgramArtifact(
+      {
+        ...formlessProgramDefaultComposition,
+        modules: formlessProgramSchemaModules.map((module) =>
+          module.key === replacement.key ? replacement : module,
+        ),
+      },
+      { runtime: formlessProgramDefaultRuntimeComposition },
+    );
+
+    expect(artifact.sourceSchema.surfaceMounts).toEqual([
+      {
+        key: "site.preview.browser",
+        target: "browser",
+        path: "/preview/live",
+        access: { actor: "authenticated" },
+      },
+      {
+        key: "site.preview.worker",
+        target: "worker",
+        path: "/preview/server-rendered",
+        access: { actor: "authenticated" },
+      },
+    ]);
+  });
+
+  it.each([
+    ["API", "/api/formless/preview"],
+    ["auth and callback", "/formless/auth/callback"],
+    ["local-session", "/local-session/preview"],
+    ["asset", "/assets/preview"],
+    ["asset", "/index.html/preview"],
+    ["asset", "/preview.js"],
+    ["development-module", "/src/preview"],
+    ["icon", "/favicon.svg/preview"],
+    ["indexing", "/robots.txt/preview"],
+  ])(
+    "rejects reserved %s surface-mount routes during Program materialization",
+    async (family, path) => {
+      const replacement = defineAppSchemaModule({
+        ...formlessProgramBuiltInModules.sitePreviewSurfaceMounts,
+        surfaceMounts: formlessProgramBuiltInModules.sitePreviewSurfaceMounts.surfaceMounts.map(
+          (mount) => (mount.target === "browser" ? { ...mount, path } : mount),
+        ),
+      });
+
+      await expect(
+        materializeFormlessProgramArtifact(
+          {
+            ...formlessProgramDefaultComposition,
+            modules: formlessProgramSchemaModules.map((module) =>
+              module.key === replacement.key ? replacement : module,
+            ),
+          },
+          { runtime: formlessProgramDefaultRuntimeComposition },
+        ),
+      ).rejects.toThrow(`overlaps reserved ${family} route`);
+    },
+  );
+
   it("rejects artifacts whose schema no longer matches provenance", async () => {
     const artifact = await materializeFormlessProgramArtifact(formlessProgramDefaultComposition, {
       runtime: formlessProgramDefaultRuntimeComposition,
@@ -215,5 +285,6 @@ describe("workspace Program artifact", () => {
     expect(alternate).toEqual(baseline);
     expect(alternate.schemaProvenance.sourceSchemaHash).toBe(FORMLESS_PROGRAM_SOURCE_SCHEMA_HASH);
     expect(contents).not.toContain(selected.key);
+    expect(contents).not.toContain('"site.public"');
   });
 });

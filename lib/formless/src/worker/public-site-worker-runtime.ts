@@ -1,5 +1,8 @@
 import {
   FORMLESS_RUNTIME_PROFILE_META_NAME,
+  FORMLESS_SITE_ROUTE_BASE_META_NAME,
+  FORMLESS_SITE_ROUTE_SLUG_META_NAME,
+  FORMLESS_SITE_ROUTE_STATE_META_NAME,
   runtimeTopologyRoutes,
 } from "../shared/runtime-topology.ts";
 import {
@@ -33,7 +36,11 @@ import type {
   ProgramWorkerRuntimeDefinition,
 } from "../program/composition.ts";
 import { programWorkerRuntime } from "../program/compiled/worker.ts";
-import { FORMLESS_PROGRAM_SCREEN_PATHS } from "../program/runtime.ts";
+import {
+  FORMLESS_PROGRAM_SCREEN_PATHS,
+  isFormlessProgramSurfaceMountRouteTarget,
+} from "../program/runtime.ts";
+import { SITE_PREVIEW_WORKER_MOUNT_KEY } from "@dpeek/formless-site-app/schema";
 import {
   FORMLESS_PROGRAM_API_ROUTE_PREFIX,
   FORMLESS_PROGRAM_STORAGE_IDENTITY,
@@ -44,6 +51,8 @@ import {
   shouldHandleMappedSiteHostIndexingResource,
   shouldHandlePublishedSiteDocument,
   shouldHandlePublishedSiteIndexingResource,
+  resolveProgramRouteTargetFromFacts,
+  resolveWorkerRuntimeRequestTopology,
   type WorkerRuntimeProfileInput,
   type WorkerRuntimeRequestTopology,
   workerRuntimeProfileInput,
@@ -54,6 +63,7 @@ export const INTERNAL_PUBLIC_SITE_BOOTSTRAP_PATH = "/_internal/public-site/boots
 export type PublicSiteWorkerRequestOptions = {
   mappedSiteHost?: MappedSiteHost;
   runtimeProfile?: WorkerRuntimeProfileInput;
+  runtimeRoute?: InstanceRuntimeRouteResolution;
   runtimeTopology?: WorkerRuntimeRequestTopology;
   workerRuntime?: ProgramWorkerRuntimeDefinition;
   workspaceRenderer?: SitePublicRendererComponent;
@@ -110,10 +120,84 @@ export function readProgramPublicSiteTree(
 
 export function resolveSitePublicWorkerRuntimeSurface(
   runtime: ProgramWorkerRuntimeDefinition,
+  mountKey?: string,
 ): SitePublicWorkerRuntimeSurface | undefined {
-  return runtime.surfaces.find(({ key }) => key === SITE_PUBLIC_WORKER_SURFACE_KEY)?.surface as
+  const surfaceKey =
+    mountKey === undefined
+      ? SITE_PUBLIC_WORKER_SURFACE_KEY
+      : runtime.mounts.find((binding) => binding.mountKey === mountKey)?.surfaceKey;
+
+  if (surfaceKey !== SITE_PUBLIC_WORKER_SURFACE_KEY) {
+    return undefined;
+  }
+
+  return runtime.surfaces.find(({ key }) => key === surfaceKey)?.surface as
     | SitePublicWorkerRuntimeSurface
     | undefined;
+}
+
+export async function handleProgramSitePreviewRequest(
+  request: Request,
+  env: Env,
+  options: PublicSiteWorkerRequestOptions = {},
+): Promise<Response | undefined> {
+  const topology =
+    options.runtimeTopology ??
+    resolveWorkerRuntimeRequestTopology(
+      request,
+      options.runtimeProfile ?? workerRuntimeProfileInput(env.FORMLESS_RUNTIME_PROFILE),
+    );
+
+  if (
+    !topology.readMethod ||
+    !topology.acceptsHtml ||
+    topology.apiPath ||
+    topology.staticAssetPath
+  ) {
+    return undefined;
+  }
+
+  const route = resolveProgramRouteTargetFromFacts({
+    runtimeRoute: options.runtimeRoute,
+    topology,
+  });
+
+  if (
+    !route ||
+    !isFormlessProgramSurfaceMountRouteTarget(route) ||
+    route.target !== "worker" ||
+    route.key !== SITE_PREVIEW_WORKER_MOUNT_KEY
+  ) {
+    return undefined;
+  }
+
+  const runtime = options.workerRuntime ?? programWorkerRuntime;
+  const surface = resolveSitePublicWorkerRuntimeSurface(runtime, route.key);
+  const adapter = programPublicSiteWorkerAdapter(runtime, options.workspaceRenderer);
+
+  if (!surface || !adapter) {
+    return undefined;
+  }
+
+  const getRequest = getEquivalentRequestForHead(request);
+  const requestUrl = new URL(getRequest.url);
+  const slug = surface.normalizeRoutePath(route.pathSuffix);
+  const treeResult = await fetchSitePageTreeResult(getRequest, env, slug);
+  const response = await adapter.renderDocument({
+    clientAssets: await loadClientDocumentAssets(getRequest, env, {
+      includeScripts: publicSiteDocumentNeedsClientScripts(treeResult, {
+        rendererConfigured: options.workspaceRenderer !== undefined,
+      }),
+    }),
+    documentKind: "preview",
+    requestUrl,
+    routeBase: route.path,
+    runtimeHints: previewSiteRuntimeHints(route.path, slug, treeResult.kind),
+    slug,
+    treeResult,
+  });
+
+  return responseWithoutBodyForHead(request, response);
 }
 
 export async function handlePublicSiteIconRequest(
@@ -187,7 +271,6 @@ export async function handlePublicSiteIndexingRequest(
         }
       : {
           clientRoutePrefixes: [
-            runtimeTopologyRoutes.publicSitePreviewRouteBase,
             "/schema",
             ...FORMLESS_PROGRAM_SCREEN_PATHS.filter((path) => path !== "/"),
           ] as `/${string}`[],
@@ -588,6 +671,31 @@ function publicSiteRuntimeHints(): PublicSiteDocumentRuntimeHint[] {
     {
       name: FORMLESS_RUNTIME_PROFILE_META_NAME,
       content: "publishedSite",
+    },
+  ];
+}
+
+function previewSiteRuntimeHints(
+  routeBase: `/${string}`,
+  slug: string,
+  state: PublicSiteDocumentTreeResult["kind"],
+): PublicSiteDocumentRuntimeHint[] {
+  return [
+    {
+      name: FORMLESS_RUNTIME_PROFILE_META_NAME,
+      content: "instance",
+    },
+    {
+      name: FORMLESS_SITE_ROUTE_BASE_META_NAME,
+      content: routeBase,
+    },
+    {
+      name: FORMLESS_SITE_ROUTE_SLUG_META_NAME,
+      content: slug,
+    },
+    {
+      name: FORMLESS_SITE_ROUTE_STATE_META_NAME,
+      content: state,
     },
   ];
 }

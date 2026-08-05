@@ -61,40 +61,45 @@ runtime fact.
 
 - GIVEN the runtime profile is `instance`
 - WHEN a request targets browser or API behavior
-- THEN declared Program browser routes, the `/api/formless/program` route
-  family, origin-scoped account auth routes, principal-backed browser session
-  routes, and instance browser routes remain route-policy eligible
-- AND Program public Site behavior is selected separately by an enabled mapped
+- THEN declared Program screens and surface mounts, the
+  `/api/formless/program` route family, origin-scoped account auth routes,
+  principal-backed browser session routes, and instance browser routes remain
+  route-policy eligible
+- AND authenticated Site preview mounts may select the Site public renderer
+  without selecting anonymous published Site route policy
+- AND top-level public Site behavior is selected separately by an enabled mapped
   route rather than by the `instance` profile
 
 ### Requirement: Browser Route Mounts
 
-The system SHALL mount browser surfaces according to the active runtime profile.
+The system SHALL mount browser surfaces according to the active runtime profile
+and the materialized Program route declarations.
 
 #### Scenario: Product instance browser routes
 
 - GIVEN the runtime profile is `instance`
 - WHEN a browser navigates to `/tasks`, `/site`, `/site/settings`,
   `/site/contacts`, `/site/subscribers`, `/settings/routes`, or
-  `/settings/access`
+  `/settings/access`, or the default `/site/preview` browser preview subtree
 - THEN the request is eligible for the client shell
-- AND route selection uses the Program route table
+- AND route selection uses the Program screen and surface-mount route table
 
 #### Scenario: Unknown instance route stays outside the Program shell
 
 - GIVEN the runtime profile is `instance`
-- WHEN a browser navigates to a path that is not an active Program screen or
-  an intrinsic runtime route
+- WHEN a browser navigates to a path that is not an active Program screen,
+  materialized browser surface mount, or intrinsic runtime route
 - THEN the path is not eligible for the client shell
 - AND static asset fallback does not turn the unknown path into a Program route
 
 #### Scenario: Authorize a direct Program deep link
 
-- GIVEN a document request targets an active Program screen on the default
-  instance host or an enabled mapped instance route
+- GIVEN a document request targets an active Program screen or browser surface
+  mount on the default instance host or an enabled mapped instance route
 - WHEN runtime topology selects the browser surface
 - THEN server admission evaluates the current session, account completion,
-  matched runtime-route access floor, and selected screen access requirement
+  matched runtime-route access floor, and selected Program route declaration's
+  access requirement
   before serving the protected client shell
 - AND an unauthenticated, incomplete, or unauthorized request receives its
   current continuation or forbidden outcome without relying on browser-cached
@@ -165,8 +170,10 @@ The system SHALL mount browser surfaces according to the active runtime profile.
   screen-key-bound runtime behavior
 - AND the default path is not claimed, redirected, or reserved unless another
   active Program screen declares it
-- AND account auth, Program API, local session, asset, public Site, and other
-  intrinsic runtime route families remain fixed outside screen composition
+- AND account auth, Program API, local session, asset, and top-level published
+  Site route families remain intrinsic outside screen composition
+- AND portable surface mounts remain a separate Program schema registry rather
+  than screens or literal runtime-profile paths
 
 #### Scenario: Product instance account gate routes
 
@@ -209,6 +216,20 @@ route-record selection and before protected browser or API behavior.
   screen's explicit Program access requirement
 - AND replica membership, path names, package keys, module keys, declaration
   order, or navigation membership do not infer route authority
+
+#### Scenario: Program surface-mount admission
+
+- GIVEN the instance profile selects a materialized browser or Worker surface
+  mount
+- WHEN admission is evaluated
+- THEN the request satisfies both the matched exact-host route access floor and
+  the mount's explicit Program access requirement before shell or SSR behavior
+  runs
+- AND anonymous HTML requests continue through the configured auth origin and
+  target-bound handoff rules without receiving protected shell, Site records,
+  media, or SSR output first
+- AND authenticated access does not itself grant Program role, operation,
+  management, or owner authority
 
 #### Scenario: Authenticated Program route
 
@@ -260,6 +281,59 @@ route-record selection and before protected browser or API behavior.
 - AND anonymous route access does not expose Program bootstrap, schema,
   snapshot, sync, WebSocket, replica, or generic operation access
 
+### Requirement: Program Surface Mount Resolution
+
+The system SHALL resolve portable Program surface mounts by stable mount key on
+the instance profile while keeping exact-host deployment mappings and
+top-level published Site behavior as separate runtime-topology facts.
+
+#### Scenario: Resolve an instance surface-mount subtree
+
+- GIVEN the active Program materializes a browser or Worker surface mount
+- WHEN an instance-profile `GET` or `HEAD` HTML request targets its exact path,
+  optional trailing slash, or a nested segment-boundary path
+- THEN route resolution returns the stable mount key, target, materialized base,
+  nested suffix, and effective access requirement
+- AND the exact mount root resolves the target surface's home route directly
+- AND executable behavior is selected by mount key rather than literal path
+- AND a downstream replacement stops claiming the previous path without an
+  alias, compatibility redirect, or reserved-path remnant
+
+#### Scenario: Preserve Worker routing precedence
+
+- GIVEN an instance request is eligible for a materialized Worker surface mount
+- WHEN the Worker dispatches the request
+- THEN reserved API, auth, callback, media, static-asset, and development-module
+  route ownership is evaluated before the mount
+- AND the mount handler runs before public document handling, client-shell
+  delivery, or SPA asset fallback
+- AND a non-HTML or mutating request is not converted into preview SSR or shell
+  delivery
+
+#### Scenario: Share materialized mount facts across browser and Worker
+
+- GIVEN browser and Worker builds use the same complete Program artifact
+- WHEN either target resolves Site preview routing
+- THEN both consume the same ordered materialized mount declarations and route
+  access data
+- AND browser history routing, direct Worker admission, SSR, hydration, and link
+  generation do not maintain independent literal path registries
+
+#### Scenario: Exclude previews from public Site hosts
+
+- GIVEN the runtime profile is `publishedSite` or an enabled exact-host route
+  selects a mapped public Site target
+- WHEN a request matches text equal to an instance Site preview mount path
+- THEN no Program preview mount is installed or admitted on that host
+- AND the path remains eligible only as an ordinary public Site document slug
+  under public Site route policy
+- AND no preview access, Program replica, protected Site records, or preview
+  redirect is exposed
+- AND an enabled mapped instance route may admit the mounts after applying its
+  exact-host route access floor
+- AND exact-host target, access, redirect, and deployment intent remain
+  instance control-plane state rather than portable surface-mount data
+
 ### Requirement: Published Site Documents
 
 The system MUST route public Site documents through published Site behavior only when the request is a read request that accepts HTML and the published Site profile owns the path.
@@ -308,30 +382,6 @@ The system SHALL distinguish static asset fallback from dynamic public Site reso
 - AND the resource body is produced by the explicitly composed Site Worker
   surface from Program storage
 
-### Requirement: Published Site Clean Redirects
-
-The system SHALL redirect published Site collection paths to their clean public
-paths.
-
-#### Scenario: Clean published redirects
-
-- GIVEN the runtime profile is `publishedSite`
-- WHEN a read request targets `/pages`, `/pages/home`, or `/pages/blog/agents?ref=preview`
-- THEN the system redirects with status `308`
-- AND the redirect locations are `/`, `/`, and `/blog/agents?ref=preview`
-
-#### Scenario: Non-published profiles do not apply preview redirects
-
-- GIVEN the runtime profile is not `publishedSite`
-- WHEN a request targets a `/pages/*` path
-- THEN no published Site preview redirect is applied
-
-#### Scenario: Ineligible published paths do not apply preview redirects
-
-- GIVEN the runtime profile is `publishedSite`
-- WHEN a request targets an API path, an asset-like preview path, or uses a mutating method
-- THEN no published Site preview redirect is applied
-
 ### Requirement: Mapped Hosts
 
 The system SHALL route enabled exact-host route records before ordinary host
@@ -351,6 +401,8 @@ profile behavior.
   configured auth origin when the mapped public Site host is not that origin
 - **AND** public Site document, indexing, and icon behavior is selected from the
   explicitly composed Site Worker surface
+- **AND** Program browser and Worker preview mounts are not installed on the
+  mapped public Site host
 
 #### Scenario: Mapped host auth callback
 
@@ -359,8 +411,8 @@ profile behavior.
 - **WHEN** the mapped host receives `/formless/auth/callback`
 - **THEN** runtime topology reserves the request for cross-domain auth grant
   consumption
-- **AND** Program schemas, generated Program routes, public Site SSR, clean redirects,
-  static asset fallback, schema-key routes, account gate routes, and passkey
+- **AND** Program schemas, generated Program routes, public Site SSR, static
+  asset fallback, schema-key routes, account gate routes, and passkey
   ceremony routes do not claim the callback path
 - **AND** callback handling may issue only a host-local session for the matched
   route target before redirecting to a path-only return target
@@ -386,8 +438,20 @@ profile behavior.
 
 ### Requirement: Schema-Owned Runtime Route Resolution
 
-The system SHALL resolve Program browser routes and the Program-native public
-Site from enabled schema-owned `route` records.
+The system SHALL combine materialized Program route declarations with enabled
+schema-owned control-plane `route` records without merging their ownership or
+lifecycle.
+
+#### Scenario: Keep Program mounts separate from deployment mappings
+
+- **GIVEN** the active Program declares screens and surface mounts while
+  instance records declare hostless, exact-host, or redirect routes
+- **WHEN** runtime topology resolves a request
+- **THEN** Program declarations select stable screen or mount identity, path,
+  target, and Program access
+- **AND** control-plane route records select deployment host, target profile,
+  route access floor, redirect, and enabled state
+- **AND** neither source synthesizes, replaces, or persists the other
 
 #### Scenario: Program-native Site public route
 
@@ -515,8 +579,9 @@ runtime with explicit gateway sidecar proxy configuration.
 
 #### Scenario: Gateway does not affect Program routing
 
-- **WHEN** Program browser routes, Program public Site routes, schema-key routes,
-  or static assets are resolved
+- **WHEN** Program screens, surface mounts, public Site routes, schema-key
+  routes, or static assets are resolved
 - **THEN** workspace gateway route policy is evaluated separately
-- **AND** Program route resolution continues to use runtime profile and
-  schema-owned `route` records
+- **AND** Program route resolution continues to use runtime profile,
+  materialized Program declarations, and schema-owned control-plane `route`
+  records

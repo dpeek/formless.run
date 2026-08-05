@@ -89,6 +89,42 @@ describe("published Site document rendering", () => {
   });
 
   it.each([
+    [{ kind: "found", tree: sitePageTree("projects") } as const, 200],
+    [{ kind: "not-found" } as const, 404],
+    [{ kind: "error" } as const, 500],
+  ])(
+    "keeps preview documents private and free of public URL resources",
+    async (treeResult, status) => {
+      const response = await renderPublishedSiteDocumentResponse({
+        builtInRenderer: PageRendererProbe,
+        builtInSystemStateRenderer: SystemStateRendererProbe,
+        clientAssets: { body: "", head: "" },
+        documentKind: "preview",
+        rendererDocumentTheme,
+        requestUrl: new URL("https://instance.example.com/site/public/projects"),
+        routeBase: "/site/public",
+        slug: "projects",
+        treeResult,
+      });
+      const html = await response.text();
+
+      expect(response.status).toBe(status);
+      expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+      expect(response.headers.get("Vary")).toBe("Accept, Cookie");
+      expect(response.headers.get("X-Robots-Tag")).toBe("noindex, nofollow, noarchive");
+      expect(html).not.toContain('rel="canonical"');
+      expect(html).not.toContain('property="og:url"');
+      expect(html).not.toContain('rel="icon"');
+      expect(html).not.toContain('rel="apple-touch-icon"');
+
+      if (treeResult.kind === "found") {
+        expect(html).toContain('data-link-mode="preview"');
+        expect(html).toContain('data-route-base="/site/public"');
+      }
+    },
+  );
+
+  it.each([
     ["light", false, "light"],
     ["dark", false, "dark"],
     ["system", true, "light"],

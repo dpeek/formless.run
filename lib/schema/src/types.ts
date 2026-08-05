@@ -986,6 +986,18 @@ export type RuntimeScreenSchemaSource = Omit<RuntimeScreenSchema, "access"> & {
   access?: ScreenAccessRequirementSource;
 };
 export type ScreenSchemaSource = WorkspaceScreenSchemaSource | RuntimeScreenSchemaSource;
+/** Runtime target selected by one portable Program surface mount. */
+export type SurfaceMountTarget = "browser" | "worker";
+/** One parsed portable Program surface-mount declaration. */
+export type SurfaceMountSchema = {
+  target: SurfaceMountTarget;
+  path: string;
+  access: ScreenAccessRequirement;
+};
+/** Authored form of one portable Program surface-mount declaration. */
+export type SurfaceMountSchemaSource = Omit<SurfaceMountSchema, "access"> & {
+  access: ScreenAccessRequirementSource;
+};
 export type ToOneRelationshipSchema = {
   kind: "toOne";
   label?: string;
@@ -1525,6 +1537,7 @@ export type AppSchema = {
   tableViews: KeyedDefinition<TableViewSchema>[];
   views: KeyedDefinition<ViewSchema>[];
   screens: KeyedDefinition<ScreenSchema>[];
+  surfaceMounts?: KeyedDefinition<SurfaceMountSchema>[];
   navigation?: AppNavigationSchema;
   runtime?: RuntimeSchemaMetadata;
 };
@@ -1556,6 +1569,7 @@ export type AppSchemaDefinitionIndex = {
   tableViews: DefinitionIndex<KeyedDefinition<TableViewSchema>>;
   views: DefinitionIndex<KeyedDefinition<ViewSchema>>;
   screens: DefinitionIndex<KeyedDefinition<ScreenSchema>>;
+  surfaceMounts: DefinitionIndex<KeyedDefinition<SurfaceMountSchema>>;
   fieldsByEntity: ReadonlyMap<string, DefinitionIndex<KeyedDefinition<FieldSchema>>>;
   enumValuesByEntityField: ReadonlyMap<
     string,
@@ -1590,13 +1604,21 @@ export type AppSchemaDefinitionIndex = {
  */
 export type AppSchemaSource = Omit<
   AppSchema,
-  "authorization" | "entities" | "navigation" | "screens" | "tableViews" | "version" | "views"
+  | "authorization"
+  | "entities"
+  | "navigation"
+  | "screens"
+  | "surfaceMounts"
+  | "tableViews"
+  | "version"
+  | "views"
 > & {
   version: 1;
   authorization?: AppAuthorizationSchemaSource;
   entities: KeyedDefinition<EntitySchemaSource>[];
   navigation?: AppNavigationSchemaSource;
   screens: KeyedDefinition<ScreenSchemaSource>[];
+  surfaceMounts?: KeyedDefinition<SurfaceMountSchemaSource>[];
   tableViews: KeyedDefinition<TableViewSchemaSource>[];
   views: KeyedDefinition<ViewSchemaSource>[];
 };
@@ -1646,6 +1668,7 @@ export type AppSchemaModuleSource = {
   tableViews?: AppSchemaSource["tableViews"];
   views?: AppSchemaSource["views"];
   screens?: AppSchemaSource["screens"];
+  surfaceMounts?: NonNullable<AppSchemaSource["surfaceMounts"]>;
   runtime?: AppSchemaModuleRuntimeSource;
 };
 

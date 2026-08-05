@@ -81,7 +81,7 @@ parsed runtime contracts.
 
 - GIVEN package-local schema modules contribute whole declarations to the
   existing entity, relationship, query, read-model, union, item-view,
-  table-view, view, or screen namespaces
+  table-view, view, screen, or surface-mount namespaces
 - AND a composition root explicitly lists the modules in source order
 - WHEN the modules are composed
 - THEN their declarations are flattened in listed order into one complete App
@@ -168,14 +168,14 @@ from reusable package modules.
 #### Scenario: Compose the default Program schema
 
 - GIVEN the Instance Control Plane, Identity Control Plane, standard library,
-  Tasks, and Site packages expose their current record, presentation, and
-  screen modules
+  Tasks, and Site packages expose their current record, presentation, screen,
+  and surface-mount modules
   through public `./schema` subpaths
 - WHEN the Formless product composition root builds its default Program schema
 - THEN it explicitly lists package record modules before any dependent
   presentation or screen modules
-- AND it supplies complete runtime ownership, navigation, and any
-  project-owned modules at the composition root
+- AND it supplies complete runtime ownership, navigation, surface placement,
+  and any project-owned modules at the composition root
 - AND the product-supplied route-management workspace and runtime-owned
   access-management screen are portable screen declarations contributed through
   independently replaceable modules
@@ -256,9 +256,9 @@ from reusable package modules.
 - THEN it produces one complete `formless-program` source artifact and its
   canonical source-schema hash
 - AND the workspace root owns its final authorization catalog, navigation,
-  screen paths, and deliberate module replacements
-- AND product-supplied and workspace-owned screens use the same declaration and
-  replacement rules
+  screen paths, surface-mount paths, and deliberate module replacements
+- AND product-supplied and workspace-owned screens and surface mounts use the
+  same declaration and replacement rules for their respective registries
 - AND module and declaration collision rules remain the normal schema-composer
   rules without automatic prefixes, discovery, registries, or deep merges
 - AND the trusted workspace configuration explicitly selects shared, browser,
@@ -292,6 +292,60 @@ from reusable package modules.
 - AND a navigation group does not create another Program, storage target, API
   prefix, browser replica, sync lineage, route mount, role catalog, or
   authorization scope
+
+### Requirement: Portable Surface Mounts
+
+The system SHALL let a complete Program schema place trusted browser and Worker
+runtime surfaces at portable Program-owned route subtrees without embedding
+executable behavior in schema data.
+
+#### Scenario: Declare a surface mount
+
+- GIVEN an App schema declares `surfaceMounts`
+- WHEN the complete schema is parsed
+- THEN each mount carries a unique stable `key`, target `browser` or `worker`,
+  absolute subtree `path`, and explicit browser-applicable access requirement
+- AND the mount key, target, path, access, and declaration order remain
+  portable, materialized, and source-hash-significant data
+- AND a mount path selects its exact root and nested segment-boundary paths
+- AND callbacks, module paths, component names, runtime surface keys, and
+  executable code remain absent from portable mount data
+
+#### Scenario: Compose replaceable surface mounts
+
+- GIVEN a reusable package owns stable surface-mount keys and a Program root
+  owns their placement and access policy
+- WHEN the Program root composes or deliberately replaces the package module
+- THEN ordinary module dependency, same-key replacement, declaration
+  collision, materialization, and hashing rules apply
+- AND a downstream replacement preserves each stable mount key and target while
+  selecting another valid path or browser-applicable access requirement
+- AND workspace runtime configuration continues to select executable shared,
+  browser, and Worker entrypoints independently of portable mount placement
+
+#### Scenario: Bind a trusted runtime by mount identity
+
+- GIVEN the materialized Program declares a browser or Worker surface mount
+- WHEN trusted Program runtime composition is validated
+- THEN the matching target runtime binds executable behavior by stable mount
+  key rather than by literal path
+- AND missing, duplicate, or target-incompatible bindings fail before the
+  Program runtime is served
+- AND the runtime binding does not change the portable Program artifact or its
+  source-schema hash
+
+#### Scenario: Reject surface-mount route collisions
+
+- GIVEN a surface mount uses root `/`, duplicates or overlaps another mount
+  subtree, equals a screen path, contains a screen path below its subtree, or
+  uses an invalid absolute path
+- WHEN the complete schema is parsed
+- THEN parsing fails before the mount is available to browser or Worker routing
+- AND an exact screen path may remain an ancestor of a more-specific mount
+  subtree
+- AND active Program materialization additionally rejects mount paths that
+  overlap intrinsic API, auth, local-session, asset, development-module, icon,
+  or indexing route families
 
 ### Requirement: Program Authorization Definitions
 
@@ -426,7 +480,7 @@ an ordered array whose definitions carry their existing portable `key`.
 
 - GIVEN App schema source declares top-level authorization roles, entities,
   relationships, queries, computed values, aggregates, unions, item views,
-  table views, views, or screens
+  table views, views, screens, or surface mounts
 - OR it declares nested entity fields, enum values, constraints, state
   machines, transitions, operations, operation input fields, table record
   links, or union variants
@@ -572,8 +626,8 @@ entity, field, media, route, or authorization identity.
 #### Scenario: Hash complete schema source
 
 - GIVEN a complete App schema changes entities, fields, relationships, queries,
-  read models, views, table views, item views, screens, operations, state
-  machines, labels, or runtime metadata
+  read models, views, table views, item views, screens, surface mounts,
+  operations, state machines, labels, or runtime metadata
 - WHEN the deterministic source schema hash is computed
 - THEN the hash input is the complete canonical App schema object
 - AND keyed registry array order is part of the hash input

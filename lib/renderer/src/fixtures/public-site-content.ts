@@ -43,7 +43,7 @@ export const publicSiteContentLayoutFixtures = [
     "Home page",
     contentBlock("home", "page", "page", "Field Notes Cooperative", {
       body: "Practical notes for teams improving services together.",
-      href: "/pages/home",
+      href: "/",
       placements: [
         contentPlacement(
           "home",
@@ -63,7 +63,7 @@ export const publicSiteContentLayoutFixtures = [
     "Normal page",
     contentBlock("normal-page", "page", "page", "Our practice", {
       body: "A small set of methods for keeping product intent connected to delivery.",
-      href: "/pages/practice",
+      href: "/practice",
       placements: [
         contentPlacement(
           "normal-page",
@@ -77,7 +77,7 @@ export const publicSiteContentLayoutFixtures = [
                 "journal-link",
                 1000,
                 contentBlock("normal-page", "journal-link", "link", "Read the journal", {
-                  href: "/pages/blog",
+                  href: "/blog",
                 }),
               ),
             ],
@@ -103,7 +103,7 @@ export const publicSiteContentLayoutFixtures = [
               label: "Choose the smallest useful test",
               body: "A short note on learning before the surrounding system hardens.",
               date: "2026-07-16",
-              href: "/pages/blog/smallest-useful-test",
+              href: "/blog/smallest-useful-test",
               media: {
                 assetId: "content-post-index-populated-smallest-test",
                 href: "/media/fixtures/content/public/smallest-test.webp",
@@ -113,7 +113,7 @@ export const publicSiteContentLayoutFixtures = [
               label: "Keep a decision trail",
               body: "Leave the evidence close enough for the next person to follow.",
               date: "2026-07-09",
-              href: "/pages/blog/decision-trail",
+              href: "/blog/decision-trail",
             }),
           ]),
         }),
@@ -145,7 +145,7 @@ export const publicSiteContentLayoutFixtures = [
     contentBlock("post-detail", "post", "post", "Choose the smallest useful test", {
       body: "A summary shown in lists but omitted from the article body.",
       date: "2026-07-16",
-      href: "/pages/blog/smallest-useful-test",
+      href: "/blog/smallest-useful-test",
       placements: [
         contentPlacement(
           "post-detail",
@@ -172,7 +172,7 @@ export const publicSiteContentLayoutFixtures = [
           "article-body",
           2000,
           contentBlock("post-detail", "article-body", "markdown", "Article body", {
-            body: "## Test the risky assumption\n\nUse the [practice notes](/pages/practice) to keep the decision and its evidence together.",
+            body: "## Test the risky assumption\n\nUse the [practice notes](/practice) to keep the decision and its evidence together.",
           }),
         ),
       ],
@@ -203,7 +203,7 @@ export const publicSiteContentLayoutFixtures = [
             }),
             projectSummary("project-index-populated", "release-practice", {
               label: "Release decision practice",
-              body: "A lightweight review rhythm connected to the [practice notes](/pages/practice).",
+              body: "A lightweight review rhythm connected to the [practice notes](/practice).",
               date: "2026-05-14",
               href: "https://example.com/case-studies/release-practice",
             }),
@@ -270,7 +270,7 @@ function contentPage(
   placements: SitePlacementNode[],
 ): SiteBlockNode {
   return contentBlock(layoutId, "page", "page", label, {
-    href: label === "Projects" ? "/pages/projects" : "/pages/blog",
+    href: label === "Projects" ? "/projects" : "/blog",
     placements,
   });
 }

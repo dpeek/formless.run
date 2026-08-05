@@ -6,6 +6,8 @@ import {
   type EntitySchema,
   type ScreenAccessRequirement,
   type ScreenSchema,
+  type SurfaceMountSchema,
+  type SurfaceMountTarget,
 } from "@dpeek/formless-schema";
 import {
   formatStoredRecordsForArtifact,
@@ -45,6 +47,18 @@ export type FormlessProgramScreenRouteTarget = {
   path: `/${string}`;
   type: ScreenSchema["type"];
 };
+
+export type FormlessProgramSurfaceMountRouteTarget = {
+  access: ScreenAccessRequirement;
+  key: string;
+  path: `/${string}`;
+  pathSuffix: `/${string}` | "";
+  target: SurfaceMountTarget;
+};
+
+export type FormlessProgramRouteTarget =
+  | FormlessProgramScreenRouteTarget
+  | FormlessProgramSurfaceMountRouteTarget;
 
 export const formlessProgramArtifact = activeFormlessProgramArtifact();
 export const formlessProgramSchema = parseFormlessProgramSchemaArtifact(
@@ -132,6 +146,66 @@ export function resolveFormlessProgramScreenRouteTargetByKey(
   return path === undefined ? undefined : resolveFormlessProgramScreenRouteTarget(path, schema);
 }
 
+export function resolveFormlessProgramSurfaceMountRouteTarget(
+  pathname: string,
+  target: SurfaceMountTarget,
+  schema: AppSchema = formlessProgramSchema,
+): FormlessProgramSurfaceMountRouteTarget | undefined {
+  const normalizedPathname = normalizeProgramRoutePathname(pathname);
+  const mount = schema.surfaceMounts?.find(
+    (candidate) =>
+      candidate.target === target && programSurfaceMountMatchesPath(candidate, normalizedPathname),
+  );
+
+  if (mount === undefined) {
+    return undefined;
+  }
+
+  const path = mount.path as `/${string}`;
+  const suffix = normalizedPathname.slice(path.length).replace(/^\/+/, "");
+
+  return {
+    access: mount.access,
+    key: mount.key,
+    path,
+    pathSuffix: suffix === "" ? "" : (`/${suffix}` as `/${string}`),
+    target: mount.target,
+  };
+}
+
+export function resolveFormlessProgramBrowserRouteTarget(
+  pathname: string,
+  schema: AppSchema = formlessProgramSchema,
+): FormlessProgramRouteTarget | undefined {
+  return (
+    resolveFormlessProgramScreenRouteTarget(normalizeProgramRoutePathname(pathname), schema) ??
+    resolveFormlessProgramSurfaceMountRouteTarget(pathname, "browser", schema)
+  );
+}
+
+export function resolveFormlessProgramWorkerRouteTarget(
+  pathname: string,
+  schema: AppSchema = formlessProgramSchema,
+): FormlessProgramSurfaceMountRouteTarget | undefined {
+  return resolveFormlessProgramSurfaceMountRouteTarget(pathname, "worker", schema);
+}
+
+export function resolveFormlessProgramRouteTarget(
+  pathname: string,
+  schema: AppSchema = formlessProgramSchema,
+): FormlessProgramRouteTarget | undefined {
+  return (
+    resolveFormlessProgramBrowserRouteTarget(pathname, schema) ??
+    resolveFormlessProgramWorkerRouteTarget(pathname, schema)
+  );
+}
+
+export function isFormlessProgramSurfaceMountRouteTarget(
+  target: FormlessProgramRouteTarget,
+): target is FormlessProgramSurfaceMountRouteTarget {
+  return "target" in target;
+}
+
 export function formlessProgramScreenRouteTargets(
   schema: AppSchema = formlessProgramSchema,
 ): readonly FormlessProgramScreenRouteTarget[] {
@@ -168,6 +242,20 @@ function resolveFormlessProgramScreenPath(
   );
 
   return firstPathlessScreenKey === screenKey ? "/" : undefined;
+}
+
+function programSurfaceMountMatchesPath(
+  mount: { path: SurfaceMountSchema["path"] },
+  pathname: string,
+): boolean {
+  return pathname === mount.path || pathname.startsWith(`${mount.path}/`);
+}
+
+function normalizeProgramRoutePathname(pathname: string): string {
+  const withoutSearch = pathname.split("?", 1)[0] ?? pathname;
+  const trimmed = withoutSearch.replace(/\/+$/, "");
+
+  return trimmed === "" ? "/" : trimmed;
 }
 
 export type FormlessProgramValidationOptions = {

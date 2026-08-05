@@ -15,7 +15,6 @@ import {
   matchRuntimeRouteBase,
   parseRuntimeProfileKind,
   parseRuntimeRouteAccess,
-  publishedSiteRedirectLocation,
   resolveRuntimeProfileKind,
   runtimeRouteFromBase,
   runtimeAuthAccountGateRoutes,
@@ -115,7 +114,6 @@ describe("runtime topology", () => {
     expect(runtimeTopologyRoutes.authAccountSignInRoute).toBe("/formless/auth/sign-in");
     expect(runtimeTopologyRoutes.formlessRouteBase).toBe("/formless");
     expect(runtimeTopologyRoutes.publicSiteHomeSlug).toBe("home");
-    expect(runtimeTopologyRoutes.publicSitePreviewRouteBase).toBe("/pages");
     expect(runtimeAuthAccountGateRoutes).toEqual({
       credential: "/formless/auth/credential",
       emailVerification: "/formless/auth/email-verification",
@@ -153,7 +151,7 @@ describe("runtime topology", () => {
   });
 
   it("classifies client-shell routes for general, published, and instance profiles", () => {
-    expect(isRuntimeClientShellRoute("/pages/home")).toBe(true);
+    expect(isRuntimeClientShellRoute("/articles/home")).toBe(false);
     expect(isRuntimeClientShellRoute("/tasks")).toBe(true);
     expect(isRuntimeClientShellRoute("/site/schema")).toBe(false);
     expect(isRuntimeClientShellRoute("/schema")).toBe(true);
@@ -178,7 +176,7 @@ describe("runtime topology", () => {
     expect(isRuntimePublishedProfileClientShellRoute("/login")).toBe(false);
     expect(isRuntimePublishedProfileClientShellRoute("/setup")).toBe(false);
     expect(isRuntimePublishedProfileClientShellRoute("/local-session")).toBe(false);
-    expect(isRuntimePublishedProfileClientShellRoute("/pages/home")).toBe(false);
+    expect(isRuntimePublishedProfileClientShellRoute("/articles/home")).toBe(false);
     expect(isRuntimePublishedProfileClientShellRoute("/site")).toBe(false);
 
     expect(isRuntimeInstanceProfileClientShellRoute("/principals")).toBe(false);
@@ -196,7 +194,10 @@ describe("runtime topology", () => {
     expect(isRuntimeInstanceProfileClientShellRoute("/deployments")).toBe(false);
     expect(isRuntimeInstanceProfileClientShellRoute("/settings")).toBe(false);
     expect(isRuntimeInstanceProfileClientShellRoute("/tasks")).toBe(true);
-    expect(isRuntimeInstanceProfileClientShellRoute("/pages/home")).toBe(false);
+    expect(isRuntimeInstanceProfileClientShellRoute("/site/preview")).toBe(true);
+    expect(isRuntimeInstanceProfileClientShellRoute("/site/preview/blog/post")).toBe(true);
+    expect(isRuntimeInstanceProfileClientShellRoute("/site/public")).toBe(false);
+    expect(isRuntimeInstanceProfileClientShellRoute("/articles/home")).toBe(false);
     expect(isRuntimeAuthAccountRoutePath("/formless/auth")).toBe(true);
     expect(isRuntimeAuthAccountRoutePath("/formless/auth/profile-completion")).toBe(true);
     expect(isRuntimeAuthAccountRoutePath("/formless/authentic")).toBe(false);
@@ -218,18 +219,5 @@ describe("runtime topology", () => {
     expect(acceptsRuntimeHtml("text/html")).toBe(true);
     expect(acceptsRuntimeHtml("*/*")).toBe(true);
     expect(acceptsRuntimeHtml("application/json")).toBe(false);
-  });
-
-  it("builds published Site redirects from old preview routes", () => {
-    expect(publishedSiteRedirectLocation("/pages")).toBe("/");
-    expect(publishedSiteRedirectLocation("/pages/")).toBe("/");
-    expect(publishedSiteRedirectLocation("/pages/home")).toBe("/");
-    expect(publishedSiteRedirectLocation("/pages/projects")).toBe("/projects");
-    expect(publishedSiteRedirectLocation("/pages/blog/agents", "?ref=old")).toBe(
-      "/blog/agents?ref=old",
-    );
-    expect(publishedSiteRedirectLocation("/pages//projects")).toBe("/projects");
-    expect(publishedSiteRedirectLocation("/pages/logo.svg")).toBe("/logo.svg");
-    expect(publishedSiteRedirectLocation("/blog")).toBeUndefined();
   });
 });

@@ -1,7 +1,7 @@
 import type { AppSchema } from "@dpeek/formless-schema";
 import {
   formlessProgramSchema,
-  resolveFormlessProgramScreenRouteTarget,
+  resolveFormlessProgramBrowserRouteTarget,
 } from "../program/runtime.ts";
 
 export const runtimeProfileKinds = ["instance", "publishedSite"] as const;
@@ -38,6 +38,9 @@ export const runtimeAuthAccountGateRoutes = {
 } as const satisfies Record<string, `/${string}`>;
 
 export const FORMLESS_RUNTIME_PROFILE_META_NAME = "formless-runtime-profile";
+export const FORMLESS_SITE_ROUTE_BASE_META_NAME = "formless-site-route-base";
+export const FORMLESS_SITE_ROUTE_SLUG_META_NAME = "formless-site-route-slug";
+export const FORMLESS_SITE_ROUTE_STATE_META_NAME = "formless-site-route-state";
 
 export const runtimeTopologyRoutes = {
   authAccountRoute: runtimeAuthAccountRoute,
@@ -54,11 +57,8 @@ export const runtimeTopologyRoutes = {
   publicSiteClientModulePath: "/src/public-site-main.tsx",
   publicSiteIndexingResourcePaths: ["/robots.txt", "/sitemap.xml"],
   publicSiteHomeSlug: "home",
-  publicSitePreviewRouteBase: "/pages",
   staticAssetPathPrefixes: ["/@fs/", "/@id/", "/@vite/", "/@react-refresh"],
 } as const;
-
-export const PUBLISHED_SITE_REDIRECT_STATUS = 308;
 
 export type RuntimeRouteBaseMatch = {
   pathSuffix: `/${string}` | "";
@@ -73,11 +73,7 @@ const clientRoutePaths = [
   ...accountSessionClientRoutePaths,
   "/tasks",
 ] as const;
-const clientRoutePrefixes = [
-  runtimeTopologyRoutes.formlessRouteBase,
-  runtimeTopologyRoutes.publicSitePreviewRouteBase,
-  "/schema",
-] as const;
+const clientRoutePrefixes = [runtimeTopologyRoutes.formlessRouteBase, "/schema"] as const;
 const publishedProfileClientRoutePrefixes = [runtimeTopologyRoutes.formlessRouteBase] as const;
 export function resolveRuntimeProfileKind(
   input: RuntimeProfileKindResolverInput = {},
@@ -204,7 +200,7 @@ export function isRuntimeInstanceProfileClientShellRoute(
 ): boolean {
   return (
     pathname === runtimeTopologyRoutes.localSessionRoute ||
-    resolveFormlessProgramScreenRouteTarget(pathname, programSchema) !== undefined ||
+    resolveFormlessProgramBrowserRouteTarget(pathname, programSchema) !== undefined ||
     publishedProfileClientRoutePrefixes.some((prefix) => routeMatchesPrefix(pathname, prefix))
   );
 }
@@ -233,32 +229,6 @@ export function isRuntimePublishedSiteIndexingResourcePath(pathname: string): bo
   return runtimeTopologyRoutes.publicSiteIndexingResourcePaths.includes(
     pathname as (typeof runtimeTopologyRoutes.publicSiteIndexingResourcePaths)[number],
   );
-}
-
-export function publishedSiteRedirectLocation(
-  pathname: string,
-  search: string = "",
-): string | undefined {
-  const withoutTrailingSlash = trimRuntimeRouteTrailingSlash(pathname);
-
-  if (
-    withoutTrailingSlash === runtimeTopologyRoutes.publicSitePreviewRouteBase ||
-    withoutTrailingSlash === `${runtimeTopologyRoutes.publicSitePreviewRouteBase}/home`
-  ) {
-    return `/${search}`;
-  }
-
-  if (pathname.startsWith(`${runtimeTopologyRoutes.publicSitePreviewRouteBase}/`)) {
-    const cleanPath = trimRuntimeRouteTrailingSlash(
-      pathname
-        .slice(`${runtimeTopologyRoutes.publicSitePreviewRouteBase}/`.length)
-        .replace(/^\/+/, ""),
-    );
-
-    return `/${cleanPath}${search}`;
-  }
-
-  return undefined;
 }
 
 export function acceptsRuntimeHtml(acceptHeader: string | null): boolean {

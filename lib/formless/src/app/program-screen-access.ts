@@ -6,7 +6,7 @@ import {
 
 import {
   formlessProgramScreenRouteTargets,
-  resolveFormlessProgramScreenRouteTarget,
+  resolveFormlessProgramBrowserRouteTarget,
 } from "../program/runtime.ts";
 import type { ProgramSessionResponse } from "../shared/instance-auth.ts";
 import type { RuntimeRouteAccess } from "../shared/runtime-topology.ts";
@@ -26,7 +26,7 @@ export function projectAuthorizedProgramScreenPaths(
     .map((screen) => screen.path);
 }
 
-export function programScreenIsLocallyAuthorized({
+export function programRouteIsLocallyAuthorized({
   path,
   programSchema,
   session,
@@ -39,11 +39,11 @@ export function programScreenIsLocallyAuthorized({
     return false;
   }
 
-  const screen = resolveFormlessProgramScreenRouteTarget(path, programSchema);
+  const programRoute = resolveFormlessProgramBrowserRouteTarget(path, programSchema);
 
   return (
-    screen !== undefined &&
-    evaluateAccessRequirement(screen.access, session.callerFacts, programSchema)
+    programRoute !== undefined &&
+    evaluateAccessRequirement(programRoute.access, session.callerFacts, programSchema)
   );
 }
 

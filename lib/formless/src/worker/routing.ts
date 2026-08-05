@@ -1,5 +1,4 @@
 import {
-  PUBLISHED_SITE_REDIRECT_STATUS,
   acceptsRuntimeHtml,
   isRuntimeApiPath,
   isRuntimeClientShellRoute,
@@ -9,7 +8,6 @@ import {
   isRuntimePublishedSiteIndexingResourcePath,
   isRuntimeReadRequestMethod,
   looksLikeRuntimeStaticAssetPath,
-  publishedSiteRedirectLocation,
   resolveRuntimeProfileKind,
   runtimeRoutePolicyForProfileKind,
   runtimeTopologyRoutes,
@@ -21,8 +19,8 @@ import {
 import { evaluateAccessRequirement, type AppSchema } from "@dpeek/formless-schema";
 import {
   formlessProgramSchema,
-  resolveFormlessProgramScreenRouteTarget,
-  type FormlessProgramScreenRouteTarget,
+  resolveFormlessProgramRouteTarget,
+  type FormlessProgramRouteTarget,
 } from "../program/runtime.ts";
 import type { InstanceRuntimeRouteResolution } from "./instance-runtime-routes.ts";
 
@@ -30,11 +28,6 @@ export type WorkerRuntimeProfileInput = {
   hostname?: string | undefined;
   profile?: string | undefined;
   programSchema?: AppSchema | undefined;
-};
-
-export type PublishedSiteRedirect = {
-  location: string;
-  status: typeof PUBLISHED_SITE_REDIRECT_STATUS;
 };
 
 export type WorkerRuntimeRoutePolicy = {
@@ -48,12 +41,11 @@ export type WorkerRuntimeRequestTopology = {
   dynamicSiteIconPath: boolean;
   instanceProfileClientShellRoute: boolean;
   pathname: string;
-  programScreenAllowsAnonymous: boolean | undefined;
-  programScreenRouteTarget: FormlessProgramScreenRouteTarget | undefined;
+  programRouteAllowsAnonymous: boolean | undefined;
+  programRouteTarget: FormlessProgramRouteTarget | undefined;
   profileKind: RuntimeProfileKind;
   publishedProfileClientShellRoute: boolean;
   publishedSiteIndexingResourcePath: boolean;
-  publishedSitePreviewRedirectLocation?: string | undefined;
   readMethod: boolean;
   routePolicy: WorkerRuntimeRoutePolicy;
   staticAssetPath: boolean;
@@ -83,17 +75,17 @@ export type ProtectedBrowserRouteDecision =
   | { kind: "continue" }
   | {
       kind: "validate-session";
-      programScreen?: ProgramScreenRouteTarget;
+      programRoute?: ProgramRouteTarget;
       requiredAccess: Exclude<RuntimeRouteAccess, "anonymous">;
     };
 
-export type ProgramScreenRouteTarget = FormlessProgramScreenRouteTarget & {
+export type ProgramRouteTarget = FormlessProgramRouteTarget & {
   requiredAccess: RuntimeRouteAccess;
   routeAccess: RuntimeRouteAccess;
 };
 
 export type ProtectedBrowserRouteTarget = {
-  programScreen?: ProgramScreenRouteTarget;
+  programRoute?: ProgramRouteTarget;
   requiredAccess: Exclude<RuntimeRouteAccess, "anonymous">;
 };
 
@@ -123,14 +115,11 @@ export function resolveWorkerRuntimeRequestTopology(
   const apiPath = isRuntimeApiPath(url.pathname);
   const staticAssetPath = looksLikeRuntimeStaticAssetPath(url.pathname);
   const programSchema = input.programSchema ?? formlessProgramSchema;
-  const programScreenRouteTarget = resolveFormlessProgramScreenRouteTarget(
-    url.pathname,
-    programSchema,
-  );
-  const programScreenAllowsAnonymous =
-    programScreenRouteTarget === undefined
+  const programRouteTarget = resolveFormlessProgramRouteTarget(url.pathname, programSchema);
+  const programRouteAllowsAnonymous =
+    programRouteTarget === undefined
       ? undefined
-      : evaluateProgramScreenAccessForAnonymous(programScreenRouteTarget, programSchema);
+      : evaluateProgramRouteAccessForAnonymous(programRouteTarget, programSchema);
 
   return {
     acceptsHtml: acceptsRuntimeHtml(request.headers.get("Accept")),
@@ -142,15 +131,11 @@ export function resolveWorkerRuntimeRequestTopology(
       programSchema,
     ),
     pathname: url.pathname,
-    programScreenAllowsAnonymous,
-    programScreenRouteTarget,
+    programRouteAllowsAnonymous,
+    programRouteTarget,
     profileKind,
     publishedProfileClientShellRoute: isRuntimePublishedProfileClientShellRoute(url.pathname),
     publishedSiteIndexingResourcePath: isRuntimePublishedSiteIndexingResourcePath(url.pathname),
-    publishedSitePreviewRedirectLocation:
-      readMethod && !apiPath && !staticAssetPath
-        ? publishedSiteRedirectLocation(url.pathname, url.search)
-        : undefined,
     readMethod,
     routePolicy: workerRuntimeRoutePolicyFromKind(profileKind),
     staticAssetPath,
@@ -231,12 +216,12 @@ export function protectedBrowserRouteDecisionFromFacts(input: {
     return { kind: "continue" };
   }
 
-  const { programScreen, requiredAccess } = target;
+  const { programRoute, requiredAccess } = target;
 
   if (input.session === "unread") {
     return {
       kind: "validate-session",
-      ...(programScreen === undefined ? {} : { programScreen }),
+      ...(programRoute === undefined ? {} : { programRoute }),
       requiredAccess,
     };
   }
@@ -252,9 +237,9 @@ export function resolveProtectedBrowserRouteTargetFromFacts(input: {
   runtimeRoute?: InstanceRuntimeRouteResolution;
   topology: WorkerRuntimeRequestTopology;
 }): ProtectedBrowserRouteTarget | undefined {
-  const programScreen = resolveProgramScreenRouteTargetFromFacts(input);
+  const programRoute = resolveProgramRouteTargetFromFacts(input);
   const routeAccess =
-    programScreen?.requiredAccess ??
+    programRoute?.requiredAccess ??
     ownerBrowserRouteAccessFromFacts(input.topology, input.runtimeRoute);
 
   if (routeAccess === "anonymous") {
@@ -262,21 +247,18 @@ export function resolveProtectedBrowserRouteTargetFromFacts(input: {
   }
 
   return {
-    ...(programScreen === undefined ? {} : { programScreen }),
+    ...(programRoute === undefined ? {} : { programRoute }),
     requiredAccess: routeAccess,
   };
 }
 
-export function resolveProgramScreenRouteTargetFromFacts(input: {
+export function resolveProgramRouteTargetFromFacts(input: {
   runtimeRoute?: InstanceRuntimeRouteResolution;
   topology: Pick<WorkerRuntimeRequestTopology, "pathname" | "profileKind"> &
     Partial<
-      Pick<
-        WorkerRuntimeRequestTopology,
-        "programScreenAllowsAnonymous" | "programScreenRouteTarget"
-      >
+      Pick<WorkerRuntimeRequestTopology, "programRouteAllowsAnonymous" | "programRouteTarget">
     >;
-}): ProgramScreenRouteTarget | undefined {
+}): ProgramRouteTarget | undefined {
   const mountRoute = input.runtimeRoute?.kind === "mount" ? input.runtimeRoute : undefined;
 
   if (input.runtimeRoute !== undefined && mountRoute === undefined) {
@@ -291,24 +273,24 @@ export function resolveProgramScreenRouteTargetFromFacts(input: {
     return undefined;
   }
 
-  const screen = Object.hasOwn(input.topology, "programScreenRouteTarget")
-    ? input.topology.programScreenRouteTarget
-    : resolveFormlessProgramScreenRouteTarget(input.topology.pathname);
+  const programRoute = Object.hasOwn(input.topology, "programRouteTarget")
+    ? input.topology.programRouteTarget
+    : resolveFormlessProgramRouteTarget(input.topology.pathname);
 
-  if (screen === undefined) {
+  if (programRoute === undefined) {
     return undefined;
   }
 
   const routeAccess = mountRoute?.access ?? "anonymous";
-  const screenAccess =
-    (input.topology.programScreenAllowsAnonymous ??
-      evaluateProgramScreenAccessForAnonymous(screen, formlessProgramSchema)) === true
+  const programRouteAccess =
+    (input.topology.programRouteAllowsAnonymous ??
+      evaluateProgramRouteAccessForAnonymous(programRoute, formlessProgramSchema)) === true
       ? "anonymous"
       : "authenticated";
 
   return {
-    ...screen,
-    requiredAccess: stricterRuntimeRouteAccess(routeAccess, screenAccess),
+    ...programRoute,
+    requiredAccess: stricterRuntimeRouteAccess(routeAccess, programRouteAccess),
     routeAccess,
   };
 }
@@ -333,12 +315,7 @@ export function shouldHandlePublishedSiteDocument(
     return false;
   }
 
-  if (
-    topology.apiPath ||
-    topology.publishedSitePreviewRedirectLocation ||
-    topology.clientShellRoute ||
-    topology.staticAssetPath
-  ) {
+  if (topology.apiPath || topology.clientShellRoute || topology.staticAssetPath) {
     return false;
   }
 
@@ -385,12 +362,7 @@ export function shouldHandleMappedSiteHostDocument(
     return false;
   }
 
-  if (
-    topology.apiPath ||
-    mappedSiteHostRedirectForRequest(request, topology) ||
-    topology.clientShellRoute ||
-    topology.staticAssetPath
-  ) {
+  if (topology.apiPath || topology.clientShellRoute || topology.staticAssetPath) {
     return false;
   }
 
@@ -525,10 +497,10 @@ export function ownerBrowserRouteAccessFromFacts(
   runtimeRoute?: InstanceRuntimeRouteResolution,
 ): RuntimeRouteAccess {
   const mountRoute = runtimeRoute?.kind === "mount" ? runtimeRoute : undefined;
-  const programScreen = resolveProgramScreenRouteTargetFromFacts({ runtimeRoute, topology });
+  const programRoute = resolveProgramRouteTargetFromFacts({ runtimeRoute, topology });
 
-  if (programScreen !== undefined) {
-    return programScreen.requiredAccess;
+  if (programRoute !== undefined) {
+    return programRoute.requiredAccess;
   }
 
   if (mountRoute?.matchHost !== undefined) {
@@ -546,49 +518,11 @@ export function ownerBrowserRouteAccessFromFacts(
   return "anonymous";
 }
 
-function evaluateProgramScreenAccessForAnonymous(
-  screen: FormlessProgramScreenRouteTarget,
+function evaluateProgramRouteAccessForAnonymous(
+  programRoute: FormlessProgramRouteTarget,
   programSchema: AppSchema,
 ): boolean {
-  return evaluateAccessRequirement(screen.access, { kind: "anonymous" }, programSchema);
-}
-
-export function publishedSiteRedirectForRequest(
-  request: Request,
-  input: WorkerRuntimeRouteInput = {},
-): PublishedSiteRedirect | undefined {
-  const topology = resolveWorkerRuntimeRequestTopology(request, input);
-
-  if (!topology.readMethod) {
-    return undefined;
-  }
-
-  if (topology.profileKind !== "publishedSite" || topology.apiPath || topology.staticAssetPath) {
-    return undefined;
-  }
-
-  const location = topology.publishedSitePreviewRedirectLocation;
-
-  return location ? { location, status: PUBLISHED_SITE_REDIRECT_STATUS } : undefined;
-}
-
-export function mappedSiteHostRedirectForRequest(
-  request: Request,
-  input: WorkerRuntimeRouteInput = { profile: "publishedSite" },
-): PublishedSiteRedirect | undefined {
-  const topology = resolveWorkerRuntimeRequestTopology(request, input);
-
-  if (!topology.readMethod) {
-    return undefined;
-  }
-
-  if (topology.apiPath || topology.staticAssetPath) {
-    return undefined;
-  }
-
-  const location = topology.publishedSitePreviewRedirectLocation;
-
-  return location ? { location, status: PUBLISHED_SITE_REDIRECT_STATUS } : undefined;
+  return evaluateAccessRequirement(programRoute.access, { kind: "anonymous" }, programSchema);
 }
 
 export function isApiPath(pathname: string): boolean {

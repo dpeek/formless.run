@@ -3,22 +3,18 @@ export type SitePublicRouteBase = `/${string}`;
 
 export function sitePagePathForSlug(
   slug: string,
-  linkMode: SitePageLinkMode,
+  _linkMode: SitePageLinkMode,
   routeBase?: SitePublicRouteBase,
 ): `/${string}` {
   const encodedSlug = encodeSiteSlugPath(slug) || "home";
 
-  if (linkMode === "published" && routeBase && routeBase !== "/") {
+  if (routeBase && routeBase !== "/") {
     const base = normalizeRouteBase(routeBase);
 
     return encodedSlug === "home" ? base : joinRouteBase(base, encodedSlug);
   }
 
-  if (usesTopLevelSitePaths(linkMode)) {
-    return encodedSlug === "home" ? "/" : (`/${encodedSlug}` as const);
-  }
-
-  return `/pages/${encodedSlug}`;
+  return encodedSlug === "home" ? "/" : (`/${encodedSlug}` as const);
 }
 
 export function profileAwareSiteHref(
@@ -32,19 +28,15 @@ export function profileAwareSiteHref(
 
   const { path, suffix } = splitHrefSuffix(href);
 
-  if (linkMode === "published" && routeBase && routeBase !== "/") {
+  if (routeBase && routeBase !== "/") {
     const base = normalizeRouteBase(routeBase);
 
     if (path === base || path.startsWith(`${base}/`)) {
       return href;
     }
 
-    if (path === "/pages" || path === "/pages/" || path === "/") {
+    if (path === "/") {
       return `${sitePagePathForSlug("home", linkMode, base)}${suffix}`;
-    }
-
-    if (path.startsWith("/pages/")) {
-      return `${sitePagePathForSlug(path.slice("/pages/".length), linkMode, base)}${suffix}`;
     }
 
     if (path.startsWith("/") && !path.startsWith("//")) {
@@ -54,39 +46,7 @@ export function profileAwareSiteHref(
     return href;
   }
 
-  if (!usesTopLevelSitePaths(linkMode)) {
-    if (path === "/pages" || path === "/pages/") {
-      return `${sitePagePathForSlug("home", linkMode)}${suffix}`;
-    }
-
-    if (path.startsWith("/pages/")) {
-      return href;
-    }
-
-    if (path === "/") {
-      return `${sitePagePathForSlug("home", linkMode)}${suffix}`;
-    }
-
-    if (path.startsWith("/") && !path.startsWith("//")) {
-      return `${sitePagePathForSlug(path.slice(1), linkMode)}${suffix}`;
-    }
-
-    return href;
-  }
-
-  if (path === "/pages" || path === "/pages/") {
-    return `${sitePagePathForSlug("home", linkMode, routeBase)}${suffix}`;
-  }
-
-  if (path.startsWith("/pages/")) {
-    return `${sitePagePathForSlug(path.slice("/pages/".length), linkMode, routeBase)}${suffix}`;
-  }
-
   return href;
-}
-
-function usesTopLevelSitePaths(linkMode: SitePageLinkMode): boolean {
-  return linkMode === "authoring" || linkMode === "published";
 }
 
 export function siteHrefMatchesRoute(
@@ -150,12 +110,8 @@ function routeSlugForSiteHref(href: string, routeBase?: SitePublicRouteBase): st
     return normalizeSiteSlug(path.slice(base.length));
   }
 
-  if (path === "/" || path === "/pages" || path === "/pages/") {
+  if (path === "/") {
     return "home";
-  }
-
-  if (path.startsWith("/pages/")) {
-    return normalizeSiteSlug(path.slice("/pages/".length));
   }
 
   if (path.startsWith("/") && !path.startsWith("//")) {

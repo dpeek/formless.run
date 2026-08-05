@@ -285,7 +285,7 @@ describe("instance auth access readers and decisions", () => {
     };
     const screenInput = {
       localOwnerSessionFallbackAllowed: false,
-      programScreenAccess: { role: "administrator" } as const,
+      programRouteAccess: { role: "administrator" } as const,
       requiredAuthority: "authenticated" as const,
     };
 
@@ -309,7 +309,7 @@ describe("instance auth access readers and decisions", () => {
       ).resolves.toMatchObject({
         authenticated: { principalId: centralSession.principalId },
         ok: false,
-        reason: "missing-program-screen-authority",
+        reason: "missing-program-route-authority",
       });
     }
 
@@ -382,7 +382,7 @@ describe("instance auth access readers and decisions", () => {
     currentRole = "member";
     await expect(resolveInstanceAuthAccess(screenInput, currentReaders)).resolves.toMatchObject({
       ok: false,
-      reason: "missing-program-screen-authority",
+      reason: "missing-program-route-authority",
     });
   });
 

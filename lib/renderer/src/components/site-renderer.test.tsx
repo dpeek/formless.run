@@ -317,7 +317,7 @@ describe("Astryx public Site structural blocks", () => {
                 "feature-action",
                 2000,
                 block("feature-action", "link", "Read more", {
-                  href: "/pages/work",
+                  href: "/work",
                 }),
                 { slot: "actions" },
               ),
@@ -325,7 +325,7 @@ describe("Astryx public Site structural blocks", () => {
                 "feature-wrong-slot",
                 1000,
                 block("feature-wrong-slot", "link", "Wrong media type", {
-                  href: "/pages/wrong",
+                  href: "/wrong",
                 }),
                 { slot: "media" },
               ),
@@ -365,7 +365,7 @@ describe("Astryx public Site links, source icons, and media", () => {
         "inline-internal",
         1000,
         block("inline-internal", "link", "Stored link label", {
-          href: "/pages/work#details",
+          href: "/work#details",
           icon: safeIcon,
         }),
         { label: "Placed link label" },
@@ -386,7 +386,7 @@ describe("Astryx public Site links, source icons, and media", () => {
               "feature-action",
               1000,
               block("feature-action", "link", "Stored action label", {
-                href: "/pages/contact",
+                href: "/contact",
                 icon: safeIcon,
               }),
               { label: "Start now", slot: "actions" },
@@ -546,7 +546,7 @@ describe("Astryx public Site lists, summaries, and post detail", () => {
     const firstPost = block("first-post", "post", "First projected post", {
       body: "First post summary.",
       date: "2026-07-12",
-      href: "/pages/blog/first-post",
+      href: "/blog/first-post",
       placements: [
         placement(
           "first-post-primary",
@@ -561,12 +561,12 @@ describe("Astryx public Site lists, summaries, and post detail", () => {
     const secondPost = block("second-post", "post", "Second projected post", {
       body: "Second post summary.",
       date: "2026-07-05",
-      href: "/pages/blog/second-post",
+      href: "/blog/second-post",
     });
     const project = block("project", "project", "Projected project", {
       body: "Project body with a [nested reference](https://example.com/reference).",
       date: "2026-07-01",
-      href: "/pages/projects/projected-project",
+      href: "/projects/projected-project",
     });
     const renderer = await renderPage(
       structuralRendererProps([

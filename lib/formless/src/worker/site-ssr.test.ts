@@ -1,6 +1,11 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import { FORMLESS_RUNTIME_PROFILE_META_NAME } from "../app/runtime-profile.ts";
+import {
+  FORMLESS_SITE_ROUTE_BASE_META_NAME,
+  FORMLESS_SITE_ROUTE_SLUG_META_NAME,
+  FORMLESS_SITE_ROUTE_STATE_META_NAME,
+} from "../shared/runtime-topology.ts";
 import { INITIAL_SITE_PAGE_TREE_SCRIPT_ID } from "@dpeek/formless-site-app/react";
 import type { SitePageTreeResponse } from "@dpeek/formless-site-app";
 import {
@@ -9,14 +14,17 @@ import {
 } from "../test/authority-write.ts";
 import { testSiteRecords } from "../test/site-records.ts";
 import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
+import { formlessProgramSchema } from "../program/runtime.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type { ProgramWorkerRuntimeDefinition } from "../program/composition.ts";
 import type { Env } from "./index.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
 import {
+  handleProgramSitePreviewRequest,
   handlePublicSiteDocumentRequest,
   mappedPublicSiteHostFromRuntimeRoute,
 } from "./public-site-worker-runtime.ts";
+import { resolveWorkerRuntimeRequestTopology } from "./routing.ts";
 import {
   PUBLISHED_SITE_ERROR_CACHE_CONTROL,
   PUBLISHED_SITE_HTML_CACHE_CONTROL,
@@ -91,6 +99,7 @@ describe("published Site Worker SSR", () => {
       target: "worker",
       publicReads: [],
       surfaces: [],
+      mounts: [],
       afterCommit: [],
     };
     const response = await handlePublicSiteDocumentRequest(
@@ -99,6 +108,82 @@ describe("published Site Worker SSR", () => {
       }),
       envWithTreeResponse(Response.json(testSitePageTree("home")), undefined, "publishedSite"),
       { workerRuntime: runtimeWithoutSite },
+    );
+
+    expect(response).toBeUndefined();
+  });
+
+  it("renders a mount-key-bound private Site preview from the resolved base and slug", async () => {
+    const authorityRequests: string[] = [];
+    const programSchema = structuredClone(formlessProgramSchema);
+    const previewMount = programSchema.surfaceMounts?.find(
+      (mount) => mount.key === "site.preview.worker",
+    );
+
+    if (!previewMount) {
+      throw new Error("Expected the Program schema to include the Site Worker preview mount.");
+    }
+
+    previewMount.path = "/review/public-site";
+    const request = new Request("https://instance.example.com/review/public-site/projects", {
+      headers: { Accept: "text/html" },
+    });
+    const response = await handleProgramSitePreviewRequest(
+      request,
+      envWithTreeResponse(Response.json(testSitePageTree("projects")), undefined, "instance", {
+        authorityRequests,
+      }),
+      {
+        runtimeTopology: resolveWorkerRuntimeRequestTopology(request, {
+          profile: "instance",
+          programSchema,
+        }),
+      },
+    );
+    if (!response) {
+      throw new Error("Expected a Program Site preview response.");
+    }
+
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(response.headers.get("Vary")).toBe("Accept, Cookie");
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex, nofollow, noarchive");
+    expect(authorityRequests).toEqual([`${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/tree/projects`]);
+    expect(html).toContain('href="/review/public-site"');
+    expect(html).toContain(
+      `<meta name="${FORMLESS_SITE_ROUTE_BASE_META_NAME}" content="/review/public-site" />`,
+    );
+    expect(html).toContain(
+      `<meta name="${FORMLESS_SITE_ROUTE_SLUG_META_NAME}" content="projects" />`,
+    );
+    expect(html).toContain(
+      `<meta name="${FORMLESS_SITE_ROUTE_STATE_META_NAME}" content="found" />`,
+    );
+    expect(html).not.toContain('rel="canonical"');
+    expect(html).not.toContain('property="og:url"');
+    expect(html).not.toContain('rel="icon"');
+  });
+
+  it("does not install the Program preview mount on a mapped public Site host", async () => {
+    const response = await handleProgramSitePreviewRequest(
+      new Request("https://www.example.com/site/public", {
+        headers: { Accept: "text/html" },
+      }),
+      envWithTreeResponse(Response.json(testSitePageTree("home")), undefined, "instance"),
+      {
+        runtimeRoute: {
+          access: "anonymous",
+          id: "route:host:public-site:www.example.com",
+          kind: "mount",
+          matchHost: "www.example.com",
+          matchPath: "/",
+          matchPrefix: "/",
+          surface: "public-site",
+          targetProfile: "public-site",
+        },
+      },
     );
 
     expect(response).toBeUndefined();
@@ -334,8 +419,17 @@ describe("published Site Worker SSR", () => {
     expect(html).toContain("data-astryx-public-site-provider");
     expect(html).toContain('role="main"');
     expect(html).toContain('href="/blog"');
-    expect(html).not.toContain('href="/pages/blog"');
     expect(html).not.toContain("Loading site page...");
+  });
+
+  it("keeps instance preview mount text under published Site route policy", async () => {
+    const response = await getDocument("/site/public");
+    const html = await response.text();
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get("Cache-Control")).toBe(PUBLISHED_SITE_NOT_FOUND_CACHE_CONTROL);
+    expect(response.headers.get("X-Robots-Tag")).toBeNull();
+    expect(html).toContain("No site page exists for site/public.");
   });
 
   it("renders escaped clean metadata from public tree facts", async () => {
@@ -496,29 +590,6 @@ describe("published Site Worker SSR", () => {
     expect(body.meta.slug).toBe("home");
   });
 
-  it("redirects old preview routes before public document rendering", async () => {
-    const responses = await Promise.all([
-      getDocumentWithoutFollowingRedirect("/pages/home"),
-      getDocumentWithoutFollowingRedirect("/pages/projects"),
-      getDocumentWithoutFollowingRedirect("/pages/blog/agents-are-enablers?ref=preview"),
-    ]);
-
-    expect(responses.map((response) => response.status)).toEqual([308, 308, 308]);
-    expect(responses.map((response) => response.headers.get("Location"))).toEqual([
-      "/",
-      "/projects",
-      "/blog/agents-are-enablers?ref=preview",
-    ]);
-  });
-
-  it("returns HEAD redirects without a response body", async () => {
-    const response = await headDocumentWithoutFollowingRedirect("/pages/home");
-
-    expect(response.status).toBe(308);
-    expect(response.headers.get("Location")).toBe("/");
-    expect(await response.text()).toBe("");
-  });
-
   it("returns 404 responses for generated admin routes in the published profile", async () => {
     const responses = await Promise.all([
       getDocument("/site"),
@@ -568,31 +639,12 @@ async function getDocument(path: string) {
   });
 }
 
-async function getDocumentWithoutFollowingRedirect(path: string) {
-  return harness.fetch(path, {
-    headers: {
-      Accept: "text/html",
-    },
-    redirect: "manual",
-  });
-}
-
 async function headDocument(path: string) {
   return harness.fetch(path, {
     headers: {
       Accept: "text/html",
     },
     method: "HEAD",
-  });
-}
-
-async function headDocumentWithoutFollowingRedirect(path: string) {
-  return harness.fetch(path, {
-    headers: {
-      Accept: "text/html",
-    },
-    method: "HEAD",
-    redirect: "manual",
   });
 }
 

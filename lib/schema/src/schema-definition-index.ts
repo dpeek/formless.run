@@ -207,6 +207,7 @@ export function createAppSchemaDefinitionIndex(schema: AppSchema): AppSchemaDefi
     tableViews: createDefinitionIndex(schema.tableViews, "Schema table views"),
     views: createDefinitionIndex(schema.views, "Schema views"),
     screens: createDefinitionIndex(schema.screens, "Schema screens"),
+    surfaceMounts: createDefinitionIndex(schema.surfaceMounts ?? [], "Schema surface mounts"),
     fieldsByEntity,
     enumValuesByEntityField,
     constraintsByEntity,

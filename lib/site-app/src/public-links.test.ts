@@ -14,8 +14,8 @@ describe("site renderer links", () => {
   it("resolves every public profile through renderer-neutral package exports", () => {
     const cases = [
       {
-        expectedHome: "/pages/home",
-        expectedPost: "/pages/blog/post?draft=1#top",
+        expectedHome: "/",
+        expectedPost: "/blog/post?draft=1#top",
         linkMode: "preview",
         routeBase: undefined,
       },
@@ -32,10 +32,10 @@ describe("site renderer links", () => {
         routeBase: undefined,
       },
       {
-        expectedHome: "/campaign",
-        expectedPost: "/campaign/blog/post?draft=1#top",
-        linkMode: "published",
-        routeBase: "/campaign",
+        expectedHome: "/site/preview",
+        expectedPost: "/site/preview/blog/post?draft=1#top",
+        linkMode: "preview",
+        routeBase: "/site/preview",
       },
     ] as const satisfies readonly {
       expectedHome: string;
@@ -52,11 +52,11 @@ describe("site renderer links", () => {
     }
   });
 
-  it("renders published and authoring links at top-level paths", () => {
+  it("renders stored root-relative links at the selected route base", () => {
     expect(sitePagePathForSlug("home", "published")).toBe("/");
-    expect(profileAwareSiteHref("/pages/blog", "published")).toBe("/blog");
     expect(sitePagePathForSlug("home", "authoring")).toBe("/");
-    expect(profileAwareSiteHref("/pages/blog", "authoring")).toBe("/blog");
+    expect(profileAwareSiteHref("/blog", "published", "/campaign")).toBe("/campaign/blog");
+    expect(profileAwareSiteHref("/campaign/blog", "published", "/campaign")).toBe("/campaign/blog");
   });
 
   it("leaves external links unchanged and projects browser target facts", () => {
@@ -73,9 +73,9 @@ describe("site renderer links", () => {
   });
 
   it("matches projected route state for active navigation", () => {
-    expect(siteHrefMatchesRoute("/pages/home", "home")).toBe(true);
+    expect(siteHrefMatchesRoute("/", "home")).toBe(true);
     expect(siteHrefMatchesRoute("/", "blog")).toBe(false);
-    expect(siteHrefMatchesRoute("/pages/blog", "blog/shipping-schema-backed-authoring")).toBe(true);
+    expect(siteHrefMatchesRoute("/blog", "blog/shipping-schema-backed-authoring")).toBe(true);
     expect(siteHrefMatchesRoute("/projects", "projects/future-detail")).toBe(true);
     expect(siteHrefMatchesRoute("/campaign/blog", "blog/post", "/campaign")).toBe(true);
     expect(siteHrefMatchesRoute("/docs/blog", "blog/post", "/campaign")).toBe(false);

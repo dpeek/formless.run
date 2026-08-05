@@ -126,10 +126,9 @@ function hrefMatchesRoute(href: string | undefined, slug: string): boolean {
 
   const hrefPath = normalizeHrefPath(href);
   const routePath = normalizeSiteRoutePath(slug);
-  const previewPath = `/pages/${routePath}`;
   const publishedPath = routePath === "home" ? "/" : `/${routePath}`;
 
-  return hrefPath === previewPath || hrefPath === publishedPath;
+  return hrefPath === publishedPath;
 }
 
 function normalizeHrefPath(href: string): string {

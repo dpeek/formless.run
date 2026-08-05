@@ -15,6 +15,8 @@ import {
   siteContactIntakePresentationSchemaModule,
   sitePresentationSchemaModule,
   siteRecordSchemaModule,
+  SITE_PREVIEW_BROWSER_MOUNT_KEY,
+  SITE_PREVIEW_WORKER_MOUNT_KEY,
 } from "@dpeek/formless-site-app/schema";
 import {
   standardContactSubscriptionRecordSchemaModule,
@@ -107,6 +109,25 @@ export const formlessSiteContactIntakePresentationSchemaModule = defineAppSchema
   })),
 });
 
+export const formlessSitePreviewSurfaceMountSchemaModule = defineAppSchemaModule({
+  key: "site-preview-surface-mounts",
+  requires: [siteRecordSchemaModule.key],
+  surfaceMounts: [
+    {
+      key: SITE_PREVIEW_BROWSER_MOUNT_KEY,
+      target: "browser",
+      path: "/site/preview",
+      access: { actor: "authenticated" },
+    },
+    {
+      key: SITE_PREVIEW_WORKER_MOUNT_KEY,
+      target: "worker",
+      path: "/site/public",
+      access: { actor: "authenticated" },
+    },
+  ],
+});
+
 export const formlessInstanceControlPlanePresentationSchemaModule =
   instanceControlPlanePresentationSchemaModule;
 
@@ -135,6 +156,7 @@ export const formlessProgramBuiltInModules = {
   standardContactSubscriptionRecords: formlessStandardContactSubscriptionRecordSchemaModule,
   tasksRecords: formlessTasksRecordSchemaModule,
   siteRecords: formlessSiteRecordSchemaModule,
+  sitePreviewSurfaceMounts: formlessSitePreviewSurfaceMountSchemaModule,
   instanceControlPlanePresentation: formlessInstanceControlPlanePresentationSchemaModule,
   instanceControlPlaneRoutesScreen: formlessInstanceControlPlaneRoutesScreenSchemaModule,
   identityControlPlaneAccessScreen: formlessIdentityControlPlaneAccessScreenSchemaModule,
@@ -150,6 +172,7 @@ export const formlessProgramSchemaModules = [
   formlessProgramBuiltInModules.standardContactSubscriptionRecords,
   formlessProgramBuiltInModules.tasksRecords,
   formlessProgramBuiltInModules.siteRecords,
+  formlessProgramBuiltInModules.sitePreviewSurfaceMounts,
   formlessProgramBuiltInModules.instanceControlPlanePresentation,
   formlessProgramBuiltInModules.instanceControlPlaneRoutesScreen,
   formlessProgramBuiltInModules.identityControlPlaneAccessScreen,

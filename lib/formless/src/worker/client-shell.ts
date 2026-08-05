@@ -1,4 +1,5 @@
 import { runtimeTopologyRoutes } from "../shared/runtime-topology.ts";
+import { isFormlessProgramSurfaceMountRouteTarget } from "../program/runtime.ts";
 import { getEquivalentRequestForHead, responseWithoutBodyForHead } from "./head-response.ts";
 import type { WorkerRuntimeRequestTopology } from "./routing.ts";
 
@@ -52,7 +53,9 @@ function shouldServeRuntimeClientShellDocument(
     runtimeTopology.acceptsHtml &&
     !runtimeTopology.apiPath &&
     !runtimeTopology.staticAssetPath &&
-    runtimeTopology.programScreenRouteTarget?.key === "access",
+    (runtimeTopology.programRouteTarget?.key === "access" ||
+      (runtimeTopology.programRouteTarget !== undefined &&
+        isFormlessProgramSurfaceMountRouteTarget(runtimeTopology.programRouteTarget))),
   );
 }
 

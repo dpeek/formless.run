@@ -47,11 +47,45 @@ describe("application route selection", () => {
     );
   });
 
+  it("renders the materialized browser preview mount directly at its root and nested slugs", () => {
+    const root = renderRoute("/site/preview");
+    const trailingRoot = renderRoute("/site/preview/");
+    const nested = renderRoute("/site/preview/blog/shipping");
+
+    expect(root).toContain('data-route="public-site"');
+    expect(root).toContain('data-route-base="/site/preview"');
+    expect(root).toContain('data-slug="home"');
+    expect(trailingRoot).toContain('data-slug="home"');
+    expect(nested).toContain('data-slug="blog/shipping"');
+    expect(`${root}${trailingRoot}${nested}`).not.toContain('data-surface="application-shell"');
+  });
+
+  it("routes a downstream replacement path through the stable browser mount binding", () => {
+    const programSchema = structuredClone(formlessProgramSchema);
+    const previewMount = programSchema.surfaceMounts?.find(
+      (mount) => mount.key === "site.preview.browser",
+    );
+
+    if (!previewMount) {
+      throw new Error("Expected the Program schema to include the Site browser preview mount.");
+    }
+
+    previewMount.path = "/review/site";
+
+    const replacement = renderRoute("/review/site/projects", { programSchema });
+    const previousPath = renderRoute("/site/preview/projects", { programSchema });
+
+    expect(replacement).toContain('data-route-base="/review/site"');
+    expect(replacement).toContain('data-slug="projects"');
+    expect(previousPath).not.toContain('data-route="public-site"');
+  });
+
   it("does not mount a published Site route when the Program has no Site browser surface", () => {
     const runtimeWithoutSite: ProgramBrowserRuntimeDefinition = {
       target: "browser",
       projections: [],
       surfaces: [],
+      mounts: [],
     };
 
     const published = renderRoute("/", {

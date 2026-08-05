@@ -175,7 +175,7 @@ export const publicSiteMediaLayoutFixtures = [
               mediaBlock("summary", "post", "post", "Making service constraints visible", {
                 body: "A short account of joining customer and operational evidence.",
                 date: "2026-07-14",
-                href: "/pages/notes/service-constraints",
+                href: "/notes/service-constraints",
                 placements: [
                   mediaPlacement(
                     "summary",
@@ -262,14 +262,14 @@ function linkIconLayout(
               id,
               "active-internal",
               1000,
-              linkBlock(id, "active-internal", "link", "Work", { href: "/pages/work" }),
+              linkBlock(id, "active-internal", "link", "Work", { href: "/work" }),
             ),
             linkPlacement(
               id,
               "inactive-internal",
               2000,
               linkBlock(id, "inactive-internal", "link", "Contact", {
-                href: "/pages/contact",
+                href: "/contact",
               }),
             ),
             linkPlacement(

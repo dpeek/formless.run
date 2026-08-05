@@ -13,8 +13,7 @@ import {
   mappedRuntimeRoutePolicyFromFacts,
   ownerBrowserRouteAccessForRequest,
   protectedBrowserRouteDecisionFromFacts,
-  publishedSiteRedirectForRequest,
-  resolveProgramScreenRouteTargetFromFacts,
+  resolveProgramRouteTargetFromFacts,
   resolveProtectedBrowserRouteTargetFromFacts,
   resolveWorkerRuntimeRequestTopology,
   shouldDeferToStaticAssets,
@@ -33,8 +32,8 @@ describe("Worker document routing", () => {
     const instance = resolveWorkerRuntimeRequestTopology(
       documentRequest("http://example.com/tasks"),
     );
-    const preview = resolveWorkerRuntimeRequestTopology(
-      documentRequest("http://published-site.example.com/pages/home?ref=old"),
+    const publishedRoute = resolveWorkerRuntimeRequestTopology(
+      documentRequest("http://published-site.example.com/blog/post?ref=entry"),
     );
     const inferredPreview = resolveWorkerRuntimeRequestTopology(
       documentRequest("https://formless.twitchy.workers.dev/"),
@@ -59,14 +58,13 @@ describe("Worker document routing", () => {
 
     expect(instance.profileKind).toBe("instance");
     expect(instance.routePolicy).toEqual({ instanceBrowserRoutes: true });
-    expect(preview.profileKind).toBe("publishedSite");
+    expect(publishedRoute.profileKind).toBe("publishedSite");
     expect(inferredPreview.profileKind).toBe("publishedSite");
-    expect(preview.routePolicy).toEqual({
+    expect(publishedRoute.routePolicy).toEqual({
       instanceBrowserRoutes: false,
     });
-    expect(preview.clientShellRoute).toBe(true);
-    expect(preview.publishedSitePreviewRedirectLocation).toBe("/?ref=old");
-    expect(preview.acceptsHtml).toBe(true);
+    expect(publishedRoute.clientShellRoute).toBe(false);
+    expect(publishedRoute.acceptsHtml).toBe(true);
 
     expect(robots.publishedSiteIndexingResourcePath).toBe(true);
     expect(robots.staticAssetPath).toBe(true);
@@ -241,7 +239,7 @@ describe("Worker document routing", () => {
       }),
     ).toEqual({
       kind: "validate-session",
-      programScreen: {
+      programRoute: {
         access: { role: "administrator" },
         key: "access",
         label: "Access",
@@ -262,7 +260,7 @@ describe("Worker document routing", () => {
     } as const;
 
     expect(
-      resolveProgramScreenRouteTargetFromFacts({
+      resolveProgramRouteTargetFromFacts({
         runtimeRoute: mappedInstanceRoute,
         topology: programTopology,
       }),
@@ -283,7 +281,7 @@ describe("Worker document routing", () => {
         ),
       }),
     ).toMatchObject({
-      programScreen: {
+      programRoute: {
         access: { role: "administrator" },
         key: "access",
       },
@@ -307,16 +305,95 @@ describe("Worker document routing", () => {
     );
 
     expect(routes.instanceProfileClientShellRoute).toBe(true);
-    expect(routes.programScreenRouteTarget).toMatchObject({
+    expect(routes.programRouteTarget).toMatchObject({
       key: "routes",
       path: "/infrastructure/routes",
     });
     expect(resolveProtectedBrowserRouteTargetFromFacts({ topology: access })).toMatchObject({
-      programScreen: { key: "access", path: "/people/access", type: "runtime" },
+      programRoute: { key: "access", path: "/people/access", type: "runtime" },
       requiredAccess: "authenticated",
     });
     expect(previousAccessPath.instanceProfileClientShellRoute).toBe(false);
-    expect(previousAccessPath.programScreenRouteTarget).toBeUndefined();
+    expect(previousAccessPath.programRouteTarget).toBeUndefined();
+  });
+
+  it("admits browser and Worker mounts with the mapped instance access floor", () => {
+    const topology = resolveWorkerRuntimeRequestTopology(
+      documentRequest("https://admin.example.com/site/preview/blog/shipping"),
+      { profile: "instance" },
+    );
+    const mappedInstanceRoute = {
+      access: "owner",
+      id: "route:host:instance:admin.example.com",
+      kind: "mount",
+      matchHost: "admin.example.com",
+      matchPath: "/",
+      matchPrefix: "/",
+      targetProfile: "instance",
+    } as const;
+
+    expect(topology.instanceProfileClientShellRoute).toBe(true);
+    expect(topology.programRouteTarget).toMatchObject({
+      key: "site.preview.browser",
+      path: "/site/preview",
+      pathSuffix: "/blog/shipping",
+      target: "browser",
+    });
+    expect(resolveProtectedBrowserRouteTargetFromFacts({ topology })).toMatchObject({
+      programRoute: {
+        key: "site.preview.browser",
+        requiredAccess: "authenticated",
+        routeAccess: "anonymous",
+      },
+      requiredAccess: "authenticated",
+    });
+    expect(
+      resolveProtectedBrowserRouteTargetFromFacts({
+        runtimeRoute: mappedInstanceRoute,
+        topology,
+      }),
+    ).toMatchObject({
+      programRoute: {
+        key: "site.preview.browser",
+        requiredAccess: "owner",
+        routeAccess: "owner",
+      },
+      requiredAccess: "owner",
+    });
+    expect(
+      resolveProtectedBrowserRouteTargetFromFacts({
+        topology: resolveWorkerRuntimeRequestTopology(
+          documentRequest("https://site.example.com/site/preview/blog"),
+          { profile: "publishedSite" },
+        ),
+      }),
+    ).toBeUndefined();
+
+    const workerTopology = resolveWorkerRuntimeRequestTopology(
+      documentRequest("https://admin.example.com/site/public/blog/shipping"),
+      { profile: "instance" },
+    );
+
+    expect(workerTopology.instanceProfileClientShellRoute).toBe(false);
+    expect(workerTopology.programRouteTarget).toMatchObject({
+      key: "site.preview.worker",
+      path: "/site/public",
+      pathSuffix: "/blog/shipping",
+      target: "worker",
+    });
+    expect(
+      resolveProtectedBrowserRouteTargetFromFacts({
+        runtimeRoute: mappedInstanceRoute,
+        topology: workerTopology,
+      }),
+    ).toMatchObject({
+      programRoute: {
+        key: "site.preview.worker",
+        requiredAccess: "owner",
+        routeAccess: "owner",
+      },
+      requiredAccess: "owner",
+    });
   });
 
   it("routes published Site documents to the Worker SSR path only in the published profile", () => {
@@ -448,8 +525,17 @@ describe("Worker document routing", () => {
       shouldDeferToStaticAssets(documentRequest("http://example.com/site/schema"), instanceProfile),
     ).toBe(false);
     expect(
-      shouldDeferToStaticAssets(documentRequest("http://example.com/pages/home"), instanceProfile),
+      shouldDeferToStaticAssets(
+        documentRequest("http://example.com/articles/home"),
+        instanceProfile,
+      ),
     ).toBe(false);
+    expect(
+      shouldDeferToStaticAssets(
+        documentRequest("http://example.com/site/preview/blog/post"),
+        instanceProfile,
+      ),
+    ).toBe(true);
   });
 
   it("uses current Program and public Site route access for browser redirects", () => {
@@ -556,11 +642,10 @@ describe("Worker document routing", () => {
     ).toBe(true);
   });
 
-  it("keeps API, Formless view, preview redirect, assets, and non-HTML routes out of SSR", () => {
+  it("keeps API, Formless view, assets, and non-HTML routes out of SSR", () => {
     const nonSsrRequests = [
       documentRequest("http://example.com/api/site/tree/home"),
       documentRequest("http://example.com/formless/auth/callback"),
-      documentRequest("http://example.com/pages/home"),
       documentRequest("http://example.com/tasks"),
       documentRequest("http://example.com/schema"),
       documentRequest(`http://example.com${runtimeTopologyRoutes.authAccountSetupRoute}`),
@@ -588,6 +673,15 @@ describe("Worker document routing", () => {
       shouldDeferToStaticAssets(documentRequest("http://example.com/formless/auth/callback"), {
         profile: "publishedSite",
       }),
+    ).toBe(true);
+  });
+
+  it("treats instance preview mount text as an ordinary published Site slug", () => {
+    expect(
+      shouldHandlePublishedSiteDocument(
+        documentRequest("http://example.com/site/public/blog/post"),
+        { profile: "publishedSite" },
+      ),
     ).toBe(true);
   });
 
@@ -658,7 +752,9 @@ describe("Worker document routing", () => {
   });
 
   it("marks client-shell and static asset requests for asset serving fallback", () => {
-    expect(shouldDeferToStaticAssets(documentRequest("http://example.com/pages/home"))).toBe(false);
+    expect(shouldDeferToStaticAssets(documentRequest("http://example.com/articles/home"))).toBe(
+      false,
+    );
     expect(shouldDeferToStaticAssets(documentRequest("http://example.com/sites/personal"))).toBe(
       false,
     );
@@ -698,7 +794,7 @@ describe("Worker document routing", () => {
     );
     expect(
       shouldDeferToStaticAssets(
-        new Request("http://example.com/pages/home", {
+        new Request("http://example.com/articles/home", {
           headers: { Accept: "text/html" },
           method: "POST",
         }),
@@ -728,7 +824,7 @@ describe("Worker document routing", () => {
       }),
     ).toBe(false);
     expect(
-      shouldDeferToStaticAssets(documentRequest("http://example.com/pages/home"), {
+      shouldDeferToStaticAssets(documentRequest("http://example.com/articles/home"), {
         profile: "publishedSite",
       }),
     ).toBe(false);
@@ -786,78 +882,7 @@ describe("Worker document routing", () => {
     ).toBe(false);
   });
 
-  it("builds published Site redirects for old preview routes", () => {
-    expect(
-      publishedSiteRedirectForRequest(documentRequest("http://example.com/pages"), {
-        profile: "publishedSite",
-      }),
-    ).toEqual({ location: "/", status: 308 });
-    expect(
-      publishedSiteRedirectForRequest(documentRequest("http://example.com/pages/"), {
-        profile: "publishedSite",
-      }),
-    ).toEqual({ location: "/", status: 308 });
-    expect(
-      publishedSiteRedirectForRequest(documentRequest("http://example.com/pages/home"), {
-        profile: "publishedSite",
-      }),
-    ).toEqual({ location: "/", status: 308 });
-    expect(
-      publishedSiteRedirectForRequest(documentRequest("http://example.com/pages/projects"), {
-        profile: "publishedSite",
-      }),
-    ).toEqual({ location: "/projects", status: 308 });
-    expect(
-      publishedSiteRedirectForRequest(
-        documentRequest("http://example.com/pages/blog/agents?ref=old"),
-        {
-          profile: "publishedSite",
-        },
-      ),
-    ).toEqual({ location: "/blog/agents?ref=old", status: 308 });
-    expect(
-      publishedSiteRedirectForRequest(documentRequest("http://example.com/pages//projects"), {
-        profile: "publishedSite",
-      }),
-    ).toEqual({ location: "/projects", status: 308 });
-    expect(
-      publishedSiteRedirectForRequest(
-        new Request("http://example.com/pages/home", {
-          headers: { Accept: "text/html" },
-          method: "HEAD",
-        }),
-        { profile: "publishedSite" },
-      ),
-    ).toEqual({ location: "/", status: 308 });
-  });
-
-  it("does not redirect outside the published profile or for API, asset, or mutating requests", () => {
-    expect(publishedSiteRedirectForRequest(documentRequest("http://example.com/pages/home"))).toBe(
-      undefined,
-    );
-    expect(
-      publishedSiteRedirectForRequest(documentRequest("http://example.com/api/site/pages/home"), {
-        profile: "publishedSite",
-      }),
-    ).toBe(undefined);
-    expect(
-      publishedSiteRedirectForRequest(documentRequest("http://example.com/pages/logo.svg"), {
-        profile: "publishedSite",
-      }),
-    ).toBe(undefined);
-    expect(
-      publishedSiteRedirectForRequest(
-        new Request("http://example.com/pages/home", {
-          headers: { Accept: "text/html" },
-          method: "POST",
-        }),
-        { profile: "publishedSite" },
-      ),
-    ).toBe(undefined);
-  });
-
-  it("recognizes Program and preview route prefixes as client shell routes", () => {
-    expect(isClientShellRoute("/pages/home")).toBe(true);
+  it("recognizes Program route prefixes as client shell routes", () => {
     expect(isClientShellRoute("/tasks")).toBe(true);
     expect(isClientShellRoute("/site/schema")).toBe(false);
     expect(isClientShellRoute("/formless/auth")).toBe(true);

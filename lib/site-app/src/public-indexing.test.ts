@@ -21,7 +21,7 @@ describe("public Site indexing", () => {
         blockRecord("rec_site_content_preview_page", {
           type: "page",
           label: "Preview page",
-          href: "/pages/preview-page?draft=1#top",
+          href: "/preview-page?draft=1#top",
         }),
         blockRecord("rec_site_content_icon_path_page", {
           type: "page",
@@ -36,7 +36,7 @@ describe("public Site indexing", () => {
         blockRecord("rec_site_content_preview_post", {
           type: "post",
           label: "Preview post",
-          href: "/pages/blog/preview-post?draft=1#top",
+          href: "/blog/preview-post?draft=1#top",
           date: "2026-05-15",
         }),
         blockRecord("rec_site_content_undated_post", {
@@ -69,7 +69,7 @@ describe("public Site indexing", () => {
           href: "/blog",
         }),
       ],
-      { clientRoutePrefixes: ["/pages", "/schema", "/site"] },
+      { clientRoutePrefixes: ["/admin", "/schema", "/site"] },
     );
     const paths = routes.map((route) => route.path);
 
@@ -93,7 +93,6 @@ describe("public Site indexing", () => {
       "/deleted",
       "/downloads/resume.pdf",
       "/favicon.svg",
-      "/pages/preview-page",
       "/settings-owned-route",
       "/site",
       "/blog/undated-post",

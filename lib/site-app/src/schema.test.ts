@@ -9,6 +9,8 @@ import {
   sitePresentationSchemaModule,
   siteRecordSchemaModule,
   siteSchemaSource,
+  SITE_PREVIEW_BROWSER_MOUNT_KEY,
+  SITE_PREVIEW_WORKER_MOUNT_KEY,
 } from "@dpeek/formless-site-app/schema";
 import { sitePublicBrowserSurfaceDefinition } from "@dpeek/formless-site-app/runtime/browser";
 import {
@@ -175,6 +177,10 @@ describe("Site schema authoring", () => {
   });
 
   it("publishes explicit browser and Worker runtime selections", () => {
+    expect([SITE_PREVIEW_BROWSER_MOUNT_KEY, SITE_PREVIEW_WORKER_MOUNT_KEY]).toEqual([
+      "site.preview.browser",
+      "site.preview.worker",
+    ]);
     expect(sitePublicBrowserSurfaceDefinition).toMatchObject({
       key: "site.public",
       kind: "surface",

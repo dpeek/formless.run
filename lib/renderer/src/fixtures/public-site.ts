@@ -167,21 +167,21 @@ const header = createSiteBlockFixture("block-header", "header", "Header", {
             "placement-header-home",
             1000,
             createSiteBlockFixture("block-link-home", "link", "Home", {
-              href: "/pages/home",
+              href: "/",
             }),
           ),
           createSitePlacementFixture(
             "placement-header-work",
             2000,
             createSiteBlockFixture("block-link-work", "link", "Work", {
-              href: "/pages/work",
+              href: "/work",
             }),
           ),
           createSitePlacementFixture(
             "placement-header-journal",
             3000,
             createSiteBlockFixture("block-link-journal", "link", "Journal", {
-              href: "/pages/journal",
+              href: "/journal",
             }),
           ),
         ],
@@ -216,14 +216,14 @@ const footer = createSiteBlockFixture("block-footer", "footer", "Footer", {
             "placement-footer-home",
             1000,
             createSiteBlockFixture("block-footer-link-home", "link", "Home", {
-              href: "/pages/home",
+              href: "/",
             }),
           ),
           createSitePlacementFixture(
             "placement-footer-work",
             2000,
             createSiteBlockFixture("block-footer-link-work", "link", "Work", {
-              href: "/pages/work",
+              href: "/work",
             }),
           ),
         ],

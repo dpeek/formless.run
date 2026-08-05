@@ -64,6 +64,14 @@ describe("App schema definition indexes", () => {
             ],
           },
         ],
+        surfaceMounts: [
+          {
+            key: "site.preview.browser",
+            target: "browser",
+            path: "/site/preview",
+            access: { actor: "authenticated" },
+          },
+        ],
       }),
     );
     const index = getAppSchemaDefinitionIndex(schema);
@@ -86,6 +94,7 @@ describe("App schema definition indexes", () => {
     expect(index.tableViews.ordered).toEqual([]);
     expect(index.views.ordered.map(({ key }) => key)).toEqual(["taskHome", "taskCreate"]);
     expect(index.screens.byKey.has("home")).toBe(true);
+    expect(index.surfaceMounts.byKey.get("site.preview.browser")?.path).toBe("/site/preview");
     expect(index.relationships.ordered).toEqual([]);
 
     expect(index.fieldsByEntity.get("task")?.ordered.map(({ key }) => key)).toEqual([

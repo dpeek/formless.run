@@ -266,9 +266,11 @@ WebSocket for the Program identity.
 - WHEN public browser interactivity starts
 - THEN it does not bootstrap or synchronize the authenticated Program replica
 - AND it does not open `/api/formless/program/sync/ws`
-- AND authenticated `/pages` preview may use an authenticated Program
-  invalidation socket
-  because it is a Program member surface
+- AND an authenticated browser Site preview selected by stable mount key
+  `site.preview.browser` may use the same Program replica and invalidation
+  socket because it is an admitted Program surface
+- AND Worker Site preview selected by `site.preview.worker` reads current
+  Program storage without bootstrapping the browser Program replica
 
 ### Requirement: Persistent Program Client Runtime
 

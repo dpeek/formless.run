@@ -37,7 +37,7 @@ export type HostAuthSessionValidationFailureReason =
   | "missing-cookie"
   | "missing-management-authority"
   | "missing-owner-authority"
-  | "missing-program-screen-authority"
+  | "missing-program-route-authority"
   | "missing-principal"
   | "missing-secret"
   | "missing-target"
@@ -92,7 +92,7 @@ export type InstanceAuthAccessFailureReason =
   | HostAuthSessionValidationFailureReason
   | "missing-management-authority"
   | "missing-owner-authority"
-  | "missing-program-screen-authority"
+  | "missing-program-route-authority"
   | "missing-principal";
 
 export type InstanceAuthAccessResult =
@@ -121,7 +121,7 @@ export type InstanceAuthAccessInput = {
   accountCompletionTarget?: AccountCompletionGateTarget;
   localOwnerSessionFallbackAllowed: boolean;
   programSchema?: AppSchema;
-  programScreenAccess?: ScreenAccessRequirement;
+  programRouteAccess?: ScreenAccessRequirement;
   requiredAuthority: InstanceAuthAuthorityRequirement;
   target?: InstanceAuthSessionTargetBinding;
 };
@@ -382,13 +382,13 @@ async function validateCurrentSession(
     };
   }
 
-  if (input.programScreenAccess !== undefined) {
+  if (input.programRouteAccess !== undefined) {
     const programAuthority = await readers.readManagementAuthority(session);
 
     if (
       programAuthority?.id !== session.principalId ||
       !evaluateAccessRequirement(
-        input.programScreenAccess,
+        input.programRouteAccess,
         programAuthority.callerFacts,
         input.programSchema ?? formlessProgramSchema,
       )
@@ -400,7 +400,7 @@ async function validateCurrentSession(
         : {
             authenticated,
             ok: false,
-            reason: "missing-program-screen-authority",
+            reason: "missing-program-route-authority",
           };
     }
 

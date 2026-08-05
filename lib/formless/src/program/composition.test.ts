@@ -56,11 +56,25 @@ describe("Program runtime composition", () => {
     expect(formlessProgramDefaultBrowserRuntime.surfaces.map(({ key }) => key)).toEqual([
       "site.public",
     ]);
+    expect(formlessProgramDefaultBrowserRuntime.mounts).toEqual([
+      {
+        target: "browser",
+        mountKey: "site.preview.browser",
+        surfaceKey: "site.public",
+      },
+    ]);
     expect(formlessProgramDefaultWorkerRuntime.publicReads.map(({ key }) => key)).toEqual([
       "site.public-tree",
     ]);
     expect(formlessProgramDefaultWorkerRuntime.surfaces.map(({ key }) => key)).toEqual([
       "site.public",
+    ]);
+    expect(formlessProgramDefaultWorkerRuntime.mounts).toEqual([
+      {
+        target: "worker",
+        mountKey: "site.preview.worker",
+        surfaceKey: "site.public",
+      },
     ]);
   });
 
@@ -92,7 +106,7 @@ describe("Program runtime composition", () => {
         },
       }),
     ).rejects.toThrow(
-      'Schema module "site-records" requires Program runtime selection "site.public" in browser.surfaces.',
+      'Program runtime surface mount binding "site.preview.browser" references missing surface "site.public" in browser.surfaces.',
     );
 
     await expect(
@@ -120,7 +134,7 @@ describe("Program runtime composition", () => {
         },
       }),
     ).rejects.toThrow(
-      'Schema module "site-records" requires Program runtime selection "site.public" in worker.surfaces.',
+      'Program runtime surface mount binding "site.preview.worker" references missing surface "site.public" in worker.surfaces.',
     );
   });
 
@@ -129,12 +143,15 @@ describe("Program runtime composition", () => {
     const runtime = completeRuntimeComposition();
     const artifact = await materializeFormlessProgramArtifact(composition, { runtime });
     const artifactText = formatFormlessProgramArtifact(artifact);
-    const dataOnlyArtifact = await materializeFormlessProgramArtifact({
-      ...composition,
-      modules: composition.modules.map(({ runtimeRequirements: _requirements, ...module }) =>
-        defineAppSchemaModule(module),
-      ),
-    });
+    const dataOnlyArtifact = await materializeFormlessProgramArtifact(
+      {
+        ...composition,
+        modules: composition.modules.map(({ runtimeRequirements: _requirements, ...module }) =>
+          defineAppSchemaModule(module),
+        ),
+      },
+      { runtime },
+    );
 
     expect(artifact).toEqual(dataOnlyArtifact);
     expect(artifactText).not.toContain("runtimeRequirements");
@@ -238,6 +255,56 @@ describe("Program runtime composition", () => {
       }),
     ).rejects.toThrow(
       'Program runtime selection "workspace.browser" in browser.surfaces targets "worker" instead of "browser".',
+    );
+  });
+
+  it("rejects missing, duplicate, and target-incompatible surface-mount bindings", async () => {
+    await expect(
+      materializeFormlessProgramArtifact(formlessProgramDefaultComposition, {
+        runtime: {
+          ...formlessProgramDefaultRuntimeComposition,
+          browser: { ...formlessProgramDefaultBrowserRuntime, mounts: [] },
+        },
+      }),
+    ).rejects.toThrow(
+      'Program surface mount "site.preview.browser" has no browser runtime binding.',
+    );
+
+    await expect(
+      materializeFormlessProgramArtifact(formlessProgramDefaultComposition, {
+        runtime: {
+          ...formlessProgramDefaultRuntimeComposition,
+          browser: {
+            ...formlessProgramDefaultBrowserRuntime,
+            mounts: [
+              ...formlessProgramDefaultBrowserRuntime.mounts,
+              ...formlessProgramDefaultBrowserRuntime.mounts,
+            ],
+          },
+        },
+      }),
+    ).rejects.toThrow('Program surface mount "site.preview.browser" is bound more than once.');
+
+    await expect(
+      materializeFormlessProgramArtifact(formlessProgramDefaultComposition, {
+        runtime: {
+          ...formlessProgramDefaultRuntimeComposition,
+          browser: { ...formlessProgramDefaultBrowserRuntime, mounts: [] },
+          worker: {
+            ...formlessProgramDefaultWorkerRuntime,
+            mounts: [
+              ...formlessProgramDefaultWorkerRuntime.mounts,
+              {
+                target: "worker",
+                mountKey: "site.preview.browser",
+                surfaceKey: "site.public",
+              },
+            ],
+          },
+        },
+      }),
+    ).rejects.toThrow(
+      'Program runtime surface mount binding "site.preview.browser" targets "worker" instead of declared target "browser".',
     );
   });
 });

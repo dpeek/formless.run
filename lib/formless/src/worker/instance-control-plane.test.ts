@@ -511,8 +511,8 @@ describe("instance control-plane API routes", () => {
         idempotencyKey: "program-public-site-route",
         input: {
           enabled: true,
-          matchPath: "/pages",
-          matchPrefix: "/pages/",
+          matchPath: "/campaign",
+          matchPrefix: "/campaign/",
           kind: "mount",
           targetProfile: "public-site",
           surface: "public-site",
@@ -523,7 +523,7 @@ describe("instance control-plane API routes", () => {
 
     expect(route.response.status).toBe(200);
     expect(operationRecord(route).values).toMatchObject({
-      matchPath: "/pages",
+      matchPath: "/campaign",
       surface: "public-site",
       targetProfile: "public-site",
     });

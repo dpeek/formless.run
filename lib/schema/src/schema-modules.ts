@@ -30,11 +30,13 @@ export function composeAppSchema<const Composition extends AppSchemaCompositionS
   const tableViews: AppSchemaSource["tableViews"] = [];
   const views: AppSchemaSource["views"] = [];
   const screens: AppSchemaSource["screens"] = [];
+  const surfaceMounts: NonNullable<AppSchemaSource["surfaceMounts"]> = [];
   let hasRelationships = false;
   let hasReadModels = false;
   let hasComputedValues = false;
   let hasAggregates = false;
   let hasUnions = false;
+  let hasSurfaceMounts = false;
 
   for (const module of composition.modules) {
     appendEntityDeclarations(
@@ -49,6 +51,16 @@ export function composeAppSchema<const Composition extends AppSchemaCompositionS
     appendDeclarations(tableViews, module.tableViews, "tableViews", module.key, declarationOwners);
     appendDeclarations(views, module.views, "views", module.key, declarationOwners);
     appendDeclarations(screens, module.screens, "screens", module.key, declarationOwners);
+    if (module.surfaceMounts !== undefined) {
+      hasSurfaceMounts = true;
+      appendDeclarations(
+        surfaceMounts,
+        module.surfaceMounts,
+        "surfaceMounts",
+        module.key,
+        declarationOwners,
+      );
+    }
 
     if (module.relationships !== undefined) {
       hasRelationships = true;
@@ -114,6 +126,7 @@ export function composeAppSchema<const Composition extends AppSchemaCompositionS
     tableViews,
     views,
     screens,
+    ...(hasSurfaceMounts ? { surfaceMounts } : {}),
     ...(composition.navigation === undefined ? {} : { navigation: composition.navigation }),
     ...(runtime === undefined ? {} : { runtime }),
   };

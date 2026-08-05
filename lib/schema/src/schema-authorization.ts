@@ -14,6 +14,7 @@ import type {
   AuthorizationRoleSchema,
   DirectAccessRequirement,
   KeyedDefinition,
+  ScreenAccessRequirement,
   TrustedAccessActor,
 } from "./types.ts";
 
@@ -109,6 +110,27 @@ export function parseAccessRequirement(
       parseDirectAccessRequirement(`${context} anyOf[${index}]`, alternative, schema),
     ),
   };
+}
+
+export function parseBrowserAccessRequirement(
+  value: unknown,
+  schema: Pick<AppSchema, "authorization">,
+  context: string,
+): ScreenAccessRequirement {
+  const access = parseAccessRequirement(value, schema, context);
+  const alternatives = "anyOf" in access ? access.anyOf : [access];
+  for (const alternative of alternatives) {
+    if (
+      "actor" in alternative &&
+      trustedAccessActors.some((actor) => actor === alternative.actor)
+    ) {
+      throw new Error(
+        `${context} actor "${alternative.actor}" is not available to browser presentation.`,
+      );
+    }
+  }
+
+  return access as ScreenAccessRequirement;
 }
 
 export function evaluateAccessRequirement(
