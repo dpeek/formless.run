@@ -50,6 +50,7 @@ Data stays flat. Compose in query, view, projection, action layer.
 
 ## Repo Map
 
+- `DOWNSTREAMS.md`: verified revisions and upgrade workflow for sibling Formless consumers.
 - `lib/formless/`: published Formless runtime and CLI workspace package.
 - `lib/formless/src/shared/`: schema, protocol, read models, field behavior, Program identity.
 - `lib/formless/src/client/`: browser replica, projections, generated view models.
