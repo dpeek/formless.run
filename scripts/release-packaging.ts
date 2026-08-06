@@ -114,10 +114,6 @@ export function packReleasePackage(input: {
 
   mkdirSync(input.destination, { recursive: true });
 
-  if (manifest.publishConfig?.exports === undefined) {
-    return bunPack(input.packageRoot, input.destination);
-  }
-
   const stagingRoot = mkdtempSync(path.join(tmpdir(), "formless-release-package-"));
   const stagingPackageRoot = path.resolve(stagingRoot, "package");
 
