@@ -11,6 +11,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./records": "./src/records.ts",
     "./schema": "./src/schema.ts",
     "./react": "./src/react.tsx",
     "./public/react": "./src/public-react.tsx",
@@ -25,6 +26,10 @@
       ".": {
         "types": "./dist/index.d.mts",
         "import": "./dist/index.mjs"
+      },
+      "./records": {
+        "types": "./dist/records.d.mts",
+        "import": "./dist/records.mjs"
       },
       "./schema": {
         "types": "./dist/schema.d.mts",
@@ -63,7 +68,7 @@
   },
   "scripts": {
     "check": "vp check --fix && vp test --configLoader runner",
-    "pack": "vp pack src/index.ts src/schema.ts src/react.tsx src/public-react.tsx src/runtime/index.ts src/runtime/browser.tsx src/runtime/worker.ts src/worker.ts src/node.ts"
+    "pack": "vp pack src/index.ts src/records.ts src/schema.ts src/react.tsx src/public-react.tsx src/runtime/index.ts src/runtime/browser.tsx src/runtime/worker.ts src/worker.ts src/node.ts"
   },
   "dependencies": {
     "@cf-wasm/resvg": "0.3.4",
@@ -72,6 +77,7 @@
     "@dpeek/formless-schema": "workspace:*",
     "@dpeek/formless-source-svg": "workspace:*",
     "@dpeek/formless-standard": "workspace:*",
+    "@dpeek/formless-storage": "workspace:*",
     "react": "19.2.6",
     "react-dom": "19.2.6"
   },

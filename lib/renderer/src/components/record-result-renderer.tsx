@@ -7,6 +7,9 @@ import { MoreMenu } from "@astryxdesign/core/MoreMenu";
 import { VStack } from "@astryxdesign/core/VStack";
 import type { DropdownMenuOption } from "@astryxdesign/core/DropdownMenu";
 import type {
+  CollectionEmptyStatePrimaryActionContract,
+  CreateFieldIntentHandler,
+  CreateIntentHandler,
   FieldIntent,
   FieldContract,
   OperationPresentationIntent,
@@ -14,6 +17,7 @@ import type {
   RecordResultContract,
   RecordResultIntentHandler,
 } from "@dpeek/formless-presentation/contract";
+import { AstryxCreateSurfaceRenderer } from "./create-renderer.tsx";
 import { FieldRenderer } from "./fields/field-renderer.tsx";
 import {
   AstryxOperationButton,
@@ -24,9 +28,13 @@ import {
 } from "./operation-renderer.tsx";
 
 export function AstryxRecordResultRenderer({
+  onCreateFieldIntent = ignoreCreateFieldIntent,
+  onCreateIntent = ignoreCreateIntent,
   onIntent,
   recordResult,
 }: {
+  onCreateFieldIntent?: CreateFieldIntentHandler;
+  onCreateIntent?: CreateIntentHandler;
   onIntent: RecordResultIntentHandler;
   recordResult: RecordResultContract;
 }) {
@@ -42,6 +50,8 @@ export function AstryxRecordResultRenderer({
       width="100%"
     >
       <AstryxRecordResultContent
+        onCreateFieldIntent={onCreateFieldIntent}
+        onCreateIntent={onCreateIntent}
         onIntent={onIntent}
         recordResult={recordResult}
         spacing={spacing}
@@ -51,10 +61,14 @@ export function AstryxRecordResultRenderer({
 }
 
 function AstryxRecordResultContent({
+  onCreateFieldIntent,
+  onCreateIntent,
   onIntent,
   recordResult,
   spacing,
 }: {
+  onCreateFieldIntent: CreateFieldIntentHandler;
+  onCreateIntent: CreateIntentHandler;
   onIntent: RecordResultIntentHandler;
   recordResult: RecordResultContract;
   spacing: ReturnType<typeof astryxRecordResultSpacing>;
@@ -65,8 +79,10 @@ function AstryxRecordResultContent({
         <EmptyState
           actions={
             recordResult.emptyState.action ? (
-              <AstryxRecordResultActionButton
+              <AstryxRecordResultEmptyStatePrimaryAction
                 action={recordResult.emptyState.action}
+                onCreateFieldIntent={onCreateFieldIntent}
+                onCreateIntent={onCreateIntent}
                 onIntent={onIntent}
                 recordId={recordResult.selectedRecord?.id}
                 recordResult={recordResult}
@@ -77,7 +93,7 @@ function AstryxRecordResultContent({
           isCompact={recordResult.density === "compact"}
           title={recordResult.emptyState.title}
         />
-        {recordResult.emptyState.action ? (
+        {recordResult.emptyState.action?.kind === "operationAction" ? (
           <AstryxRecordResultActionEffects
             action={recordResult.emptyState.action}
             onIntent={onIntent}
@@ -157,6 +173,37 @@ function AstryxRecordResultContent({
         />
       </VStack>
     </Card>
+  );
+}
+
+function AstryxRecordResultEmptyStatePrimaryAction({
+  action,
+  onCreateFieldIntent,
+  onCreateIntent,
+  onIntent,
+  recordId,
+  recordResult,
+}: {
+  action: CollectionEmptyStatePrimaryActionContract;
+  onCreateFieldIntent: CreateFieldIntentHandler;
+  onCreateIntent: CreateIntentHandler;
+  onIntent: RecordResultIntentHandler;
+  recordId: string | undefined;
+  recordResult: RecordResultContract;
+}) {
+  return action.kind === "createAction" ? (
+    <AstryxCreateSurfaceRenderer
+      onFieldIntent={onCreateFieldIntent}
+      onIntent={onCreateIntent}
+      surface={action.surface}
+    />
+  ) : (
+    <AstryxRecordResultActionButton
+      action={action}
+      onIntent={onIntent}
+      recordId={recordId}
+      recordResult={recordResult}
+    />
   );
 }
 
@@ -245,9 +292,7 @@ function AstryxRecordResultActionButton({
   recordResult: RecordResultContract;
 }) {
   const handleIntent = (intent: OperationPresentationIntent) =>
-    recordId
-      ? dispatchAstryxRecordResultOperationIntent(onIntent, recordResult, recordId, action, intent)
-      : undefined;
+    dispatchAstryxRecordResultOperationIntent(onIntent, recordResult, recordId, action, intent);
 
   return action.control.progress ? (
     <AstryxOperationButtonWithProgress
@@ -272,9 +317,7 @@ function AstryxRecordResultActionEffects({
   recordResult: RecordResultContract;
 }) {
   const handleIntent = (intent: OperationPresentationIntent) =>
-    recordId
-      ? dispatchAstryxRecordResultOperationIntent(onIntent, recordResult, recordId, action, intent)
-      : undefined;
+    dispatchAstryxRecordResultOperationIntent(onIntent, recordResult, recordId, action, intent);
 
   return (
     <>
@@ -297,7 +340,7 @@ export function astryxRecordResultSpacing(density: RecordResultContract["density
 
 export function astryxRecordResultSecondaryItems(
   recordResult: RecordResultContract,
-  recordId: string,
+  recordId: string | undefined,
   onIntent: RecordResultIntentHandler,
 ): DropdownMenuOption[] {
   return recordResult.actions.secondary.map((action) => {
@@ -343,18 +386,22 @@ export function dispatchAstryxRecordResultFieldIntent(
 export function dispatchAstryxRecordResultOperationIntent(
   handler: RecordResultIntentHandler,
   recordResult: RecordResultContract,
-  recordId: string,
+  recordId: string | undefined,
   action: RecordResultActionContract,
   intent: OperationPresentationIntent,
 ) {
   return handler({
     controlId: action.control.id,
     intent,
-    recordId,
+    ...(recordId === undefined ? {} : { recordId }),
     resultId: recordResult.id,
     type: "recordResultOperationIntent",
   });
 }
+
+function ignoreCreateFieldIntent() {}
+
+function ignoreCreateIntent() {}
 
 function astryxRecordResultActionLabel(action: RecordResultActionContract) {
   const trigger = action.control.trigger;

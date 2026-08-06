@@ -1033,6 +1033,7 @@ function parseOperationEffect(
       target,
       entityName,
       entity,
+      entities,
       queries,
       relationships,
       (sideEffectsContext, sideEffectsValue) => {

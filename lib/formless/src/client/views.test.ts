@@ -404,6 +404,7 @@ describe("home view model collections", () => {
 
     expect(create).toMatchObject({
       type: "create",
+      placement: "toolbar",
       operationName: "create",
       operation: {
         canonicalKey: "task.create",
@@ -419,6 +420,7 @@ describe("home view model collections", () => {
     expect(create?.type === "create" ? create.defaults : []).toEqual([]);
     expect(clearCompleted).toMatchObject({
       type: "command",
+      placement: "toolbar",
       operationName: "clearCompletedTasks",
       operation: {
         canonicalKey: "task.clearCompletedTasks",
@@ -443,6 +445,38 @@ describe("home view model collections", () => {
       },
     });
   });
+  it("preserves explicit empty-state primary placement separately from the toolbar", () => {
+    const taskHome = appSchema.views.find((definition) => definition.key === "taskHome")!;
+    if (taskHome?.type !== "collection") {
+      throw new Error("Missing task home collection view.");
+    }
+    const schema = parseAppSchema({
+      ...appSchema,
+      views: appSchema.views.map((view) =>
+        view.key === "taskHome"
+          ? {
+              ...taskHome,
+              operations: [
+                ...(taskHome.operations ?? []),
+                {
+                  operation: "task.clearCompletedTasks",
+                  placement: "emptyStatePrimary" as const,
+                  label: "Set up tasks",
+                },
+              ],
+              key: view.key,
+            }
+          : view,
+      ),
+    });
+    const model = requiredCollectionModel(schema, "taskHome");
+
+    expect(model.operations.map(({ label, placement }) => ({ label, placement }))).toEqual([
+      { label: "Create Task", placement: "toolbar" },
+      { label: "Clear completed", placement: "toolbar" },
+      { label: "Set up tasks", placement: "emptyStatePrimary" },
+    ]);
+  });
   it("uses default generated UI facts for non-target-count command operations", () => {
     const rateHome = rateCardSchema.views.find((definition) => definition.key === "rateHome")!;
     if (rateHome?.type !== "collection") {
@@ -457,6 +491,7 @@ describe("home view model collections", () => {
               operations: [
                 {
                   operation: "rate.regenerateMissingRates",
+                  placement: "toolbar",
                   count: { type: "count" },
                 },
               ],
@@ -1607,7 +1642,7 @@ describe("home view model collections", () => {
         ? compositionView.result.composition
         : undefined;
     expect(siteEntityOperations).toMatchObject({
-      site: ["update"],
+      site: ["createStarter", "update"],
       block: ["create", "update", "delete"],
       "block-placement": ["create", "update", "addTreeChild", "removeTreePlacement"],
       "contact-message": ["submit"],
@@ -2072,6 +2107,14 @@ describe("home view model collections", () => {
     expect(models.map((model) => model.viewName)).toEqual(["siteCompositionHome"]);
     expect(models.map((model) => model.label)).toEqual(["Site"]);
     expect(models.map((model) => model.navigation.primary)).toEqual([true]);
+    expect(models.map((model) => model.collection.scope)).toMatchObject([
+      {
+        name: "site",
+        entityName: "site",
+        queryName: "siteAll",
+        selection: "singleton",
+      },
+    ]);
     expect(models.map((model) => model.context?.queryName)).toEqual(["blockSiteRoots"]);
     expect(models.map((model) => model.context?.label)).toEqual(["Site roots"]);
     expect(models.map((model) => model.context?.presentation)).toEqual(["listDetail"]);
@@ -2099,7 +2142,7 @@ describe("home view model collections", () => {
             label: "Create Page",
             entityName: "block",
             fields: ["label", "href", "icon"],
-            defaults: ["type"],
+            defaults: ["site", "type"],
             enabled: true,
           },
         },
@@ -2111,7 +2154,7 @@ describe("home view model collections", () => {
             label: "Create Post",
             entityName: "block",
             fields: ["label", "href", "date", "body"],
-            defaults: ["type"],
+            defaults: ["site", "type"],
             enabled: true,
           },
         },
@@ -2123,7 +2166,7 @@ describe("home view model collections", () => {
             label: "Create Project",
             entityName: "block",
             fields: ["label", "href", "date", "body"],
-            defaults: ["type"],
+            defaults: ["site", "type"],
             enabled: true,
           },
         },
@@ -2151,8 +2194,21 @@ describe("home view model collections", () => {
     expect(settingsModel.entityName).toBe("site");
     expect(settingsModel.navigation.primary).toBe(false);
     expect(settingsModel.context).toBeUndefined();
-    expect(settingsModel.defaultQueryName).toBe("sitePrimary");
-    expect(settingsModel.operations).toEqual([]);
+    expect(settingsModel.defaultQueryName).toBe("siteAll");
+    expect(settingsModel.collection.scope).toMatchObject({
+      name: "site",
+      entityName: "site",
+      queryName: "siteAll",
+      selection: "singleton",
+    });
+    expect(settingsModel.operations).toMatchObject([
+      {
+        type: "command",
+        label: "Create your first site",
+        placement: "emptyStatePrimary",
+        operation: { canonicalKey: "site.createStarter" },
+      },
+    ]);
     expect(settingsModel.result.type).toBe("record");
     expect(settingsModel.result.type === "record" ? settingsModel.result.itemViewName : null).toBe(
       "siteSettingsForm",
@@ -2163,6 +2219,9 @@ describe("home view model collections", () => {
       "icon",
       "initialThemeMode",
       "themeSwitchable",
+      "home",
+      "header",
+      "footer",
     ]);
     expect(
       fields.map((field) => ({
@@ -2188,6 +2247,9 @@ describe("home view model collections", () => {
         editor: "boolean",
         commit: "immediate",
       },
+      { fieldName: "home", editor: "reference", commit: "immediate" },
+      { fieldName: "header", editor: "reference", commit: "immediate" },
+      { fieldName: "footer", editor: "reference", commit: "immediate" },
     ]);
   });
 
@@ -2237,7 +2299,19 @@ describe("home view model collections", () => {
           orderingPresentations: ["dragHandle"],
           maxDepth: 8,
         },
-        operations: [],
+        operations: [
+          {
+            type: "command",
+            label: "Create your first site",
+            entityName: "site",
+            operationName: "createStarter",
+            operationKey: "site.createStarter",
+            commandHandlerCapability: "recordPlan",
+            showAffectedCountOnSuccess: false,
+            targetCountQueryKind: null,
+            targetCountDisplay: null,
+          },
+        ],
       },
     ]);
   });
@@ -2415,6 +2489,9 @@ describe("home view model collections", () => {
     expect(create?.type === "create" ? create.fields.map((field) => field.fieldName) : []).toEqual([
       "type",
       "label",
+    ]);
+    expect(create?.type === "create" ? create.defaults : []).toMatchObject([
+      { fieldName: "site", value: { kind: "context", name: "site" } },
     ]);
     expect(create?.type === "create" ? create.union?.unionName : undefined).toBe("blockByType");
     expect(createVariantFields).toMatchObject({
@@ -2937,6 +3014,24 @@ describe("home view model collections", () => {
       },
     ]);
     expect(selectRelatedCollectionModels(siteSourceSchema, "block")).toMatchObject([
+      {
+        relationshipName: "blockHomeForSites",
+        label: "Home for Sites",
+        entityName: "site",
+        referenceFieldName: "home",
+      },
+      {
+        relationshipName: "blockHeaderForSites",
+        label: "Header for Sites",
+        entityName: "site",
+        referenceFieldName: "header",
+      },
+      {
+        relationshipName: "blockFooterForSites",
+        label: "Footer for Sites",
+        entityName: "site",
+        referenceFieldName: "footer",
+      },
       {
         relationshipName: "blockPlacements",
         label: "Placements",

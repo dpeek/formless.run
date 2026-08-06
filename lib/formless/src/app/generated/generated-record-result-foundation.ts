@@ -2,6 +2,7 @@ import type { MediaAssetOption } from "@dpeek/formless-media/client";
 import type {
   FieldContract,
   FieldIntent,
+  CollectionEmptyStatePrimaryActionContract,
   RecordResultContract,
   RecordResultIntent,
 } from "@dpeek/formless-presentation/contract";
@@ -98,6 +99,7 @@ export type SelectGeneratedRecordResultFoundationOptions = {
   confirmationOpenByControlId?: Readonly<Record<string, boolean | undefined>>;
   density?: RecordResultContract["density"];
   editingDisabledReason?: string;
+  emptyStateAction?: CollectionEmptyStatePrimaryActionContract;
   emptyStateDescription?: string;
   emptyStateTitle?: string;
   entity: EntitySchema;
@@ -122,6 +124,7 @@ export function selectGeneratedRecordResultFoundation({
   confirmationOpenByControlId = {},
   density = "default",
   editingDisabledReason,
+  emptyStateAction,
   emptyStateDescription,
   emptyStateTitle,
   entity,
@@ -153,6 +156,7 @@ export function selectGeneratedRecordResultFoundation({
         editingEnabled: result.updateOperation !== undefined,
         id,
         result: {
+          ...(emptyStateAction === undefined ? {} : { action: emptyStateAction }),
           ...(emptyStateDescription === undefined ? {} : { description: emptyStateDescription }),
           state: "empty",
           title: emptyStateTitle ?? `No ${entity.label.toLowerCase()} record found.`,

@@ -41,6 +41,29 @@ describe("Program replica Site preview", () => {
     expect(initial).toContain('data-route-base="/site/preview"');
     expect(updated).toContain('data-page-label="Notes"');
   });
+
+  it("projects unavailable replica state without exactly one active Site", () => {
+    const recordSets = [
+      [],
+      [
+        ...testSiteRecords,
+        {
+          id: "site:second",
+          entity: "site",
+          values: { key: "second", label: "Second Site" },
+          createdAt: "2026-08-06T00:00:00.000Z",
+          updatedAt: "2026-08-06T00:00:00.000Z",
+        },
+      ],
+    ];
+
+    for (const records of recordSets) {
+      resetClientStore();
+      applyBootstrapResponse(bootstrapResponse(formlessProgramSchema, records));
+
+      expect(renderPreview("home")).toContain('data-kind="failure"');
+    }
+  });
 });
 
 function renderPreview(slug: string): string {

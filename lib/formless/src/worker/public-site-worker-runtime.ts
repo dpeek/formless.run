@@ -25,7 +25,11 @@ import {
   FormlessSiteSystemStateRenderer,
 } from "@dpeek/formless-renderer/site/renderer";
 import { FORMLESS_SITE_RENDERER_DOCUMENT_THEME } from "@dpeek/formless-renderer/site/provider";
-import type { SitePageTree, SitePageTreeProjection } from "@dpeek/formless-site-app";
+import {
+  selectSoleActiveSite,
+  type SitePageTree,
+  type SitePageTreeProjection,
+} from "@dpeek/formless-site-app";
 import type { Env } from "./index.ts";
 import type { InstanceRuntimeRouteResolution } from "./instance-runtime-routes.ts";
 import { getEquivalentRequestForHead, responseWithoutBodyForHead } from "./head-response.ts";
@@ -226,10 +230,19 @@ export async function handlePublicSiteIconRequest(
     return undefined;
   }
 
+  const records = await fetchSiteBootstrapRecords(getRequest, env);
+  const selection = records ? selectSoleActiveSite(records) : undefined;
+
+  if (!selection || selection.kind === "unavailable") {
+    return responseWithoutBodyForHead(request, publicSiteUnavailableResponse());
+  }
+
+  const icon = selection.site.values.icon;
+
   const response = await adapter.renderIcon({
     request: getRequest,
     route,
-    svg: await fetchAuthoredSiteIconSource(getRequest, env),
+    svg: typeof icon === "string" ? icon : undefined,
   });
 
   return responseWithoutBodyForHead(request, response);
@@ -263,10 +276,12 @@ export async function handlePublicSiteIndexingRequest(
     return undefined;
   }
 
+  const records = await fetchSiteBootstrapRecords(getRequest, env);
   const response = adapter.renderIndexing(
     resource === "robots"
       ? {
           origin: url.origin,
+          records,
           resource,
         }
       : {
@@ -275,7 +290,7 @@ export async function handlePublicSiteIndexingRequest(
             ...FORMLESS_PROGRAM_SCREEN_PATHS.filter((path) => path !== "/"),
           ] as `/${string}`[],
           origin: url.origin,
-          records: await fetchSiteBootstrapRecords(getRequest, env),
+          records,
           resource,
         },
   );
@@ -440,23 +455,14 @@ async function fetchAuthorityJson(
   );
 }
 
-async function fetchAuthoredSiteIconSource(
-  request: Request,
-  env: Env,
-): Promise<string | undefined> {
-  const records = await fetchSiteBootstrapRecords(request, env);
-  const settings = records ? primarySiteSettingsRecord(records) : undefined;
-  const icon = settings?.values.icon;
-
-  return typeof icon === "string" ? icon : undefined;
-}
-
-function primarySiteSettingsRecord(records: StoredRecord[]): StoredRecord | undefined {
-  return records
-    .filter(
-      (record) => record.entity === "site" && !record.deletedAt && record.values.key === "primary",
-    )
-    .sort(compareRecords)[0];
+function publicSiteUnavailableResponse(): Response {
+  return new Response("Site unavailable.\n", {
+    headers: {
+      "Cache-Control": "no-store",
+      "Content-Type": "text/plain; charset=utf-8",
+    },
+    status: 503,
+  });
 }
 
 async function loadClientDocumentAssets(
@@ -712,8 +718,4 @@ function publicSiteIndexingResourceForPathname(
   }
 
   return undefined;
-}
-
-function compareRecords(left: StoredRecord, right: StoredRecord): number {
-  return left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id);
 }

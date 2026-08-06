@@ -133,8 +133,12 @@ describe("task source schema", () => {
       output: { type: "command" },
     });
     expect(taskHome.operations).toEqual([
-      { operation: "task.create", createView: "taskCreate" },
-      { operation: "task.clearCompletedTasks", count: { type: "count" } },
+      { operation: "task.create", placement: "toolbar", createView: "taskCreate" },
+      {
+        operation: "task.clearCompletedTasks",
+        placement: "toolbar",
+        count: { type: "count" },
+      },
     ]);
     const clearCompletedEffect = operations.find(
       (definition) => definition.key === "clearCompletedTasks",

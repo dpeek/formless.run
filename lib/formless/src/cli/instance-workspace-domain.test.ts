@@ -2852,7 +2852,15 @@ function restorePlan() {
 
 function programSiteMediaRecords(): StoredRecord[] {
   return [
+    {
+      id: "site:program-media",
+      entity: "site",
+      values: { key: "program-media", label: "Program media" },
+      createdAt: "2026-05-05T00:00:01.000Z",
+      updatedAt: "2026-05-05T00:00:01.000Z",
+    },
     block("block:program-cover", "2026-05-05T00:00:02.000Z", {
+      site: "site:program-media",
       type: "image",
       label: "Program cover",
       mediaAssetId: "program-cover.png",

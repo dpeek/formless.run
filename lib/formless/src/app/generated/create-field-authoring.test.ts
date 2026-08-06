@@ -40,12 +40,14 @@ describe("generated create draft session", () => {
       defaults: create.defaults,
       enabled: true,
       fields: create.fields,
+      queryContext: { today: "2026-08-06", values: { site: "site:primary" } },
       state: imageState,
       union: create.union,
     });
 
     expect(fieldNames(session.visibleFields)).toEqual(["type", "label", "mediaAssetId"]);
     expect(session.values).toEqual({
+      site: "site:primary",
       label: "Hero image",
       mediaAssetId: "hero.webp",
       type: "image",

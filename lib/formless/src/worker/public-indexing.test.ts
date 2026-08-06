@@ -155,6 +155,34 @@ Sitemap: http://example.com/sitemap.xml
     expect(sitemapHead.headers.get("Cache-Control")).toBe(sitemapGet.headers.get("Cache-Control"));
     expect(await sitemapHead.text()).toBe("");
   });
+
+  it("keeps indexing unavailable without exactly one active Site", async () => {
+    const recordSets = [
+      [],
+      [
+        ...testSiteRecords,
+        {
+          id: "site:second",
+          entity: "site",
+          values: { key: "second", label: "Second Site" },
+          createdAt: "2026-08-06T00:00:00.000Z",
+          updatedAt: "2026-08-06T00:00:00.000Z",
+        },
+      ],
+    ];
+
+    for (const records of recordSets) {
+      await restoreProgramSiteRecords(records);
+      const robots = await harness.fetch("/robots.txt");
+      const sitemap = await harness.fetch("/sitemap.xml");
+
+      expect([robots.status, sitemap.status]).toEqual([503, 503]);
+      expect(robots.headers.get("Cache-Control")).toBe("no-store");
+      expect(sitemap.headers.get("Cache-Control")).toBe("no-store");
+      expect(await robots.text()).toBe("Site unavailable.\n");
+      expect(await sitemap.text()).toBe("Site unavailable.\n");
+    }
+  });
 });
 
 async function restoreProgramSiteRecords(records: StoredRecord[]) {
@@ -170,7 +198,7 @@ function siteBlock(id: string, values: StoredRecord["values"]): StoredRecord {
   return {
     id,
     entity: "block",
-    values,
+    values: { site: "rec_site_settings_primary", ...values },
     createdAt: "2026-07-31T00:00:00.000Z",
     updatedAt: "2026-07-31T00:00:00.000Z",
   };

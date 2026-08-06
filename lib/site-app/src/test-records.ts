@@ -16,6 +16,9 @@ export const testSiteRecords: StoredRecord[] = [
       icon: '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" rx="12" fill="#111827"/><path d="M18 42V22h28v6H25v8h17v6H18Z" fill="#fff"/></svg>',
       initialThemeMode: "system",
       themeSwitchable: true,
+      home: "rec_site_content_home",
+      header: "rec_site_content_group_header",
+      footer: "rec_site_content_group_footer",
     },
     createdAt: "2026-05-05T00:00:00.000Z",
   },
@@ -360,7 +363,10 @@ function block(id: string, createdAt: string, values: StoredRecord["values"]): S
   return {
     id,
     entity: "block",
-    values,
+    values: {
+      site: "rec_site_settings_primary",
+      ...values,
+    },
     createdAt,
   };
 }

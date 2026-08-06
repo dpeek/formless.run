@@ -37,6 +37,7 @@ import {
 import {
   generatedShellRootSectionId,
   projectGeneratedApplicationShell,
+  selectGeneratedShellRootScopeSelection,
 } from "./generated/application-shell-projection.ts";
 import { ApplicationPresentation } from "./application-presentation.tsx";
 import type { ApplicationRootThemeRuntime } from "./application-root-context.tsx";
@@ -131,25 +132,39 @@ function ApplicationShellRuntime({
           rootFacts.section.id,
         )
       : null;
+  const rootScopeSelection = useMemo(
+    () =>
+      rootFacts
+        ? selectGeneratedShellRootScopeSelection({
+            facts: rootFacts,
+            snapshot,
+            today: todayDateString(),
+          })
+        : undefined,
+    [rootFacts, snapshot],
+  );
   const createDescriptors = useMemo(
     () =>
-      rootFacts?.groups.flatMap((group) =>
-        group.createOperation
-          ? [
-              {
-                operation: group.createOperation,
-                queryName: group.queryName,
-                sectionId: generatedShellRootSectionId(
-                  rootFacts.screen.screenName,
-                  rootFacts.section.id,
-                  group.queryName,
-                ),
-                surfaceId: `root-navigation:${group.createOperation.operation.canonicalKey}`,
-              },
-            ]
-          : [],
-      ) ?? [],
-    [rootFacts],
+      rootScopeSelection && rootScopeSelection.state !== "ready"
+        ? []
+        : (rootFacts?.groups.flatMap((group) =>
+            group.createOperation
+              ? [
+                  {
+                    operation: group.createOperation,
+                    queryContext: rootScopeSelection?.queryContext,
+                    queryName: group.queryName,
+                    sectionId: generatedShellRootSectionId(
+                      rootFacts.screen.screenName,
+                      rootFacts.section.id,
+                      group.queryName,
+                    ),
+                    surfaceId: `root-navigation:${group.createOperation.operation.canonicalKey}`,
+                  },
+                ]
+              : [],
+          ) ?? []),
+    [rootFacts, rootScopeSelection],
   );
   const [registeredCreateRuntimes, setRegisteredCreateRuntimes] = useState<
     Readonly<Record<string, RegisteredGeneratedCreateRuntime | undefined>>
@@ -161,6 +176,7 @@ function ApplicationShellRuntime({
           descriptor.queryName,
           projectInitialGeneratedCreateRuntimeSurface({
             operation: descriptor.operation,
+            queryContext: descriptor.queryContext,
             snapshot,
             surfaceId: descriptor.surfaceId,
             trigger: ROOT_CREATE_TRIGGER,
@@ -328,6 +344,7 @@ function ApplicationShellRuntime({
 
 type RootCreateDescriptor = {
   operation: Parameters<typeof projectInitialGeneratedCreateRuntimeSurface>[0]["operation"];
+  queryContext?: Parameters<typeof projectInitialGeneratedCreateRuntimeSurface>[0]["queryContext"];
   queryName: string;
   sectionId: string;
   surfaceId: string;
@@ -359,6 +376,7 @@ function RegisteredRootCreateRuntime({
     onSuccess,
     open,
     operation: descriptor.operation,
+    queryContext: descriptor.queryContext,
     submitValues,
     surfaceId: descriptor.surfaceId,
     trigger: ROOT_CREATE_TRIGGER,

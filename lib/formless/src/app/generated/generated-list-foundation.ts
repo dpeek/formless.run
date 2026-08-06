@@ -2,6 +2,7 @@ import type { MediaAssetOption } from "@dpeek/formless-media/client";
 import type {
   FieldContract,
   FieldIntent,
+  CollectionEmptyStatePrimaryActionContract,
   ListContract,
   ListIntent,
 } from "@dpeek/formless-presentation/contract";
@@ -111,6 +112,7 @@ export type SelectGeneratedListFoundationOptions = {
   density?: ListContract["density"];
   entity: EntitySchema;
   entityName: string;
+  emptyStateAction?: CollectionEmptyStatePrimaryActionContract;
   fieldStateByRecordId?: Readonly<Record<string, GeneratedListFieldAuthoringState | undefined>>;
   id: string;
   mediaAssetOptionsByRecordId?: GeneratedListMediaAssetOptionsByRecordId;
@@ -137,6 +139,7 @@ export function selectGeneratedListFoundation({
   density = "compact",
   entity,
   entityName,
+  emptyStateAction,
   fieldStateByRecordId = {},
   id,
   mediaAssetOptionsByRecordId = {},
@@ -279,6 +282,7 @@ export function selectGeneratedListFoundation({
       density,
       editingDisabledReason: `Editing is disabled for ${entity.label}.`,
       editingEnabled: result.updateOperation !== undefined || orderedRecordIds.length === 0,
+      ...(emptyStateAction === undefined ? {} : { emptyStateAction }),
       id,
       itemsByRecordId,
       orderedRecordIds,

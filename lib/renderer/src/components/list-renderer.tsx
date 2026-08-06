@@ -9,6 +9,9 @@ import { VisuallyHidden } from "@astryxdesign/core/VisuallyHidden";
 import { VStack } from "@astryxdesign/core/VStack";
 import type { DropdownMenuOption } from "@astryxdesign/core/DropdownMenu";
 import type {
+  CollectionEmptyStatePrimaryActionContract,
+  CreateFieldIntentHandler,
+  CreateIntentHandler,
   FieldContract,
   FieldIntent,
   ListContract,
@@ -19,6 +22,7 @@ import type {
   ListOrderingContract,
   OperationPresentationIntent,
 } from "@dpeek/formless-presentation/contract";
+import { AstryxCreateSurfaceRenderer } from "./create-renderer.tsx";
 import { FieldRenderer } from "./fields/field-renderer.tsx";
 import {
   AstryxOperationButton,
@@ -41,11 +45,15 @@ export type AstryxListOperationIntentHandler = (
 
 export function AstryxListRenderer({
   list,
+  onCreateFieldIntent = ignoreCreateFieldIntent,
+  onCreateIntent = ignoreCreateIntent,
   onFieldIntent,
   onListIntent,
   onOperationIntent,
 }: {
   list: ListContract;
+  onCreateFieldIntent?: CreateFieldIntentHandler;
+  onCreateIntent?: CreateIntentHandler;
   onFieldIntent: AstryxListFieldIntentHandler;
   onListIntent: ListIntentHandler;
   onOperationIntent: AstryxListOperationIntentHandler;
@@ -63,8 +71,10 @@ export function AstryxListRenderer({
             <EmptyState
               actions={
                 list.emptyState.action ? (
-                  <AstryxListPrimaryAction
+                  <AstryxListEmptyStatePrimaryAction
                     action={list.emptyState.action}
+                    onCreateFieldIntent={onCreateFieldIntent}
+                    onCreateIntent={onCreateIntent}
                     onOperationIntent={onOperationIntent}
                   />
                 ) : undefined
@@ -73,7 +83,7 @@ export function AstryxListRenderer({
               isCompact
               title={list.emptyState.title}
             />
-            {list.emptyState.action ? (
+            {list.emptyState.action?.kind === "operationAction" ? (
               <AstryxListActionEffects
                 action={list.emptyState.action}
                 onOperationIntent={onOperationIntent}
@@ -110,6 +120,28 @@ export function AstryxListRenderer({
         </>
       )}
     </VStack>
+  );
+}
+
+function AstryxListEmptyStatePrimaryAction({
+  action,
+  onCreateFieldIntent,
+  onCreateIntent,
+  onOperationIntent,
+}: {
+  action: CollectionEmptyStatePrimaryActionContract;
+  onCreateFieldIntent: CreateFieldIntentHandler;
+  onCreateIntent: CreateIntentHandler;
+  onOperationIntent: AstryxListOperationIntentHandler;
+}) {
+  return action.kind === "createAction" ? (
+    <AstryxCreateSurfaceRenderer
+      onFieldIntent={onCreateFieldIntent}
+      onIntent={onCreateIntent}
+      surface={action.surface}
+    />
+  ) : (
+    <AstryxListPrimaryAction action={action} onOperationIntent={onOperationIntent} />
   );
 }
 
@@ -350,3 +382,7 @@ function astryxListOperationActionDisabled(action: ListOperationActionContract) 
 function astryxListOrderingActionDisabled(action: ListOrderingActionContract) {
   return Boolean(action.disabled || action.pending?.isPending);
 }
+
+function ignoreCreateFieldIntent() {}
+
+function ignoreCreateIntent() {}

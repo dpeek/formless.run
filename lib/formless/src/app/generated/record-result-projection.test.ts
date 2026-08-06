@@ -6,6 +6,7 @@ import type {
   FieldSchema,
 } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
+import type { OperationControlContract } from "@dpeek/formless-presentation/contract";
 import type { EntityOperationPresentationConfig } from "../../client/operation-presentation-model.ts";
 import type { RecordResultModel } from "../../client/list-result-model.ts";
 import type {
@@ -458,7 +459,13 @@ describe("generated Formless UI record-result projection", () => {
 
   it("projects display-safe empty and unavailable states", () => {
     const result = completeRecordResult();
+    const emptyStateAction = {
+      control: emptyOperationControl("blocks:create-starter"),
+      kind: "operationAction" as const,
+      role: "command" as const,
+    };
     const empty = selectGeneratedRecordResultFoundation({
+      emptyStateAction,
       emptyStateDescription: "Create a block to get started.",
       entity: blockEntity,
       entityName: "block",
@@ -480,6 +487,7 @@ describe("generated Formless UI record-result projection", () => {
       actions: { primary: [], secondary: [] },
       availability: { state: "empty" },
       emptyState: {
+        action: { control: { id: "blocks:create-starter" }, role: "command" },
         description: "Create a block to get started.",
         kind: "recordResultEmptyState",
         title: "No block record found.",
@@ -824,6 +832,33 @@ const mediaSchema = {
   version: 1,
   views: [],
 } as unknown as AppSchema;
+
+function emptyOperationControl(id: string): OperationControlContract {
+  return {
+    id,
+    kind: "operationControl",
+    status: {
+      accessibilityLabel: "Ready",
+      detail: "Ready",
+      id: `${id}:status`,
+      intent: "neutral",
+      kind: "compactStatus",
+      label: "Ready",
+      status: "idle",
+    },
+    trigger: {
+      accessibilityLabel: "Create starter",
+      content: { kind: "label", label: "Create starter" },
+      density: "default",
+      id: `${id}:trigger`,
+      intent: { controlId: id, invocationSource: "button", type: "operationInvoke" },
+      kind: "button",
+      prominence: "primary",
+      type: "button",
+    },
+  };
+}
+
 function requiredIconSource(id: string): string {
   const source = resolveIconCatalogSvg(id);
   if (!source) {

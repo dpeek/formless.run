@@ -1,4 +1,5 @@
 import type {
+  CollectionEmptyStatePrimaryActionContract,
   FieldContract,
   OperationControlContract,
   RecordResultActionContract,
@@ -15,6 +16,7 @@ export type GeneratedRecordResultPlacedAction = {
 
 export type GeneratedRecordResultProjectionState =
   | {
+      action?: CollectionEmptyStatePrimaryActionContract;
       description?: string;
       state: "empty";
       title?: string;
@@ -73,6 +75,7 @@ export function projectGeneratedRecordResultContract({
     ...(result.state === "empty"
       ? {
           emptyState: {
+            ...(result.action === undefined ? {} : { action: result.action }),
             ...(result.description === undefined ? {} : { description: result.description }),
             id: `${id}:empty`,
             kind: "recordResultEmptyState" as const,

@@ -865,5 +865,13 @@ function testSiteRecord(entity: "block" | "site"): StoredRecord {
     throw new Error(`Missing Site test record for entity "${entity}".`);
   }
 
-  return structuredClone(record);
+  const cloned = structuredClone(record);
+
+  if (entity === "site") {
+    delete cloned.values.home;
+    delete cloned.values.header;
+    delete cloned.values.footer;
+  }
+
+  return cloned;
 }

@@ -141,6 +141,15 @@ function AstryxWorkspaceCollectionFrame({
   if (collection.availability.state === "empty") {
     return (
       <EmptyState
+        actions={
+          collection.availability.emptyState.action ? (
+            <AstryxWorkspaceCollectionAction
+              action={collection.availability.emptyState.action}
+              onIntent={onIntent}
+              scope={scope}
+            />
+          ) : undefined
+        }
         data-formless-astryx-workspace-empty-state={collection.availability.emptyState.id}
         description={collection.availability.emptyState.description}
         headingLevel={3}
@@ -672,9 +681,25 @@ function AstryxWorkspaceResult({
   scope: WorkspaceIntentScope;
 }) {
   if (result.kind === "list") {
+    const emptyCreateSurfaceId =
+      result.emptyState?.action?.kind === "createAction"
+        ? result.emptyState.action.surface.id
+        : undefined;
     return (
       <AstryxListRenderer
         list={result}
+        onCreateFieldIntent={(fieldId, intent) =>
+          emptyCreateSurfaceId === undefined
+            ? undefined
+            : dispatchAstryxWorkspaceFieldIntent(onIntent, scope, fieldId, intent, {
+                surfaceId: emptyCreateSurfaceId,
+              })
+        }
+        onCreateIntent={(intent) =>
+          emptyCreateSurfaceId === undefined
+            ? undefined
+            : dispatchAstryxWorkspaceCreateIntent(onIntent, scope, emptyCreateSurfaceId, intent)
+        }
         onFieldIntent={(itemId, field, intent) =>
           dispatchAstryxWorkspaceFieldIntent(onIntent, scope, field.fieldId, intent, {
             recordId: field.recordId ?? itemId,
@@ -684,19 +709,39 @@ function AstryxWorkspaceResult({
         onListIntent={(intent) =>
           dispatchAstryxWorkspaceListIntent(onIntent, scope, result.id, intent)
         }
-        onOperationIntent={(action, intent) =>
-          dispatchAstryxWorkspaceOperationIntent(onIntent, scope, action.control.id, intent, {
-            recordId: workspaceListActionRecordId(result, action),
-            resultId: result.id,
-          })
-        }
+        onOperationIntent={(action, intent) => {
+          const recordId = workspaceListActionRecordId(result, action);
+          return dispatchAstryxWorkspaceOperationIntent(
+            onIntent,
+            scope,
+            action.control.id,
+            intent,
+            recordId === undefined ? {} : { recordId, resultId: result.id },
+          );
+        }}
       />
     );
   }
 
   if (result.kind === "table") {
+    const emptyCreateSurfaceId =
+      result.emptyState?.action?.kind === "createAction"
+        ? result.emptyState.action.surface.id
+        : undefined;
     return (
       <AstryxTableRenderer
+        onCreateFieldIntent={(fieldId, intent) =>
+          emptyCreateSurfaceId === undefined
+            ? undefined
+            : dispatchAstryxWorkspaceFieldIntent(onIntent, scope, fieldId, intent, {
+                surfaceId: emptyCreateSurfaceId,
+              })
+        }
+        onCreateIntent={(intent) =>
+          emptyCreateSurfaceId === undefined
+            ? undefined
+            : dispatchAstryxWorkspaceCreateIntent(onIntent, scope, emptyCreateSurfaceId, intent)
+        }
         onFieldIntent={(contextId, fieldId, recordId, intent) =>
           dispatchAstryxWorkspaceFieldIntent(onIntent, scope, fieldId, intent, {
             contextId,
@@ -704,12 +749,16 @@ function AstryxWorkspaceResult({
             resultId: result.id,
           })
         }
-        onOperationIntent={(action, intent) =>
-          dispatchAstryxWorkspaceOperationIntent(onIntent, scope, action.control.id, intent, {
-            recordId: workspaceTableActionRecordId(result, action),
-            resultId: result.id,
-          })
-        }
+        onOperationIntent={(action, intent) => {
+          const recordId = workspaceTableActionRecordId(result, action);
+          return dispatchAstryxWorkspaceOperationIntent(
+            onIntent,
+            scope,
+            action.control.id,
+            intent,
+            recordId === undefined ? {} : { recordId, resultId: result.id },
+          );
+        }}
         onTableIntent={(intent) =>
           dispatchAstryxWorkspaceTableIntent(onIntent, scope, result.id, intent)
         }
@@ -724,7 +773,36 @@ function AstryxWorkspaceResult({
 
   return (
     <AstryxTreeResultRenderer
-      onIntent={(intent) => dispatchAstryxWorkspaceTreeIntent(onIntent, scope, result.id, intent)}
+      onCreateFieldIntent={(fieldId, intent) => {
+        const action =
+          result.availability.state === "empty" ? result.availability.emptyState.action : undefined;
+        return action?.kind === "createAction"
+          ? dispatchAstryxWorkspaceFieldIntent(onIntent, scope, fieldId, intent, {
+              surfaceId: action.surface.id,
+            })
+          : undefined;
+      }}
+      onCreateIntent={(intent) => {
+        const action =
+          result.availability.state === "empty" ? result.availability.emptyState.action : undefined;
+        return action?.kind === "createAction"
+          ? dispatchAstryxWorkspaceCreateIntent(onIntent, scope, action.surface.id, intent)
+          : undefined;
+      }}
+      onIntent={(intent) => {
+        const action =
+          result.availability.state === "empty" ? result.availability.emptyState.action : undefined;
+        return action?.kind === "operationAction" &&
+          intent.type === "treeOperation" &&
+          intent.controlId === action.control.id
+          ? dispatchAstryxWorkspaceOperationIntent(
+              onIntent,
+              scope,
+              action.control.id,
+              intent.intent,
+            )
+          : dispatchAstryxWorkspaceTreeIntent(onIntent, scope, result.id, intent);
+      }}
       tree={result}
     />
   );
@@ -748,14 +826,33 @@ function AstryxWorkspaceRecordResult({
 }) {
   return (
     <AstryxRecordResultRenderer
+      onCreateFieldIntent={(fieldId, intent) => {
+        const action = recordResult.emptyState?.action;
+        return action?.kind === "createAction"
+          ? dispatchAstryxWorkspaceFieldIntent(onIntent, scope, fieldId, intent, {
+              surfaceId: action.surface.id,
+            })
+          : undefined;
+      }}
+      onCreateIntent={(intent) => {
+        const action = recordResult.emptyState?.action;
+        return action?.kind === "createAction"
+          ? dispatchAstryxWorkspaceCreateIntent(onIntent, scope, action.surface.id, intent)
+          : undefined;
+      }}
       onIntent={(intent) =>
-        dispatchAstryxWorkspaceRecordResultIntent(
-          onIntent,
-          scope,
-          recordResult.id,
-          intent,
-          contextId,
-        )
+        intent.type === "recordResultOperationIntent" &&
+        intent.recordId === undefined &&
+        recordResult.emptyState?.action?.kind === "operationAction" &&
+        intent.controlId === recordResult.emptyState.action.control.id
+          ? dispatchAstryxWorkspaceOperationIntent(onIntent, scope, intent.controlId, intent.intent)
+          : dispatchAstryxWorkspaceRecordResultIntent(
+              onIntent,
+              scope,
+              recordResult.id,
+              intent,
+              contextId,
+            )
       }
       recordResult={recordResult}
     />

@@ -10,6 +10,7 @@ import type {
 import type { AppSchema } from "@dpeek/formless-schema";
 import { shellNavigationSectionReference } from "@dpeek/formless-presentation/host";
 import {
+  createEntityRecordIdsMatchingQuerySelector,
   createEntityRecordCountReferencingFieldSelector,
   createEntityRecordOptionsMatchingQuerySelector,
   type BrowserReplicaProjectionSnapshot,
@@ -18,7 +19,9 @@ import type { SyncStatus } from "../../client/sync-status.ts";
 import {
   selectGeneratedRootNavigationGroupFacts,
   selectGeneratedRootNavigationStateFacts,
+  selectGeneratedSingletonScopeSelectionFacts,
   type GeneratedRootNavigationFacts,
+  type GeneratedSingletonScopeSelectionFacts,
 } from "../../client/generated-authoring.ts";
 import type { AccountSessionStatusResponse } from "../../shared/instance-auth.ts";
 import { COLLABORATOR_INVITATION_ACCEPT_PATH } from "../../shared/instance-auth.ts";
@@ -117,11 +120,18 @@ export function selectGeneratedShellRootSections({
   today,
 }: GeneratedShellRootProjectionInput): ShellNavigationSectionContract[] {
   const { context, groups, screen, section } = facts;
+  const scopeSelection = selectGeneratedShellRootScopeSelection({ facts, snapshot, today });
+
+  if (scopeSelection && scopeSelection.state !== "ready") {
+    return [];
+  }
+
+  const queryContext = scopeSelection?.queryContext ?? { today };
   const allOptions = createEntityRecordOptionsMatchingQuerySelector(
     context.entityName,
     context.query,
     context.labelField,
-    { today },
+    queryContext,
   )(snapshot);
   const { activeRecordId } = selectGeneratedRootNavigationStateFacts({
     options: allOptions,
@@ -133,7 +143,7 @@ export function selectGeneratedShellRootSections({
       context.entityName,
       group.query,
       context.labelField,
-      { today },
+      queryContext,
     )(snapshot);
     const groupFacts = selectGeneratedRootNavigationGroupFacts({ activeRecordId, options });
     const createSurface = createSurfacesByQueryName[group.queryName];
@@ -184,6 +194,27 @@ export function selectGeneratedShellRootSections({
       },
     ];
   });
+}
+
+export function selectGeneratedShellRootScopeSelection({
+  facts,
+  snapshot,
+  today,
+}: Pick<GeneratedShellRootProjectionInput, "facts" | "snapshot" | "today">):
+  | GeneratedSingletonScopeSelectionFacts
+  | undefined {
+  const scope = facts.section.collection.scope;
+
+  if (!scope) {
+    return undefined;
+  }
+
+  const recordIds = createEntityRecordIdsMatchingQuerySelector(
+    scope.entityName,
+    scope.query,
+  )(snapshot);
+
+  return selectGeneratedSingletonScopeSelectionFacts({ recordIds, scope, today });
 }
 
 export function selectGeneratedShellSyncStatus({

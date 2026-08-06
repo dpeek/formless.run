@@ -1,6 +1,7 @@
 import type {
   ActionTriggerContract,
   ActionTriggerIntent,
+  CollectionEmptyStatePrimaryActionContract,
   CreateIntent,
   FieldIntent,
   ListIntent,
@@ -121,6 +122,7 @@ export type GeneratedWorkspaceCollectionProjectionFacts = {
   actions?: readonly GeneratedWorkspacePlacedCollectionAction[];
   availability?: GeneratedWorkspaceAvailabilityProjection;
   context?: GeneratedWorkspaceContextProjectionFacts;
+  emptyStatePrimaryAction?: CollectionEmptyStatePrimaryActionContract;
   id: string;
   label: string;
   layout?: "ordinary" | "listDetail";
@@ -295,6 +297,9 @@ export function projectGeneratedWorkspaceCollection({
     accessibilityLabel: collection.accessibilityLabel ?? collection.label,
     availability: projectGeneratedWorkspaceAvailability({
       availability: collection.availability ?? { state: "ready" },
+      ...(collection.emptyStatePrimaryAction === undefined
+        ? {}
+        : { emptyStatePrimaryAction: collection.emptyStatePrimaryAction }),
       id: `${collection.id}:availability`,
       scope,
     }),
@@ -454,16 +459,19 @@ export function projectGeneratedWorkspaceCollectionActions({
 
 export function projectGeneratedWorkspaceAvailability({
   availability,
+  emptyStatePrimaryAction,
   id,
   scope,
 }: {
   availability: GeneratedWorkspaceAvailabilityProjection;
+  emptyStatePrimaryAction?: CollectionEmptyStatePrimaryActionContract;
   id: string;
   scope: GeneratedWorkspaceIdentityScope;
 }): WorkspaceAvailability {
   if (availability.state === "empty") {
     return {
       emptyState: {
+        ...(emptyStatePrimaryAction === undefined ? {} : { action: emptyStatePrimaryAction }),
         ...(availability.description === undefined
           ? {}
           : { description: availability.description }),

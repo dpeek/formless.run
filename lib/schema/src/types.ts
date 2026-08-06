@@ -823,6 +823,13 @@ export type CollectionNavigationSchema = {
   primary: boolean;
 };
 
+export type CollectionSingletonScopeSchema = {
+  name: string;
+  entity: string;
+  query: string;
+  selection: "singleton";
+};
+
 export type CollectionContextPresentation = "tabs" | "listDetail";
 
 export type CollectionContextNavigationGroupSchema = {
@@ -855,9 +862,17 @@ export type CollectionContextSchemaSource = Omit<CollectionContextSchema, "prese
 
 export type CollectionOperationBindingSchema = {
   operation: string;
+  placement: "toolbar" | "emptyStatePrimary";
   label?: string;
   createView?: string;
   count?: CountDisplaySchema;
+};
+
+export type CollectionOperationBindingSchemaSource = Omit<
+  CollectionOperationBindingSchema,
+  "placement"
+> & {
+  placement?: CollectionOperationBindingSchema["placement"];
 };
 
 export type CollectionSummarySlotSchema = {
@@ -873,6 +888,7 @@ export type CollectionViewSchema = {
   label: string;
   entity: string;
   navigation?: CollectionNavigationSchema;
+  scope?: CollectionSingletonScopeSchema;
   context?: CollectionContextSchema;
   queries: CollectionViewQuerySlotSchema[];
   defaultQuery: string;
@@ -918,9 +934,10 @@ export type EditViewSchema = {
 
 export type ViewSchema = CollectionViewSchema | CreateViewSchema | EditViewSchema;
 
-/** Collection view input accepted before context defaults are applied. */
-export type CollectionViewSchemaSource = Omit<CollectionViewSchema, "context"> & {
+/** Collection view input accepted before parser-owned defaults are applied. */
+export type CollectionViewSchemaSource = Omit<CollectionViewSchema, "context" | "operations"> & {
   context?: CollectionContextSchemaSource;
+  operations?: CollectionOperationBindingSchemaSource[];
 };
 export type ViewSchemaSource = CollectionViewSchemaSource | CreateViewSchema | EditViewSchema;
 export type AppNavigationGroupSchema = {
@@ -1215,6 +1232,7 @@ export type CreateTreeChildOperationHandlerConfigSchema = {
   relationship: string;
   childField: string;
   orderField?: string;
+  inheritFields?: string[];
 };
 
 export type RemoveTreePlacementOperationHandlerConfigSchema = {

@@ -2926,7 +2926,15 @@ function collectionView(
     },
     ...(options.createView === undefined
       ? {}
-      : { operations: [{ operation: `${entity}.create`, createView: options.createView }] }),
+      : {
+          operations: [
+            {
+              operation: `${entity}.create`,
+              placement: "toolbar",
+              createView: options.createView,
+            },
+          ],
+        }),
   } satisfies Omit<Extract<AppSchema["views"][number], { type: "collection" }>, "key">;
 }
 function writeOperations(

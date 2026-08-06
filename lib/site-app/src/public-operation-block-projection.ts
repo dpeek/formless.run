@@ -46,6 +46,23 @@ export function projectSitePublicOperationBlock(
   });
 }
 
+export function sitePublicOperationSourceBlockMatches(input: {
+  canonicalOperationKey: string;
+  record: StoredRecord;
+  schema: AppSchema;
+}): boolean {
+  const warnings: SiteTreeWarning[] = [];
+  const projection = projectSitePublicOperationBlock({
+    record: input.record,
+    type: stringValue(input.record.values.type) ?? "",
+    schema: input.schema,
+    turnstileSiteKey: "source-validation",
+    warnings,
+  });
+
+  return projection?.canonicalKey === input.canonicalOperationKey;
+}
+
 function projectedGenericPublicOperationFields(
   record: StoredRecord,
   input: SitePublicOperationBlockProjectionInput,

@@ -44,6 +44,87 @@ import {
 } from "./generated-workspace-foundation.ts";
 
 describe("generated workspace foundation", () => {
+  it("projects zero, sole, and ambiguous Site authoring scope without a Site selector", () => {
+    const editor = required(
+      selectScreenModels(siteSourceSchema).find(({ screenName }) => screenName === "siteEditor"),
+    );
+    const settings = required(
+      selectScreenModels(siteSourceSchema).find(({ screenName }) => screenName === "siteSettings"),
+    );
+    const site = required(testSiteRecords.find(({ entity }) => entity === "site"));
+    const otherSite: StoredRecord = {
+      ...site,
+      id: "rec_site_other",
+      values: { ...site.values, key: "other", label: "Other Site" },
+    };
+    const otherRoot: StoredRecord = {
+      ...required(testSiteRecords.find(({ entity }) => entity === "block")),
+      id: "rec_site_other_home",
+      values: {
+        site: otherSite.id,
+        type: "page",
+        label: "Other Home",
+        href: "/",
+      },
+    };
+    const zero = required(
+      selectGeneratedWorkspaceFoundation({
+        screen: editor,
+        snapshot: projectionSnapshot([]),
+        today: "2026-08-06",
+      }),
+    );
+    const sole = required(
+      selectGeneratedWorkspaceFoundation({
+        screen: editor,
+        snapshot: projectionSnapshot([...testSiteRecords, otherRoot]),
+        today: "2026-08-06",
+      }),
+    );
+    const ambiguous = required(
+      selectGeneratedWorkspaceFoundation({
+        screen: editor,
+        snapshot: projectionSnapshot([...testSiteRecords, otherSite, otherRoot]),
+        today: "2026-08-06",
+      }),
+    );
+    const settingsFoundation = required(
+      selectGeneratedWorkspaceFoundation({
+        screen: settings,
+        snapshot: projectionSnapshot(testSiteRecords),
+        today: "2026-08-06",
+      }),
+    );
+
+    expect(required(zero.runtimePlan.sections[0]).scopeSelection).toMatchObject({
+      activeRecordId: null,
+      state: "empty",
+    });
+    expect(required(zero.workspace.sections[0]).collection.availability).toMatchObject({
+      emptyState: { title: "No Site configured" },
+      state: "empty",
+    });
+    expect(required(sole.runtimePlan.sections[0])).toMatchObject({
+      actionQueryContext: { values: { site: site.id } },
+      scopeSelection: { activeRecordId: site.id, state: "ready" },
+    });
+    expect([
+      ...required(sole.runtimePlan.sections[0]).contextOptionById.values(),
+    ]).not.toContainEqual(expect.objectContaining({ id: otherRoot.id }));
+    expect(required(ambiguous.runtimePlan.sections[0])).toMatchObject({
+      recordIds: [],
+      scopeSelection: { activeRecordId: null, state: "ambiguous" },
+    });
+    expect([...required(ambiguous.runtimePlan.sections[0]).contextOptionById.values()]).toEqual([]);
+    expect(required(ambiguous.workspace.sections[0]).collection.availability).toEqual({
+      message: "Site authoring is unavailable because more than one active record exists.",
+      state: "unavailable",
+    });
+    expect(required(settingsFoundation.runtimePlan.sections[0]).recordIds).toEqual([site.id]);
+    expect(JSON.stringify(sole.workspace)).not.toContain("scopeSelection");
+    expect(JSON.stringify(sole.workspace)).not.toContain("queryContext");
+  });
+
   it("selects complete eligible models, selection fallback, evaluated facts, controls, and scoped results", () => {
     const fixture = rateWorkspaceFixture();
     const foundation = fixture.foundation;

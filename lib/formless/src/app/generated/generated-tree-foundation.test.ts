@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
-import type { TreeItemContract } from "@dpeek/formless-presentation/contract";
+import type {
+  OperationControlContract,
+  TreeItemContract,
+} from "@dpeek/formless-presentation/contract";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import { selectTreeResultModel, type TreeResultModel } from "../../client/tree-result-model.ts";
 import { selectScreenModels } from "../../client/views.ts";
@@ -336,7 +339,13 @@ describe("generated tree foundation", () => {
   it("projects explicit empty and unavailable root states", () => {
     const root = block("root", "page", "Empty root");
     const result = siteTreeResult();
+    const emptyStateAction = {
+      control: emptyOperationControl("tree:create-starter"),
+      kind: "operationAction" as const,
+      role: "command" as const,
+    };
     const empty = selectGeneratedTreeFoundation({
+      emptyStateAction,
       id: "tree:empty",
       recordsById: { [root.id]: root },
       result,
@@ -356,7 +365,11 @@ describe("generated tree foundation", () => {
 
     expect(empty).toMatchObject({
       availability: {
-        emptyState: { id: "tree:empty:empty", title: "No placements yet." },
+        emptyState: {
+          action: { control: { id: "tree:create-starter" }, role: "command" },
+          id: "tree:empty:empty",
+          title: "No placements yet.",
+        },
         state: "empty",
       },
       items: [],
@@ -1273,6 +1286,32 @@ function treeItemByPlacement(
 
 function flattenContractTreeItems(items: readonly TreeItemContract[]): TreeItemContract[] {
   return items.flatMap((item) => [item, ...flattenContractTreeItems(item.children)]);
+}
+
+function emptyOperationControl(id: string): OperationControlContract {
+  return {
+    id,
+    kind: "operationControl",
+    status: {
+      accessibilityLabel: "Ready",
+      detail: "Ready",
+      id: `${id}:status`,
+      intent: "neutral",
+      kind: "compactStatus",
+      label: "Ready",
+      status: "idle",
+    },
+    trigger: {
+      accessibilityLabel: "Create starter",
+      content: { kind: "label", label: "Create starter" },
+      density: "default",
+      id: `${id}:trigger`,
+      intent: { controlId: id, invocationSource: "button", type: "operationInvoke" },
+      kind: "button",
+      prominence: "primary",
+      type: "button",
+    },
+  };
 }
 
 function required<T>(value: T | null | undefined): T {

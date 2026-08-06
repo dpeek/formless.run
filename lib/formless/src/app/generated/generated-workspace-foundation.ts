@@ -1,5 +1,6 @@
 import type {
   ActionTriggerContract,
+  CollectionEmptyStatePrimaryActionContract,
   CreateSurfaceContract,
   FieldContract,
   OperationControlContract,
@@ -23,6 +24,8 @@ import {
 import {
   selectGeneratedContextSelectionFacts,
   type GeneratedContextSelectionFacts,
+  selectGeneratedSingletonScopeSelectionFacts,
+  type GeneratedSingletonScopeSelectionFacts,
 } from "../../client/generated-authoring.ts";
 import type { RecordResultModel } from "../../client/list-result-model.ts";
 import type {
@@ -42,6 +45,7 @@ import {
   generatedWorkspaceScreenId,
   generatedWorkspaceSectionId,
   projectGeneratedWorkspaceContract,
+  type GeneratedWorkspaceAvailabilityProjection,
   type GeneratedWorkspaceContextProjectionFacts,
   type GeneratedWorkspaceIdentityScope,
   type GeneratedWorkspaceSectionProjectionFacts,
@@ -108,6 +112,11 @@ export type GeneratedWorkspaceCollectionActionFoundation = {
   runtime: unknown;
 };
 
+export type GeneratedWorkspaceEmptyStatePrimaryActionFoundation = {
+  action: CollectionEmptyStatePrimaryActionContract;
+  runtime: unknown;
+};
+
 export type GeneratedWorkspaceContextCreateFoundation = {
   action: Extract<WorkspaceCollectionActionContract, { kind: "createAction" }>;
   runtime: unknown;
@@ -145,16 +154,24 @@ type GeneratedWorkspaceRecordResultFoundationOptions = Partial<
 
 type GeneratedWorkspaceTreeFoundationOptions = Omit<
   SelectGeneratedTreeFoundationOptions,
-  "context" | "id" | "recordsById" | "result" | "rootRecordId" | "selectableContextRecordIds"
+  | "context"
+  | "emptyStateAction"
+  | "id"
+  | "recordsById"
+  | "result"
+  | "rootRecordId"
+  | "selectableContextRecordIds"
 >;
 
 export type GeneratedWorkspaceSectionFoundationInput = {
+  collectionAvailability?: GeneratedWorkspaceAvailabilityProjection;
   collectionActions?: readonly GeneratedWorkspaceCollectionActionFoundation[];
   contextCreate?: GeneratedWorkspaceContextCreateFoundation;
   contextDetail?: GeneratedWorkspaceRecordResultFoundationOptions & {
     recordState?: GeneratedRecordResultRecordState;
   };
   externalActions?: readonly GeneratedWorkspaceExternalActionFoundation[];
+  emptyStatePrimaryAction?: GeneratedWorkspaceEmptyStatePrimaryActionFoundation;
   list?: GeneratedWorkspaceListFoundationOptions;
   recordResult?: GeneratedWorkspaceRecordResultFoundationOptions & {
     recordState?: GeneratedRecordResultRecordState;
@@ -171,6 +188,7 @@ export type GeneratedWorkspaceSectionSelectionFacts = {
   recordIds: readonly string[];
   resultId: string;
   scope: GeneratedWorkspaceIdentityScope;
+  scopeSelection?: GeneratedSingletonScopeSelectionFacts;
   screen: HomeScreenModel;
   section: HomeScreenCollectionSectionModel;
   selectedQuery: HomeQueryTabConfig;
@@ -248,6 +266,7 @@ export type GeneratedWorkspaceSectionRuntimePlan = {
   recordIds: readonly string[];
   result: GeneratedWorkspaceNestedResultRuntime;
   scope: GeneratedWorkspaceIdentityScope;
+  scopeSelection?: GeneratedSingletonScopeSelectionFacts;
   section: HomeScreenCollectionSectionModel;
   selectedContextRecordId: string | null;
   selectedQuery: HomeQueryTabConfig;
@@ -370,18 +389,27 @@ export function selectGeneratedWorkspaceFoundation(
     const selection = sectionSelection[section.id] ?? {};
     const selectedQuery = selectGeneratedWorkspaceQuery(section, selection.selectedQueryName);
     const scope = generatedWorkspaceScope(screenId, section);
-    const contextOptions = selectGeneratedWorkspaceContextOptions(section, snapshot, today);
+    const scopeSelection = selectGeneratedWorkspaceSingletonScope(section, snapshot, today);
+    const baseQueryContext =
+      section.collection.scope === undefined ? { today } : scopeSelection?.queryContext;
+    const contextOptions = selectGeneratedWorkspaceContextOptions(
+      section,
+      snapshot,
+      baseQueryContext,
+    );
     const contextSelection = selectGeneratedWorkspaceContext(
       section,
       contextOptions,
       selection.selectedContextRecordId ?? null,
       today,
+      baseQueryContext,
     );
     const queryContext =
       contextSelection?.queryContext ??
-      (section.collection.context === undefined ? { today } : undefined);
-    const actionQueryContext = contextSelection?.actionQueryContext ?? { today };
-    const recordIds =
+      (section.collection.context === undefined ? baseQueryContext : undefined);
+    const actionQueryContext = contextSelection?.actionQueryContext ??
+      scopeSelection?.actionQueryContext ?? { today };
+    const matchingRecordIds =
       queryContext === undefined
         ? []
         : createEntityRecordIdsMatchingQuerySelector(
@@ -389,6 +417,11 @@ export function selectGeneratedWorkspaceFoundation(
             selectedQuery.query,
             queryContext,
           )(snapshot);
+    const recordIds =
+      scopeSelection?.state === "ready" &&
+      section.collection.entityName === section.collection.scope?.entityName
+        ? matchingRecordIds.filter((recordId) => recordId === scopeSelection.activeRecordId)
+        : matchingRecordIds;
     const resultId = generatedWorkspaceScopedId(
       scope,
       "result",
@@ -402,6 +435,7 @@ export function selectGeneratedWorkspaceFoundation(
       recordIds,
       resultId,
       scope,
+      ...(scopeSelection === undefined ? {} : { scopeSelection }),
       screen,
       section,
       selectedQuery,
@@ -409,6 +443,9 @@ export function selectGeneratedWorkspaceFoundation(
       today,
     };
     const sectionFoundation = selectSectionFoundation?.(facts) ?? {};
+    const collectionAvailability =
+      sectionFoundation.collectionAvailability ??
+      projectGeneratedSingletonScopeAvailability(section, scopeSelection);
     const result = selectGeneratedWorkspaceResult(facts, sectionFoundation);
     const context = projectGeneratedWorkspaceContextFacts(facts, sectionFoundation);
     const contextResult = selectGeneratedWorkspaceContextResult(facts, sectionFoundation);
@@ -451,6 +488,7 @@ export function selectGeneratedWorkspaceFoundation(
       recordIds,
       result,
       scope,
+      ...(scopeSelection === undefined ? {} : { scopeSelection }),
       section,
       selectedContextRecordId,
       selectedQuery,
@@ -464,6 +502,7 @@ export function selectGeneratedWorkspaceFoundation(
           action,
           placement,
         })),
+        ...(collectionAvailability === undefined ? {} : { availability: collectionAvailability }),
         ...(context === undefined
           ? {}
           : {
@@ -474,6 +513,9 @@ export function selectGeneratedWorkspaceFoundation(
             }),
         id: section.viewName,
         label: section.collection.entity.label,
+        ...(sectionFoundation.emptyStatePrimaryAction === undefined
+          ? {}
+          : { emptyStatePrimaryAction: sectionFoundation.emptyStatePrimaryAction.action }),
         layout:
           context?.presentation === "localListDetail"
             ? ("listDetail" as const)
@@ -504,6 +546,27 @@ export function selectGeneratedWorkspaceFoundation(
       sections: projectedSections,
       width: screen.layout.width,
     }),
+  };
+}
+
+function projectGeneratedSingletonScopeAvailability(
+  section: HomeScreenCollectionSectionModel,
+  selection: GeneratedSingletonScopeSelectionFacts | undefined,
+): GeneratedWorkspaceAvailabilityProjection | undefined {
+  const entityLabel = section.collection.scope?.entity.label;
+  if (selection === undefined || selection.state === "ready" || entityLabel === undefined) {
+    return undefined;
+  }
+  if (selection.state === "empty") {
+    return {
+      description: `Create a ${entityLabel.toLowerCase()} to begin.`,
+      state: "empty",
+      title: `No ${entityLabel} configured`,
+    };
+  }
+  return {
+    message: `${entityLabel} authoring is unavailable because more than one active record exists.`,
+    state: "unavailable",
   };
 }
 
@@ -764,17 +827,33 @@ function selectGeneratedWorkspaceQuery(
 function selectGeneratedWorkspaceContextOptions(
   section: HomeScreenCollectionSectionModel,
   snapshot: BrowserReplicaProjectionSnapshot,
-  today: string,
+  queryContext: QueryEvaluationContext | undefined,
 ): readonly ReferenceOption[] {
   const context = section.collection.context;
-  return context === undefined
+  return context === undefined || queryContext === undefined
     ? []
     : createEntityRecordOptionsMatchingQuerySelector(
         context.entityName,
         context.query,
         context.labelField,
-        { today },
+        queryContext,
       )(snapshot);
+}
+
+function selectGeneratedWorkspaceSingletonScope(
+  section: HomeScreenCollectionSectionModel,
+  snapshot: BrowserReplicaProjectionSnapshot,
+  today: string,
+): GeneratedSingletonScopeSelectionFacts | undefined {
+  const scope = section.collection.scope;
+  if (scope === undefined) {
+    return undefined;
+  }
+  const recordIds = createEntityRecordIdsMatchingQuerySelector(scope.entityName, scope.query, {
+    today,
+  })(snapshot);
+
+  return selectGeneratedSingletonScopeSelectionFacts({ recordIds, scope, today });
 }
 
 function selectGeneratedWorkspaceContext(
@@ -782,6 +861,7 @@ function selectGeneratedWorkspaceContext(
   options: readonly ReferenceOption[],
   selectedRecordId: string | null,
   today: string,
+  queryContext: QueryEvaluationContext | undefined,
 ): GeneratedContextSelectionFacts | undefined {
   const context = section.collection.context;
   return context === undefined
@@ -789,6 +869,7 @@ function selectGeneratedWorkspaceContext(
     : selectGeneratedContextSelectionFacts({
         context,
         options: [...options],
+        ...(queryContext === undefined ? {} : { queryContext }),
         selectedRecordId,
         today,
       });
@@ -825,6 +906,7 @@ function selectGeneratedWorkspaceResult(
   const result = collection.result;
 
   if (result.type === "list") {
+    const emptyStateAction = input.emptyStatePrimaryAction?.action;
     const foundation = selectGeneratedListFoundation({
       entity: collection.entity,
       entityName: collection.entityName,
@@ -832,12 +914,14 @@ function selectGeneratedWorkspaceResult(
       recordIds: facts.recordIds,
       recordsById: facts.snapshot.recordsById,
       result,
+      ...(emptyStateAction === undefined ? {} : { emptyStateAction }),
       ...input.list,
     });
     return { contract: foundation.list, foundation, kind: "list" };
   }
 
   if (result.type === "record") {
+    const emptyStateAction = input.emptyStatePrimaryAction?.action;
     const record = facts.snapshot.recordsById[facts.recordIds[0] ?? ""];
     const recordState = rebaseGeneratedRecordResultRecordState({
       current: input.recordResult?.recordState,
@@ -853,6 +937,7 @@ function selectGeneratedWorkspaceResult(
       recordIds: facts.recordIds,
       recordsById: facts.snapshot.recordsById,
       result,
+      ...(emptyStateAction === undefined ? {} : { emptyStateAction }),
       ...input.recordResult,
     });
     return {
@@ -864,6 +949,7 @@ function selectGeneratedWorkspaceResult(
   }
 
   if (result.type === "tree") {
+    const emptyStateAction = input.emptyStatePrimaryAction?.action;
     const foundation = selectGeneratedTreeFoundation({
       context: collection.context,
       id: facts.resultId,
@@ -871,6 +957,7 @@ function selectGeneratedWorkspaceResult(
       result,
       rootRecordId: facts.contextSelection?.activeRecordId,
       selectableContextRecordIds: facts.contextSelection?.selectableRecordIds,
+      ...(emptyStateAction === undefined ? {} : { emptyStateAction }),
       ...input.tree,
     });
     return { contract: foundation.tree, foundation, kind: "treeResult" };
@@ -1067,6 +1154,24 @@ function selectGeneratedWorkspaceControlRuntimePlan(
     } else {
       controls.set(contract.control.id, {
         contract: contract.control,
+        kind: "operation",
+        runtime: action.runtime,
+      });
+    }
+  }
+
+  if (input.emptyStatePrimaryAction !== undefined) {
+    const action = input.emptyStatePrimaryAction;
+    if (action.action.kind === "createAction") {
+      controls.set(action.action.surface.id, {
+        contract: action.action.surface,
+        fieldsById: indexGeneratedCreateSurfaceFields(action.action.surface),
+        kind: "create",
+        runtime: action.runtime,
+      });
+    } else {
+      controls.set(action.action.control.id, {
+        contract: action.action.control,
         kind: "operation",
         runtime: action.runtime,
       });

@@ -908,6 +908,17 @@ export type OperationControlContract = {
   trigger: OperationButtonContract;
 };
 
+export type CollectionEmptyStatePrimaryActionContract =
+  | {
+      kind: "createAction";
+      surface: CreateSurfaceContract;
+    }
+  | {
+      control: OperationControlContract;
+      kind: "operationAction";
+      role: "command";
+    };
+
 export type FieldSetContract = {
   disabled: boolean;
   disabledReason?: string;
@@ -997,7 +1008,7 @@ export type ListItemContract = {
 };
 
 export type ListEmptyStateContract = {
-  action?: ListActionContract;
+  action?: CollectionEmptyStatePrimaryActionContract;
   description?: string;
   id: string;
   kind: "listEmptyState";
@@ -1079,7 +1090,7 @@ export type RecordResultWarningContract = {
 };
 
 export type RecordResultEmptyStateContract = {
-  action?: RecordResultActionContract;
+  action?: CollectionEmptyStatePrimaryActionContract;
   description?: string;
   id: string;
   kind: "recordResultEmptyState";
@@ -1097,7 +1108,7 @@ export type RecordResultFieldIntent = {
 export type RecordResultOperationIntent = {
   controlId: string;
   intent: OperationPresentationIntent;
-  recordId: string;
+  recordId?: string;
   resultId: string;
   type: "recordResultOperationIntent";
 };
@@ -1340,7 +1351,7 @@ export type TableFooterContract = {
 };
 
 export type TableEmptyStateContract = {
-  action?: TableActionContract;
+  action?: CollectionEmptyStatePrimaryActionContract;
   description?: string;
   id: string;
   kind: "tableEmptyState";
@@ -1421,6 +1432,7 @@ export type TreeEditingAvailability =
     };
 
 export type TreeEmptyStateContract = {
+  action?: CollectionEmptyStatePrimaryActionContract;
   description?: string;
   id: string;
   kind: "treeEmptyState";
@@ -1507,7 +1519,7 @@ export type TreeFieldIntent = {
 export type TreeOperationIntent = {
   controlId: string;
   intent: OperationPresentationIntent;
-  itemId: string;
+  itemId?: string;
   resultId: string;
   type: "treeOperation";
 };
@@ -1700,6 +1712,7 @@ export type WorkspaceItemAvailability =
     };
 
 export type WorkspaceEmptyStateContract = {
+  action?: CollectionEmptyStatePrimaryActionContract;
   description?: string;
   id: string;
   kind: "workspaceEmptyState";

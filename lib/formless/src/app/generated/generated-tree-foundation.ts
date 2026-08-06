@@ -9,6 +9,7 @@ import type {
   TreeItemContract,
   TreeItemSelectionIntent,
   TreeOperationIntent,
+  CollectionEmptyStatePrimaryActionContract,
   TreeOrderingContract,
   TreeReorderIntent,
   TreeResultContract,
@@ -80,6 +81,7 @@ export type SelectGeneratedTreeFoundationOptions = {
   childFields?: GeneratedTreeRecordProjectionOptions;
   context?: HomeContextConfig;
   disclosureOpenByItemId?: Readonly<Record<string, boolean | undefined>>;
+  emptyStateAction?: CollectionEmptyStatePrimaryActionContract;
   fieldStateByFieldSetId?: Readonly<Record<string, GeneratedRecordResultRecordState | undefined>>;
   id: string;
   ordering?: GeneratedTreeOrderingProjectionOptions;
@@ -166,6 +168,7 @@ export function selectGeneratedTreeFoundation({
   childFields,
   context,
   disclosureOpenByItemId = {},
+  emptyStateAction,
   fieldStateByFieldSetId = {},
   id,
   ordering,
@@ -355,6 +358,7 @@ export function selectGeneratedTreeFoundation({
           : items.length === 0
             ? {
                 emptyState: {
+                  ...(emptyStateAction === undefined ? {} : { action: emptyStateAction }),
                   id: `${id}:empty`,
                   kind: "treeEmptyState",
                   title: "No placements yet.",

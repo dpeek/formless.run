@@ -22,8 +22,90 @@ describe("schema collection views", () => {
       defaultQuery: "taskAll",
       result: { type: "list", itemView: "taskItem" },
       navigation: { primary: true },
-      operations: [{ operation: "task.create", createView: "taskCreate" }],
+      operations: [{ operation: "task.create", placement: "toolbar", createView: "taskCreate" }],
     });
+  });
+
+  it("parses toolbar and one inputless empty-state primary operation binding", () => {
+    const source = taskSchemaWithCommand();
+    const schema = parseAppSchema({
+      ...source,
+      views: replaceDefinition(
+        source.views,
+        "taskHome",
+        taskCollectionView({
+          operations: [
+            { operation: "task.clear", label: "Clear tasks" },
+            {
+              operation: "task.clear",
+              placement: "emptyStatePrimary",
+              label: "Set up tasks",
+            },
+          ],
+        }),
+      ),
+    });
+
+    expect(schema.views.find((definition) => definition.key === "taskHome")).toMatchObject({
+      operations: [
+        { operation: "task.clear", placement: "toolbar" },
+        { operation: "task.clear", placement: "emptyStatePrimary" },
+      ],
+    });
+    expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
+  });
+
+  it("rejects invalid, duplicate, and required-input empty-state primary bindings", () => {
+    const source = taskSchemaWithCommand();
+    const withOperations = (operations: unknown[]) => ({
+      ...source,
+      views: replaceDefinition(source.views, "taskHome", taskCollectionView({ operations })),
+    });
+
+    expect(() =>
+      parseAppSchema(withOperations([{ operation: "task.clear", placement: "footer" }])),
+    ).toThrow("placement must be toolbar or emptyStatePrimary");
+    expect(() =>
+      parseAppSchema(
+        withOperations([
+          { operation: "task.clear", placement: "emptyStatePrimary" },
+          { operation: "task.clear", placement: "emptyStatePrimary" },
+        ]),
+      ),
+    ).toThrow("must not define more than one emptyStatePrimary operation binding");
+
+    const requiredInput = {
+      ...source,
+      entities: source.entities.map((entity) =>
+        entity.key === "task"
+          ? {
+              ...entity,
+              operations: entity.operations?.map((operation) =>
+                operation.key === "clear"
+                  ? {
+                      ...operation,
+                      input: {
+                        fields: [{ key: "confirmation", field: "title", required: true }],
+                      },
+                    }
+                  : operation,
+              ),
+            }
+          : entity,
+      ),
+    };
+    expect(() =>
+      parseAppSchema({
+        ...requiredInput,
+        views: replaceDefinition(
+          requiredInput.views,
+          "taskHome",
+          taskCollectionView({
+            operations: [{ operation: "task.clear", placement: "emptyStatePrimary" }],
+          }),
+        ),
+      }),
+    ).toThrow("emptyStatePrimary command must not require caller input");
   });
 
   it("rejects query, result, and operation references owned by another entity", () => {
@@ -82,6 +164,62 @@ describe("schema collection views", () => {
     expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
   });
 
+  it("parses singleton collection scope for queries and create defaults", () => {
+    const source = projectTaskSchema();
+    const schema = parseAppSchema({
+      ...source,
+      views: replaceDefinition(source.views, "taskHome", {
+        context: undefined,
+        scope: {
+          name: "project",
+          entity: "project",
+          query: "projectAll",
+          selection: "singleton",
+        },
+      }),
+    });
+
+    expect(schema.views.find((definition) => definition.key === "taskHome")).toMatchObject({
+      scope: {
+        name: "project",
+        entity: "project",
+        query: "projectAll",
+        selection: "singleton",
+      },
+      queries: [{ query: "tasksForProject" }],
+    });
+    expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
+  });
+
+  it("rejects invalid singleton collection scope", () => {
+    const source = projectTaskSchema();
+    const withScope = (scope: Record<string, unknown>) => ({
+      ...source,
+      views: replaceDefinition(source.views, "taskHome", { scope }),
+    });
+
+    expect(() =>
+      parseAppSchema(
+        withScope({
+          name: "portfolio",
+          entity: "project",
+          query: "projectAll",
+          selection: "first",
+        }),
+      ),
+    ).toThrow('selection must be "singleton"');
+    expect(() =>
+      parseAppSchema(
+        withScope({
+          name: "portfolio",
+          entity: "project",
+          query: "tasksForProject",
+          selection: "singleton",
+        }),
+      ),
+    ).toThrow('query "tasksForProject" must use entity "project"');
+  });
+
   it("requires context-bound queries and defaults to match collection context", () => {
     const source = projectTaskSchema();
 
@@ -137,6 +275,38 @@ function schemaWithNotes() {
         fields: [{ field: "title", editor: "text", commit: "field-commit" }],
       },
     ],
+  };
+}
+
+function taskSchemaWithCommand() {
+  const source = taskSchema();
+  return {
+    ...source,
+    entities: source.entities.map((entity) =>
+      entity.key === "task"
+        ? {
+            ...entity,
+            operations: [
+              ...(entity.operations ?? []),
+              {
+                key: "clear",
+                label: "Clear tasks",
+                kind: "command" as const,
+                scope: "collection" as const,
+                target: { query: "taskAll" },
+                effect: {
+                  type: "operationHandler" as const,
+                  handler: "tombstone-query-results" as const,
+                  config: { query: "taskAll" },
+                },
+                output: { type: "command" as const },
+                idempotency: { required: true },
+                audit: { input: "summary" as const },
+              },
+            ],
+          }
+        : entity,
+    ),
   };
 }
 function projectTaskSchema() {

@@ -362,6 +362,14 @@ export async function executeAuthorityOperation(
         input.publicReads ?? [],
       );
 
+      if (projection?.status === "unavailable") {
+        return {
+          body: { error: "Public Site is unavailable." },
+          headers: { "Cache-Control": PUBLIC_SITE_TREE_CACHE_CONTROL },
+          status: 503,
+        };
+      }
+
       if (!projection?.tree) {
         return {
           body: { error: "Site page not found." },

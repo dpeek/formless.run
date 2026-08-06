@@ -779,7 +779,7 @@ describe("instance control-plane schema contracts", () => {
       routeEdit.type === "edit" ? routeEdit.fields.map(({ field }) => field) : [];
     expect(routeList.type).toBe("collection");
     expect(routeList.type === "collection" ? routeList.operations : undefined).toEqual([
-      { operation: "route.create", createView: "routeCreate" },
+      { operation: "route.create", placement: "toolbar", createView: "routeCreate" },
     ]);
     expect(
       routeList.type === "collection" ? routeList.queries.map((slot) => slot.query) : undefined,

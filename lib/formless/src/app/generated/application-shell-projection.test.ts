@@ -15,6 +15,7 @@ import { projectInitialGeneratedCreateRuntimeSurface } from "./generated-create-
 import {
   projectGeneratedApplicationShell,
   selectGeneratedShellActiveHref,
+  selectGeneratedShellRootScopeSelection,
   shouldRenderGeneratedShell,
   type GeneratedApplicationShellProjection,
 } from "./application-shell-projection.ts";
@@ -463,7 +464,11 @@ describe("generated application shell host and intents", () => {
     const createSection = required(
       projection.sections.find((section) => section.createSurface !== undefined),
     );
-    const createField = required(createSection.createSurface?.dialog.form.fieldSet.fields[0]);
+    const createField = required(
+      createSection.createSurface?.dialog.form.fieldSet.fields.find(
+        (field) => field.fieldName === "label",
+      ),
+    );
     const sessionSection = required(
       projection.sections.find((section) => section.session?.state === "authenticated"),
     );
@@ -555,6 +560,9 @@ function completeProjection(): GeneratedApplicationShellProjection {
   );
   const rootFacts = required(selectGeneratedRootNavigationFacts(activeScreen));
   const snapshot = siteSnapshot();
+  const scopeSelection = required(
+    selectGeneratedShellRootScopeSelection({ facts: rootFacts, snapshot, today: "2026-07-16" }),
+  );
   const createSurfacesByQueryName = Object.fromEntries(
     rootFacts.groups.flatMap((group) =>
       group.createOperation
@@ -563,6 +571,7 @@ function completeProjection(): GeneratedApplicationShellProjection {
               group.queryName,
               projectInitialGeneratedCreateRuntimeSurface({
                 operation: group.createOperation,
+                queryContext: scopeSelection.queryContext,
                 snapshot,
                 surfaceId: `root-navigation:${group.createOperation.operation.canonicalKey}`,
                 trigger: {

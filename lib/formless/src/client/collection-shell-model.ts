@@ -2,6 +2,8 @@ import type {
   AggregateSchema,
   AppSchema,
   CollectionContextPresentation,
+  CollectionOperationBindingSchema,
+  CollectionSingletonScopeSchema,
   CollectionSummarySlotSchema,
   CollectionTableFooterSlotSchema,
   CollectionViewSchema,
@@ -119,7 +121,18 @@ export type HomeContextConfig = {
   recordUnion?: RecordUnionPresentationConfig;
 };
 
-export type HomeOperationConfig =
+export type HomeCollectionScopeConfig = {
+  name: string;
+  entityName: string;
+  entity: EntitySchema;
+  queryName: string;
+  query: QueryExpression;
+  selection: CollectionSingletonScopeSchema["selection"];
+};
+
+export type HomeOperationConfig = {
+  placement: CollectionOperationBindingSchema["placement"];
+} & (
   | {
       type: "create";
       label: string;
@@ -139,11 +152,13 @@ export type HomeOperationConfig =
       operationName: string;
       operation: EntityOperationPresentationConfig;
       ui: CommandOperationUiConfig;
-    };
+    }
+);
 
 export type HomeCollectionShellConfig = {
   entityName: string;
   entity: EntitySchema;
+  scope?: HomeCollectionScopeConfig;
   context?: HomeContextConfig;
   queries: HomeQueriesConfig;
   operations: HomeOperationConfig[];
@@ -179,6 +194,9 @@ export function selectHomeCollectionShell(
   return {
     entityName: collectionView.entity,
     entity,
+    ...(collectionView.scope === undefined
+      ? {}
+      : { scope: selectCollectionScope(schema, collectionView.scope) }),
     ...(collectionView.context === undefined
       ? {}
       : { context: selectContext(schema, viewEntries, collectionView) }),
@@ -187,6 +205,27 @@ export function selectHomeCollectionShell(
     ...(updateOperation === undefined ? {} : { updateOperation }),
     ...(deleteOperation === undefined ? {} : { deleteOperation }),
     ...(summary.length === 0 ? {} : { summary }),
+  };
+}
+
+function selectCollectionScope(
+  schema: AppSchema,
+  scope: CollectionSingletonScopeSchema,
+): HomeCollectionScopeConfig {
+  const entity = schema.entities.find((definition) => definition.key === scope.entity);
+  const query = schema.queries.find((definition) => definition.key === scope.query);
+
+  if (!entity || !query) {
+    throw new Error(`Missing collection scope "${scope.name}".`);
+  }
+
+  return {
+    name: scope.name,
+    entityName: scope.entity,
+    entity,
+    queryName: scope.query,
+    query: query.expression,
+    selection: scope.selection,
   };
 }
 
@@ -415,7 +454,7 @@ function selectHomeOperations(
       );
 
       if (createOperation !== undefined) {
-        operations.push(createOperation);
+        operations.push({ ...createOperation, placement: binding.placement });
       }
       continue;
     }
@@ -429,6 +468,7 @@ function selectHomeOperations(
     operations.push({
       type: "command",
       label,
+      placement: binding.placement,
       entityName: operation.entityName,
       operationName: operation.operationName,
       operation,
@@ -538,6 +578,7 @@ function selectCreateOperation(
   return {
     type: "create",
     label: label ?? createOperation.label,
+    placement: "toolbar",
     entityName: createView.entity,
     entity,
     operationName: createOperation.operationName,

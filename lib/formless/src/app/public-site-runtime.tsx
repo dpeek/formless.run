@@ -130,6 +130,10 @@ function ProgramReplicaSitePageRoute({
       slug,
     );
 
+    if (projection.status === "unavailable") {
+      return { status: "error", message: "Public Site is unavailable.", slug };
+    }
+
     return projection.tree === null
       ? { status: "not-found", slug }
       : { status: "ready", tree: projection.tree };

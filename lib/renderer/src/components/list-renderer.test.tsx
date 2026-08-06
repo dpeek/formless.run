@@ -165,7 +165,7 @@ describe("Astryx list renderer", () => {
       density: "default",
       editing: { disabledReason: "Editing requires an owner session.", enabled: false },
       emptyState: {
-        action,
+        action: { ...action, role: "command" },
         description: "Adjust the current filters.",
         id: "tasks:empty",
         kind: "listEmptyState",

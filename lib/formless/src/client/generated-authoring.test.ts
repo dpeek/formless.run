@@ -5,6 +5,7 @@ import {
   selectGeneratedRootNavigationFacts,
   selectGeneratedRootNavigationGroupFacts,
   selectGeneratedRootNavigationStateFacts,
+  selectGeneratedSingletonScopeSelectionFacts,
 } from "./generated-authoring.ts";
 import {
   selectPrimaryCollectionModels,
@@ -14,6 +15,21 @@ import {
 } from "./views.ts";
 
 describe("generated authoring context selection", () => {
+  it("merges singleton scope into nested context query values", () => {
+    const facts = selectGeneratedContextSelectionFacts({
+      context: requiredRateContext(),
+      options: [{ id: "card-1", label: "Default" }],
+      queryContext: { today: "2026-05-12", values: { account: "account-1" } },
+      selectedRecordId: null,
+      today: "2026-05-12",
+    });
+
+    expect(facts.queryContext).toEqual({
+      today: "2026-05-12",
+      values: { account: "account-1", card: "card-1" },
+    });
+  });
+
   it("preserves a selected context id that is still in the option set", () => {
     const context = requiredRateContext();
     const facts = selectGeneratedContextSelectionFacts({
@@ -105,6 +121,42 @@ describe("generated authoring context selection", () => {
   });
 });
 
+describe("generated authoring singleton scope", () => {
+  const scope = {
+    name: "site",
+    entityName: "site",
+    entity: siteSourceSchema.entities.find(({ key }) => key === "site")!,
+    queryName: "siteAll",
+    query: { kind: "all" as const },
+    selection: "singleton" as const,
+  };
+
+  it("projects explicit zero, one, and ambiguous states without selecting the first record", () => {
+    expect(
+      selectGeneratedSingletonScopeSelectionFacts({ recordIds: [], scope, today: "2026-08-06" }),
+    ).toMatchObject({ activeRecordId: null, queryContext: undefined, state: "empty" });
+    expect(
+      selectGeneratedSingletonScopeSelectionFacts({
+        recordIds: ["site-1"],
+        scope,
+        today: "2026-08-06",
+      }),
+    ).toEqual({
+      actionQueryContext: { today: "2026-08-06", values: { site: "site-1" } },
+      activeRecordId: "site-1",
+      queryContext: { today: "2026-08-06", values: { site: "site-1" } },
+      state: "ready",
+    });
+    expect(
+      selectGeneratedSingletonScopeSelectionFacts({
+        recordIds: ["site-1", "site-2"],
+        scope,
+        today: "2026-08-06",
+      }),
+    ).toMatchObject({ activeRecordId: null, queryContext: undefined, state: "ambiguous" });
+  });
+});
+
 describe("generated authoring root navigation", () => {
   it("selects the first collection section with context navigation", () => {
     const screen = requiredSiteScreen();
@@ -140,13 +192,32 @@ describe("generated authoring root navigation", () => {
         ]) ?? [],
       ]),
     ).toEqual([
-      ["Pages", "blockPages", "Create Page", [["type", { kind: "literal", value: "page" }]]],
-      ["Posts", "blockPosts", "Create Post", [["type", { kind: "literal", value: "post" }]]],
+      [
+        "Pages",
+        "blockPages",
+        "Create Page",
+        [
+          ["site", { kind: "context", name: "site" }],
+          ["type", { kind: "literal", value: "page" }],
+        ],
+      ],
+      [
+        "Posts",
+        "blockPosts",
+        "Create Post",
+        [
+          ["site", { kind: "context", name: "site" }],
+          ["type", { kind: "literal", value: "post" }],
+        ],
+      ],
       [
         "Projects",
         "blockProjects",
         "Create Project",
-        [["type", { kind: "literal", value: "project" }]],
+        [
+          ["site", { kind: "context", name: "site" }],
+          ["type", { kind: "literal", value: "project" }],
+        ],
       ],
       ["Navigation", "blockNavigationRoots", null, []],
     ]);

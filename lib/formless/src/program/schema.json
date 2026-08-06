@@ -3491,12 +3491,543 @@
           "label": "Allow visitors to switch theme",
           "required": false,
           "type": "boolean"
+        },
+        {
+          "displayField": "label",
+          "key": "home",
+          "label": "Home page",
+          "required": false,
+          "to": "block",
+          "type": "reference"
+        },
+        {
+          "displayField": "label",
+          "key": "header",
+          "label": "Header",
+          "required": false,
+          "to": "block",
+          "type": "reference"
+        },
+        {
+          "displayField": "label",
+          "key": "footer",
+          "label": "Footer",
+          "required": false,
+          "to": "block",
+          "type": "reference"
         }
       ],
       "id": "entity_610ac202-b123-46ed-8bd3-5b65383e2233",
       "key": "site",
       "label": "Site",
       "operations": [
+        {
+          "access": {
+            "role": "editor"
+          },
+          "audit": {
+            "input": "summary"
+          },
+          "effect": {
+            "steps": [
+              {
+                "entity": "site",
+                "kind": "create",
+                "name": "createSite",
+                "values": {
+                  "key": {
+                    "alphabet": "upperAlphaNumericNoConfusables",
+                    "kind": "generatedCode",
+                    "length": 10,
+                    "prefix": "site-"
+                  },
+                  "label": {
+                    "kind": "literal",
+                    "value": "Untitled site"
+                  }
+                }
+              },
+              {
+                "entity": "block",
+                "kind": "create",
+                "name": "createHomePage",
+                "values": {
+                  "href": {
+                    "kind": "literal",
+                    "value": "/"
+                  },
+                  "label": {
+                    "kind": "literal",
+                    "value": "Home"
+                  },
+                  "site": {
+                    "entity": "site",
+                    "id": {
+                      "kind": "stepOutput",
+                      "output": "id",
+                      "step": "createSite"
+                    },
+                    "kind": "reference"
+                  },
+                  "type": {
+                    "kind": "literal",
+                    "value": "page"
+                  }
+                }
+              },
+              {
+                "entity": "block",
+                "kind": "create",
+                "name": "createHeader",
+                "values": {
+                  "label": {
+                    "kind": "literal",
+                    "value": "Header"
+                  },
+                  "site": {
+                    "entity": "site",
+                    "id": {
+                      "kind": "stepOutput",
+                      "output": "id",
+                      "step": "createSite"
+                    },
+                    "kind": "reference"
+                  },
+                  "type": {
+                    "kind": "literal",
+                    "value": "header"
+                  }
+                }
+              },
+              {
+                "entity": "block",
+                "kind": "create",
+                "name": "createHeaderPrimary",
+                "values": {
+                  "label": {
+                    "kind": "literal",
+                    "value": "Header primary"
+                  },
+                  "site": {
+                    "entity": "site",
+                    "id": {
+                      "kind": "stepOutput",
+                      "output": "id",
+                      "step": "createSite"
+                    },
+                    "kind": "reference"
+                  },
+                  "type": {
+                    "kind": "literal",
+                    "value": "headerPrimary"
+                  }
+                }
+              },
+              {
+                "entity": "block",
+                "kind": "create",
+                "name": "createFooter",
+                "values": {
+                  "label": {
+                    "kind": "literal",
+                    "value": "Footer"
+                  },
+                  "site": {
+                    "entity": "site",
+                    "id": {
+                      "kind": "stepOutput",
+                      "output": "id",
+                      "step": "createSite"
+                    },
+                    "kind": "reference"
+                  },
+                  "type": {
+                    "kind": "literal",
+                    "value": "footer"
+                  }
+                }
+              },
+              {
+                "entity": "block",
+                "kind": "create",
+                "name": "createFooterSection",
+                "values": {
+                  "label": {
+                    "kind": "literal",
+                    "value": "Footer section"
+                  },
+                  "site": {
+                    "entity": "site",
+                    "id": {
+                      "kind": "stepOutput",
+                      "output": "id",
+                      "step": "createSite"
+                    },
+                    "kind": "reference"
+                  },
+                  "type": {
+                    "kind": "literal",
+                    "value": "footerSection"
+                  }
+                }
+              },
+              {
+                "entity": "block",
+                "kind": "create",
+                "name": "createHeaderHomeLink",
+                "values": {
+                  "label": {
+                    "kind": "literal",
+                    "value": "Home"
+                  },
+                  "linkTargetBlock": {
+                    "entity": "block",
+                    "id": {
+                      "kind": "stepOutput",
+                      "output": "id",
+                      "step": "createHomePage"
+                    },
+                    "kind": "reference"
+                  },
+                  "linkTargetMode": {
+                    "kind": "literal",
+                    "value": "internal"
+                  },
+                  "site": {
+                    "entity": "site",
+                    "id": {
+                      "kind": "stepOutput",
+                      "output": "id",
+                      "step": "createSite"
+                    },
+                    "kind": "reference"
+                  },
+                  "type": {
+                    "kind": "literal",
+                    "value": "link"
+                  }
+                }
+              },
+              {
+                "entity": "block",
+                "kind": "create",
+                "name": "createFooterHomeLink",
+                "values": {
+                  "label": {
+                    "kind": "literal",
+                    "value": "Home"
+                  },
+                  "linkTargetBlock": {
+                    "entity": "block",
+                    "id": {
+                      "kind": "stepOutput",
+                      "output": "id",
+                      "step": "createHomePage"
+                    },
+                    "kind": "reference"
+                  },
+                  "linkTargetMode": {
+                    "kind": "literal",
+                    "value": "internal"
+                  },
+                  "site": {
+                    "entity": "site",
+                    "id": {
+                      "kind": "stepOutput",
+                      "output": "id",
+                      "step": "createSite"
+                    },
+                    "kind": "reference"
+                  },
+                  "type": {
+                    "kind": "literal",
+                    "value": "link"
+                  }
+                }
+              },
+              {
+                "entity": "block",
+                "kind": "create",
+                "name": "createWelcomeHero",
+                "values": {
+                  "body": {
+                    "kind": "literal",
+                    "value": "Welcome to your new site."
+                  },
+                  "label": {
+                    "kind": "literal",
+                    "value": "Welcome"
+                  },
+                  "site": {
+                    "entity": "site",
+                    "id": {
+                      "kind": "stepOutput",
+                      "output": "id",
+                      "step": "createSite"
+                    },
+                    "kind": "reference"
+                  },
+                  "type": {
+                    "kind": "literal",
+                    "value": "hero"
+                  }
+                }
+              },
+              {
+                "entity": "block",
+                "kind": "create",
+                "name": "createAboutMarkdown",
+                "values": {
+                  "body": {
+                    "kind": "literal",
+                    "value": "Add a short introduction to your site."
+                  },
+                  "label": {
+                    "kind": "literal",
+                    "value": "About"
+                  },
+                  "site": {
+                    "entity": "site",
+                    "id": {
+                      "kind": "stepOutput",
+                      "output": "id",
+                      "step": "createSite"
+                    },
+                    "kind": "reference"
+                  },
+                  "type": {
+                    "kind": "literal",
+                    "value": "markdown"
+                  }
+                }
+              },
+              {
+                "entity": "block-placement",
+                "kind": "create",
+                "name": "placeHeaderPrimary",
+                "values": {
+                  "block": {
+                    "entity": "block",
+                    "id": {
+                      "kind": "stepOutput",
+                      "output": "id",
+                      "step": "createHeaderPrimary"
+                    },
+                    "kind": "reference"
+                  },
+                  "order": {
+                    "kind": "literal",
+                    "value": 1000
+                  },
+                  "parent": {
+                    "entity": "block",
+                    "id": {
+                      "kind": "stepOutput",
+                      "output": "id",
+                      "step": "createHeader"
+                    },
+                    "kind": "reference"
+                  }
+                }
+              },
+              {
+                "entity": "block-placement",
+                "kind": "create",
+                "name": "placeHeaderHomeLink",
+                "values": {
+                  "block": {
+                    "entity": "block",
+                    "id": {
+                      "kind": "stepOutput",
+                      "output": "id",
+                      "step": "createHeaderHomeLink"
+                    },
+                    "kind": "reference"
+                  },
+                  "order": {
+                    "kind": "literal",
+                    "value": 1000
+                  },
+                  "parent": {
+                    "entity": "block",
+                    "id": {
+                      "kind": "stepOutput",
+                      "output": "id",
+                      "step": "createHeaderPrimary"
+                    },
+                    "kind": "reference"
+                  }
+                }
+              },
+              {
+                "entity": "block-placement",
+                "kind": "create",
+                "name": "placeFooterSection",
+                "values": {
+                  "block": {
+                    "entity": "block",
+                    "id": {
+                      "kind": "stepOutput",
+                      "output": "id",
+                      "step": "createFooterSection"
+                    },
+                    "kind": "reference"
+                  },
+                  "order": {
+                    "kind": "literal",
+                    "value": 1000
+                  },
+                  "parent": {
+                    "entity": "block",
+                    "id": {
+                      "kind": "stepOutput",
+                      "output": "id",
+                      "step": "createFooter"
+                    },
+                    "kind": "reference"
+                  }
+                }
+              },
+              {
+                "entity": "block-placement",
+                "kind": "create",
+                "name": "placeFooterHomeLink",
+                "values": {
+                  "block": {
+                    "entity": "block",
+                    "id": {
+                      "kind": "stepOutput",
+                      "output": "id",
+                      "step": "createFooterHomeLink"
+                    },
+                    "kind": "reference"
+                  },
+                  "order": {
+                    "kind": "literal",
+                    "value": 1000
+                  },
+                  "parent": {
+                    "entity": "block",
+                    "id": {
+                      "kind": "stepOutput",
+                      "output": "id",
+                      "step": "createFooterSection"
+                    },
+                    "kind": "reference"
+                  }
+                }
+              },
+              {
+                "entity": "block-placement",
+                "kind": "create",
+                "name": "placeWelcomeHero",
+                "values": {
+                  "block": {
+                    "entity": "block",
+                    "id": {
+                      "kind": "stepOutput",
+                      "output": "id",
+                      "step": "createWelcomeHero"
+                    },
+                    "kind": "reference"
+                  },
+                  "order": {
+                    "kind": "literal",
+                    "value": 1000
+                  },
+                  "parent": {
+                    "entity": "block",
+                    "id": {
+                      "kind": "stepOutput",
+                      "output": "id",
+                      "step": "createHomePage"
+                    },
+                    "kind": "reference"
+                  }
+                }
+              },
+              {
+                "entity": "block-placement",
+                "kind": "create",
+                "name": "placeAboutMarkdown",
+                "values": {
+                  "block": {
+                    "entity": "block",
+                    "id": {
+                      "kind": "stepOutput",
+                      "output": "id",
+                      "step": "createAboutMarkdown"
+                    },
+                    "kind": "reference"
+                  },
+                  "order": {
+                    "kind": "literal",
+                    "value": 2000
+                  },
+                  "parent": {
+                    "entity": "block",
+                    "id": {
+                      "kind": "stepOutput",
+                      "output": "id",
+                      "step": "createHomePage"
+                    },
+                    "kind": "reference"
+                  }
+                }
+              },
+              {
+                "entity": "site",
+                "kind": "patch",
+                "name": "assignSiteRoots",
+                "recordId": {
+                  "kind": "stepOutput",
+                  "output": "id",
+                  "step": "createSite"
+                },
+                "values": {
+                  "footer": {
+                    "entity": "block",
+                    "id": {
+                      "kind": "stepOutput",
+                      "output": "id",
+                      "step": "createFooter"
+                    },
+                    "kind": "reference"
+                  },
+                  "header": {
+                    "entity": "block",
+                    "id": {
+                      "kind": "stepOutput",
+                      "output": "id",
+                      "step": "createHeader"
+                    },
+                    "kind": "reference"
+                  },
+                  "home": {
+                    "entity": "block",
+                    "id": {
+                      "kind": "stepOutput",
+                      "output": "id",
+                      "step": "createHomePage"
+                    },
+                    "kind": "reference"
+                  }
+                }
+              }
+            ],
+            "type": "recordPlan"
+          },
+          "idempotency": {
+            "required": true
+          },
+          "key": "createStarter",
+          "kind": "command",
+          "label": "Create Site Starter",
+          "output": {
+            "type": "command"
+          },
+          "scope": "collection"
+        },
         {
           "access": {
             "role": "editor"
@@ -3535,6 +4066,18 @@
               {
                 "field": "themeSwitchable",
                 "key": "themeSwitchable"
+              },
+              {
+                "field": "home",
+                "key": "home"
+              },
+              {
+                "field": "header",
+                "key": "header"
+              },
+              {
+                "field": "footer",
+                "key": "footer"
               }
             ]
           },
@@ -3550,6 +4093,14 @@
     },
     {
       "fields": [
+        {
+          "displayField": "label",
+          "key": "site",
+          "label": "Site",
+          "required": true,
+          "to": "site",
+          "type": "reference"
+        },
         {
           "key": "type",
           "label": "Type",
@@ -3844,6 +4395,10 @@
           },
           "input": {
             "fields": [
+              {
+                "field": "site",
+                "key": "site"
+              },
               {
                 "field": "type",
                 "key": "type"
@@ -4221,6 +4776,7 @@
           "effect": {
             "config": {
               "childField": "block",
+              "inheritFields": ["site"],
               "orderField": "order",
               "relationship": "blockPlacements"
             },
@@ -4331,6 +4887,21 @@
           "commit": "immediate",
           "editor": "boolean",
           "field": "themeSwitchable"
+        },
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "home"
+        },
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "header"
+        },
+        {
+          "commit": "immediate",
+          "editor": "reference",
+          "field": "footer"
         }
       ],
       "key": "siteSettingsForm"
@@ -5432,21 +6003,24 @@
     {
       "entity": "site",
       "expression": {
-        "kind": "where",
-        "op": "eq",
-        "ref": {
-          "kind": "value",
-          "name": "key"
-        },
-        "value": "primary"
+        "kind": "all"
       },
-      "key": "sitePrimary",
-      "label": "Primary"
+      "key": "siteAll",
+      "label": "Sites"
     },
     {
       "entity": "block",
       "expression": {
-        "kind": "all"
+        "kind": "where",
+        "op": "eq",
+        "ref": {
+          "kind": "value",
+          "name": "site"
+        },
+        "value": {
+          "kind": "context",
+          "name": "site"
+        }
       },
       "key": "blockAll",
       "label": "All"
@@ -5454,13 +6028,30 @@
     {
       "entity": "block",
       "expression": {
-        "kind": "where",
-        "op": "eq",
-        "ref": {
-          "kind": "value",
-          "name": "type"
-        },
-        "value": "page"
+        "expressions": [
+          {
+            "kind": "where",
+            "op": "eq",
+            "ref": {
+              "kind": "value",
+              "name": "site"
+            },
+            "value": {
+              "kind": "context",
+              "name": "site"
+            }
+          },
+          {
+            "kind": "where",
+            "op": "eq",
+            "ref": {
+              "kind": "value",
+              "name": "type"
+            },
+            "value": "page"
+          }
+        ],
+        "kind": "and"
       },
       "key": "blockPages",
       "label": "Pages"
@@ -5474,21 +6065,38 @@
             "op": "eq",
             "ref": {
               "kind": "value",
-              "name": "type"
+              "name": "site"
             },
-            "value": "header"
+            "value": {
+              "kind": "context",
+              "name": "site"
+            }
           },
           {
-            "kind": "where",
-            "op": "eq",
-            "ref": {
-              "kind": "value",
-              "name": "type"
-            },
-            "value": "footer"
+            "expressions": [
+              {
+                "kind": "where",
+                "op": "eq",
+                "ref": {
+                  "kind": "value",
+                  "name": "type"
+                },
+                "value": "header"
+              },
+              {
+                "kind": "where",
+                "op": "eq",
+                "ref": {
+                  "kind": "value",
+                  "name": "type"
+                },
+                "value": "footer"
+              }
+            ],
+            "kind": "or"
           }
         ],
-        "kind": "or"
+        "kind": "and"
       },
       "key": "blockNavigationRoots",
       "label": "Navigation"
@@ -5502,9 +6110,84 @@
             "op": "eq",
             "ref": {
               "kind": "value",
-              "name": "type"
+              "name": "site"
             },
-            "value": "page"
+            "value": {
+              "kind": "context",
+              "name": "site"
+            }
+          },
+          {
+            "expressions": [
+              {
+                "kind": "where",
+                "op": "eq",
+                "ref": {
+                  "kind": "value",
+                  "name": "type"
+                },
+                "value": "page"
+              },
+              {
+                "kind": "where",
+                "op": "eq",
+                "ref": {
+                  "kind": "value",
+                  "name": "type"
+                },
+                "value": "post"
+              },
+              {
+                "kind": "where",
+                "op": "eq",
+                "ref": {
+                  "kind": "value",
+                  "name": "type"
+                },
+                "value": "project"
+              },
+              {
+                "kind": "where",
+                "op": "eq",
+                "ref": {
+                  "kind": "value",
+                  "name": "type"
+                },
+                "value": "header"
+              },
+              {
+                "kind": "where",
+                "op": "eq",
+                "ref": {
+                  "kind": "value",
+                  "name": "type"
+                },
+                "value": "footer"
+              }
+            ],
+            "kind": "or"
+          }
+        ],
+        "kind": "and"
+      },
+      "key": "blockSiteRoots",
+      "label": "Site roots"
+    },
+    {
+      "entity": "block",
+      "expression": {
+        "expressions": [
+          {
+            "kind": "where",
+            "op": "eq",
+            "ref": {
+              "kind": "value",
+              "name": "site"
+            },
+            "value": {
+              "kind": "context",
+              "name": "site"
+            }
           },
           {
             "kind": "where",
@@ -5514,6 +6197,28 @@
               "name": "type"
             },
             "value": "post"
+          }
+        ],
+        "kind": "and"
+      },
+      "key": "blockPosts",
+      "label": "Posts"
+    },
+    {
+      "entity": "block",
+      "expression": {
+        "expressions": [
+          {
+            "kind": "where",
+            "op": "eq",
+            "ref": {
+              "kind": "value",
+              "name": "site"
+            },
+            "value": {
+              "kind": "context",
+              "name": "site"
+            }
           },
           {
             "kind": "where",
@@ -5523,55 +6228,9 @@
               "name": "type"
             },
             "value": "project"
-          },
-          {
-            "kind": "where",
-            "op": "eq",
-            "ref": {
-              "kind": "value",
-              "name": "type"
-            },
-            "value": "header"
-          },
-          {
-            "kind": "where",
-            "op": "eq",
-            "ref": {
-              "kind": "value",
-              "name": "type"
-            },
-            "value": "footer"
           }
         ],
-        "kind": "or"
-      },
-      "key": "blockSiteRoots",
-      "label": "Site roots"
-    },
-    {
-      "entity": "block",
-      "expression": {
-        "kind": "where",
-        "op": "eq",
-        "ref": {
-          "kind": "value",
-          "name": "type"
-        },
-        "value": "post"
-      },
-      "key": "blockPosts",
-      "label": "Posts"
-    },
-    {
-      "entity": "block",
-      "expression": {
-        "kind": "where",
-        "op": "eq",
-        "ref": {
-          "kind": "value",
-          "name": "type"
-        },
-        "value": "project"
+        "kind": "and"
       },
       "key": "blockProjects",
       "label": "Projects"
@@ -5579,13 +6238,30 @@
     {
       "entity": "block",
       "expression": {
-        "kind": "where",
-        "op": "eq",
-        "ref": {
-          "kind": "value",
-          "name": "type"
-        },
-        "value": "link"
+        "expressions": [
+          {
+            "kind": "where",
+            "op": "eq",
+            "ref": {
+              "kind": "value",
+              "name": "site"
+            },
+            "value": {
+              "kind": "context",
+              "name": "site"
+            }
+          },
+          {
+            "kind": "where",
+            "op": "eq",
+            "ref": {
+              "kind": "value",
+              "name": "type"
+            },
+            "value": "link"
+          }
+        ],
+        "kind": "and"
       },
       "key": "blockLinks",
       "label": "Links"
@@ -5593,13 +6269,30 @@
     {
       "entity": "block",
       "expression": {
-        "kind": "where",
-        "op": "eq",
-        "ref": {
-          "kind": "value",
-          "name": "type"
-        },
-        "value": "group"
+        "expressions": [
+          {
+            "kind": "where",
+            "op": "eq",
+            "ref": {
+              "kind": "value",
+              "name": "site"
+            },
+            "value": {
+              "kind": "context",
+              "name": "site"
+            }
+          },
+          {
+            "kind": "where",
+            "op": "eq",
+            "ref": {
+              "kind": "value",
+              "name": "type"
+            },
+            "value": "group"
+          }
+        ],
+        "kind": "and"
       },
       "key": "blockGroups",
       "label": "Groups"
@@ -5607,13 +6300,30 @@
     {
       "entity": "block",
       "expression": {
-        "kind": "where",
-        "op": "eq",
-        "ref": {
-          "kind": "value",
-          "name": "type"
-        },
-        "value": "image"
+        "expressions": [
+          {
+            "kind": "where",
+            "op": "eq",
+            "ref": {
+              "kind": "value",
+              "name": "site"
+            },
+            "value": {
+              "kind": "context",
+              "name": "site"
+            }
+          },
+          {
+            "kind": "where",
+            "op": "eq",
+            "ref": {
+              "kind": "value",
+              "name": "type"
+            },
+            "value": "image"
+          }
+        ],
+        "kind": "and"
       },
       "key": "blockImages",
       "label": "Images"
@@ -6153,6 +6863,110 @@
       "to": {
         "entity": "subscription",
         "field": "audience"
+      }
+    },
+    {
+      "from": {
+        "entity": "site",
+        "field": "home"
+      },
+      "inverse": "blockHomeForSites",
+      "key": "siteHome",
+      "kind": "toOne",
+      "label": "Home page",
+      "to": {
+        "entity": "block"
+      }
+    },
+    {
+      "from": {
+        "entity": "block"
+      },
+      "inverse": "siteHome",
+      "key": "blockHomeForSites",
+      "kind": "toMany",
+      "label": "Home for Sites",
+      "to": {
+        "entity": "site",
+        "field": "home"
+      }
+    },
+    {
+      "from": {
+        "entity": "site",
+        "field": "header"
+      },
+      "inverse": "blockHeaderForSites",
+      "key": "siteHeader",
+      "kind": "toOne",
+      "label": "Header",
+      "to": {
+        "entity": "block"
+      }
+    },
+    {
+      "from": {
+        "entity": "block"
+      },
+      "inverse": "siteHeader",
+      "key": "blockHeaderForSites",
+      "kind": "toMany",
+      "label": "Header for Sites",
+      "to": {
+        "entity": "site",
+        "field": "header"
+      }
+    },
+    {
+      "from": {
+        "entity": "site",
+        "field": "footer"
+      },
+      "inverse": "blockFooterForSites",
+      "key": "siteFooter",
+      "kind": "toOne",
+      "label": "Footer",
+      "to": {
+        "entity": "block"
+      }
+    },
+    {
+      "from": {
+        "entity": "block"
+      },
+      "inverse": "siteFooter",
+      "key": "blockFooterForSites",
+      "kind": "toMany",
+      "label": "Footer for Sites",
+      "to": {
+        "entity": "site",
+        "field": "footer"
+      }
+    },
+    {
+      "from": {
+        "entity": "block",
+        "field": "site"
+      },
+      "inverse": "siteBlocks",
+      "key": "blockSite",
+      "kind": "toOne",
+      "label": "Site",
+      "to": {
+        "entity": "site"
+      }
+    },
+    {
+      "from": {
+        "entity": "site"
+      },
+      "inverse": "blockSite",
+      "key": "siteBlocks",
+      "kind": "toMany",
+      "label": "Blocks",
+      "to": {
+        "entity": "block",
+        "field": "site"
       }
     },
     {
@@ -7134,7 +7948,8 @@
       "operations": [
         {
           "createView": "routeCreate",
-          "operation": "route.create"
+          "operation": "route.create",
+          "placement": "toolbar"
         }
       ],
       "queries": [
@@ -7220,21 +8035,34 @@
       "type": "create"
     },
     {
-      "defaultQuery": "sitePrimary",
+      "defaultQuery": "siteAll",
       "entity": "site",
       "key": "siteSettingsHome",
       "label": "Settings",
       "navigation": {
         "primary": false
       },
+      "operations": [
+        {
+          "label": "Create your first site",
+          "operation": "site.createStarter",
+          "placement": "emptyStatePrimary"
+        }
+      ],
       "queries": [
         {
-          "query": "sitePrimary"
+          "query": "siteAll"
         }
       ],
       "result": {
         "itemView": "siteSettingsForm",
         "type": "record"
+      },
+      "scope": {
+        "entity": "site",
+        "name": "site",
+        "query": "siteAll",
+        "selection": "singleton"
       },
       "type": "collection"
     },
@@ -7300,6 +8128,12 @@
         "tableView": "blockTable",
         "type": "table"
       },
+      "scope": {
+        "entity": "site",
+        "name": "site",
+        "query": "siteAll",
+        "selection": "singleton"
+      },
       "type": "collection"
     },
     {
@@ -7343,6 +8177,13 @@
       "navigation": {
         "primary": true
       },
+      "operations": [
+        {
+          "label": "Create your first site",
+          "operation": "site.createStarter",
+          "placement": "emptyStatePrimary"
+        }
+      ],
       "queries": [
         {
           "count": {
@@ -7511,6 +8352,12 @@
         "relationship": "blockPlacements",
         "type": "tree"
       },
+      "scope": {
+        "entity": "site",
+        "name": "site",
+        "query": "siteAll",
+        "selection": "singleton"
+      },
       "type": "collection"
     },
     {
@@ -7548,6 +8395,12 @@
       "result": {
         "tableView": "blockPlacementTable",
         "type": "table"
+      },
+      "scope": {
+        "entity": "site",
+        "name": "site",
+        "query": "siteAll",
+        "selection": "singleton"
       },
       "type": "collection"
     },
@@ -7587,9 +8440,21 @@
         "tableView": "blockPlacementTable",
         "type": "table"
       },
+      "scope": {
+        "entity": "site",
+        "name": "site",
+        "query": "siteAll",
+        "selection": "singleton"
+      },
       "type": "collection"
     },
     {
+      "defaults": {
+        "site": {
+          "kind": "context",
+          "name": "site"
+        }
+      },
       "entity": "block",
       "fallback": {
         "fields": [
@@ -7890,6 +8755,10 @@
     },
     {
       "defaults": {
+        "site": {
+          "kind": "context",
+          "name": "site"
+        },
         "type": {
           "kind": "literal",
           "value": "page"
@@ -7915,6 +8784,10 @@
     },
     {
       "defaults": {
+        "site": {
+          "kind": "context",
+          "name": "site"
+        },
         "type": {
           "kind": "literal",
           "value": "post"
@@ -7944,6 +8817,10 @@
     },
     {
       "defaults": {
+        "site": {
+          "kind": "context",
+          "name": "site"
+        },
         "type": {
           "kind": "literal",
           "value": "project"
@@ -8343,6 +9220,12 @@
       "result": {
         "tableView": "blockPlacementTable",
         "type": "table"
+      },
+      "scope": {
+        "entity": "site",
+        "name": "site",
+        "query": "siteAll",
+        "selection": "singleton"
       },
       "type": "collection"
     },

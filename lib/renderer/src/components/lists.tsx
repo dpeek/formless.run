@@ -228,7 +228,15 @@ function mapListActions(
   return {
     ...list,
     ...(list.emptyState?.action
-      ? { emptyState: { ...list.emptyState, action: update(list.emptyState.action) } }
+      ? {
+          emptyState: {
+            ...list.emptyState,
+            action:
+              list.emptyState.action.kind === "operationAction"
+                ? { ...update(list.emptyState.action), role: "command" }
+                : list.emptyState.action,
+          },
+        }
       : {}),
     items: list.items.map((item) => ({
       ...item,

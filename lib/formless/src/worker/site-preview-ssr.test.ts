@@ -109,6 +109,41 @@ describe("Program-owned Worker Site preview", () => {
     expect(await head.text()).toBe("");
     expect(excluded.map((response) => response.status)).toEqual([404, 404, 404, 404, 404]);
   });
+
+  it("renders an unavailable preview when Site selection is missing or ambiguous", async () => {
+    const recordSets = [
+      [],
+      [
+        ...testSiteRecords,
+        {
+          id: "site:second",
+          entity: "site",
+          values: { key: "second", label: "Second Site" },
+          createdAt: "2026-08-06T00:00:00.000Z",
+          updatedAt: "2026-08-06T00:00:00.000Z",
+        },
+      ],
+    ];
+
+    for (const records of recordSets) {
+      await restoreTestStorageSnapshot(
+        harness,
+        `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot/restore`,
+        instanceControlPlaneTestStorageSnapshot(records),
+        adminHeaders(),
+      );
+      const headers = await testIdentityOwnerSessionHeaders(harness, adminToken, {
+        name: "Site Preview Owner",
+      });
+      const response = await previewRequest("/site/public", { headers });
+      const html = await response.text();
+
+      expect(html).toContain("Site page failed to load");
+      expect(html).not.toContain(INITIAL_SITE_PAGE_TREE_SCRIPT_ID);
+      expect(response.status).toBe(500);
+      expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+    }
+  });
 });
 
 async function previewRequest(

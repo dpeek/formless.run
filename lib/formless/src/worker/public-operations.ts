@@ -2,7 +2,11 @@ import {
   PublicOperationRouteError,
   parsePublicOperationRouteSuffix,
 } from "@dpeek/formless-public-operations";
-import type { AppSchema } from "@dpeek/formless-schema";
+import { formatEntityOperationKey, type AppSchema } from "@dpeek/formless-schema";
+import {
+  selectSoleActiveSite,
+  sitePublicOperationSourceBlockMatches,
+} from "@dpeek/formless-site-app";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
 import type { ProgramSharedOperationAdapterDefinition } from "../program/composition.ts";
 import {
@@ -30,7 +34,7 @@ import {
   type ShapedPublicOperationResponse,
 } from "./public-operation-response.ts";
 import type { IdentityReferenceTargetResolver } from "./identity-reference-targets.ts";
-import { type WriteOutcome } from "./storage.ts";
+import { getActiveRecordsByEntity, getStoredRecord, type WriteOutcome } from "./storage.ts";
 
 export type PublicOperationEnv = PublicOperationTurnstileChallengeEnv;
 
@@ -163,6 +167,15 @@ function publicOperationExecutorAdapters(
     response: {
       shape: ({ response }) => shapePublicOperationResponse(response),
     },
+    source: {
+      validate: ({ selected, source }) =>
+        validatePublicSiteOperationSource({
+          schema: input.schema,
+          selected,
+          siteBlockId: source?.siteBlockId,
+          storage: input.storage,
+        }),
+    },
     validation: {
       validate: ({ rawInput, selected }) =>
         validatePublicOperationInputValues({
@@ -176,4 +189,43 @@ function publicOperationExecutorAdapters(
         }),
     },
   };
+}
+
+function validatePublicSiteOperationSource(input: {
+  schema: AppSchema;
+  selected: {
+    entityName: string;
+    operationName: string;
+  };
+  siteBlockId: string | undefined;
+  storage: DurableObjectStorage;
+}): void {
+  if (input.siteBlockId === undefined) {
+    return;
+  }
+
+  const selection = selectSoleActiveSite(getActiveRecordsByEntity(input.storage, "site"));
+
+  if (selection.kind === "unavailable") {
+    throw new PublicOperationError("Public Site is unavailable.", 503);
+  }
+
+  const sourceBlock = getStoredRecord(input.storage, input.siteBlockId);
+  const canonicalOperationKey = formatEntityOperationKey({
+    entityKey: input.selected.entityName,
+    operationKey: input.selected.operationName,
+  });
+
+  if (
+    sourceBlock?.entity !== "block" ||
+    sourceBlock.deletedAt !== undefined ||
+    sourceBlock.values.site !== selection.site.id ||
+    !sitePublicOperationSourceBlockMatches({
+      canonicalOperationKey,
+      record: sourceBlock,
+      schema: input.schema,
+    })
+  ) {
+    throw new PublicOperationError("Public operation source is not available.", 404);
+  }
 }

@@ -74,8 +74,8 @@ export function validateFormlessProgramRecordConstraint(
     const additionalRecords = options?.additionalRecords ?? [];
     const additionalIds = new Set(additionalRecords.map((record) => record.id));
     const candidateRecords = [
-      ...replaced.filter((record) => !additionalIds.has(record.id)),
-      ...additionalRecords,
+      ...replaced.filter((record) => record.id === candidate.id || !additionalIds.has(record.id)),
+      ...additionalRecords.filter((record) => record.id !== candidate.id),
     ];
 
     validateFormlessProgramRecords(

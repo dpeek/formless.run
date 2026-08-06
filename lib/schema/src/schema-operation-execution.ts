@@ -240,6 +240,7 @@ export function parseOperationHandlerEffect(
   target: EntityOperationTargetSchema | undefined,
   entityName: string,
   entity: EntitySchema,
+  entities: Record<string, EntitySchema>,
   queries: Record<string, CollectionQuerySchema>,
   relationships: Record<string, RelationshipSchema> | undefined,
   parseTransitionSideEffects: TransitionSideEffectParser,
@@ -255,6 +256,7 @@ export function parseOperationHandlerEffect(
     target,
     entityName,
     entity,
+    entities,
     queries,
     relationships,
     parseTransitionSideEffects,
@@ -283,6 +285,7 @@ function parseOperationHandlerConfig<Kind extends OperationHandlerKind>(
   target: EntityOperationTargetSchema | undefined,
   entityName: string,
   entity: EntitySchema,
+  entities: Record<string, EntitySchema>,
   queries: Record<string, CollectionQuerySchema>,
   relationships: Record<string, RelationshipSchema> | undefined,
   parseTransitionSideEffects: TransitionSideEffectParser,
@@ -337,6 +340,7 @@ function parseOperationHandlerConfig<Kind extends OperationHandlerKind>(
       value,
       entityName,
       entity,
+      entities,
       relationships,
     ) as OperationHandlerConfigSchemaByKind[Kind];
   }
@@ -386,9 +390,10 @@ function parseCreateTreeChildHandlerConfig(
   value: Record<string, unknown>,
   entityName: string,
   entity: EntitySchema,
+  entities: Record<string, EntitySchema>,
   relationships: Record<string, RelationshipSchema> | undefined,
 ): OperationHandlerConfigSchemaByKind["create-tree-child"] {
-  assertExactKeys(context, value, ["relationship", "childField"], ["orderField"]);
+  assertExactKeys(context, value, ["relationship", "childField"], ["inheritFields", "orderField"]);
 
   const relationshipName = parseOperationHandlerRelationshipName(context, value.relationship);
   const relationship = requireToManyHandlerRelationship(
@@ -412,6 +417,13 @@ function parseCreateTreeChildHandlerConfig(
     throw new Error(`${context} childField must reference entity "${relationship.from.entity}".`);
   }
 
+  const inheritFields = parseTreeChildInheritFields(
+    context,
+    value.inheritFields,
+    entities[relationship.from.entity],
+    entities[childField.to],
+  );
+
   const orderFieldName =
     value.orderField === undefined
       ? undefined
@@ -428,8 +440,51 @@ function parseCreateTreeChildHandlerConfig(
   return {
     relationship: relationshipName,
     childField: childFieldName,
+    ...(inheritFields === undefined ? {} : { inheritFields }),
     ...(orderFieldName === undefined ? {} : { orderField: orderFieldName }),
   };
+}
+
+function parseTreeChildInheritFields(
+  context: string,
+  value: unknown,
+  parentEntity: EntitySchema | undefined,
+  childEntity: EntitySchema | undefined,
+): string[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error(`${context} inheritFields must be a non-empty array.`);
+  }
+
+  const parentFields = definitionsToRecord(parentEntity?.fields);
+  const childFields = definitionsToRecord(childEntity?.fields);
+  const fields = value.map((fieldName, index) => {
+    const field = parseRequiredNonEmptyString(`${context} inheritFields[${index}]`, fieldName);
+    const parentField = parentFields[field];
+    const childField = childFields[field];
+
+    if (parentField === undefined || childField === undefined) {
+      throw new Error(`${context} inheritFields references unknown shared field "${field}".`);
+    }
+    if (
+      parentField.type !== childField.type ||
+      (parentField.type === "reference" &&
+        childField.type === "reference" &&
+        parentField.to !== childField.to)
+    ) {
+      throw new Error(`${context} inheritFields field "${field}" must have matching types.`);
+    }
+
+    return field;
+  });
+
+  if (new Set(fields).size !== fields.length) {
+    throw new Error(`${context} inheritFields must not contain duplicates.`);
+  }
+
+  return fields;
 }
 
 function parseTransitionStateHandlerConfig(

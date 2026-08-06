@@ -518,6 +518,11 @@ describe("generated Formless UI table projection", () => {
     });
     const empty = projectGeneratedTableContract({
       accessibilityLabel: "Tasks records",
+      emptyStateAction: {
+        control: operationControl(commandBinding(), false),
+        kind: "operationAction",
+        role: "command",
+      },
       emptyStateDescription: "Create a task to get started.",
       id: "tasks:empty",
       presentation: emptyPresentation,
@@ -541,6 +546,7 @@ describe("generated Formless UI table projection", () => {
     expect(empty).toMatchObject({
       editing: { enabled: true },
       emptyState: {
+        action: { control: { id: commandBinding().id }, role: "command" },
         description: "Create a task to get started.",
         kind: "tableEmptyState",
         title: "No records yet.",

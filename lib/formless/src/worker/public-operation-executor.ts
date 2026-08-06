@@ -65,6 +65,13 @@ export type PublicOperationInputValidationAdapter = {
   validate(input: { rawInput: unknown; selected: SelectedPublicOperation }): RecordValues;
 };
 
+export type PublicOperationSourceValidationAdapter = {
+  validate(input: {
+    selected: SelectedPublicOperation;
+    source: PublicOperationRequestSource | undefined;
+  }): void;
+};
+
 export type PublicOperationChallengeAdapter = {
   verify(
     input: PublicOperationChallengeAdapterInput,
@@ -106,6 +113,7 @@ export type PublicOperationExecutorAdapters = {
   lifecycle: PublicOperationLifecycleAdapter;
   rateLimit: PublicOperationReadRateLimitAdapter;
   response: PublicOperationResponseAdapter;
+  source?: PublicOperationSourceValidationAdapter;
   validation: PublicOperationInputValidationAdapter;
 };
 
@@ -183,6 +191,10 @@ export async function executePublicOperationExecutor(
     assertAllowed: () => assertPublicOperationInvocationAllowed(unverifiedEnvelope, input.schema),
     beforeReplay: async () => {
       assertPublicOperationOrigin(input.request, selected.operation);
+      input.adapters.source?.validate({
+        selected,
+        source: envelopeFields.source,
+      });
       await consumePublicOperationRateLimit({
         adapters: input.adapters,
         operation: selected.operation,

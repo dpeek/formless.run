@@ -316,6 +316,7 @@ function createTreeChildCreateOperation(
     label: `Add ${variant.label}`,
     operation: createOperation.operation,
     operationName: createOperation.operationName,
+    placement: "toolbar",
     type: "create",
   };
 }

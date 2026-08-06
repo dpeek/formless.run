@@ -9,6 +9,7 @@ import { parseQueryExpression } from "./query.ts";
 import {
   getCollectionContextRelationship,
   parseCollectionContext,
+  parseCollectionSingletonScope,
   parseCollectionViewQuerySlots,
 } from "./schema-collection-contexts.ts";
 import { parseCollectionResult } from "./schema-collection-results.ts";
@@ -42,6 +43,7 @@ import type {
   CollectionNavigationSchema,
   CollectionOperationBindingSchema,
   CollectionQuerySchema,
+  CollectionSingletonScopeSchema,
   CollectionSummarySlotSchema,
   CollectionViewQuerySlotSchema,
   CollectionViewSchema,
@@ -222,6 +224,7 @@ function assertCollectionViews(
         createView,
         entities,
         view.context,
+        view.scope,
         relationships,
       );
     }
@@ -238,6 +241,8 @@ function assertCollectionViews(
         context.entity,
         context.createView,
         "context createView",
+        entities,
+        view.scope,
       );
     }
 
@@ -252,6 +257,8 @@ function assertCollectionViews(
         context.entity,
         group.createView,
         `context navigation group "${group.label}" createView`,
+        entities,
+        view.scope,
       );
     }
   }
@@ -263,6 +270,8 @@ function validateContextCreateView(
   contextEntityName: string,
   createViewName: string,
   description: string,
+  entities: Record<string, EntitySchema>,
+  collectionScope: CollectionSingletonScopeSchema | undefined,
 ) {
   const createView = views[createViewName];
   if (!createView) {
@@ -283,10 +292,23 @@ function validateContextCreateView(
     );
   }
 
-  if (createViewRequiresContextDefaults(createView)) {
-    throw new Error(
-      `Collection view "${collectionViewName}" ${description} "${createViewName}" must not require context defaults.`,
-    );
+  for (const [fieldName, defaultValue] of createViewContextDefaultEntries(createView)) {
+    if (collectionScope === undefined || defaultValue.name !== collectionScope.name) {
+      if (collectionScope === undefined) {
+        throw new Error(
+          `Collection view "${collectionViewName}" ${description} "${createViewName}" must not require context defaults.`,
+        );
+      }
+      throw new Error(
+        `Collection view "${collectionViewName}" ${description} "${createViewName}" requires unavailable context "${defaultValue.name}".`,
+      );
+    }
+    const field = definitionsToRecord(entities[createView.entity]?.fields)[fieldName];
+    if (field?.type !== "reference" || field.to !== collectionScope.entity) {
+      throw new Error(
+        `Collection view "${collectionViewName}" ${description} default field "${fieldName}" must reference scope entity "${collectionScope.entity}".`,
+      );
+    }
   }
 }
 
@@ -296,6 +318,7 @@ function validateCreateOperationContextDefaults(
   createView: CreateViewSchema,
   entities: Record<string, EntitySchema>,
   collectionContext: CollectionContextSchema | undefined,
+  collectionScope: CollectionSingletonScopeSchema | undefined,
   relationships: Record<string, RelationshipSchema> | undefined,
 ) {
   if (!createViewRequiresContextDefaults(createView)) {
@@ -305,7 +328,7 @@ function validateCreateOperationContextDefaults(
   const contextDefaults = createViewContextDefaultEntries(createView);
   const context = `Collection view "${collectionViewName}" create operation view "${createViewName}"`;
 
-  if (!collectionContext) {
+  if (!collectionContext && !collectionScope) {
     throw new Error(`${context} requires context defaults but the collection has no context.`);
   }
 
@@ -321,19 +344,32 @@ function validateCreateOperationContextDefaults(
   }
 
   for (const [fieldName, defaultValue] of contextDefaults) {
-    if (defaultValue.name !== collectionContext.name) {
-      throw new Error(
-        `${context} requires context "${defaultValue.name}" but the collection context is "${collectionContext.name}".`,
-      );
+    const target =
+      defaultValue.name === collectionContext?.name
+        ? collectionContext
+        : defaultValue.name === collectionScope?.name
+          ? collectionScope
+          : undefined;
+    if (target === undefined) {
+      if (collectionScope === undefined && collectionContext !== undefined) {
+        throw new Error(
+          `${context} requires context "${defaultValue.name}" but the collection context is "${collectionContext.name}".`,
+        );
+      }
+      throw new Error(`${context} requires unavailable context "${defaultValue.name}".`);
     }
     const field = definitionsToRecord(entity.fields)[fieldName];
-    if (field?.type !== "reference" || field.to !== collectionContext.entity) {
+    if (field?.type !== "reference" || field.to !== target.entity) {
       throw new Error(
-        `${context} default field "${fieldName}" must reference entity "${collectionContext.entity}".`,
+        `${context} default field "${fieldName}" must reference entity "${target.entity}".`,
       );
     }
 
-    if (relationship !== undefined && fieldName !== relationship.to.field) {
+    if (
+      relationship !== undefined &&
+      defaultValue.name === collectionContext?.name &&
+      fieldName !== relationship.to.field
+    ) {
       throw new Error(
         `${context} default field "${fieldName}" must use relationship field "${relationship.to.entity}.${relationship.to.field}".`,
       );
@@ -474,7 +510,7 @@ function parseCollectionView(
     `Collection view "${viewName}"`,
     value,
     ["key", "type", "label", "entity", "queries", "defaultQuery", "result"],
-    ["navigation", "context", "operations", "summary"],
+    ["navigation", "scope", "context", "operations", "summary"],
   );
   if (typeof value.label !== "string" || value.label.trim() === "") {
     throw new Error(`Collection view "${viewName}" label must be a non-empty string.`);
@@ -490,6 +526,7 @@ function parseCollectionView(
   }
 
   const navigation = parseCollectionNavigation(viewName, value.navigation);
+  const scope = parseCollectionSingletonScope(viewName, value.scope, entities, queries);
   const context = parseCollectionContext(
     viewName,
     value.context,
@@ -498,6 +535,7 @@ function parseCollectionView(
     queries,
     itemViews,
     relationships,
+    scope,
   );
   const querySlots = parseCollectionViewQuerySlots(
     viewName,
@@ -506,6 +544,7 @@ function parseCollectionView(
     value.queries,
     queries,
     context,
+    scope,
     relationships,
   );
 
@@ -546,6 +585,7 @@ function parseCollectionView(
     label: value.label,
     entity: value.entity,
     ...(navigation === undefined ? {} : { navigation }),
+    ...(scope === undefined ? {} : { scope }),
     ...(context === undefined ? {} : { context }),
     queries: querySlots,
     defaultQuery: value.defaultQuery,
@@ -595,6 +635,12 @@ function parseCollectionOperationBindings(
     parseCollectionOperationBinding(viewName, index, slot, entities),
   );
 
+  if (operations.filter(({ placement }) => placement === "emptyStatePrimary").length > 1) {
+    throw new Error(
+      `Collection view "${viewName}" must not define more than one emptyStatePrimary operation binding.`,
+    );
+  }
+
   return operations.length > 0 ? operations : undefined;
 }
 
@@ -609,7 +655,7 @@ function parseCollectionOperationBinding(
   if (!isRecord(value)) {
     throw new Error(`${context} must be an object.`);
   }
-  assertExactKeys(context, value, ["operation"], ["label", "createView", "count"]);
+  assertExactKeys(context, value, ["operation"], ["label", "createView", "count", "placement"]);
   const operationKey = parseEntityOperationKey(`${context} operation`, value.operation);
   const entity = entities[operationKey.entityKey];
   const operation = definitionsToRecord(entity?.operations)[operationKey.operationKey];
@@ -625,6 +671,11 @@ function parseCollectionOperationBinding(
   const createView = parseOptionalNonEmptyString(`${context} createView`, value.createView);
   const count =
     value.count === undefined ? undefined : parseCountDisplay(`${context} count`, value.count);
+  const placement = value.placement ?? "toolbar";
+
+  if (placement !== "toolbar" && placement !== "emptyStatePrimary") {
+    throw new Error(`${context} placement must be toolbar or emptyStatePrimary.`);
+  }
 
   if (operation.kind === "create") {
     if (createView === undefined) {
@@ -638,8 +689,19 @@ function parseCollectionOperationBinding(
     throw new Error(`${context} count is only valid for command operations.`);
   }
 
+  if (
+    placement === "emptyStatePrimary" &&
+    operation.kind === "command" &&
+    operation.input?.fields.some((field) =>
+      "field" in field ? field.required === true : field.required,
+    )
+  ) {
+    throw new Error(`${context} emptyStatePrimary command must not require caller input.`);
+  }
+
   return {
     operation: `${operationKey.entityKey}.${operationKey.operationKey}`,
+    placement,
     ...(label === undefined ? {} : { label }),
     ...(createView === undefined ? {} : { createView }),
     ...(count === undefined ? {} : { count }),

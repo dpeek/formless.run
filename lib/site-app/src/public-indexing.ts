@@ -1,5 +1,6 @@
 import type { FieldValue, StoredRecord } from "./types.ts";
 import { resolveSiteRoute } from "./route-resolver.ts";
+import { selectSiteOwnedBlocks, selectSoleActiveSite } from "./site-selection.ts";
 
 export type PublicSiteRouteEntry = {
   kind: "page" | "post";
@@ -19,7 +20,14 @@ export function buildPublicSiteRouteEntries(
   options: BuildPublicSiteRouteEntriesOptions = {},
 ): PublicSiteRouteEntry[] {
   const clientRoutePrefixes = options.clientRoutePrefixes ?? defaultClientRoutePrefixes;
-  const blocks = records.filter(isLiveBlock).sort(compareRecords);
+  const selection = selectSoleActiveSite(records);
+
+  if (selection.kind === "unavailable") {
+    return [];
+  }
+
+  const blocks = selectSiteOwnedBlocks(records, selection.site.id).sort(compareRecords);
+  const homeBlockId = stringValue(selection.site.values.home);
   const entries: PublicSiteRouteEntry[] = [];
 
   for (const block of blocks) {
@@ -29,14 +37,18 @@ export function buildPublicSiteRouteEntries(
       continue;
     }
 
-    const path = canonicalPublicPathFromHref(stringValue(block.values.href));
+    const path =
+      block.id === homeBlockId ? "/" : canonicalPublicPathFromHref(stringValue(block.values.href));
 
     if (!path || !isPublicSiteDocumentPath(path, clientRoutePrefixes)) {
       continue;
     }
 
     const slug = slugFromPublicPath(path);
-    const route = resolveSiteRoute(blocks, slug, []);
+    const route =
+      path === "/" && block.id === homeBlockId
+        ? { kind: "page" as const, slug: "home", page: block }
+        : resolveSiteRoute(blocks, slug, []);
 
     if (!route || route.kind !== kind || routeRecord(route) !== block) {
       continue;
@@ -202,10 +214,6 @@ function comparePublicRouteEntries(a: PublicSiteRouteEntry, b: PublicSiteRouteEn
 
 function canonicalUrlForPath(pathname: string, origin: string): string {
   return new URL(pathname, new URL(origin).origin).href;
-}
-
-function isLiveBlock(record: StoredRecord): boolean {
-  return record.entity === "block" && !record.deletedAt;
 }
 
 function trimTrailingSlash(pathname: string): string {

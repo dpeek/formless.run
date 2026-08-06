@@ -11,10 +11,23 @@ export type StoredRecord = {
   deletedAt?: string;
 };
 
-export type SitePageTreeProjection = {
-  tree: SitePageTree | null;
-  meta: SiteTreeMeta;
-};
+export type SitePageTreeProjection =
+  | {
+      tree: SitePageTree;
+      meta: SiteTreeMeta;
+      status: "ready";
+    }
+  | {
+      tree: null;
+      meta: SiteTreeMeta;
+      status: "not-found";
+    }
+  | {
+      tree: null;
+      meta: SiteTreeMeta;
+      siteCount: number;
+      status: "unavailable";
+    };
 
 export type SitePageTreeResponse = SitePageTree;
 

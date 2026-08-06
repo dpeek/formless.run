@@ -263,6 +263,66 @@ describe("Astryx workspace renderer", () => {
     expect(emptyContextHtml).toContain("No projects");
   });
 
+  it("renders the projected primary command through workspace and every result empty state", () => {
+    const scope = workspaceScope("workspace:site", "section:sites", "collection:sites");
+    const action = emptyPrimaryAction("control:create-starter", "Create starter");
+    const results: WorkspaceResultContract[] = [
+      {
+        ...listResult("result:list"),
+        emptyState: { ...listResult("result:list").emptyState!, action },
+      },
+      {
+        ...tableResult("result:table"),
+        emptyState: { ...tableResult("result:table").emptyState!, action },
+      },
+      {
+        ...recordResult("result:record"),
+        emptyState: { ...recordResult("result:record").emptyState!, action },
+      },
+      {
+        accessibilityLabel: "Site tree",
+        availability: {
+          emptyState: {
+            action,
+            id: "result:tree:empty",
+            kind: "treeEmptyState",
+            title: "No placements",
+          },
+          state: "empty",
+        },
+        density: "default",
+        editing: { enabled: true },
+        feedback: [],
+        id: "result:tree",
+        items: [],
+        kind: "treeResult",
+        root: {
+          accessibilityLabel: "Site root",
+          id: "result:tree:root",
+          kind: "treeRoot",
+          label: "Site",
+        },
+        warnings: [],
+      },
+    ];
+
+    for (const result of results) {
+      expect(
+        renderCollection(
+          readyCollection({ id: scope.collectionId, label: "Sites", result }),
+          scope,
+        ),
+      ).toContain("Create starter");
+    }
+
+    const workspaceEmpty = emptyCollection(scope);
+    if (workspaceEmpty.availability.state !== "empty") {
+      throw new Error("Expected empty workspace collection.");
+    }
+    workspaceEmpty.availability.emptyState.action = action;
+    expect(renderCollection(workspaceEmpty, scope)).toContain("Create starter");
+  });
+
   it("wraps controlled and nested intents with complete workspace identity", () => {
     const scope = workspaceScope("workspace:tasks", "section:tasks", "collection:tasks");
     const calls: WorkspaceIntent[] = [];
@@ -620,7 +680,7 @@ function emptyCollectionActions(): WorkspaceCollectionActionGroupContract {
   };
 }
 
-function listResult(id: string): WorkspaceResultContract {
+function listResult(id: string): Extract<WorkspaceResultContract, { kind: "list" }> {
   return {
     accessibilityLabel: "Tasks",
     density: "compact",
@@ -637,7 +697,7 @@ function listResult(id: string): WorkspaceResultContract {
   };
 }
 
-function tableResult(id: string): WorkspaceResultContract {
+function tableResult(id: string): Extract<WorkspaceResultContract, { kind: "table" }> {
   return {
     accessibilityLabel: "Companies",
     columns: [
@@ -765,6 +825,14 @@ function operationControl(id: string, label: string): OperationControlContract {
       ...button(`${id}:trigger`, label),
       intent: { controlId: id, invocationSource: "button", type: "operationInvoke" },
     },
+  };
+}
+
+function emptyPrimaryAction(id: string, label: string) {
+  return {
+    control: operationControl(id, label),
+    kind: "operationAction" as const,
+    role: "command" as const,
   };
 }
 

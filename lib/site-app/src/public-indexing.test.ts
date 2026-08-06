@@ -13,11 +13,6 @@ describe("public Site indexing", () => {
     const routes = buildPublicSiteRouteEntries(
       [
         ...testSiteRecords,
-        siteRecord("rec_site_settings_route_shaped", {
-          key: "secondary",
-          label: "Route-shaped settings",
-          href: "/settings-owned-route",
-        }),
         blockRecord("rec_site_content_preview_page", {
           type: "page",
           label: "Preview page",
@@ -68,6 +63,12 @@ describe("public Site indexing", () => {
           label: "Duplicate blog",
           href: "/blog",
         }),
+        blockRecord("rec_other_site_page", {
+          site: "site:inactive",
+          type: "page",
+          label: "Other Site page",
+          href: "/other-site",
+        }),
       ],
       { clientRoutePrefixes: ["/admin", "/schema", "/site"] },
     );
@@ -93,7 +94,7 @@ describe("public Site indexing", () => {
       "/deleted",
       "/downloads/resume.pdf",
       "/favicon.svg",
-      "/settings-owned-route",
+      "/other-site",
       "/site",
       "/blog/undated-post",
     ]) {
@@ -101,6 +102,20 @@ describe("public Site indexing", () => {
     }
     expect(paths.filter((path) => path === "/blog")).toHaveLength(1);
     expect(routes.find((route) => route.path === "/blog")?.recordId).toBe("rec_site_content_blog");
+  });
+
+  it("requires exactly one active Site before projecting routes", () => {
+    const missing = testSiteRecords.filter((record) => record.entity !== "site");
+    const ambiguous = [
+      ...testSiteRecords,
+      siteRecord("site:second", {
+        key: "second",
+        label: "Second Site",
+      }),
+    ];
+
+    expect(buildPublicSiteRouteEntries(missing)).toEqual([]);
+    expect(buildPublicSiteRouteEntries(ambiguous)).toEqual([]);
   });
 
   it("renders robots text with a canonical sitemap URL", () => {
@@ -132,7 +147,7 @@ function blockRecord(id: string, values: StoredRecord["values"], deletedAt?: str
   return {
     id,
     entity: "block",
-    values,
+    values: { site: "rec_site_settings_primary", ...values },
     createdAt: "2026-05-15T00:00:00.000Z",
     ...(deletedAt === undefined ? {} : { deletedAt }),
   };

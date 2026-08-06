@@ -12,12 +12,14 @@ import type {
 import type { AppSchema } from "@dpeek/formless-schema";
 import { coreImageMediaDeliveryFactsForAssetId } from "@dpeek/formless-media";
 import {
+  normalizeSiteRoutePath,
   resolveSiteRoute,
   routeInfoForResolution,
   type SiteRouteResolution,
 } from "./route-resolver.ts";
 import { resolveSiteLinkHref } from "./link-targets.ts";
 import { projectSitePublicOperationBlock } from "./public-operation-block-projection.ts";
+import { selectSiteOwnedPublicRecords, selectSoleActiveSite } from "./site-selection.ts";
 
 export type {
   SiteBlockNode,
@@ -37,13 +39,13 @@ export type BuildSitePageTreeOptions = {
 
 type SiteTreeIndexes = {
   blocks: Map<string, StoredRecord>;
-  siteSettings: StoredRecord[];
   placementsByParent: Map<string, StoredRecord[]>;
 };
 
 type SiteTreeBuildContext = {
   schema: AppSchema;
   indexes: SiteTreeIndexes;
+  site: StoredRecord;
   turnstileSiteKey?: string;
   warnings: SiteTreeWarning[];
   maxDepth: number;
@@ -68,9 +70,29 @@ export function buildSitePageTree(
     generatedAt: options.generatedAt ?? new Date().toISOString(),
     warnings,
   };
-  const indexes = indexSiteRecords(records);
-  const site = projectSiteSettings(indexes.siteSettings, warnings);
-  const route = resolveSiteRoute(indexes.blocks.values(), slug, warnings);
+  const selection = selectSoleActiveSite(records);
+
+  if (selection.kind === "unavailable") {
+    warnings.push({
+      code: selection.reason === "missing" ? "missing-site" : "ambiguous-site",
+      recordId: "site",
+      message:
+        selection.reason === "missing"
+          ? "No active Site record is available for public rendering."
+          : `Public rendering requires exactly one active Site record; found ${selection.siteCount}.`,
+    });
+
+    return {
+      tree: null,
+      meta,
+      siteCount: selection.siteCount,
+      status: "unavailable",
+    };
+  }
+
+  const indexes = indexSiteRecords(selectSiteOwnedPublicRecords(records, selection.site));
+  const site = projectSiteSettings(selection.site, warnings);
+  const route = resolveSelectedSiteRoute(selection.site, indexes.blocks, slug, warnings);
 
   if (!route) {
     warnings.push({
@@ -79,12 +101,13 @@ export function buildSitePageTree(
       message: `No Site route found for "${slug}".`,
     });
 
-    return { tree: null, meta };
+    return { tree: null, meta, status: "not-found" };
   }
 
   const context = {
     schema,
     indexes,
+    site: selection.site,
     ...(options.turnstileSiteKey === undefined
       ? {}
       : { turnstileSiteKey: options.turnstileSiteKey }),
@@ -103,19 +126,16 @@ export function buildSitePageTree(
       route: routeInfoForResolution(route),
     },
     meta,
+    status: "ready",
   };
 }
 
 function indexSiteRecords(records: StoredRecord[]): SiteTreeIndexes {
   const blocks = new Map<string, StoredRecord>();
-  const siteSettings: StoredRecord[] = [];
   const placementsByParent = new Map<string, StoredRecord[]>();
 
   for (const record of records) {
     if (record.entity === "site") {
-      if (!record.deletedAt) {
-        siteSettings.push(record);
-      }
       continue;
     }
 
@@ -145,37 +165,13 @@ function indexSiteRecords(records: StoredRecord[]): SiteTreeIndexes {
     placements.sort(comparePlacements);
   }
 
-  siteSettings.sort(compareRecords);
-
-  return { blocks, siteSettings, placementsByParent };
+  return { blocks, placementsByParent };
 }
 
 function projectSiteSettings(
-  siteSettings: StoredRecord[],
+  settings: StoredRecord,
   warnings: SiteTreeWarning[],
 ): SiteSettingsNode | undefined {
-  const primarySettings = siteSettings.filter(
-    (record) => stringValue(record.values.key) === "primary",
-  );
-  const settings = primarySettings[0];
-
-  if (!settings) {
-    warnings.push({
-      code: "missing-site-settings",
-      recordId: "site",
-      message: 'No active Site settings record found for key "primary".',
-    });
-    return undefined;
-  }
-
-  for (const duplicate of primarySettings.slice(1)) {
-    warnings.push({
-      code: "skipped-site-settings",
-      recordId: duplicate.id,
-      message: `Skipped duplicate Site settings record "${duplicate.id}".`,
-    });
-  }
-
   const label = stringValue(settings.values.label);
 
   if (!label) {
@@ -223,7 +219,13 @@ function optionalFrameRoot(
   type: "header" | "footer",
   context: SiteTreeBuildContext,
 ): Partial<SitePageFrame> {
-  const root = resolveFrameRoot(context.indexes.blocks, type, context.warnings);
+  const root = resolveReferencedRoot(
+    context.site,
+    context.indexes.blocks,
+    type,
+    type,
+    context.warnings,
+  );
 
   if (!root) {
     return {};
@@ -234,35 +236,52 @@ function optionalFrameRoot(
   };
 }
 
-function resolveFrameRoot(
+function resolveReferencedRoot(
+  site: StoredRecord | undefined,
   blocks: Map<string, StoredRecord>,
-  type: "header" | "footer",
+  field: "footer" | "header" | "home",
+  expectedType: "footer" | "header" | "page",
   warnings: SiteTreeWarning[],
 ): StoredRecord | undefined {
-  const candidates = [...blocks.values()]
-    .filter((record) => record.entity === "block" && stringValue(record.values.type) === type)
-    .sort(compareRecords);
+  const rootId = site ? stringValue(site.values[field]) : undefined;
+  const root = rootId ? blocks.get(rootId) : undefined;
 
-  const root = candidates[0];
-
-  if (!root) {
+  if (!root || stringValue(root.values.type) !== expectedType) {
     warnings.push({
-      code: "missing-frame-root",
-      recordId: type,
-      message: `No ${type} block found for the Site frame.`,
+      code: field === "home" ? "missing-home-root" : "missing-frame-root",
+      recordId: rootId ?? field,
+      message:
+        field === "home"
+          ? "The selected Site does not reference an available home page block."
+          : `The selected Site does not reference an available ${field} frame block.`,
     });
     return undefined;
   }
 
-  for (const duplicate of candidates.slice(1)) {
-    warnings.push({
-      code: "skipped-frame-root",
-      recordId: duplicate.id,
-      message: `Skipped duplicate ${type} frame block "${duplicate.id}".`,
-    });
+  return root;
+}
+
+function resolveSelectedSiteRoute(
+  site: StoredRecord,
+  blocks: Map<string, StoredRecord>,
+  slug: string,
+  warnings: SiteTreeWarning[],
+): SiteRouteResolution | undefined {
+  const normalizedSlug = normalizeSiteRoutePath(slug);
+
+  if (normalizedSlug !== "home") {
+    return resolveSiteRoute(blocks.values(), slug, warnings);
   }
 
-  return root;
+  const home = resolveReferencedRoot(site, blocks, "home", "page", warnings);
+
+  return home
+    ? {
+        kind: "page",
+        slug: "home",
+        page: home,
+      }
+    : undefined;
 }
 
 function buildRoutePageNode(

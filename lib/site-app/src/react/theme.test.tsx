@@ -148,19 +148,21 @@ function installBrowserThemeEnvironment(input: {
 }) {
   const reads: string[] = [];
   const writes: [string, string][] = [];
-  vi.spyOn(Storage.prototype, "getItem").mockImplementation((key) => {
-    reads.push(key);
-    expect(key).toBe(PUBLIC_SITE_THEME_STORAGE_KEY);
-    if (input.storageUnavailable) {
-      throw new Error("Storage unavailable.");
-    }
-    return input.storedValue ?? null;
-  });
-  vi.spyOn(Storage.prototype, "setItem").mockImplementation((key, value) => {
-    if (input.storageUnavailable) {
-      throw new Error("Storage unavailable.");
-    }
-    writes.push([key, value]);
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => {
+      reads.push(key);
+      expect(key).toBe(PUBLIC_SITE_THEME_STORAGE_KEY);
+      if (input.storageUnavailable) {
+        throw new Error("Storage unavailable.");
+      }
+      return input.storedValue ?? null;
+    },
+    setItem: (key: string, value: string) => {
+      if (input.storageUnavailable) {
+        throw new Error("Storage unavailable.");
+      }
+      writes.push([key, value]);
+    },
   });
 
   vi.stubGlobal(

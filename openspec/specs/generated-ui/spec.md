@@ -692,6 +692,30 @@ operation execution, ordering plans, navigation, and effects.
   ordering scope keys or rank plans, recursion bookkeeping, storage hooks, sync
   functions, React nodes, presentation class names, or renderer props
 
+#### Scenario: Preserve an explicit collection empty-state action
+
+- GIVEN a workspace collection selects an empty list, table, record, or tree
+  result and binds one collection operation at `emptyStatePrimary`
+- WHEN generated runtime projects the collection and workspace states
+- THEN the collection's empty-state contract carries that operation as its one
+  optional primary action
+- AND a workspace-level empty presentation preserves the action instead of
+  short-circuiting before collection interaction is rendered
+- AND the action retains the canonical operation control identity, availability,
+  pending state, feedback, and invocation intent
+- AND no renderer reads schema bindings or invents an empty-state action
+
+#### Scenario: Project singleton collection scope
+
+- GIVEN a generated collection declares `singleton` scope over an aggregate
+  root query
+- WHEN runtime evaluates active scope records from the browser replica
+- THEN zero matches produce an explicit collection empty state
+- AND one match supplies the named scope value to collection queries, nested
+  context queries, and create defaults without rendering a scope selector
+- AND more than one match produces an explicit unavailable state without
+  selecting the first record, combining results, or exposing collection actions
+
 #### Scenario: Select and edit one tree item
 
 - GIVEN a projected tree contains one or more placement items
@@ -1942,6 +1966,19 @@ entity operations and view operation bindings.
   or `task.clearCompletedTasks`
 - AND the binding can provide placement and ordering hints without redefining
   the operation input, effect, policy, or audit behavior
+
+#### Scenario: Bind a collection operation to empty state
+
+- GIVEN a collection view explicitly binds one operation at
+  `emptyStatePrimary`
+- WHEN the selected collection result is empty
+- THEN generated UI projects the binding as the empty state's primary action
+- AND invoking it uses the same foundation operation controller as a toolbar
+  control for that canonical operation
+- AND the binding is absent from the non-empty collection toolbar unless a
+  distinct toolbar binding declares that placement
+- AND a collection without the explicit binding receives no inferred setup,
+  create, or first-command action
 
 #### Scenario: Project operation controls
 

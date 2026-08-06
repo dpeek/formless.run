@@ -627,7 +627,11 @@ function selectTreeChildCreatePlans(
     relationship.from.entity,
     input.parentRecordId,
   );
-  const childValues = validateRecordValues(input.childValues, childEntity, validationReader);
+  const childValues = validateRecordValues(
+    inheritTreeChildValues(context, effect, parentRecord, input.childValues),
+    childEntity,
+    validationReader,
+  );
 
   return [
     {
@@ -665,6 +669,28 @@ function selectTreeChildCreatePlans(
       },
     },
   ];
+}
+
+function inheritTreeChildValues(
+  context: OperationHandlerExecutionContext,
+  effect: OperationHandlerEffectSchemaForKind<"create-tree-child">,
+  parentRecord: StoredRecord,
+  childValues: RecordValues,
+): RecordValues {
+  const values = { ...childValues };
+
+  for (const fieldName of effect.config.inheritFields ?? []) {
+    const value = parentRecord.values[fieldName];
+
+    if (value === undefined) {
+      throw new BadRequestError(
+        `Operation "${context.envelope.operation.canonicalKey}" parent record "${parentRecord.id}" has no inherited field "${fieldName}".`,
+      );
+    }
+    values[fieldName] = value;
+  }
+
+  return values;
 }
 
 function createTreePlacementValues(

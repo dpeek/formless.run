@@ -3,6 +3,10 @@ import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { Grid } from "@astryxdesign/core/Grid";
 import { VStack } from "@astryxdesign/core/VStack";
 import type {
+  CollectionEmptyStatePrimaryActionContract,
+  CreateFieldIntentHandler,
+  CreateIntentHandler,
+  OperationPresentationIntent,
   TreeIntent,
   TreeIntentHandler,
   TreeItemContract,
@@ -16,6 +20,13 @@ import { AstryxTreeResultSignals } from "./tree-actions.tsx";
 import { AstryxTreeChildCreation } from "./tree-child-creation.tsx";
 import { AstryxTreeOutline } from "./tree-outline.tsx";
 import { AstryxTreeSelectedEditor } from "./tree-selected-editor.tsx";
+import { AstryxCreateSurfaceRenderer } from "./create-renderer.tsx";
+import {
+  AstryxOperationButton,
+  AstryxOperationButtonWithProgress,
+  AstryxOperationDestructiveConfirmation,
+  AstryxOperationFeedback,
+} from "./operation-renderer.tsx";
 
 export function AstryxSubscribedTreeResultRenderer({
   reference,
@@ -29,16 +40,58 @@ export function AstryxSubscribedTreeResultRenderer({
 
   return tree ? (
     <AstryxTreeResultRenderer
-      onIntent={(intent) => dispatchAstryxWorkspaceTreeIntent(onIntent, scope, tree.id, intent)}
+      onCreateFieldIntent={(fieldId, intent) => {
+        const action =
+          tree.availability.state === "empty" ? tree.availability.emptyState.action : undefined;
+        return action?.kind === "createAction"
+          ? onIntent({
+              ...scope,
+              fieldId,
+              intent,
+              surfaceId: action.surface.id,
+              type: "workspaceField",
+            })
+          : undefined;
+      }}
+      onCreateIntent={(intent) => {
+        const action =
+          tree.availability.state === "empty" ? tree.availability.emptyState.action : undefined;
+        return action?.kind === "createAction"
+          ? onIntent({
+              ...scope,
+              intent,
+              surfaceId: action.surface.id,
+              type: "workspaceCreate",
+            })
+          : undefined;
+      }}
+      onIntent={(intent) => {
+        const action =
+          tree.availability.state === "empty" ? tree.availability.emptyState.action : undefined;
+        return action?.kind === "operationAction" &&
+          intent.type === "treeOperation" &&
+          intent.controlId === action.control.id
+          ? onIntent({
+              ...scope,
+              controlId: action.control.id,
+              intent: intent.intent,
+              type: "workspaceOperation",
+            })
+          : dispatchAstryxWorkspaceTreeIntent(onIntent, scope, tree.id, intent);
+      }}
       tree={tree}
     />
   ) : null;
 }
 
 export function AstryxTreeResultRenderer({
+  onCreateFieldIntent = ignoreCreateFieldIntent,
+  onCreateIntent = ignoreCreateIntent,
   onIntent = ignoreTreeIntent,
   tree,
 }: {
+  onCreateFieldIntent?: CreateFieldIntentHandler;
+  onCreateIntent?: CreateIntentHandler;
   onIntent?: TreeIntentHandler;
   tree: TreeResultContract;
 }) {
@@ -46,6 +99,17 @@ export function AstryxTreeResultRenderer({
     return (
       <VStack gap={3} width="100%">
         <EmptyState
+          actions={
+            tree.availability.emptyState.action ? (
+              <AstryxTreeEmptyStatePrimaryAction
+                action={tree.availability.emptyState.action}
+                onCreateFieldIntent={onCreateFieldIntent}
+                onCreateIntent={onCreateIntent}
+                onIntent={onIntent}
+                resultId={tree.id}
+              />
+            ) : undefined
+          }
           description={tree.availability.emptyState.description}
           title={tree.availability.emptyState.title}
         />
@@ -97,6 +161,59 @@ export function AstryxTreeResultRenderer({
   );
 }
 
+function AstryxTreeEmptyStatePrimaryAction({
+  action,
+  onCreateFieldIntent,
+  onCreateIntent,
+  onIntent,
+  resultId,
+}: {
+  action: CollectionEmptyStatePrimaryActionContract;
+  onCreateFieldIntent: CreateFieldIntentHandler;
+  onCreateIntent: CreateIntentHandler;
+  onIntent: TreeIntentHandler;
+  resultId: string;
+}) {
+  if (action.kind === "createAction") {
+    return (
+      <AstryxCreateSurfaceRenderer
+        onFieldIntent={onCreateFieldIntent}
+        onIntent={onCreateIntent}
+        surface={action.surface}
+      />
+    );
+  }
+
+  const dispatch = (intent: OperationPresentationIntent) =>
+    onIntent({
+      controlId: action.control.id,
+      intent,
+      resultId,
+      type: "treeOperation",
+    });
+
+  return (
+    <VStack gap={2}>
+      {action.control.progress ? (
+        <AstryxOperationButtonWithProgress
+          button={action.control.trigger}
+          onIntent={dispatch}
+          progress={action.control.progress}
+        />
+      ) : (
+        <AstryxOperationButton button={action.control.trigger} onIntent={dispatch} />
+      )}
+      {action.control.confirmation ? (
+        <AstryxOperationDestructiveConfirmation
+          confirmation={action.control.confirmation}
+          onIntent={dispatch}
+        />
+      ) : null}
+      <AstryxOperationFeedback feedback={action.control.feedback} />
+    </VStack>
+  );
+}
+
 export function dispatchAstryxWorkspaceTreeIntent(
   handler: WorkspaceIntentHandler,
   scope: WorkspaceIntentScope,
@@ -124,3 +241,7 @@ function findSelectedTreeItem(items: readonly TreeItemContract[]): TreeItemContr
 }
 
 function ignoreTreeIntent() {}
+
+function ignoreCreateFieldIntent() {}
+
+function ignoreCreateIntent() {}

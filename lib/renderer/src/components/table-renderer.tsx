@@ -39,6 +39,9 @@ import {
 } from "@astryxdesign/core/theme/tokens.stylex";
 import type {
   ButtonContract,
+  CollectionEmptyStatePrimaryActionContract,
+  CreateFieldIntentHandler,
+  CreateIntentHandler,
   FieldIntent,
   NativeLinkActionContract,
   OperationButtonContract,
@@ -57,6 +60,7 @@ import type {
   TableOrderingContract,
   TableValueStatus,
 } from "@dpeek/formless-presentation/contract";
+import { AstryxCreateSurfaceRenderer } from "./create-renderer.tsx";
 import { FieldRenderer } from "./fields/field-renderer.tsx";
 import {
   AstryxOperationButton,
@@ -92,11 +96,15 @@ const astryxTableWidthPixels = {
 } as const;
 
 export function AstryxTableRenderer({
+  onCreateFieldIntent = ignoreCreateFieldIntent,
+  onCreateIntent = ignoreCreateIntent,
   onFieldIntent,
   onOperationIntent,
   onTableIntent,
   table,
 }: {
+  onCreateFieldIntent?: CreateFieldIntentHandler;
+  onCreateIntent?: CreateIntentHandler;
   onFieldIntent: AstryxTableFieldIntentHandler;
   onOperationIntent: AstryxTableOperationIntentHandler;
   onTableIntent: TableIntentHandler;
@@ -153,8 +161,10 @@ export function AstryxTableRenderer({
                 <EmptyState
                   actions={
                     table.emptyState.action ? (
-                      <AstryxTablePrimaryAction
+                      <AstryxTableEmptyStatePrimaryAction
                         action={table.emptyState.action}
+                        onCreateFieldIntent={onCreateFieldIntent}
+                        onCreateIntent={onCreateIntent}
                         onOperationIntent={onOperationIntent}
                         onTableIntent={onTableIntent}
                       />
@@ -164,7 +174,7 @@ export function AstryxTableRenderer({
                   isCompact
                   title={table.emptyState.title}
                 />
-                {table.emptyState.action ? (
+                {table.emptyState.action?.kind === "operationAction" ? (
                   <AstryxTableActionEffects
                     action={table.emptyState.action}
                     onFieldIntent={onFieldIntent}
@@ -213,6 +223,34 @@ export function AstryxTableRenderer({
         ) : null}
       </Table>
     </VStack>
+  );
+}
+
+function AstryxTableEmptyStatePrimaryAction({
+  action,
+  onCreateFieldIntent,
+  onCreateIntent,
+  onOperationIntent,
+  onTableIntent,
+}: {
+  action: CollectionEmptyStatePrimaryActionContract;
+  onCreateFieldIntent: CreateFieldIntentHandler;
+  onCreateIntent: CreateIntentHandler;
+  onOperationIntent: AstryxTableOperationIntentHandler;
+  onTableIntent: TableIntentHandler;
+}) {
+  return action.kind === "createAction" ? (
+    <AstryxCreateSurfaceRenderer
+      onFieldIntent={onCreateFieldIntent}
+      onIntent={onCreateIntent}
+      surface={action.surface}
+    />
+  ) : (
+    <AstryxTablePrimaryAction
+      action={action}
+      onOperationIntent={onOperationIntent}
+      onTableIntent={onTableIntent}
+    />
   );
 }
 
@@ -1020,3 +1058,7 @@ const styles = stylex.create({
     backgroundColor: colorVars["--color-warning-muted"],
   },
 });
+
+function ignoreCreateFieldIntent() {}
+
+function ignoreCreateIntent() {}

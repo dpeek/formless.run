@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { StrictMode } from "react";
 import {
   SitePageRouteView,
@@ -30,14 +30,28 @@ import { createInstanceRuntimeProfile } from "./runtime-profile.ts";
     IS_REACT_ACT_ENVIRONMENT?: boolean;
   }
 ).IS_REACT_ACT_ENVIRONMENT = true;
+beforeEach(() => {
+  const entries = new Map<string, string>();
+
+  vi.stubGlobal("localStorage", {
+    clear: () => entries.clear(),
+    getItem: (key: string) => entries.get(key) ?? null,
+    key: (index: number) => [...entries.keys()][index] ?? null,
+    get length() {
+      return entries.size;
+    },
+    removeItem: (key: string) => entries.delete(key),
+    setItem: (key: string, value: string) => entries.set(key, value),
+  });
+});
 afterEach(() => {
   vi.restoreAllMocks();
-  vi.unstubAllGlobals();
   document.documentElement.removeAttribute("data-theme");
   document.documentElement.removeAttribute("data-site-theme");
   document.documentElement.removeAttribute("data-formless-application-theme");
   document.documentElement.style.removeProperty("color-scheme");
   window.localStorage.clear();
+  vi.unstubAllGlobals();
   resetClientStore();
   resetSyncStatus();
 });

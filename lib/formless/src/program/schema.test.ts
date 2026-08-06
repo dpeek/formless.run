@@ -146,6 +146,16 @@ describe("Formless Program schema", () => {
       }
     }
     expect(publicOperations).toEqual(["contact-message.submit", "subscription.subscribe"]);
+    expect(
+      formlessSiteRecordSchemaModule.entities
+        .find(({ key }) => key === "site")
+        ?.operations?.find(({ key }) => key === "createStarter"),
+    ).toMatchObject({
+      access: { role: "editor" },
+      kind: "command",
+      scope: "collection",
+      effect: { type: "recordPlan" },
+    });
 
     expect(formlessTasksPresentationSchemaModule).toEqual({
       ...tasksPresentationSchemaModule,

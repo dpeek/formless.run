@@ -40,6 +40,14 @@ describe("Site schema authoring", () => {
       },
     ]);
     expect(siteRecordSchemaModule.relationships?.map(({ key }) => key)).toEqual([
+      "siteHome",
+      "blockHomeForSites",
+      "siteHeader",
+      "blockHeaderForSites",
+      "siteFooter",
+      "blockFooterForSites",
+      "blockSite",
+      "siteBlocks",
       "placementParent",
       "blockPlacements",
       "placementBlock",
@@ -47,7 +55,7 @@ describe("Site schema authoring", () => {
     ]);
     expect(siteRecordSchemaModule.unions?.map(({ key }) => key)).toEqual(["blockByType"]);
     expect(siteRecordSchemaModule.queries?.map(({ key }) => key)).toEqual([
-      "sitePrimary",
+      "siteAll",
       "blockAll",
       "blockPages",
       "blockNavigationRoots",
@@ -64,6 +72,7 @@ describe("Site schema authoring", () => {
     expect(siteRecordSchemaModule).not.toHaveProperty("views");
     expect(siteRecordSchemaModule).not.toHaveProperty("screens");
     expect(siteRecordSchemaModule.runtimeRequirements).toEqual({
+      shared: { recordAdapters: ["site.records"] },
       browser: { surfaces: ["site.public"] },
       worker: {
         publicReads: ["site.public-tree"],
@@ -141,6 +150,194 @@ describe("Site schema authoring", () => {
       expect(module).not.toHaveProperty("unions");
       expect(module).not.toHaveProperty("queries");
     }
+  });
+
+  it("declares Site aggregate ownership in fields and operation contracts", () => {
+    const schema = parseAppSchema(siteSchemaSource);
+    const site = schema.entities.find(({ key }) => key === "site");
+    const block = schema.entities.find(({ key }) => key === "block");
+    const placement = schema.entities.find(({ key }) => key === "block-placement");
+    const siteUpdate = site?.operations?.find(({ key }) => key === "update");
+    const blockCreate = block?.operations?.find(({ key }) => key === "create");
+    const blockUpdate = block?.operations?.find(({ key }) => key === "update");
+    const addTreeChild = placement?.operations?.find(({ key }) => key === "addTreeChild");
+
+    if (!site || !block || !siteUpdate || !blockCreate || !blockUpdate || !addTreeChild) {
+      throw new Error("Expected Site aggregate schema declarations.");
+    }
+
+    expect(site.fields.filter(({ key }) => ["home", "header", "footer"].includes(key))).toEqual([
+      expect.objectContaining({ key: "home", required: false, to: "block", type: "reference" }),
+      expect.objectContaining({ key: "header", required: false, to: "block", type: "reference" }),
+      expect.objectContaining({ key: "footer", required: false, to: "block", type: "reference" }),
+    ]);
+    expect(block.fields.find(({ key }) => key === "site")).toMatchObject({
+      key: "site",
+      required: true,
+      to: "site",
+      type: "reference",
+    });
+    expect(siteUpdate.input?.fields.map(({ key }) => key)).toEqual([
+      "key",
+      "label",
+      "description",
+      "icon",
+      "initialThemeMode",
+      "themeSwitchable",
+      "home",
+      "header",
+      "footer",
+    ]);
+    expect(blockCreate.input?.fields.map(({ key }) => key)).toContain("site");
+    expect(blockUpdate.input?.fields.map(({ key }) => key)).not.toContain("site");
+    expect(addTreeChild.effect).toEqual({
+      type: "operationHandler",
+      handler: "create-tree-child",
+      config: {
+        relationship: "blockPlacements",
+        childField: "block",
+        orderField: "order",
+        inheritFields: ["site"],
+      },
+    });
+
+    const createViews = sitePresentationSchemaModule.views.filter(({ key }) =>
+      ["blockCreate", "blockPageCreate", "blockPostCreate", "blockProjectCreate"].includes(key),
+    );
+    expect(createViews).toHaveLength(4);
+    for (const view of createViews) {
+      if (view.type !== "create") {
+        throw new Error("Expected block create view.");
+      }
+      expect(view.fields.map(({ field }) => field)).not.toContain("site");
+      expect(view.defaults).toMatchObject({ site: { kind: "context", name: "site" } });
+    }
+  });
+
+  it("declares the inputless Site starter as a fixed record plan", () => {
+    const schema = parseAppSchema(siteSchemaSource);
+    const operation = schema.entities
+      .find(({ key }) => key === "site")
+      ?.operations?.find(({ key }) => key === "createStarter");
+
+    if (operation?.effect?.type !== "recordPlan") {
+      throw new Error("Expected site.createStarter record plan.");
+    }
+
+    expect(operation).toMatchObject({
+      key: "createStarter",
+      kind: "command",
+      scope: "collection",
+      output: { type: "command" },
+      idempotency: { required: true },
+      audit: { input: "summary" },
+    });
+    expect(operation.input).toBeUndefined();
+    expect(operation.access).toBeUndefined();
+    expect(
+      operation.effect.steps.map(({ name, kind, entity }) => ({ name, kind, entity })),
+    ).toEqual([
+      { name: "createSite", kind: "create", entity: "site" },
+      { name: "createHomePage", kind: "create", entity: "block" },
+      { name: "createHeader", kind: "create", entity: "block" },
+      { name: "createHeaderPrimary", kind: "create", entity: "block" },
+      { name: "createFooter", kind: "create", entity: "block" },
+      { name: "createFooterSection", kind: "create", entity: "block" },
+      { name: "createHeaderHomeLink", kind: "create", entity: "block" },
+      { name: "createFooterHomeLink", kind: "create", entity: "block" },
+      { name: "createWelcomeHero", kind: "create", entity: "block" },
+      { name: "createAboutMarkdown", kind: "create", entity: "block" },
+      { name: "placeHeaderPrimary", kind: "create", entity: "block-placement" },
+      { name: "placeHeaderHomeLink", kind: "create", entity: "block-placement" },
+      { name: "placeFooterSection", kind: "create", entity: "block-placement" },
+      { name: "placeFooterHomeLink", kind: "create", entity: "block-placement" },
+      { name: "placeWelcomeHero", kind: "create", entity: "block-placement" },
+      { name: "placeAboutMarkdown", kind: "create", entity: "block-placement" },
+      { name: "assignSiteRoots", kind: "patch", entity: "site" },
+    ]);
+    expect(operation.effect.steps[0]).toMatchObject({
+      values: {
+        key: {
+          kind: "generatedCode",
+          alphabet: "upperAlphaNumericNoConfusables",
+          length: 10,
+          prefix: "site-",
+        },
+        label: { kind: "literal", value: "Untitled site" },
+      },
+    });
+    expect(operation.effect.steps.at(-1)).toMatchObject({
+      name: "assignSiteRoots",
+      recordId: { kind: "stepOutput", step: "createSite", output: "id" },
+      values: {
+        home: {
+          kind: "reference",
+          entity: "block",
+          id: { kind: "stepOutput", step: "createHomePage", output: "id" },
+        },
+        header: {
+          kind: "reference",
+          entity: "block",
+          id: { kind: "stepOutput", step: "createHeader", output: "id" },
+        },
+        footer: {
+          kind: "reference",
+          entity: "block",
+          id: { kind: "stepOutput", step: "createFooter", output: "id" },
+        },
+      },
+    });
+  });
+
+  it("declares singleton-scoped Site authoring and its explicit starter empty state", () => {
+    const schema = parseAppSchema(siteSchemaSource);
+    const settings = schema.views.find(({ key }) => key === "siteSettingsHome");
+    const editor = schema.views.find(({ key }) => key === "siteCompositionHome");
+
+    for (const view of [settings, editor]) {
+      if (view?.type !== "collection") {
+        throw new Error("Expected Site collection view.");
+      }
+      expect(view.scope).toEqual({
+        name: "site",
+        entity: "site",
+        query: "siteAll",
+        selection: "singleton",
+      });
+      expect(view.operations).toContainEqual({
+        operation: "site.createStarter",
+        placement: "emptyStatePrimary",
+        label: "Create your first site",
+      });
+      expect(view.operations).not.toContainEqual(
+        expect.objectContaining({ operation: "site.createStarter", placement: "toolbar" }),
+      );
+    }
+
+    const scopedQueries = schema.queries.filter(({ key }) =>
+      [
+        "blockAll",
+        "blockPages",
+        "blockPosts",
+        "blockProjects",
+        "blockNavigationRoots",
+        "blockSiteRoots",
+      ].includes(key),
+    );
+    expect(scopedQueries).toHaveLength(6);
+    expect(
+      scopedQueries.every(({ expression }) => {
+        const predicate = expression.kind === "and" ? expression.expressions[0] : expression;
+        return (
+          predicate?.kind === "where" &&
+          predicate.ref.kind === "value" &&
+          predicate.ref.name === "site" &&
+          typeof predicate.value === "object" &&
+          predicate.value.kind === "context" &&
+          predicate.value.name === "site"
+        );
+      }),
+    ).toBe(true);
   });
 
   it("composes Site content without standard contact intake", () => {

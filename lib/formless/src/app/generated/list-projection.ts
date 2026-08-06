@@ -1,4 +1,5 @@
 import type {
+  CollectionEmptyStatePrimaryActionContract,
   ListActionContract,
   ListActionGroupContract,
   ListContract,
@@ -32,6 +33,7 @@ export type ProjectGeneratedListContractOptions = {
   density?: ListContract["density"];
   editingDisabledReason?: string;
   editingEnabled: boolean;
+  emptyStateAction?: CollectionEmptyStatePrimaryActionContract;
   emptyStateDescription?: string;
   emptyStateTitle?: string;
   id: string;
@@ -44,6 +46,7 @@ export function projectGeneratedListContract({
   density = "compact",
   editingDisabledReason = "Editing is disabled.",
   editingEnabled,
+  emptyStateAction,
   emptyStateDescription,
   emptyStateTitle = "No records yet.",
   id,
@@ -59,6 +62,7 @@ export function projectGeneratedListContract({
     ...(orderedRecordIds.length === 0
       ? {
           emptyState: {
+            ...(emptyStateAction === undefined ? {} : { action: emptyStateAction }),
             ...(emptyStateDescription === undefined ? {} : { description: emptyStateDescription }),
             id: `${id}:empty`,
             kind: "listEmptyState" as const,

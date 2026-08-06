@@ -1,5 +1,6 @@
 import type { QueryEvaluationContext } from "@dpeek/formless-schema";
 import type {
+  HomeCollectionScopeConfig,
   HomeContextConfig,
   HomeContextNavigationConfig,
   HomeContextNavigationGroupConfig,
@@ -25,14 +26,44 @@ export type GeneratedContextSelectionFacts = {
   showUnselectedState: boolean;
 };
 
+export type GeneratedSingletonScopeSelectionFacts = {
+  actionQueryContext: QueryEvaluationContext;
+  activeRecordId: string | null;
+  queryContext: QueryEvaluationContext | undefined;
+  state: "empty" | "ready" | "ambiguous";
+};
+
+export function selectGeneratedSingletonScopeSelectionFacts({
+  recordIds,
+  scope,
+  today,
+}: {
+  recordIds: readonly string[];
+  scope: HomeCollectionScopeConfig;
+  today: string;
+}): GeneratedSingletonScopeSelectionFacts {
+  const activeRecordId = recordIds.length === 1 ? (recordIds[0] ?? null) : null;
+  const queryContext =
+    activeRecordId === null ? undefined : { today, values: { [scope.name]: activeRecordId } };
+
+  return {
+    actionQueryContext: queryContext ?? { today },
+    activeRecordId,
+    queryContext,
+    state: recordIds.length === 0 ? "empty" : recordIds.length === 1 ? "ready" : "ambiguous",
+  };
+}
+
 export function selectGeneratedContextSelectionFacts({
   context,
   options,
   selectedRecordId,
   today,
+  queryContext: baseQueryContext = { today },
 }: {
   context: HomeContextConfig;
   options: GeneratedContextOption[];
+  queryContext?: QueryEvaluationContext;
   selectedRecordId: string | null;
   today: string;
 }): GeneratedContextSelectionFacts {
@@ -41,13 +72,16 @@ export function selectGeneratedContextSelectionFacts({
   const hasSidebarNavigation = context.navigation?.placement === "sidebar";
   const isSingleton = options.length === 1;
   const queryContext = activeRecordId
-    ? { today, values: { [context.name]: activeRecordId } }
+    ? {
+        today,
+        values: { ...baseQueryContext.values, [context.name]: activeRecordId },
+      }
     : undefined;
 
   return {
     activeOption,
     activeRecordId,
-    actionQueryContext: queryContext ?? { today },
+    actionQueryContext: queryContext ?? baseQueryContext,
     detailLabel: activeOption?.label ?? context.label,
     hasSidebarNavigation,
     isEmpty: options.length === 0,

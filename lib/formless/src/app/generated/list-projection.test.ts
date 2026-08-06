@@ -125,10 +125,20 @@ describe("generated Formless UI list projection", () => {
   });
 
   it("projects editing-disabled, empty, unavailable, and display-safe fallback states", () => {
+    const emptyStateAction = {
+      action: {
+        ...projectGeneratedListOperationAction(
+          operationControl(transitionBinding(), false),
+          "command",
+        ),
+        role: "command" as const,
+      },
+    } as const;
     const empty = projectGeneratedListContract({
       accessibilityLabel: "Task records",
       editingDisabledReason: "Task updates are unavailable.",
       editingEnabled: false,
+      emptyStateAction: emptyStateAction.action,
       emptyStateDescription: "Create a task to get started.",
       id: "tasks:empty",
       itemsByRecordId: {},
@@ -147,6 +157,7 @@ describe("generated Formless UI list projection", () => {
     expect(empty).toMatchObject({
       editing: { disabledReason: "Task updates are unavailable.", enabled: false },
       emptyState: {
+        action: { control: { id: transitionBinding().id }, role: "command" },
         description: "Create a task to get started.",
         kind: "listEmptyState",
         title: "No records yet.",

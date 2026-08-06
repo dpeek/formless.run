@@ -703,60 +703,104 @@ describe("site page tree projection", () => {
     expect(tree.meta.warnings).toEqual([
       expect.objectContaining({
         code: "missing-frame-root",
-        recordId: "header",
+        recordId: "rec_site_content_group_header",
       }),
       expect.objectContaining({
         code: "missing-frame-root",
-        recordId: "footer",
+        recordId: "rec_site_content_group_footer",
       }),
     ]);
   });
 
-  it("warns and keeps rendering when the Site settings singleton is missing", () => {
+  it("returns an unavailable projection when the active Site is missing or ambiguous", () => {
     const records = baseTreeRecords().filter((record) => record.entity !== "site");
-    const tree = requireTree(buildSitePageTree(siteSourceSchema, records, "home", { generatedAt }));
+    const missing = buildSitePageTree(siteSourceSchema, records, "home", { generatedAt });
+    const ambiguous = buildSitePageTree(
+      siteSourceSchema,
+      [
+        ...baseTreeRecords(),
+        {
+          id: "site:second",
+          entity: "site",
+          values: { key: "second", label: "Second Site" },
+          createdAt: "2026-05-06T00:00:00.000Z",
+        },
+      ],
+      "home",
+      { generatedAt },
+    );
 
-    expect(tree).not.toHaveProperty("site");
-    expect(tree.page).toMatchObject({
-      id: "rec_site_content_home",
-      type: "page",
-      label: "Home",
+    expect(missing).toMatchObject({
+      tree: null,
+      siteCount: 0,
+      status: "unavailable",
     });
-    expect(tree.meta.warnings).toEqual([
+    expect(missing.meta.warnings).toEqual([
       expect.objectContaining({
-        code: "missing-site-settings",
+        code: "missing-site",
+        recordId: "site",
+      }),
+    ]);
+    expect(ambiguous).toMatchObject({
+      tree: null,
+      siteCount: 2,
+      status: "unavailable",
+    });
+    expect(ambiguous.meta.warnings).toEqual([
+      expect.objectContaining({
+        code: "ambiguous-site",
         recordId: "site",
       }),
     ]);
   });
 
-  it("chooses frame roots deterministically and warns about duplicates", () => {
+  it("resolves home and frame roots from the sole Site references", () => {
     const records = [
-      ...baseTreeRecords(),
-      blockRecord("rec_site_content_group_header_later", {
-        type: "header",
-        label: "Later header",
+      ...baseTreeRecords().map((record) =>
+        record.entity === "site"
+          ? { ...record, values: { ...record.values, key: "custom-site-key" } }
+          : record,
+      ),
+      blockRecord("rec_site_content_home_unreferenced", {
+        type: "page",
+        label: "Unreferenced home",
+        href: "/",
       }),
-      blockRecord("rec_site_content_group_footer_later", {
+      blockRecord("rec_site_content_group_header_unreferenced", {
+        type: "header",
+        label: "Unreferenced header",
+      }),
+      blockRecord("rec_site_content_group_footer_unreferenced", {
         type: "footer",
-        label: "Later footer",
+        label: "Unreferenced footer",
       }),
     ];
 
     const tree = requireTree(buildSitePageTree(siteSourceSchema, records, "home", { generatedAt }));
 
+    expect(tree.page.id).toBe("rec_site_content_home");
     expect(tree.frame.header?.id).toBe("rec_site_content_group_header");
     expect(tree.frame.footer?.id).toBe("rec_site_content_group_footer");
-    expect(tree.meta.warnings).toEqual([
-      expect.objectContaining({
-        code: "skipped-frame-root",
-        recordId: "rec_site_content_group_header_later",
+    expect(tree.meta.warnings).toEqual([]);
+  });
+
+  it("excludes blocks outside the selected Site from routes and trees", () => {
+    const records = [
+      ...baseTreeRecords(),
+      blockRecord("rec_other_site_page", {
+        site: "site:inactive",
+        type: "page",
+        label: "Other Site",
+        href: "/other-site",
       }),
-      expect.objectContaining({
-        code: "skipped-frame-root",
-        recordId: "rec_site_content_group_footer_later",
-      }),
-    ]);
+      placementRecord("rec_other_site_placement", "rec_site_content_home", "rec_other_site_page"),
+    ];
+    const home = requireTree(buildSitePageTree(siteSourceSchema, records, "home", { generatedAt }));
+    const other = buildSitePageTree(siteSourceSchema, records, "other-site", { generatedAt });
+
+    expect(flattenPlacementIds(home.page)).not.toContain("rec_other_site_placement");
+    expect(other.status).toBe("not-found");
+    expect(other.tree).toBeNull();
   });
 
   it("resolves /blog as a regular page with a projected post list", () => {
@@ -1428,7 +1472,10 @@ function blockRecord(id: string, values: StoredRecord["values"]): StoredRecord {
   return {
     id,
     entity: "block",
-    values,
+    values: {
+      site: "rec_site_settings_primary",
+      ...values,
+    },
     createdAt: "2026-05-06T00:00:00.000Z",
   };
 }

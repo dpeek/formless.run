@@ -93,6 +93,7 @@ export type {
   HomeSummarySlotConfig,
   RelatedCollectionConfig,
 } from "./collection-shell-model.ts";
+export type { HomeCollectionScopeConfig } from "./collection-shell-model.ts";
 export type {
   GeneratedOperationAuthoritySubmitter,
   GeneratedOperationController,

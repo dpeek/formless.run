@@ -1,5 +1,12 @@
 import { defineAppSchemaModule } from "@dpeek/formless-schema";
 
+const singletonSiteScope = {
+  name: "site",
+  entity: "site",
+  query: "siteAll",
+  selection: "singleton",
+} as const;
+
 export const sitePresentationSchemaModule = defineAppSchemaModule({
   key: "site-presentation",
   requires: ["site-records"],
@@ -31,6 +38,21 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
         {
           field: "themeSwitchable",
           editor: "boolean",
+          commit: "immediate",
+        },
+        {
+          field: "home",
+          editor: "reference",
+          commit: "immediate",
+        },
+        {
+          field: "header",
+          editor: "reference",
+          commit: "immediate",
+        },
+        {
+          field: "footer",
+          editor: "reference",
           commit: "immediate",
         },
       ],
@@ -887,16 +909,24 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
       navigation: {
         primary: false,
       },
+      scope: singletonSiteScope,
       queries: [
         {
-          query: "sitePrimary",
+          query: "siteAll",
         },
       ],
-      defaultQuery: "sitePrimary",
+      defaultQuery: "siteAll",
       result: {
         type: "record",
         itemView: "siteSettingsForm",
       },
+      operations: [
+        {
+          operation: "site.createStarter",
+          placement: "emptyStatePrimary",
+          label: "Create your first site",
+        },
+      ],
     },
     {
       key: "blockHome",
@@ -906,6 +936,7 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
       navigation: {
         primary: false,
       },
+      scope: singletonSiteScope,
       queries: [
         {
           query: "blockAll",
@@ -970,6 +1001,7 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
       navigation: {
         primary: true,
       },
+      scope: singletonSiteScope,
       context: {
         name: "block",
         entity: "block",
@@ -1172,6 +1204,13 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
         },
         maxDepth: 8,
       },
+      operations: [
+        {
+          operation: "site.createStarter",
+          placement: "emptyStatePrimary",
+          label: "Create your first site",
+        },
+      ],
     },
     {
       key: "pageCompositionHome",
@@ -1181,6 +1220,7 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
       navigation: {
         primary: false,
       },
+      scope: singletonSiteScope,
       context: {
         name: "block",
         entity: "block",
@@ -1219,6 +1259,7 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
       navigation: {
         primary: false,
       },
+      scope: singletonSiteScope,
       context: {
         name: "block",
         entity: "block",
@@ -1547,6 +1588,12 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
           },
         ],
       },
+      defaults: {
+        site: {
+          kind: "context",
+          name: "site",
+        },
+      },
     },
     {
       key: "blockPageCreate",
@@ -1567,6 +1614,10 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
         },
       ],
       defaults: {
+        site: {
+          kind: "context",
+          name: "site",
+        },
         type: {
           kind: "literal",
           value: "page",
@@ -1596,6 +1647,10 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
         },
       ],
       defaults: {
+        site: {
+          kind: "context",
+          name: "site",
+        },
         type: {
           kind: "literal",
           value: "post",
@@ -1625,6 +1680,10 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
         },
       ],
       defaults: {
+        site: {
+          kind: "context",
+          name: "site",
+        },
         type: {
           kind: "literal",
           value: "project",
@@ -1977,6 +2036,7 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
       navigation: {
         primary: false,
       },
+      scope: singletonSiteScope,
       context: {
         name: "block",
         entity: "block",

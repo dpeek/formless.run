@@ -1561,6 +1561,31 @@ public forms, automation, audit, and authorization.
 - AND operation bindings use the same canonical operation key grammar as their
   source-declared operations
 
+#### Scenario: Parse collection operation placement
+
+- GIVEN a collection view binds a collection-scoped source operation
+- WHEN the collection operation binding is parsed
+- THEN optional placement is `toolbar` or `emptyStatePrimary`
+- AND omitted placement resolves as `toolbar`
+- AND an `emptyStatePrimary` binding is the collection's explicit primary action
+  only while its selected result is empty
+- AND at most one `emptyStatePrimary` binding is allowed per collection view
+- AND a command bound there has no required caller input until generated command
+  input forms are introduced
+- AND one source operation may have distinct toolbar and empty-state bindings
+  without duplicating its effect, policy, invocation, audit, or idempotency
+
+#### Scenario: Parse singleton collection scope
+
+- GIVEN a collection view must project records for exactly one aggregate root
+- WHEN it declares a named scope entity, context-free scope query, and
+  `singleton` selection
+- THEN the scope query resolves against the declared entity
+- AND collection and context queries may bind equality predicates to the named
+  scope value
+- AND create defaults may bind reference fields to that named scope value
+- AND a collection context name remains distinct from its scope name
+
 #### Scenario: Parse operation-native command effects
 
 - GIVEN a source schema declares a command operation

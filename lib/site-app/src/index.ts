@@ -92,7 +92,10 @@ export type {
   BuildPublicSiteRouteEntriesOptions,
   PublicSiteRouteEntry,
 } from "./public-indexing.ts";
-export { projectSitePublicOperationBlock } from "./public-operation-block-projection.ts";
+export {
+  projectSitePublicOperationBlock,
+  sitePublicOperationSourceBlockMatches,
+} from "./public-operation-block-projection.ts";
 export type { SitePublicOperationBlockProjectionInput } from "./public-operation-block-projection.ts";
 export {
   normalizeSiteRoutePath,
@@ -100,6 +103,12 @@ export {
   routeInfoForResolution,
 } from "./route-resolver.ts";
 export type { SiteRouteResolution } from "./route-resolver.ts";
+export {
+  selectSiteOwnedBlocks,
+  selectSiteOwnedPublicRecords,
+  selectSoleActiveSite,
+} from "./site-selection.ts";
+export type { SoleActiveSiteSelection } from "./site-selection.ts";
 export {
   DEFAULT_SITE_ICON_SVG,
   resolveSiteIconSvgSource,

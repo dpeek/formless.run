@@ -1288,7 +1288,7 @@ function typedBlock(
     entity: "block",
     id,
     updatedAt: "2026-07-19T00:00:00.000Z",
-    values: { label, type, ...values },
+    values: { label, site: "rec_site_settings_primary", type, ...values },
   };
 }
 

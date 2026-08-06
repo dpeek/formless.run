@@ -39,6 +39,7 @@ describe("Program runtime composition", () => {
     expect(formlessProgramDefaultSharedRuntime.recordAdapters.map(({ key }) => key)).toEqual([
       "instance-control-plane.records",
       "identity-control-plane.records",
+      "site.records",
     ]);
     expect(formlessProgramDefaultSharedRuntime.operationAdapters.map(({ key }) => key)).toEqual([
       "contact-subscription.subscribe",

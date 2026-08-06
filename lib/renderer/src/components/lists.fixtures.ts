@@ -175,7 +175,10 @@ function emptyListFixture(): ListContract {
     density: "default",
     editing: { enabled: true },
     emptyState: {
-      action: operationAction(operationControlFixtures.refreshTasks.initial, "command"),
+      action: {
+        ...operationAction(operationControlFixtures.refreshTasks.initial, "command"),
+        role: "command",
+      },
       description: "Adjust the current filters to see more tasks.",
       id: "tasks:empty",
       kind: "listEmptyState",

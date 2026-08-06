@@ -18,7 +18,7 @@ const authOrigin = "https://auth.example.com";
 const authEmail = "email-sender:auth@mail.example.com";
 const ownerEmail = "ada@example.com";
 const ownerId = "principal:ada";
-const createdAt = "2026-07-07T00:00:00.000Z";
+const createdAt = new Date(Date.now() - 60_000).toISOString();
 const packageRoot = resolve(fileURLToPath(new URL("../../", import.meta.url)));
 
 let harness: Harness | undefined;

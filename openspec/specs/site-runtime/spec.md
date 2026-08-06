@@ -10,23 +10,92 @@ and published Program Site targets.
 
 ### Requirement: Site Records
 
-The system SHALL model Site content as flat records and use the selected
-Authority storage identity as Site scope instead of storing a Site reference on
-content records.
+The system SHALL model each Site as a flat aggregate rooted by one Site record
+while all Site records remain in the selected Program Authority storage
+identity.
 
-#### Scenario: Settings singleton exists
+#### Scenario: Site record owns settings and public roots
 
-- GIVEN active Site settings exist for the current Site scope
-- WHEN the runtime reads the public Site tree
-- THEN the response includes the Site settings
-- AND the settings provide editable Site label, description, and SVG icon values
+- GIVEN an active Site record exists
+- WHEN Site settings or public roots are selected
+- THEN that record provides editable key, label, description, SVG icon, and
+  theme values
+- AND optional `home`, `header`, and `footer` references select blocks owned by
+  the same Site
+- AND a Site may exist without one or more public roots while it is being
+  created or repaired
 
-#### Scenario: Content records stay flat
+#### Scenario: Content records have Site ownership
 
 - GIVEN page, post, project, block, and placement records exist
 - WHEN those records are stored
-- THEN they do not store a Site reference
-- AND the Program Authority supplies the Site scope
+- THEN every block stores one required Site reference
+- AND block placement records stay flat with parent and child block references
+- AND placement Site scope is derived from its endpoints rather than duplicated
+  on the placement record
+
+#### Scenario: Validate Site aggregate invariants
+
+- GIVEN Site, block, and block placement records are validated
+- WHEN the selected Site record adapter evaluates the candidate Program records
+- THEN Site home, header, and footer blocks must belong to that Site and have
+  the corresponding page, header, and footer block types
+- AND placement parent and child blocks must belong to the same Site
+- AND internal block targets must belong to the source block's Site
+- AND invalid cross-Site references reject the complete write before commit
+
+### Requirement: Explicit Site Starter Operation
+
+The Site schema SHALL declare an explicit collection-scoped
+`site.createStarter` command that creates one useful Site aggregate without
+making schema composition or bootstrap mutate Program records.
+
+#### Scenario: Create starter Site through a record plan
+
+- GIVEN an authorized caller invokes `site.createStarter` with no operation
+  input
+- WHEN Authority materializes its declarative record plan
+- THEN the plan creates one Site with a generated unique key and editable
+  `Untitled site` label
+- AND it creates one live home page, header and footer roots, header and footer
+  groups, internal home links, a home hero, an introductory Markdown block, and
+  valid ordered placements
+- AND every created block references the Site step
+- AND a final Site patch assigns the created home, header, and footer block ids
+- AND the command output identifies the created Site and every committed plan
+  step
+
+#### Scenario: Starter creation is one atomic invocation
+
+- GIVEN `site.createStarter` has begun materialization
+- WHEN a generated value, reference, record value, Site invariant, or placement
+  invariant fails validation
+- THEN no starter record or sync change is committed
+- AND replaying one successful idempotency key returns its stored output without
+  duplicate records
+- AND a new idempotency key is a new intentional Site creation rather than an
+  ensure, upsert, or reconciliation request
+
+#### Scenario: Starter records have ordinary lifecycle
+
+- GIVEN starter creation commits
+- WHEN authors edit, archive, snapshot, export, restore, or delete its records
+- THEN those records behave as ordinary user-owned Program records
+- AND no starter provenance, definition version, reconciliation state, or
+  automatic update behavior is stored
+- AND changing the schema declaration or starter record plan affects only
+  future invocations
+- AND source bootstrap, compatible schema refresh, workspace load, archive
+  restore, and snapshot restore do not invoke the operation
+
+#### Scenario: Reuse the canonical operation across callers
+
+- GIVEN generated Site presentation, trusted CLI or automation, or custom UI can
+  submit a Program operation invocation
+- WHEN it invokes `site.createStarter`
+- THEN every caller uses the same declared input, effect, authorization,
+  idempotency, audit, output, and committed record behavior
+- AND no caller-specific starter endpoint or hidden bootstrap path is required
 
 ### Requirement: Reusable Site Schema Modules
 
@@ -78,12 +147,13 @@ presentation declarations through a documented schema authoring subpath.
 - AND the downstream Program root may compose and specialize those declarations
   without moving Site or standard domain ownership into core runtime
 
-### Requirement: Program-Native Singleton Site
+### Requirement: Program-Native Site Aggregates
 
-The default Formless Program SHALL compose one built-in Site domain whose
-records are written directly to Program Authority from first use.
+The default Formless Program SHALL compose the built-in Site domain in Program
+Authority while Phase 1 generated administration and public routing select
+exactly one active Site aggregate.
 
-#### Scenario: Compose the singleton Site
+#### Scenario: Compose Program-native Site records
 
 - GIVEN the default Program composition imports the package-owned Site modules
 - WHEN its materialized schema is selected
@@ -92,21 +162,21 @@ records are written directly to Program Authority from first use.
   `instance:control-plane`, schema key `formless-program`, the Program record-id
   namespace, cursor, change log, snapshot boundary, browser replica, and
   content-free invalidation WebSocket
-- AND no composite record identity, Site reference field, built-in Site
-  workspace identity, or second built-in Site storage identity is introduced
+- AND no composite record identity, built-in Site workspace identity, or second
+  built-in Site storage identity is introduced
 - AND the runtime does not discover, import, merge, or migrate Site records,
   cursors, changes, operation histories, media provenance, archives,
   workspaces, replicas, or provenance from legacy `app:<installId>` storage
 
-#### Scenario: Validate Site-owned records generically
+#### Scenario: Validate Site-owned records through selected ownership
 
 - GIVEN active or tombstoned Program records use any of the three stable Site
   entity ids
 - WHEN Program validation or reviewable canonicalization runs
 - THEN generic Program schema validation remains responsible for field,
   reference, unique, delete-blocker, stable-entity, and record-id constraints
-- AND generic reviewable-record formatting retains active and tombstoned Site
-  records without a Site record adapter
+- AND the explicitly selected Site record adapter owns Site aggregate invariants
+  for the three stable Site entity ids
 - AND Site-specific public projections, rendering, and side effects remain
   separate explicitly selected runtime capabilities
 
@@ -119,7 +189,8 @@ records are written directly to Program Authority from first use.
   `/site/settings`, `/site/contacts`, and `/site/subscribers`
 - AND Site screens require Program `member` access and appear once in Program
   navigation
-- AND `site.update`, `block.create`, `block.update`, `block.delete`,
+- AND `site.createStarter`, `site.update`, `block.create`, `block.update`,
+  `block.delete`,
   `block-placement.create`, `block-placement.update`,
   `block-placement.addTreeChild`, and
   `block-placement.removeTreePlacement` require Program `editor` access
@@ -132,14 +203,17 @@ records are written directly to Program Authority from first use.
 
 ### Requirement: Public Tree Projection
 
-The system SHALL project live Site block and block placement records into a nested public tree ordered by placement order and grouped by placement slot.
+The system SHALL project one selected Site's live block and block placement
+records into a nested public tree ordered by placement order and grouped by
+placement slot.
 
 #### Scenario: Page tree renders children
 
-- GIVEN a live page block has child placements
+- GIVEN a selected Site references a live page block with child placements
 - WHEN the public tree is requested for the page route
 - THEN the response contains the page root and its child block nodes
 - AND default-slot child placements appear in placement order
+- AND blocks owned by another Site are excluded
 
 #### Scenario: Invalid structure warns
 
@@ -574,9 +648,29 @@ The system SHALL expose Site authoring through generated admin screens that
 edit Site settings and renderer-neutral tree-structured block composition
 without exposing raw implementation-only fields as primary controls.
 
+#### Scenario: Create the first Site explicitly
+
+- GIVEN the Program contains no active Site records
+- WHEN an author opens the primary Site screen
+- THEN the Site collection empty state presents `Create your first site` as its
+  primary action
+- AND the action is explicitly bound to `site.createStarter`
+- AND schema registration, screen rendering, and empty-state projection do not
+  invoke the command automatically
+- AND successful creation selects the created Site for the singleton Site
+  authoring experience
+
+#### Scenario: Reject ambiguous singleton authoring
+
+- GIVEN the Program contains more than one active Site record
+- WHEN Phase 1 Site administration selects its Site aggregate
+- THEN it presents an unavailable state identifying ambiguous Site selection
+- AND it does not combine blocks, roots, settings, or actions across Sites
+- AND a generated `New site` control and Site selector remain outside Phase 1
+
 #### Scenario: Settings edit hides key
 
-- GIVEN an author opens Site settings
+- GIVEN an author opens settings for the selected Site
 - WHEN the generated settings form renders
 - THEN label, description, icon, `initialThemeMode`, and `themeSwitchable` are
   editable
@@ -602,13 +696,15 @@ without exposing raw implementation-only fields as primary controls.
 
 #### Scenario: Project flat Site records for tree authoring
 
-- GIVEN a Site root, block records, and block placement records exist
+- GIVEN the selected Site root, its block records, and its block placement
+  records exist
 - WHEN the composition workspace projects its tree result
 - THEN runtime builds an ordered nested authoring tree from the flat records
 - AND each projected item keeps placement-edge identity separate from
   child-block identity
 - AND storage does not gain nested child arrays or denormalized presentation
   trees
+- AND records owned by another Site are not projected into the workspace
 
 #### Scenario: Focus one placement for editing
 
@@ -763,11 +859,13 @@ The system SHALL support generic Site content block variants for visually struct
 
 ### Requirement: Public Routes
 
-The system SHALL resolve public Site routes from live routable block hrefs and render public documents outside generated admin chrome.
+The system SHALL resolve public Site routes from one selected Site's explicit
+home root and live routable block hrefs and render public documents outside
+generated admin chrome.
 
 #### Scenario: Home route
 
-- GIVEN a live home page block exists
+- GIVEN the selected Site references a live home page block
 - WHEN a visitor opens `/`
 - THEN the runtime resolves the home route
 - AND renders the page using the public Site renderer
@@ -778,6 +876,7 @@ The system SHALL resolve public Site routes from live routable block hrefs and r
 - WHEN a visitor opens its `/blog/*` route
 - THEN the runtime renders the post detail document
 - AND the `/blog` page remains the post index page
+- AND matching blocks owned by another Site are not eligible
 
 #### Scenario: Project route shape
 
@@ -1002,8 +1101,8 @@ generated admin app shell or authenticated Program replica.
 
 ### Requirement: Schema-backed Public Site Theme
 
-The system SHALL derive public Site document theming from the primary Site
-settings record on published and mapped-host surfaces.
+The system SHALL derive public Site document theming from the selected Site
+record on published and mapped-host surfaces.
 
 The Site settings fields are:
 
@@ -1073,18 +1172,20 @@ renderer theme owns public color tokens.
 
 ### Requirement: Links And Frames
 
-The system SHALL render header, footer, and links from Site records, resolving internal targets from block references and external targets from absolute URLs.
+The system SHALL render header, footer, and links from the selected Site's
+explicit root references, resolving same-Site internal targets from block
+references and external targets from absolute URLs.
 
-#### Scenario: Frame roots render
+#### Scenario: Referenced frame roots render
 
-- GIVEN live header and footer roots exist
+- GIVEN the selected Site references live header and footer roots
 - WHEN a public page renders
 - THEN header and footer content comes from their nested Site block trees
 - AND missing frame roots warn without blocking the page document
 
 #### Scenario: Link target resolution
 
-- GIVEN a link block uses an internal target block reference
+- GIVEN a link block uses a same-Site internal target block reference
 - WHEN the public tree resolves links
 - THEN the link href is derived from the target block route
 - AND broken explicit targets produce public tree warnings
@@ -1112,7 +1213,7 @@ Site icons from the Site SVG icon.
 
 #### Scenario: Root icon routes
 
-- GIVEN Site settings contain an SVG icon
+- GIVEN the selected Site contains an SVG icon
 - WHEN a visitor requests `/favicon.svg`, `/favicon.ico`, or `/apple-touch-icon.png`
 - THEN the response is derived from the Site icon
 - AND generated PNG and ICO bytes are artifacts rather than stored record fields
@@ -1147,7 +1248,8 @@ keeping Site usage metadata in Site records.
 
 ### Requirement: Metadata And Indexing
 
-The system SHALL generate public document metadata, robots output, and sitemap output from live public Site records.
+The system SHALL generate public document metadata, robots output, and sitemap
+output from the selected Site and its live public blocks.
 
 #### Scenario: Public metadata
 
@@ -1163,11 +1265,36 @@ The system SHALL generate public document metadata, robots output, and sitemap o
 - THEN sitemap entries come from those routable blocks
 - AND settings records, generated app routes, tombstones, and non-routable blocks
   are excluded
+- AND routable blocks owned by another Site are excluded
 
 ### Requirement: Program Public Sites
 
-The system SHALL support one Program-native Site across mapped public Site hosts
-and published Site profile redirects with consistent public rendering.
+The system SHALL select exactly one active Program-native Site across mapped
+public Site hosts and published Site profile redirects until explicit route and
+domain Site targeting is introduced.
+
+#### Scenario: Select the sole active Site
+
+- GIVEN Program storage contains exactly one active Site record
+- WHEN Phase 1 public Site behavior selects its target
+- THEN that Site supplies settings, roots, blocks, metadata, indexing, icons,
+  public action source scope, and rendering
+- AND selection does not depend on a reserved Site key or record creation order
+
+#### Scenario: Reject missing or ambiguous public Site selection
+
+- GIVEN Program storage contains zero or more than one active Site records
+- WHEN a mapped or published public Site request requires a Site target
+- THEN the Site runtime returns an explicit unavailable system state
+- AND it does not select the first record, combine records, or synthesize a Site
+
+#### Scenario: Scope public operation source to the selected Site
+
+- GIVEN a public Site form submits a source block id
+- WHEN the public operation boundary validates the request
+- THEN the server-derived public Site target owns the accepted source block
+- AND a missing, tombstoned, wrong-type, or other-Site source block is rejected
+- AND client-supplied host, path, or block facts cannot select a different Site
 
 #### Scenario: Program Site remains the route contract
 
@@ -1184,14 +1311,14 @@ and published Site profile redirects with consistent public rendering.
 - GIVEN an enabled exact-host mapping uses profile `publicSite`
 - WHEN a visitor opens the mapped host
 - THEN the mapping renders top-level routes from the Program-native Site
-- AND the mapping selects the one Program public Site target
+- AND the mapping selects the sole active Program Site target
 - AND generated admin and app shell routes are blocked on that host
 
 #### Scenario: Published Site target selection
 
 - GIVEN a published Site runtime starts
 - WHEN it selects its public Site target
-- THEN it renders the Program-native Site from Program storage
+- THEN it renders the sole active Program-native Site from Program storage
 - AND the complete Program artifact and canonical Program provenance select the
   target
 

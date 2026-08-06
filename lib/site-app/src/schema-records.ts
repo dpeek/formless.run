@@ -1,8 +1,225 @@
-import { defineAppSchemaModule } from "@dpeek/formless-schema";
+import {
+  defineAppSchemaModule,
+  type QueryExpression,
+  type RecordPlanStepSchema,
+} from "@dpeek/formless-schema";
+
+function starterLiteral(value: string | number | boolean) {
+  return { kind: "literal", value } as const;
+}
+
+function starterStepId(step: string) {
+  return { kind: "stepOutput", step, output: "id" } as const;
+}
+
+function starterReference(entity: string, step: string) {
+  return { kind: "reference", entity, id: starterStepId(step) } as const;
+}
+
+const siteScopePredicate: QueryExpression = {
+  kind: "where",
+  ref: { kind: "value", name: "site" },
+  op: "eq",
+  value: { kind: "context", name: "site" },
+};
+
+function siteScopedBlockQuery(expression?: QueryExpression): QueryExpression {
+  return expression === undefined
+    ? siteScopePredicate
+    : { kind: "and", expressions: [siteScopePredicate, expression] };
+}
+
+const siteStarterRecordPlan: RecordPlanStepSchema[] = [
+  {
+    name: "createSite",
+    kind: "create",
+    entity: "site",
+    values: {
+      key: {
+        kind: "generatedCode",
+        alphabet: "upperAlphaNumericNoConfusables",
+        length: 10,
+        prefix: "site-",
+      },
+      label: starterLiteral("Untitled site"),
+    },
+  },
+  {
+    name: "createHomePage",
+    kind: "create",
+    entity: "block",
+    values: {
+      site: starterReference("site", "createSite"),
+      type: starterLiteral("page"),
+      label: starterLiteral("Home"),
+      href: starterLiteral("/"),
+    },
+  },
+  {
+    name: "createHeader",
+    kind: "create",
+    entity: "block",
+    values: {
+      site: starterReference("site", "createSite"),
+      type: starterLiteral("header"),
+      label: starterLiteral("Header"),
+    },
+  },
+  {
+    name: "createHeaderPrimary",
+    kind: "create",
+    entity: "block",
+    values: {
+      site: starterReference("site", "createSite"),
+      type: starterLiteral("headerPrimary"),
+      label: starterLiteral("Header primary"),
+    },
+  },
+  {
+    name: "createFooter",
+    kind: "create",
+    entity: "block",
+    values: {
+      site: starterReference("site", "createSite"),
+      type: starterLiteral("footer"),
+      label: starterLiteral("Footer"),
+    },
+  },
+  {
+    name: "createFooterSection",
+    kind: "create",
+    entity: "block",
+    values: {
+      site: starterReference("site", "createSite"),
+      type: starterLiteral("footerSection"),
+      label: starterLiteral("Footer section"),
+    },
+  },
+  {
+    name: "createHeaderHomeLink",
+    kind: "create",
+    entity: "block",
+    values: {
+      site: starterReference("site", "createSite"),
+      type: starterLiteral("link"),
+      label: starterLiteral("Home"),
+      linkTargetMode: starterLiteral("internal"),
+      linkTargetBlock: starterReference("block", "createHomePage"),
+    },
+  },
+  {
+    name: "createFooterHomeLink",
+    kind: "create",
+    entity: "block",
+    values: {
+      site: starterReference("site", "createSite"),
+      type: starterLiteral("link"),
+      label: starterLiteral("Home"),
+      linkTargetMode: starterLiteral("internal"),
+      linkTargetBlock: starterReference("block", "createHomePage"),
+    },
+  },
+  {
+    name: "createWelcomeHero",
+    kind: "create",
+    entity: "block",
+    values: {
+      site: starterReference("site", "createSite"),
+      type: starterLiteral("hero"),
+      label: starterLiteral("Welcome"),
+      body: starterLiteral("Welcome to your new site."),
+    },
+  },
+  {
+    name: "createAboutMarkdown",
+    kind: "create",
+    entity: "block",
+    values: {
+      site: starterReference("site", "createSite"),
+      type: starterLiteral("markdown"),
+      label: starterLiteral("About"),
+      body: starterLiteral("Add a short introduction to your site."),
+    },
+  },
+  {
+    name: "placeHeaderPrimary",
+    kind: "create",
+    entity: "block-placement",
+    values: {
+      parent: starterReference("block", "createHeader"),
+      block: starterReference("block", "createHeaderPrimary"),
+      order: starterLiteral(1000),
+    },
+  },
+  {
+    name: "placeHeaderHomeLink",
+    kind: "create",
+    entity: "block-placement",
+    values: {
+      parent: starterReference("block", "createHeaderPrimary"),
+      block: starterReference("block", "createHeaderHomeLink"),
+      order: starterLiteral(1000),
+    },
+  },
+  {
+    name: "placeFooterSection",
+    kind: "create",
+    entity: "block-placement",
+    values: {
+      parent: starterReference("block", "createFooter"),
+      block: starterReference("block", "createFooterSection"),
+      order: starterLiteral(1000),
+    },
+  },
+  {
+    name: "placeFooterHomeLink",
+    kind: "create",
+    entity: "block-placement",
+    values: {
+      parent: starterReference("block", "createFooterSection"),
+      block: starterReference("block", "createFooterHomeLink"),
+      order: starterLiteral(1000),
+    },
+  },
+  {
+    name: "placeWelcomeHero",
+    kind: "create",
+    entity: "block-placement",
+    values: {
+      parent: starterReference("block", "createHomePage"),
+      block: starterReference("block", "createWelcomeHero"),
+      order: starterLiteral(1000),
+    },
+  },
+  {
+    name: "placeAboutMarkdown",
+    kind: "create",
+    entity: "block-placement",
+    values: {
+      parent: starterReference("block", "createHomePage"),
+      block: starterReference("block", "createAboutMarkdown"),
+      order: starterLiteral(2000),
+    },
+  },
+  {
+    name: "assignSiteRoots",
+    kind: "patch",
+    entity: "site",
+    recordId: starterStepId("createSite"),
+    values: {
+      home: starterReference("block", "createHomePage"),
+      header: starterReference("block", "createHeader"),
+      footer: starterReference("block", "createFooter"),
+    },
+  },
+];
 
 export const siteRecordSchemaModule = defineAppSchemaModule({
   key: "site-records",
   runtimeRequirements: {
+    shared: {
+      recordAdapters: ["site.records"],
+    },
     browser: {
       surfaces: ["site.public"],
     },
@@ -72,6 +289,30 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
           label: "Allow visitors to switch theme",
           default: true,
         },
+        {
+          key: "home",
+          type: "reference",
+          required: false,
+          label: "Home page",
+          to: "block",
+          displayField: "label",
+        },
+        {
+          key: "header",
+          type: "reference",
+          required: false,
+          label: "Header",
+          to: "block",
+          displayField: "label",
+        },
+        {
+          key: "footer",
+          type: "reference",
+          required: false,
+          label: "Footer",
+          to: "block",
+          displayField: "label",
+        },
       ],
       constraints: [
         {
@@ -81,6 +322,25 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
         },
       ],
       operations: [
+        {
+          key: "createStarter",
+          label: "Create Site Starter",
+          kind: "command",
+          scope: "collection",
+          effect: {
+            type: "recordPlan",
+            steps: siteStarterRecordPlan,
+          },
+          output: {
+            type: "command",
+          },
+          idempotency: {
+            required: true,
+          },
+          audit: {
+            input: "summary",
+          },
+        },
         {
           key: "update",
           label: "Update Site",
@@ -112,6 +372,18 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
                 key: "themeSwitchable",
                 field: "themeSwitchable",
               },
+              {
+                key: "home",
+                field: "home",
+              },
+              {
+                key: "header",
+                field: "header",
+              },
+              {
+                key: "footer",
+                field: "footer",
+              },
             ],
           },
           effect: {
@@ -134,6 +406,14 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
       key: "block",
       label: "Block",
       fields: [
+        {
+          key: "site",
+          type: "reference",
+          required: true,
+          label: "Site",
+          to: "site",
+          displayField: "label",
+        },
         {
           key: "type",
           type: "enum",
@@ -417,6 +697,10 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
           scope: "collection",
           input: {
             fields: [
+              {
+                key: "site",
+                field: "site",
+              },
               {
                 key: "type",
                 field: "type",
@@ -789,6 +1073,7 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
               relationship: "blockPlacements",
               childField: "block",
               orderField: "order",
+              inheritFields: ["site"],
             },
           },
           output: {
@@ -827,6 +1112,110 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
     },
   ],
   relationships: [
+    {
+      key: "siteHome",
+      kind: "toOne",
+      label: "Home page",
+      from: {
+        entity: "site",
+        field: "home",
+      },
+      to: {
+        entity: "block",
+      },
+      inverse: "blockHomeForSites",
+    },
+    {
+      key: "blockHomeForSites",
+      kind: "toMany",
+      label: "Home for Sites",
+      from: {
+        entity: "block",
+      },
+      to: {
+        entity: "site",
+        field: "home",
+      },
+      inverse: "siteHome",
+    },
+    {
+      key: "siteHeader",
+      kind: "toOne",
+      label: "Header",
+      from: {
+        entity: "site",
+        field: "header",
+      },
+      to: {
+        entity: "block",
+      },
+      inverse: "blockHeaderForSites",
+    },
+    {
+      key: "blockHeaderForSites",
+      kind: "toMany",
+      label: "Header for Sites",
+      from: {
+        entity: "block",
+      },
+      to: {
+        entity: "site",
+        field: "header",
+      },
+      inverse: "siteHeader",
+    },
+    {
+      key: "siteFooter",
+      kind: "toOne",
+      label: "Footer",
+      from: {
+        entity: "site",
+        field: "footer",
+      },
+      to: {
+        entity: "block",
+      },
+      inverse: "blockFooterForSites",
+    },
+    {
+      key: "blockFooterForSites",
+      kind: "toMany",
+      label: "Footer for Sites",
+      from: {
+        entity: "block",
+      },
+      to: {
+        entity: "site",
+        field: "footer",
+      },
+      inverse: "siteFooter",
+    },
+    {
+      key: "blockSite",
+      kind: "toOne",
+      label: "Site",
+      from: {
+        entity: "block",
+        field: "site",
+      },
+      to: {
+        entity: "site",
+      },
+      inverse: "siteBlocks",
+    },
+    {
+      key: "siteBlocks",
+      kind: "toMany",
+      label: "Blocks",
+      from: {
+        entity: "site",
+      },
+      to: {
+        entity: "block",
+        field: "site",
+      },
+      inverse: "blockSite",
+    },
     {
       key: "placementParent",
       kind: "toOne",
@@ -1042,32 +1431,24 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
   ],
   queries: [
     {
-      key: "sitePrimary",
-      label: "Primary",
+      key: "siteAll",
+      label: "Sites",
       entity: "site",
       expression: {
-        kind: "where",
-        ref: {
-          kind: "value",
-          name: "key",
-        },
-        op: "eq",
-        value: "primary",
+        kind: "all",
       },
     },
     {
       key: "blockAll",
       label: "All",
       entity: "block",
-      expression: {
-        kind: "all",
-      },
+      expression: siteScopedBlockQuery(),
     },
     {
       key: "blockPages",
       label: "Pages",
       entity: "block",
-      expression: {
+      expression: siteScopedBlockQuery({
         kind: "where",
         ref: {
           kind: "value",
@@ -1075,13 +1456,13 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
         },
         op: "eq",
         value: "page",
-      },
+      }),
     },
     {
       key: "blockNavigationRoots",
       label: "Navigation",
       entity: "block",
-      expression: {
+      expression: siteScopedBlockQuery({
         kind: "or",
         expressions: [
           {
@@ -1103,13 +1484,13 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
             value: "footer",
           },
         ],
-      },
+      }),
     },
     {
       key: "blockSiteRoots",
       label: "Site roots",
       entity: "block",
-      expression: {
+      expression: siteScopedBlockQuery({
         kind: "or",
         expressions: [
           {
@@ -1158,13 +1539,13 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
             value: "footer",
           },
         ],
-      },
+      }),
     },
     {
       key: "blockPosts",
       label: "Posts",
       entity: "block",
-      expression: {
+      expression: siteScopedBlockQuery({
         kind: "where",
         ref: {
           kind: "value",
@@ -1172,13 +1553,13 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
         },
         op: "eq",
         value: "post",
-      },
+      }),
     },
     {
       key: "blockProjects",
       label: "Projects",
       entity: "block",
-      expression: {
+      expression: siteScopedBlockQuery({
         kind: "where",
         ref: {
           kind: "value",
@@ -1186,13 +1567,13 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
         },
         op: "eq",
         value: "project",
-      },
+      }),
     },
     {
       key: "blockLinks",
       label: "Links",
       entity: "block",
-      expression: {
+      expression: siteScopedBlockQuery({
         kind: "where",
         ref: {
           kind: "value",
@@ -1200,13 +1581,13 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
         },
         op: "eq",
         value: "link",
-      },
+      }),
     },
     {
       key: "blockGroups",
       label: "Groups",
       entity: "block",
-      expression: {
+      expression: siteScopedBlockQuery({
         kind: "where",
         ref: {
           kind: "value",
@@ -1214,13 +1595,13 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
         },
         op: "eq",
         value: "group",
-      },
+      }),
     },
     {
       key: "blockImages",
       label: "Images",
       entity: "block",
-      expression: {
+      expression: siteScopedBlockQuery({
         kind: "where",
         ref: {
           kind: "value",
@@ -1228,7 +1609,7 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
         },
         op: "eq",
         value: "image",
-      },
+      }),
     },
     {
       key: "placementsForSelectedBlock",

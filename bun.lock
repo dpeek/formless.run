@@ -184,6 +184,7 @@
         "@dpeek/formless-schema": "workspace:*",
         "@dpeek/formless-source-svg": "workspace:*",
         "@dpeek/formless-standard": "workspace:*",
+        "@dpeek/formless-storage": "workspace:*",
         "react": "19.2.6",
         "react-dom": "19.2.6",
       },

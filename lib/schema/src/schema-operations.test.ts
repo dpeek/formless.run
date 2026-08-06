@@ -196,6 +196,7 @@ describe("schema entity operations", () => {
     const submitIntakeEffect = operation(operations, "submitIntake").effect;
     const binding = classifyCollectionOperationBinding({
       operation: "task.clearCompletedTasks",
+      placement: "toolbar",
       count: { type: "count" },
     });
     const tableBinding = classifyTableOperationBinding({
@@ -688,8 +689,8 @@ describe("schema entity operations", () => {
     }
 
     expect(view.operations).toEqual([
-      { operation: "task.hiddenOwner" },
-      { operation: "task.runnerOnly" },
+      { operation: "task.hiddenOwner", placement: "toolbar" },
+      { operation: "task.runnerOnly", placement: "toolbar" },
     ]);
   });
 

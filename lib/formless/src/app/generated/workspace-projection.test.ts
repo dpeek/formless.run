@@ -345,6 +345,46 @@ describe("generated Formless UI workspace projection", () => {
     expect(unavailableCollection.presentation.result.kind).toBe("recordResult");
   });
 
+  it("preserves the explicit primary operation in a workspace collection empty state", () => {
+    const scope = workspaceScope("site", "sites", "siteHome");
+    const action = { ...operationAction(scope, "create-starter"), role: "command" as const };
+    const workspace = projectGeneratedWorkspaceContract({
+      id: "site",
+      label: "Site",
+      width: "standard",
+      sections: [
+        {
+          collection: {
+            availability: {
+              description: "Create a starter Site to begin.",
+              state: "empty",
+              title: "No Site configured",
+            },
+            emptyStatePrimaryAction: action,
+            id: "siteHome",
+            label: "Sites",
+            queries: [{ id: "all", label: "All" }],
+            result: listResult(scope, "sites"),
+            selectedQueryId: "all",
+          },
+          id: "sites",
+          label: "Sites",
+        },
+      ],
+    });
+
+    expect(requiredSection(workspace.sections[0]).collection.availability).toEqual({
+      emptyState: {
+        action,
+        description: "Create a starter Site to begin.",
+        id: `${scope.collectionId}:result:siteHome:availability:empty`,
+        kind: "workspaceEmptyState",
+        title: "No Site configured",
+      },
+      state: "empty",
+    });
+  });
+
   it("wraps canonical nested intents with complete workspace routing identity", () => {
     const scope = workspaceScope("tasks", "tasks", "taskHome");
     const resultId = generatedWorkspaceScopedId(scope, "result", "active");

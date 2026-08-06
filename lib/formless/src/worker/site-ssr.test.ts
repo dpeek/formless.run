@@ -530,6 +530,7 @@ describe("published Site Worker SSR", () => {
         id: "rec_site_content_extra_page",
         entity: "block",
         values: {
+          site: "rec_site_settings_primary",
           type: "page",
           label: "Server rendered extra page",
           href: "/extra-page",
@@ -628,6 +629,35 @@ describe("published Site Worker SSR", () => {
     ]);
     expect(bodies.join("\n")).not.toContain("data-site-header");
     expect(bodies.join("\n")).not.toContain("Loading site page...");
+  });
+
+  it("keeps published documents and icons unavailable without one active Site", async () => {
+    const recordSets = [
+      [],
+      [
+        ...testSiteRecords,
+        {
+          id: "site:second",
+          entity: "site",
+          values: { key: "second", label: "Second Site" },
+          createdAt: "2026-08-06T00:00:00.000Z",
+          updatedAt: "2026-08-06T00:00:00.000Z",
+        },
+      ],
+    ];
+
+    for (const records of recordSets) {
+      await restoreProgramSiteRecords(records);
+      const document = await getDocument("/");
+      const icon = await getDocument("/favicon.svg");
+
+      expect(document.status).toBe(500);
+      expect(document.headers.get("Cache-Control")).toBe(PUBLISHED_SITE_ERROR_CACHE_CONTROL);
+      expect(await document.text()).toContain("Site page failed to load");
+      expect(icon.status).toBe(503);
+      expect(icon.headers.get("Cache-Control")).toBe("no-store");
+      expect(await icon.text()).toBe("Site unavailable.\n");
+    }
   });
 });
 

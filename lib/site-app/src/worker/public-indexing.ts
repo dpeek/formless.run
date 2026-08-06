@@ -4,6 +4,7 @@ import {
   renderPublicRobotsTxt,
 } from "../public-indexing.ts";
 import type { StoredRecord } from "../types.ts";
+import { selectSoleActiveSite } from "../site-selection.ts";
 import {
   PUBLIC_SITE_INDEXING_CACHE_CONTROL,
   PUBLIC_SITE_INDEXING_ERROR_CACHE_CONTROL,
@@ -14,6 +15,7 @@ export type PublicSiteIndexingResource = "robots" | "sitemap";
 export type PublicSiteIndexingRenderInput =
   | {
       origin: string;
+      records?: StoredRecord[];
       resource: "robots";
     }
   | {
@@ -26,14 +28,20 @@ export type PublicSiteIndexingRenderInput =
 export function renderPublishedSiteIndexingResponse(
   input: PublicSiteIndexingRenderInput,
 ): Response {
-  if (input.resource === "robots") {
-    return textResponse(renderPublicRobotsTxt(input.origin), "text/plain; charset=utf-8");
-  }
-
   if (!input.records) {
-    return textResponse("Sitemap unavailable.\n", "text/plain; charset=utf-8", 500, {
+    return textResponse("Site unavailable.\n", "text/plain; charset=utf-8", 503, {
       "Cache-Control": PUBLIC_SITE_INDEXING_ERROR_CACHE_CONTROL,
     });
+  }
+
+  if (selectSoleActiveSite(input.records).kind === "unavailable") {
+    return textResponse("Site unavailable.\n", "text/plain; charset=utf-8", 503, {
+      "Cache-Control": PUBLIC_SITE_INDEXING_ERROR_CACHE_CONTROL,
+    });
+  }
+
+  if (input.resource === "robots") {
+    return textResponse(renderPublicRobotsTxt(input.origin), "text/plain; charset=utf-8");
   }
 
   const routes = buildPublicSiteRouteEntries(input.records, {

@@ -354,19 +354,24 @@ describe("instance custom-domain Worker routing", () => {
     const ordinary = await createActivePrincipalSessionCookie("Program Session Ordinary User");
     const path = `${PROGRAM_SESSION_API_PATH}?returnTo=%2Ftasks`;
     const anonymous = await fetchHost("www.example.com", path);
+    const anonymousBody = (await anonymous.json()) as Record<string, unknown>;
     const blocked = await fetchHost("www.example.com", path, {
       headers: { Cookie: incompleteAdministrator.cookie },
     });
+    const blockedBody = (await blocked.json()) as Record<string, unknown>;
     const forbidden = await fetchHost("www.example.com", path, {
       headers: { Cookie: ordinary.cookie },
     });
+    const forbiddenBody = (await forbidden.json()) as Record<string, unknown>;
     const ready = await fetchHost("www.example.com", path, {
       headers: { Cookie: ownerCookie },
     });
+    const readyBody = (await ready.json()) as Record<string, unknown>;
     const unsafe = await fetchHost(
       "www.example.com",
       `${PROGRAM_SESSION_API_PATH}?returnTo=${encodeURIComponent("https://evil.example.com/tasks")}`,
     );
+    const unsafeBody = (await unsafe.json()) as Record<string, unknown>;
     const directForbidden = await fetchHost("www.example.com", "/tasks", {
       headers: { Accept: "text/html", Cookie: ordinary.cookie },
       redirect: "manual",
@@ -375,11 +380,6 @@ describe("instance custom-domain Worker routing", () => {
       headers: { Accept: "text/html", Cookie: ownerCookie },
       redirect: "manual",
     });
-    const anonymousBody = (await anonymous.json()) as Record<string, unknown>;
-    const blockedBody = (await blocked.json()) as Record<string, unknown>;
-    const forbiddenBody = (await forbidden.json()) as Record<string, unknown>;
-    const readyBody = (await ready.json()) as Record<string, unknown>;
-    const unsafeBody = (await unsafe.json()) as Record<string, unknown>;
     const routeId = routeRecordIds.get("route:primary-production");
 
     expect(anonymous.status).toBe(200);
@@ -1024,6 +1024,41 @@ describe("instance custom-domain Worker routing", () => {
     expect(await robots.text()).toContain("User-agent: *");
     expect(favicon.status).toBe(200);
     expect(favicon.headers.get("Content-Type")).toBe("image/svg+xml; charset=utf-8");
+    expect(assetRequests).toEqual(["/assets/formless-client-manifest.json"]);
+  });
+
+  it("keeps mapped public Site documents and resources unavailable for ambiguous Sites", async () => {
+    await restoreTestStorageSnapshot(
+      harness,
+      `${controlPlaneApi}/snapshot/restore`,
+      instanceControlPlaneTestStorageSnapshot([
+        ...testSiteRecords,
+        {
+          id: "site:second",
+          entity: "site",
+          values: { key: "second", label: "Second Site" },
+          createdAt: "2026-08-06T00:00:00.000Z",
+          updatedAt: "2026-08-06T00:00:00.000Z",
+        },
+      ]),
+      adminHeaders(),
+    );
+    await setupMappedSite();
+    assetRequests = [];
+
+    const document = await fetchMappedHost("/", { headers: { Accept: "text/html" } });
+    const documentHtml = await document.text();
+    const robots = await fetchMappedHost("/robots.txt");
+    const robotsText = await robots.text();
+    const favicon = await fetchMappedHost("/favicon.svg");
+    const faviconText = await favicon.text();
+
+    expect(document.status).toBe(500);
+    expect(documentHtml).toContain("Site page failed to load");
+    expect(robots.status).toBe(503);
+    expect(robotsText).toBe("Site unavailable.\n");
+    expect(favicon.status).toBe(503);
+    expect(faviconText).toBe("Site unavailable.\n");
     expect(assetRequests).toEqual(["/assets/formless-client-manifest.json"]);
   });
 

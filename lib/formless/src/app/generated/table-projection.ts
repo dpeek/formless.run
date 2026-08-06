@@ -1,5 +1,6 @@
 import type {
   ButtonContract,
+  CollectionEmptyStatePrimaryActionContract,
   FieldContract,
   NativeLinkActionContract,
   OperationControlContract,
@@ -43,6 +44,7 @@ export type ProjectGeneratedTableContractOptions = {
   accessibilityLabel: string;
   density?: TableContract["density"];
   editingDisabledReason?: string;
+  emptyStateAction?: CollectionEmptyStatePrimaryActionContract;
   emptyStateDescription?: string;
   footerValuesByColumnId?: Readonly<
     Record<string, GeneratedTableFooterValueProjection | undefined>
@@ -129,6 +131,7 @@ export function projectGeneratedTableContract({
   accessibilityLabel,
   density = "compact",
   editingDisabledReason = "Editing is disabled.",
+  emptyStateAction,
   emptyStateDescription,
   footerValuesByColumnId = {},
   id,
@@ -173,6 +176,7 @@ export function projectGeneratedTableContract({
     ...(presentation.emptyState.visible
       ? {
           emptyState: {
+            ...(emptyStateAction === undefined ? {} : { action: emptyStateAction }),
             ...(emptyStateDescription === undefined ? {} : { description: emptyStateDescription }),
             id: `${id}:empty`,
             kind: "tableEmptyState" as const,

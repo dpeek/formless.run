@@ -2278,8 +2278,15 @@ function selectWorkspaceSectionRuntimeInput({
       selectedPlacementId: treeSelectedPlacementIdByResultId[facts.resultId],
     },
   };
-  const collectionActions = facts.section.collection.operations.map((operation) =>
-    selectWorkspaceCollectionAction({
+  const scopeState = facts.scopeSelection?.state;
+  const availableOperations = facts.section.collection.operations.filter(
+    (operation) =>
+      scopeState === undefined ||
+      scopeState === "ready" ||
+      (scopeState === "empty" && operation.placement === "emptyStatePrimary"),
+  );
+  const selectedCollectionActions = availableOperations.map((operation) => ({
+    foundation: selectWorkspaceCollectionAction({
       confirmationOpenByControlId,
       controller,
       createFieldStateBySurfaceId,
@@ -2290,11 +2297,26 @@ function selectWorkspaceSectionRuntimeInput({
       operation,
       snapshot,
     }),
-  );
-  input.collectionActions = collectionActions;
+    placement: operation.placement,
+  }));
+  input.collectionActions = selectedCollectionActions
+    .filter(({ placement }) => placement === "toolbar")
+    .map(({ foundation }) => foundation);
+  const emptyStatePrimary = selectedCollectionActions.find(
+    ({ placement }) => placement === "emptyStatePrimary",
+  )?.foundation;
+  if (emptyStatePrimary !== undefined) {
+    input.emptyStatePrimaryAction = {
+      action:
+        emptyStatePrimary.action.kind === "createAction"
+          ? emptyStatePrimary.action
+          : { ...emptyStatePrimary.action, role: "command" },
+      runtime: emptyStatePrimary.runtime,
+    };
+  }
 
   const context = facts.section.collection.context;
-  if (context?.createOperation) {
+  if (context?.createOperation && (scopeState === undefined || scopeState === "ready")) {
     const selected = selectWorkspaceCreateAction({
       controller,
       createFieldStateBySurfaceId,
@@ -2335,6 +2357,9 @@ function selectWorkspaceSectionRuntimeInput({
       dialogOpenById: tableDialogOpenById,
       entity: facts.section.collection.entity,
       entityName: facts.section.collection.entityName,
+      ...(input.emptyStatePrimaryAction === undefined
+        ? {}
+        : { emptyStateAction: input.emptyStatePrimaryAction.action }),
       fieldStateByContextId: tableStateByResultId[facts.resultId],
       id: facts.resultId,
       mediaAssetOptionsForField: (entityName, fieldName) =>
@@ -2455,7 +2480,7 @@ function selectWorkspaceCollectionAction({
       mediaAssetOptionsByFieldKey,
       operation,
       snapshot,
-      surfaceLocalId: `collection:${operation.operation.canonicalKey}`,
+      surfaceLocalId: collectionOperationLocalId(operation),
     });
     return { ...selected, placement: "primary" as const };
   }
@@ -2463,7 +2488,7 @@ function selectWorkspaceCollectionAction({
   const controlId = generatedWorkspaceScopedId(
     facts.scope,
     "control",
-    `collection:${operation.operation.canonicalKey}`,
+    collectionOperationLocalId(operation),
   );
   const binding = projectCollectionOperationControlBinding(operation, { id: controlId });
   const state =
@@ -2487,7 +2512,7 @@ function selectWorkspaceCollectionAction({
       content: { kind: "label", label: operation.label },
       density: "default",
       pendingLabel: `${operation.label}...`,
-      prominence: "secondary",
+      prominence: operation.placement === "emptyStatePrimary" ? "primary" : "secondary",
     },
     state,
     ...(targetCount === undefined ? {} : { targetCount }),
@@ -2497,6 +2522,11 @@ function selectWorkspaceCollectionAction({
     placement: "secondary" as const,
     runtime: { binding, kind: "command", operation } satisfies GeneratedWorkspaceCommandRuntime,
   };
+}
+
+function collectionOperationLocalId(operation: HomeOperationConfig) {
+  const prefix = operation.placement === "toolbar" ? "collection" : "collection:emptyStatePrimary";
+  return `${prefix}:${operation.operation.canonicalKey}`;
 }
 
 function selectWorkspaceCreateAction({
@@ -2593,6 +2623,12 @@ function collectWorkspaceBindings(
 ) {
   for (const action of input.collectionActions ?? []) {
     const runtime = action.runtime as GeneratedWorkspaceKnownControlRuntime;
+    if (runtime.kind === "create" || runtime.kind === "command") {
+      bindings.push(runtime.binding);
+    }
+  }
+  if (input.emptyStatePrimaryAction !== undefined) {
+    const runtime = input.emptyStatePrimaryAction.runtime as GeneratedWorkspaceKnownControlRuntime;
     if (runtime.kind === "create" || runtime.kind === "command") {
       bindings.push(runtime.binding);
     }

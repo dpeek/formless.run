@@ -47,7 +47,7 @@ beforeEach(async () => {
   await restoreTestStorageSnapshot(
     harness,
     `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot/restore`,
-    instanceControlPlaneTestStorageSnapshot(),
+    instanceControlPlaneTestStorageSnapshot(publicOperationSourceRecords()),
     adminHeaders(),
   );
 });
@@ -169,6 +169,56 @@ describe("public operation runtime", () => {
     ]);
   });
 
+  it("rejects unavailable and unselected Site form sources before public execution", async () => {
+    const sourceCases = [
+      ["missing-source", "block:missing"],
+      ["wrong-type-source", "block:markdown"],
+      ["deleted-source", "block:deleted-form"],
+    ] as const;
+    const responses = await Promise.all(
+      sourceCases.map(([key, sourceBlockId]) =>
+        postPublicOperation(
+          `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/public/operations/subscription/subscribe`,
+          publicSubscribeBody({ idempotencyKey: key, sourceBlockId }),
+        ),
+      ),
+    );
+
+    expect(responses.map((response) => response.status)).toEqual([404, 404, 404]);
+    for (const response of responses) {
+      expect(await response.json()).toEqual({
+        error: "Public operation source is not available.",
+      });
+    }
+    expect(turnstileRequests).toEqual([]);
+
+    await restoreTestStorageSnapshot(
+      harness,
+      `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot/restore`,
+      instanceControlPlaneTestStorageSnapshot([
+        ...publicOperationSourceRecords(),
+        siteRecord("site:other", { key: "other", label: "Other Site" }),
+        blockRecord("block:other-subscribe", "site:other", {
+          type: "subscribeForm",
+          label: "Other subscribe form",
+          operationName: "subscribe",
+        }),
+      ]),
+      adminHeaders(),
+    );
+    const ambiguous = await postPublicOperation(
+      `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/public/operations/subscription/subscribe`,
+      publicSubscribeBody({
+        idempotencyKey: "ambiguous-source",
+        sourceBlockId: "block:other-subscribe",
+      }),
+    );
+
+    expect(ambiguous.status).toBe(503);
+    expect(await ambiguous.json()).toEqual({ error: "Public Site is unavailable." });
+    expect(turnstileRequests).toEqual([]);
+  });
+
   it("replays Program public operations without repeating challenge or effects", async () => {
     const first = await postPublicOperation(
       `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/public/operations/subscription/subscribe`,
@@ -236,9 +286,17 @@ describe("public operation runtime", () => {
       `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot/restore`,
       instanceControlPlaneTestStorageSnapshot([
         {
+          id: "site:operation-input-notify",
+          entity: "site",
+          values: { key: "operation-input-notify", label: "Operation input notify" },
+          createdAt: "2026-07-31T00:00:00.000Z",
+          updatedAt: "2026-07-31T00:00:00.000Z",
+        },
+        {
           id: sourceBlockId,
           entity: "block",
           values: {
+            site: "site:operation-input-notify",
             type: "publicOperationForm",
             label: "Contact us",
             operationKey: "contact-message.submit",
@@ -425,6 +483,54 @@ function contactSubscriptionRecords(records: StoredRecord[]) {
 
 function contactMessageRecords(records: StoredRecord[]) {
   return records.filter((record) => record.entity === "contact-message");
+}
+
+function publicOperationSourceRecords(): StoredRecord[] {
+  return [
+    siteRecord("site:public", { key: "public", label: "Public Site" }),
+    blockRecord("rec_site_subscribe_form", "site:public", {
+      type: "subscribeForm",
+      label: "Subscribe",
+      operationName: "subscribe",
+    }),
+    blockRecord("rec_site_contact_form", "site:public", {
+      type: "contactForm",
+      label: "Contact",
+      operationName: "submit",
+    }),
+    blockRecord("block:markdown", "site:public", {
+      type: "markdown",
+      label: "Not a form",
+    }),
+    {
+      ...blockRecord("block:deleted-form", "site:public", {
+        type: "subscribeForm",
+        label: "Deleted form",
+        operationName: "subscribe",
+      }),
+      deletedAt: "2026-08-06T00:00:00.000Z",
+    },
+  ];
+}
+
+function siteRecord(id: string, values: StoredRecord["values"]): StoredRecord {
+  return {
+    id,
+    entity: "site",
+    values,
+    createdAt: "2026-08-06T00:00:00.000Z",
+    updatedAt: "2026-08-06T00:00:00.000Z",
+  };
+}
+
+function blockRecord(id: string, site: string, values: StoredRecord["values"]): StoredRecord {
+  return {
+    id,
+    entity: "block",
+    values: { site, ...values },
+    createdAt: "2026-08-06T00:00:00.000Z",
+    updatedAt: "2026-08-06T00:00:00.000Z",
+  };
 }
 
 async function getJson<T>(path: string, target: Harness = harness) {

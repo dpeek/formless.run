@@ -6,7 +6,7 @@ import type {
 } from "../public-renderer.ts";
 import type { SitePublicSystemStateRendererComponent } from "../public-system-state.ts";
 import { buildSitePageTree } from "../tree.ts";
-import type { SitePageTree, StoredRecord } from "../types.ts";
+import type { SitePageTreeProjection, StoredRecord } from "../types.ts";
 import {
   renderPublishedSiteDocumentResponse,
   type PublicSiteDocumentRenderInput,
@@ -26,7 +26,7 @@ type PublicSiteWorkerTreeInput = {
 };
 
 export type SitePublicWorkerAdapter = {
-  buildPublicTree(input: PublicSiteWorkerTreeInput): { tree: SitePageTree | null };
+  buildPublicTree(input: PublicSiteWorkerTreeInput): SitePageTreeProjection;
   renderDocument(
     input: SitePublicWorkerDocumentRenderInput,
   ): Promise<PublicSiteDocumentRenderResponse>;

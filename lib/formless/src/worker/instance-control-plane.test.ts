@@ -92,6 +92,22 @@ describe("instance control-plane API routes", () => {
   });
 
   it("grants the complete replica by ordered Program role while separating management and operations", async () => {
+    const siteId = "site:replica";
+
+    await restoreTestStorageSnapshot(
+      harness,
+      `${controlPlaneApi}/snapshot/restore`,
+      instanceControlPlaneTestStorageSnapshot([
+        {
+          id: siteId,
+          entity: "site",
+          values: { key: "replica", label: "Replica Site" },
+          createdAt: "2026-07-31T00:00:00.000Z",
+          updatedAt: "2026-07-31T00:00:00.000Z",
+        },
+      ]),
+      adminHeaders(),
+    );
     const member = await createIdentityPrincipal("Replica Member");
     const memberAssignment = await assignIdentityProgramRole(member.id, "member");
     const editor = await createIdentityPrincipal("Replica Editor");
@@ -172,40 +188,52 @@ describe("instance control-plane API routes", () => {
     await expectNoProgramSyncSocketMessage(memberSocket);
 
     const pushedProgramChange = readProgramSyncSocketMessage(memberSocket);
-    const [editorTaskWrite, editorSiteWrite] = await Promise.all([
-      harness.fetch(`${controlPlaneApi}/operations/task/create`, {
-        body: JSON.stringify({
-          idempotencyKey: "editor-creates-program-task",
-          input: {
-            done: false,
-            priority: "high",
-            title: "Program-native task",
+    const [
+      { body: editorTaskBody, response: editorTaskWrite },
+      { body: editorSiteBody, response: editorSiteWrite },
+    ] = await Promise.all([
+      harness
+        .fetch(`${controlPlaneApi}/operations/task/create`, {
+          body: JSON.stringify({
+            idempotencyKey: "editor-creates-program-task",
+            input: {
+              done: false,
+              priority: "high",
+              title: "Program-native task",
+            },
+          }),
+          headers: {
+            ...editorSession,
+            "Content-Type": "application/json",
           },
-        }),
-        headers: {
-          ...editorSession,
-          "Content-Type": "application/json",
-        },
-        method: "POST",
-      }),
-      harness.fetch(`${controlPlaneApi}/operations/block/create`, {
-        body: JSON.stringify({
-          idempotencyKey: "editor-creates-program-site-page",
-          input: {
-            href: "/replica-site",
-            label: "Program-native Site page",
-            type: "page",
+          method: "POST",
+        })
+        .then(async (response) => ({
+          body: (await response.json()) as OperationInvocationResponse,
+          response,
+        })),
+      harness
+        .fetch(`${controlPlaneApi}/operations/block/create`, {
+          body: JSON.stringify({
+            idempotencyKey: "editor-creates-program-site-page",
+            input: {
+              site: siteId,
+              href: "/replica-site",
+              label: "Program-native Site page",
+              type: "page",
+            },
+          }),
+          headers: {
+            ...editorSession,
+            "Content-Type": "application/json",
           },
-        }),
-        headers: {
-          ...editorSession,
-          "Content-Type": "application/json",
-        },
-        method: "POST",
-      }),
+          method: "POST",
+        })
+        .then(async (response) => ({
+          body: (await response.json()) as OperationInvocationResponse,
+          response,
+        })),
     ]);
-    const editorTaskBody = (await editorTaskWrite.json()) as OperationInvocationResponse;
-    const editorSiteBody = (await editorSiteWrite.json()) as OperationInvocationResponse;
     const pushedProgramBody = await pushedProgramChange;
     await expectNoProgramSyncSocketMessage(memberSocket);
     const replayedTaskWrite = await harness.fetch(`${controlPlaneApi}/operations/task/create`, {

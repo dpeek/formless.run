@@ -1,5 +1,6 @@
 import type { MediaAssetOption } from "@dpeek/formless-media/client";
 import type {
+  CollectionEmptyStatePrimaryActionContract,
   FieldContract,
   FieldIntent,
   TableActionContract,
@@ -168,6 +169,7 @@ export type SelectGeneratedWorkspaceTableFoundationOptions = {
   dialogOpenById?: Readonly<Record<string, boolean | undefined>>;
   entity: EntitySchema;
   entityName: string;
+  emptyStateAction?: CollectionEmptyStatePrimaryActionContract;
   fieldStateByContextId?: Readonly<Record<string, GeneratedTableFieldContextState | undefined>>;
   id: string;
   mediaAssetOptionsForField?: (
@@ -189,6 +191,7 @@ export function selectGeneratedWorkspaceTableFoundation({
   dialogOpenById = {},
   entity,
   entityName,
+  emptyStateAction,
   fieldStateByContextId = {},
   id,
   mediaAssetOptionsForField = () => [],
@@ -233,6 +236,7 @@ export function selectGeneratedWorkspaceTableFoundation({
     dialogOpenById,
     entity,
     entityName,
+    emptyStateAction,
     fieldStateByContextId,
     mediaAssetOptionsForField,
     presentation,
@@ -254,6 +258,7 @@ export function projectGeneratedRecordTable({
   dialogOpenById,
   entity,
   entityName,
+  emptyStateAction,
   fieldStateByContextId,
   mediaAssetOptionsForField,
   presentation,
@@ -270,6 +275,7 @@ export function projectGeneratedRecordTable({
   dialogOpenById: Readonly<Record<string, boolean | undefined>>;
   entity: EntitySchema;
   entityName: string;
+  emptyStateAction?: CollectionEmptyStatePrimaryActionContract;
   fieldStateByContextId: Readonly<Record<string, GeneratedTableFieldContextState | undefined>>;
   mediaAssetOptionsForField: (entityName: string, fieldName: string) => readonly MediaAssetOption[];
   presentation: GeneratedTablePresentation;
@@ -355,6 +361,7 @@ export function projectGeneratedRecordTable({
   const table = projectGeneratedTableContract({
     accessibilityLabel: `${entity.label} records`,
     editingDisabledReason: `Editing is disabled for ${entity.label}.`,
+    ...(emptyStateAction === undefined ? {} : { emptyStateAction }),
     footerValuesByColumnId,
     id: tableId,
     presentation,
@@ -462,7 +469,9 @@ export function indexGeneratedTableFieldOccurrences(
   }
 
   if (table.emptyState?.action !== undefined) {
-    indexAction(table.emptyState.action);
+    if (table.emptyState.action.kind === "operationAction") {
+      indexAction(table.emptyState.action);
+    }
   }
 
   return fieldsById;
