@@ -125,7 +125,7 @@ describe("Formless CLI", () => {
       "Usage: formless <command>",
       "",
       "Commands:",
-      "  dev [--workspace <path>] [--open] [--reset]",
+      "  dev [--workspace <path>] [--open] [--reset] [--reset-auth]",
       "                                      Run local workspace and print browser session URL",
       "  pull [--workspace <path>] [--target <alias>] [--dry-run]",
       "                                      Workspace source pull",
@@ -215,24 +215,35 @@ describe("Formless CLI", () => {
       kind: "workspaceDev",
       open: false,
       reset: false,
+      resetAuth: false,
       workspacePath: null,
     });
     expect(parseFormlessCliArgs(["dev", "--workspace", "../personal"])).toEqual({
       kind: "workspaceDev",
       open: false,
       reset: false,
+      resetAuth: false,
       workspacePath: "../personal",
     });
     expect(parseFormlessCliArgs(["dev", "--workspace", "../personal", "--open"])).toEqual({
       kind: "workspaceDev",
       open: true,
       reset: false,
+      resetAuth: false,
       workspacePath: "../personal",
     });
     expect(parseFormlessCliArgs(["dev", "--workspace", "../personal", "--reset"])).toEqual({
       kind: "workspaceDev",
       open: false,
       reset: true,
+      resetAuth: false,
+      workspacePath: "../personal",
+    });
+    expect(parseFormlessCliArgs(["dev", "--workspace", "../personal", "--reset-auth"])).toEqual({
+      kind: "workspaceDev",
+      open: false,
+      reset: true,
+      resetAuth: true,
       workspacePath: "../personal",
     });
     expect(parseFormlessCliArgs(["pull", "--workspace", "../personal"])).toEqual({
@@ -358,7 +369,7 @@ describe("Formless CLI", () => {
   it("keeps CLI parse error messages stable", () => {
     expect(() => parseFormlessCliArgs(["unknown"])).toThrow("Unknown command: unknown");
     expect(() => parseFormlessCliArgs(["dev", "--help"])).toThrow(
-      "Usage: formless dev [--workspace <path>] [--open] [--reset]",
+      "Usage: formless dev [--workspace <path>] [--open] [--reset] [--reset-auth]",
     );
     expect(() => parseFormlessCliArgs(["dev", "--print-session"])).toThrow(
       "Unknown option for formless dev: --print-session",
@@ -2279,15 +2290,11 @@ describe("Formless CLI", () => {
     expect(logs).toHaveLength(2);
   });
 
-  it("starts instance workspace dev from an empty workspace after selecting a workspace name", async () => {
+  it("starts instance workspace dev from an empty workspace with the directory-derived name", async () => {
     const tempDir = await makeTempDir();
     const workspaceRoot = path.join(tempDir, "empty-workspace");
     const child = new FakeCliDevChild();
     const logs: string[] = [];
-    const nameSelections: Array<{
-      defaultName: string;
-      workspaceRoot: string;
-    }> = [];
     const openedUrls: string[] = [];
     const requests: CapturedFetchRequest[] = [];
     const sidecars: CapturedWorkspaceGatewaySidecar[] = [];
@@ -2301,11 +2308,6 @@ describe("Formless CLI", () => {
         logs,
         openedUrls,
         packageRoot: "/package",
-        selectWorkspaceName: async (input) => {
-          nameSelections.push(input);
-
-          return "confirmed-workspace";
-        },
         spawn: ((command: string, args: string[], options: CapturedSpawnOptions) => {
           spawnCalls.push({
             args,
@@ -2351,9 +2353,8 @@ describe("Formless CLI", () => {
     ]);
     expect(openedUrls).toEqual([]);
     await expect(readFile(path.join(workspaceRoot, FORMLESS_CONFIG_FILE), "utf8")).resolves.toBe(
-      formatFormlessConfigModule({ name: "confirmed-workspace" }),
+      formatFormlessConfigModule({ name: "empty-workspace" }),
     );
-    expect(nameSelections).toEqual([{ defaultName: "empty-workspace", workspaceRoot }]);
     await expect(readFile(path.join(workspaceRoot, ".gitignore"), "utf8")).resolves.toBe(
       ".formless/\n",
     );
@@ -2888,6 +2889,10 @@ describe("Formless CLI", () => {
     await mkdir(path.join(workspaceRoot, ".formless/local/wrangler"), { recursive: true });
     await mkdir(path.join(workspaceRoot, ".formless/backups"), { recursive: true });
     await writeFile(path.join(workspaceRoot, ".formless/local/wrangler/state.txt"), "state");
+    await writeFile(
+      path.join(workspaceRoot, ".formless/local/dev.env"),
+      "FORMLESS_ADMIN_TOKEN=preserved-admin\nFORMLESS_OWNER_SESSION_SECRET=preserved-owner\n",
+    );
     await writeFile(path.join(workspaceRoot, ".formless/backups/keep.txt"), "backup");
     await writeFile(path.join(workspaceRoot, ".formless/instance.env"), "FORMLESS_ADMIN_TOKEN=x\n");
 
@@ -2921,12 +2926,61 @@ describe("Formless CLI", () => {
     await expect(
       readFile(path.join(workspaceRoot, ".formless/instance.env"), "utf8"),
     ).resolves.toBe("FORMLESS_ADMIN_TOKEN=x\n");
+    await expect(
+      readFile(path.join(workspaceRoot, ".formless/local/dev.env"), "utf8"),
+    ).resolves.toBe(
+      "FORMLESS_ADMIN_TOKEN=preserved-admin\nFORMLESS_OWNER_SESSION_SECRET=preserved-owner\n",
+    );
     expect(openedUrls).toEqual([]);
     expect(bootstrapUrl.pathname).toBe(LOCAL_SESSION_BOOTSTRAP_API_PATH);
     expect(bootstrapUrl.searchParams.get("token")).toEqual(expect.any(String));
     expect(bootstrapUrl.searchParams.get("reset")).toBe("1");
     expect(bootstrapUrl.searchParams.get("redirectTo")).toBeNull();
     expect(logs).toEqual([devSessionBootstrapUrlLogLine(logs)]);
+  });
+
+  it("rotates local owner authentication through dev --reset-auth", async () => {
+    const tempDir = await makeTempDir();
+    const workspaceRoot = path.join(tempDir, "personal-sites");
+    const child = new FakeCliDevChild();
+    const logs: string[] = [];
+    const requests: CapturedFetchRequest[] = [];
+
+    await writeWorkspaceConfig(workspaceRoot);
+    await mkdir(path.join(workspaceRoot, ".formless/local/wrangler"), { recursive: true });
+    await writeFile(path.join(workspaceRoot, ".formless/local/wrangler/state.txt"), "state");
+    await writeFile(
+      path.join(workspaceRoot, ".formless/local/dev.env"),
+      "FORMLESS_ADMIN_TOKEN=stale-admin\nFORMLESS_OWNER_SESSION_SECRET=stale-owner\n",
+    );
+
+    const run = runFormlessCli(
+      ["dev", "--workspace", workspaceRoot, "--reset-auth"],
+      cliDeps(tempDir, {
+        env: { PORT: "4453" },
+        fetch: localInstanceDevFetch(requests, []),
+        logs,
+        spawn: ((_command: string, _args: string[], options: CapturedSpawnOptions) => {
+          announceFakeCliDevServer(child, options.env);
+
+          return child as unknown as ReturnType<typeof spawn>;
+        }) as typeof spawn,
+      }),
+    );
+
+    await waitUntil(() => logs.some((line) => line.includes(LOCAL_SESSION_BOOTSTRAP_API_PATH)));
+    child.close(0);
+    await run;
+
+    await expect(
+      stat(path.join(workspaceRoot, ".formless/local/wrangler/state.txt")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(
+      readFile(path.join(workspaceRoot, ".formless/local/dev.env"), "utf8"),
+    ).resolves.toBe(
+      `FORMLESS_ADMIN_TOKEN=generated-token\nFORMLESS_OWNER_SESSION_SECRET=${setupToken}\n`,
+    );
+    expect(readDevSessionBootstrapUrl(logs).searchParams.get("reset")).toBe("1");
   });
 
   it("rebuilds local Authority state from workspace source after dev --reset", async () => {
@@ -4231,7 +4285,6 @@ function cliDeps(
     openedUrls?: string[];
     packageRoot?: string;
     selectCloudflareAccount?: FormlessCliDependencies["selectCloudflareAccount"];
-    selectWorkspaceName?: FormlessCliDependencies["selectWorkspaceName"];
     setupCapability?: FormlessCliDependencies["setupCapability"];
     setupInputs?: CreateFormlessInstanceOwnerSetupCapabilityInput[];
     spawn?: typeof spawn;
@@ -4335,9 +4388,6 @@ function cliDeps(
     ...(options.selectCloudflareAccount === undefined
       ? {}
       : { selectCloudflareAccount: options.selectCloudflareAccount }),
-    ...(options.selectWorkspaceName === undefined
-      ? {}
-      : { selectWorkspaceName: options.selectWorkspaceName }),
     spawn: options.spawn ?? spawn,
     startWorkspaceGatewaySidecar:
       options.startWorkspaceGatewaySidecar ?? fakeWorkspaceGatewaySidecar(),

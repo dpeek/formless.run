@@ -2,7 +2,8 @@
   "name": "@dpeek/formless-monorepo",
   "private": true,
   "workspaces": [
-    "lib/*"
+    "lib/*",
+    "dev/*"
   ],
   "type": "module",
   "scripts": {
@@ -15,7 +16,9 @@
     "pack": "vp run --recursive pack",
     "pack:release": "bun run scripts/release-packaging.ts",
     "smoke:release-packaging": "bun run scripts/release-packaging-smoke.ts",
-    "dev": "bun lib/formless/bin/formless.ts dev --workspace tmp/dev-workspace --reset",
+    "dev": "bun lib/formless/bin/formless.ts dev --workspace dev/default",
+    "dev:reset": "bun lib/formless/bin/formless.ts dev --workspace dev/default --reset",
+    "dev:reset-auth": "bun lib/formless/bin/formless.ts dev --workspace dev/default --reset-auth",
     "dev:vite": "bun run --cwd lib/formless dev:vite"
   },
   "devDependencies": {

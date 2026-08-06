@@ -212,7 +212,11 @@ describe("Formless Program schema", () => {
     expect(screens.siteSubscribers?.path).toBe("/site/subscribers");
     expect(parsed.navigation?.groups).toEqual([
       { key: "tasks", label: "Tasks", screens: ["taskHome"] },
-      { key: "site", label: "Site", screens: ["siteEditor"] },
+      {
+        key: "site",
+        label: "Site",
+        screens: ["siteEditor", "siteSettings", "siteSubscribers", "siteContacts"],
+      },
       {
         key: "instance",
         label: "Instance",

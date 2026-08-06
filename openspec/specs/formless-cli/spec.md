@@ -639,8 +639,8 @@ credential setup, and push operations.
 - **AND** the CLI does not create empty storage snapshot or media directories
 - **AND** no route, deployment config, Cloudflare resource,
   Alchemy resource, provider credential, or remote instance is created
-- **AND** the workspace name defaults from the selected directory unless
-  interactive confirmation supplies another valid name
+- **AND** the workspace name defaults from the selected directory without
+  interactive confirmation
 - **AND** the selected name is written explicitly to `formless.ts` and is not
   inferred again when later commands load the configuration
 
@@ -695,8 +695,9 @@ credential setup, and push operations.
 
 - **WHEN** `formless dev --reset` runs for a selected workspace
 - **THEN** before serving the local runtime it removes and recreates only the
-  ignored local runtime state root used for dev server persistence, local dev
-  secrets, local dev metadata, and local Wrangler state
+  ignored local runtime state used for dev server persistence, local dev
+  metadata, and local Wrangler state while preserving the local dev admin token
+  and owner-session signing secret
 - **AND** it preserves reviewable workspace source, storage
   snapshots, media payloads, deployment secret state, provider credentials, and
   remote instance state
@@ -705,6 +706,15 @@ credential setup, and push operations.
 - **AND** the printed local session bootstrap URL includes a reset request so
   browser-context Formless replica caches are reset before a fully fresh agent
   browser session enters the instance shell
+
+#### Scenario: Reset local workspace authentication
+
+- **WHEN** `formless dev --reset-auth` runs for a selected workspace
+- **THEN** it performs the local runtime reset and also rotates the ignored local
+  dev admin token and owner-session signing secret
+- **AND** existing local owner-session cookies no longer authenticate
+- **AND** the printed local session bootstrap URL establishes the replacement
+  owner session and resets browser-context Formless replica caches
 
 #### Scenario: Push a Program without optional domain records
 

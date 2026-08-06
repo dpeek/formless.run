@@ -15,6 +15,12 @@
         "vite-plus": "^0.2.5",
       },
     },
+    "dev/default": {
+      "name": "@dpeek/formless-dev-workspace",
+      "dependencies": {
+        "@dpeek/formless": "workspace:*",
+      },
+    },
     "lib/archive": {
       "name": "@dpeek/formless-archive",
       "version": "0.1.0",
@@ -413,6 +419,8 @@
     "@dpeek/formless-archive": ["@dpeek/formless-archive@workspace:lib/archive"],
 
     "@dpeek/formless-deploy": ["@dpeek/formless-deploy@workspace:lib/deploy"],
+
+    "@dpeek/formless-dev-workspace": ["@dpeek/formless-dev-workspace@workspace:dev/default"],
 
     "@dpeek/formless-gateway": ["@dpeek/formless-gateway@workspace:lib/gateway"],
 

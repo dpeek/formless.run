@@ -15,15 +15,23 @@ export function selectRecordFieldsForActiveUnion(
   union: RecordUnionPresentationConfig | undefined,
   record: StoredRecord | undefined,
 ): RecordFieldConfig[] {
-  const presentation = selectActiveRecordUnionPresentation(union, record);
+  return selectRecordFieldsForActiveUnionValues(baseFields, union, record?.values);
+}
+
+export function selectRecordFieldsForActiveUnionValues(
+  baseFields: RecordFieldConfig[],
+  union: RecordUnionPresentationConfig | undefined,
+  values: StoredRecord["values"] | undefined,
+): RecordFieldConfig[] {
+  const presentation = selectActiveRecordUnionPresentation(union, values);
 
   if (presentation?.presentation.type !== "fields") {
-    return selectRecordFieldsForVisibility(baseFields, record);
+    return selectRecordFieldsForVisibility(baseFields, values);
   }
 
   return selectRecordFieldsForVisibility(
     appendNewFields(baseFields, presentation.presentation.fields),
-    record,
+    values,
   );
 }
 
@@ -31,20 +39,20 @@ export function selectRecordContextLinkForActiveUnion(
   union: RecordUnionPresentationConfig | undefined,
   record: StoredRecord | undefined,
 ): RecordVariantContextLinkPresentationConfig | undefined {
-  const presentation = selectActiveRecordUnionPresentation(union, record);
+  const presentation = selectActiveRecordUnionPresentation(union, record?.values);
 
   return presentation?.presentation.type === "contextLink" ? presentation.presentation : undefined;
 }
 
 function selectActiveRecordUnionPresentation(
   union: RecordUnionPresentationConfig | undefined,
-  record: StoredRecord | undefined,
+  values: StoredRecord["values"] | undefined,
 ): ActiveRecordUnionPresentation | undefined {
-  if (union === undefined || record === undefined) {
+  if (union === undefined || values === undefined) {
     return undefined;
   }
 
-  const discriminatorValue = stringValue(record.values[union.discriminatorFieldName]);
+  const discriminatorValue = stringValue(values[union.discriminatorFieldName]);
 
   return (
     union.variants.find((variant) => variant.variantValue === discriminatorValue) ?? union.fallback
@@ -63,7 +71,7 @@ function appendNewFields<TField extends { fieldName: string }>(
 
 function selectRecordFieldsForVisibility(
   fields: RecordFieldConfig[],
-  record: StoredRecord | undefined,
+  values: StoredRecord["values"] | undefined,
 ): RecordFieldConfig[] {
   return fields.filter((fieldConfig) => {
     const condition = fieldConfig.visibleWhen;
@@ -72,7 +80,7 @@ function selectRecordFieldsForVisibility(
       return true;
     }
 
-    return condition.values.includes(recordVisibilityValue(record?.values[condition.field]) ?? "");
+    return condition.values.includes(recordVisibilityValue(values?.[condition.field]) ?? "");
   });
 }
 

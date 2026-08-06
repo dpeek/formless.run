@@ -151,10 +151,7 @@ describe("Formless Program runtime contracts", () => {
     }
   });
 
-  it("loads every concrete Program screen independently of grouped navigation", () => {
-    expect(
-      formlessProgramSchema.navigation?.groups?.flatMap((group) => group.screens),
-    ).not.toContain("siteSettings");
+  it("loads every concrete Program screen route", () => {
     expect(resolveFormlessProgramScreenRouteTarget("/settings/routes")).toEqual({
       access: { role: "administrator" },
       key: "routes",

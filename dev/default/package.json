@@ -1,0 +1,8 @@
+{
+  "name": "@dpeek/formless-dev-workspace",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@dpeek/formless": "workspace:*"
+  }
+}

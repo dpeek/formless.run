@@ -5,7 +5,7 @@ import {
   type GeneratedFieldDraftInput,
 } from "@dpeek/formless-schema";
 import type { RecordValues } from "@dpeek/formless-storage";
-import type { RecordFieldConfig } from "../../client/views.ts";
+import type { RecordFieldConfig, RecordUnionPresentationConfig } from "../../client/views.ts";
 import { initialGeneratedCreateDraftSessionState } from "./create-field-authoring.ts";
 import { initialGeneratedOperationDraftSessionState } from "./operation-field-authoring.ts";
 import {
@@ -141,6 +141,15 @@ describe("generated field intent adapter", () => {
 
     expect(noop.noop).toBe(true);
     expect(noop.patchValues).toEqual({});
+  });
+
+  it("commits fields from the active record union variant", () => {
+    const result = adaptGeneratedRecordValueCommit(
+      { type: "recordValueCommit", fieldName: "icon", value: newSvg },
+      recordContext([titleFieldConfig], { title: "Home", type: "page" }, {}, { union: blockUnion }),
+    ) as GeneratedRecordValueCommitResult;
+
+    expect(result.patchValues).toEqual({ icon: newSvg });
   });
 
   it("keeps record value commit validation errors out of patch values", () => {
@@ -401,6 +410,29 @@ const costFieldConfig = recordField("cost", numberField, "number", {
 });
 const mediaFieldConfig = recordField("hero", hrefField, "media");
 const iconFieldConfig = recordField("icon", textField, "icon");
+const blockTypeField = {
+  type: "enum",
+  required: true,
+  values: [{ key: "page", label: "Page" }],
+} satisfies FieldSchema;
+const blockUnion = {
+  unionName: "blockByType",
+  union: {
+    entity: "block",
+    discriminator: "type",
+    variants: [{ key: "page", label: "Page", fields: ["icon"] }],
+  },
+  discriminatorFieldName: "type",
+  discriminatorField: blockTypeField,
+  variants: [
+    {
+      variantValue: "page",
+      label: "Page",
+      unionVariant: { label: "Page", fields: ["icon"] },
+      presentation: { type: "fields", fields: [iconFieldConfig] },
+    },
+  ],
+} satisfies RecordUnionPresentationConfig;
 
 const oldSvg = '<svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z" /></svg>';
 const draftSvg = '<svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z" /></svg>';

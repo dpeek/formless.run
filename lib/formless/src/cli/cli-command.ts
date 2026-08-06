@@ -18,6 +18,7 @@ export type FormlessCliCommand =
       kind: "workspaceDev";
       open: boolean;
       reset: boolean;
+      resetAuth: boolean;
       workspacePath: string | null;
     }
   | {
@@ -170,7 +171,7 @@ export function formlessCliUsage(): string {
     "Usage: formless <command>",
     "",
     "Commands:",
-    "  dev [--workspace <path>] [--open] [--reset]",
+    "  dev [--workspace <path>] [--open] [--reset] [--reset-auth]",
     "                                      Run local workspace and print browser session URL",
     ...workspaceCliOperationUsageLines(),
     "  destroy [--workspace <path>] [--target <alias>] --confirm <workerName>",
@@ -363,10 +364,11 @@ function workspaceCliTopLevelCommand(command: FormlessCliWorkspaceOperationComma
 }
 
 function parseWorkspaceDevArgs(args: string[]): FormlessCliCommand {
-  const usage = "formless dev [--workspace <path>] [--open] [--reset]";
+  const usage = "formless dev [--workspace <path>] [--open] [--reset] [--reset-auth]";
   const options = parseTopLevelWorkspaceOptions(args, usage);
   let open = false;
   let reset = false;
+  let resetAuth = false;
 
   for (const arg of options.rest) {
     if (arg === "--open") {
@@ -379,10 +381,16 @@ function parseWorkspaceDevArgs(args: string[]): FormlessCliCommand {
       continue;
     }
 
+    if (arg === "--reset-auth") {
+      reset = true;
+      resetAuth = true;
+      continue;
+    }
+
     throw new Error(`Unknown option for formless dev: ${arg}`);
   }
 
-  return { kind: "workspaceDev", open, reset, workspacePath: options.workspacePath };
+  return { kind: "workspaceDev", open, reset, resetAuth, workspacePath: options.workspacePath };
 }
 
 function parseWorkspaceDestroyArgs(args: string[]): FormlessCliCommand {

@@ -21,6 +21,7 @@ import {
 import {
   ensureInstanceWorkspaceLocalDevSecretState as ensureFormlessInstanceWorkspaceLocalDevSecretState,
   ensureInstanceWorkspaceSecretStateIgnored as ensureFormlessInstanceWorkspaceSecretStateIgnored,
+  writeInstanceWorkspaceLocalDevSecretState as writeFormlessInstanceWorkspaceLocalDevSecretState,
   replaceInstanceWorkspaceMediaFiles,
   writeInstanceWorkspaceProgramStorageSnapshot,
   type InstanceWorkspaceLocalDevSecretState as FormlessInstanceWorkspaceLocalDevSecretState,
@@ -132,21 +133,20 @@ export type DevFormlessInstanceWorkspaceInput = {
   name?: string | null;
   open?: boolean;
   reset?: boolean;
+  resetAuth?: boolean;
   workspacePath?: string;
 };
 
 export type EnsureFormlessInstanceWorkspaceDevBootstrapInput = {
   name?: string | null;
   reset?: boolean;
+  resetAuth?: boolean;
   workspacePath?: string;
 };
 
 export type EnsureFormlessInstanceWorkspaceDevBootstrapDependencies = {
   cwd: string;
   randomToken?: () => string;
-  selectWorkspaceName?: (
-    input: FormlessInstanceWorkspaceDevNameSelectionInput,
-  ) => Promise<string | null | undefined>;
 };
 
 export type EnsureFormlessInstanceWorkspaceDevBootstrapResult = {
@@ -159,11 +159,6 @@ export type EnsureFormlessInstanceWorkspaceDevBootstrapResult = {
   workspaceRoot: string;
 };
 
-export type FormlessInstanceWorkspaceDevNameSelectionInput = {
-  defaultName: string;
-  workspaceRoot: string;
-};
-
 export type DevFormlessInstanceWorkspaceDependencies = {
   cwd: string;
   devCommand: FormlessInstanceWorkspaceDevCommand;
@@ -173,7 +168,6 @@ export type DevFormlessInstanceWorkspaceDependencies = {
   now: () => string;
   openBrowser?: (url: string) => Promise<void>;
   packageRoot: string;
-  selectWorkspaceName?: EnsureFormlessInstanceWorkspaceDevBootstrapDependencies["selectWorkspaceName"];
   spawn: typeof nodeSpawn;
   startWorkspaceGatewaySidecar?: FormlessInstanceWorkspaceGatewayLifecycleSidecarStarter;
 } & Pick<StartWorkspaceGatewaySidecarDependencies, "accountDiscovery" | "packageVersion"> &
@@ -321,7 +315,11 @@ export async function runFormlessInstanceWorkspaceDev(
   input: DevFormlessInstanceWorkspaceInput,
   dependencies: DevFormlessInstanceWorkspaceDependencies,
 ): Promise<void> {
-  const devBootstrap = await ensureFormlessInstanceWorkspaceDevBootstrap(input, dependencies);
+  const reset = input.reset === true || input.resetAuth === true;
+  const devBootstrap = await ensureFormlessInstanceWorkspaceDevBootstrap(
+    { ...input, reset },
+    dependencies,
+  );
   const { config, localDevSecrets, workspaceRoot } = devBootstrap;
 
   const activeProgram = await materializeActiveWorkspaceProgramArtifact(workspaceRoot, config);
@@ -380,7 +378,7 @@ export async function runFormlessInstanceWorkspaceDev(
     const sessionEntry = gatewayLifecycle.sessionEntry({
       childOrigin: source,
       env: dependencies.env,
-      reset: input.reset === true,
+      reset,
     });
 
     dependencies.log(sessionEntry.localSessionBootstrapUrl);
@@ -416,19 +414,33 @@ export async function ensureFormlessInstanceWorkspaceDevBootstrap(
     await assertLocalOnboardingWorkspaceReady(workspaceRoot);
     await mkdir(workspaceRoot, { recursive: true });
 
-    const defaultName = input.name ?? defaultWorkspaceName(workspaceRoot);
-    const name =
-      input.name ??
-      (await selectFormlessInstanceWorkspaceDevName({ defaultName, workspaceRoot }, dependencies));
+    const name = input.name ?? defaultWorkspaceName(workspaceRoot);
     config = resolveFormlessConfig({ name });
     await writeFile(configPath, formatFormlessConfigModule({ name: config.name }));
   }
 
   const localStateRoot = formlessInstanceWorkspaceLocalStateRoot(workspaceRoot, config);
+  const reset = input.reset === true || input.resetAuth === true;
+  const preservedLocalDevSecrets =
+    reset && !input.resetAuth
+      ? await ensureFormlessInstanceWorkspaceLocalDevSecretState(
+          workspaceRoot,
+          localStateRoot,
+          () =>
+            requiredGeneratedToken(dependencies.randomToken?.() ?? randomWorkspaceGatewayToken()),
+        )
+      : undefined;
 
-  if (input.reset) {
+  if (reset) {
     await rm(localStateRoot, { force: true, recursive: true });
     await mkdir(localStateRoot, { recursive: true });
+  }
+
+  if (preservedLocalDevSecrets) {
+    await writeFormlessInstanceWorkspaceLocalDevSecretState(
+      localStateRoot,
+      preservedLocalDevSecrets.state,
+    );
   }
 
   const localDevSecrets = await ensureFormlessInstanceWorkspaceLocalDevSecretState(
@@ -447,19 +459,6 @@ export async function ensureFormlessInstanceWorkspaceDevBootstrap(
     localStateRoot,
     workspaceRoot,
   };
-}
-
-async function selectFormlessInstanceWorkspaceDevName(
-  input: FormlessInstanceWorkspaceDevNameSelectionInput,
-  dependencies: Pick<
-    EnsureFormlessInstanceWorkspaceDevBootstrapDependencies,
-    "selectWorkspaceName"
-  >,
-): Promise<string> {
-  const selected = await dependencies.selectWorkspaceName?.(input);
-  const trimmed = selected?.trim();
-
-  return trimmed ? trimmed : input.defaultName;
 }
 
 export async function resetFormlessInstanceWorkspaceLocalState(

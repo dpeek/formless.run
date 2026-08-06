@@ -208,7 +208,11 @@ export const formlessProgramDefaultNavigation: NonNullable<
 > = {
   groups: [
     { key: "tasks", label: "Tasks", screens: ["taskHome"] },
-    { key: "site", label: "Site", screens: ["siteEditor"] },
+    {
+      key: "site",
+      label: "Site",
+      screens: ["siteEditor", "siteSettings", "siteSubscribers", "siteContacts"],
+    },
     {
       key: "instance",
       label: "Instance",

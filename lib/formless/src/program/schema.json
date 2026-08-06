@@ -5092,7 +5092,7 @@
       {
         "key": "site",
         "label": "Site",
-        "screens": ["siteEditor"]
+        "screens": ["siteEditor", "siteSettings", "siteSubscribers", "siteContacts"]
       },
       {
         "key": "instance",

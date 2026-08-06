@@ -132,6 +132,21 @@ Data stays flat. Compose in query, view, projection, action layer.
 - Do not duplicate facts already enforced by TypeScript, package export maps or
   validation, production builds, or an existing focused test.
 
+## Local Dev Authentication
+
+- Run `bun dev` for the persistent `dev/default` loop. It preserves local
+  Authority state and owner authentication across restarts.
+- Wait for the plain `/api/formless/local-session/bootstrap?...` URL printed by
+  the command, then navigate the browser used for testing to that exact URL.
+  The redirect establishes the local owner cookie; do not use the passkey screen.
+- Run `bun dev:reset` to rebuild runtime data while preserving local owner
+  authentication. Use the newly printed URL when that browser also needs its
+  local replica reset.
+- Run `bun dev:reset-auth` only when local credentials must be rotated. Its newly
+  printed bootstrap URL is required because prior owner cookies are invalid.
+- Do not repeat the bootstrap token beyond the command's own terminal output or
+  expose it in docs, commits, commentary, or final responses.
+
 ## Work
 
 1. Select the ready task section from parsed change commit metadata before broad context reads when doing implementation work.

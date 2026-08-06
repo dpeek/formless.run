@@ -2,7 +2,6 @@ import { spawn as nodeSpawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { createInterface } from "node:readline/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -105,7 +104,6 @@ import {
   runFormlessInstanceWorkspaceDev as runFormlessInstanceWorkspaceDevCommand,
   type DevFormlessInstanceWorkspaceDependencies,
   type FormlessInstanceWorkspaceDevCommand,
-  type FormlessInstanceWorkspaceDevNameSelectionInput,
   type FormlessInstanceWorkspaceStatusResult,
   type InitFormlessInstanceWorkspaceResult,
 } from "./instance-workspace-lifecycle.ts";
@@ -200,7 +198,6 @@ export {
   type FormlessInstanceWorkspaceStatusInput,
   type FormlessInstanceWorkspaceStatusResult,
   type FormlessInstanceWorkspaceDevCommand,
-  type FormlessInstanceWorkspaceDevNameSelectionInput,
   type InitFormlessInstanceWorkspaceDependencies,
   type InitFormlessInstanceWorkspaceInput,
   type InitFormlessInstanceWorkspaceResult,
@@ -365,9 +362,6 @@ export type FormlessCliDependencies = {
   selectCloudflareAccount?: (
     input: FormlessCliCloudflareOAuthAccountSelectionInput,
   ) => Promise<string | null | undefined>;
-  selectWorkspaceName?: (
-    input: FormlessInstanceWorkspaceDevNameSelectionInput,
-  ) => Promise<string | null | undefined>;
   spawn: typeof nodeSpawn;
   startWorkspaceGatewaySidecar?: DevFormlessInstanceWorkspaceDependencies["startWorkspaceGatewaySidecar"];
   stateRoot: string;
@@ -420,6 +414,7 @@ export async function runFormlessCli(
         {
           open: command.open,
           reset: command.reset,
+          resetAuth: command.resetAuth,
           workspacePath,
         },
         dependencies,
@@ -675,6 +670,7 @@ export async function runFormlessInstanceWorkspaceDev(
   input: {
     open?: boolean;
     reset?: boolean;
+    resetAuth?: boolean;
     workspacePath?: string;
   },
   dependencies: Pick<
@@ -691,7 +687,6 @@ export async function runFormlessInstanceWorkspaceDev(
     | "openBrowser"
     | "packageRoot"
     | "randomToken"
-    | "selectWorkspaceName"
     | "setupCapability"
     | "spawn"
     | "startWorkspaceGatewaySidecar"
@@ -1397,7 +1392,6 @@ function nodeFormlessCliDependencies(): FormlessCliDependencies {
     packageRoot: resolvePackageRoot(path.dirname(fileURLToPath(import.meta.url))),
     randomToken: () => randomBytes(32).toString("base64url"),
     runCommand: (command, args, options) => runCommandWithSpawn(spawn, command, args, options),
-    selectWorkspaceName: selectInteractiveWorkspaceName,
     spawn,
     stateRoot: path.join(homedir(), FORMLESS_HOME_DIRECTORY),
     stateWriter: {
@@ -1405,28 +1399,6 @@ function nodeFormlessCliDependencies(): FormlessCliDependencies {
     },
     setupCapability: fetchFormlessInstanceOwnerSetupCapabilityAdapter,
   };
-}
-
-async function selectInteractiveWorkspaceName(
-  input: FormlessInstanceWorkspaceDevNameSelectionInput,
-): Promise<string | null> {
-  if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    return null;
-  }
-
-  const readline = createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  try {
-    const answer = await readline.question(`Workspace name [${input.defaultName}]: `);
-    const trimmed = answer.trim();
-
-    return trimmed === "" ? input.defaultName : trimmed;
-  } finally {
-    readline.close();
-  }
 }
 
 function resolvePackageRoot(startDirectory: string): string {

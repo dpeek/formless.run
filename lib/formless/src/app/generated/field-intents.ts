@@ -26,6 +26,7 @@ import {
   type GeneratedUpdateDraftSessionState,
 } from "./record-field-authoring.ts";
 import { inputValueToFieldValue } from "./format.ts";
+import { selectRecordFieldsForActiveUnionValues } from "./union-presentation.ts";
 type CreateDraftChangeIntent = Extract<
   FieldIntent,
   {
@@ -400,7 +401,7 @@ export function adaptGeneratedRecordEditorDraftChange(
   intent: RecordEditorDraftChangeIntent,
   options: AdaptGeneratedRecordIntentOptions,
 ): GeneratedFieldIntentResult {
-  const fieldConfig = findRecordFieldConfig(options.fields, intent.fieldName);
+  const fieldConfig = findRecordFieldConfig(options, intent.fieldName);
 
   if (fieldConfig === undefined) {
     return unsupportedIntent(intent, `Record field "${intent.fieldName}" is not available.`);
@@ -431,7 +432,7 @@ export function adaptGeneratedRecordDraftRevert(
   intent: RecordDraftRevertIntent,
   options: AdaptGeneratedRecordIntentOptions,
 ): GeneratedFieldIntentResult {
-  const fieldConfig = findRecordFieldConfig(options.fields, intent.fieldName);
+  const fieldConfig = findRecordFieldConfig(options, intent.fieldName);
 
   if (fieldConfig === undefined) {
     return unsupportedIntent(intent, `Record field "${intent.fieldName}" is not available.`);
@@ -470,7 +471,7 @@ export function adaptGeneratedRecordDraftCommit(
   intent: RecordDraftCommitIntent,
   options: AdaptGeneratedRecordIntentOptions,
 ): GeneratedRecordValueCommitResult | GeneratedUnsupportedIntentResult {
-  const fieldConfig = findRecordFieldConfig(options.fields, intent.fieldName);
+  const fieldConfig = findRecordFieldConfig(options, intent.fieldName);
 
   if (fieldConfig === undefined) {
     return unsupportedIntent(intent, `Record field "${intent.fieldName}" is not available.`);
@@ -491,7 +492,7 @@ export function adaptGeneratedRecordValueCommit(
   intent: RecordValueCommitIntent,
   options: AdaptGeneratedRecordIntentOptions,
 ): GeneratedFieldIntentResult {
-  const fieldConfig = findRecordFieldConfig(options.fields, intent.fieldName);
+  const fieldConfig = findRecordFieldConfig(options, intent.fieldName);
 
   if (fieldConfig === undefined) {
     return unsupportedIntent(intent, `Record field "${intent.fieldName}" is not available.`);
@@ -508,7 +509,7 @@ export function adaptGeneratedRecordValueUnitCommit(
   intent: RecordValueUnitCommitIntent,
   options: AdaptGeneratedRecordIntentOptions,
 ): GeneratedFieldIntentResult {
-  const fieldConfig = findRecordFieldConfig(options.fields, intent.fieldName);
+  const fieldConfig = findRecordFieldConfig(options, intent.fieldName);
 
   if (fieldConfig === undefined) {
     return unsupportedIntent(intent, `Record field "${intent.fieldName}" is not available.`);
@@ -533,7 +534,7 @@ export function adaptGeneratedRecordValueUnitCommit(
       valueUnit: fieldConfig.valueUnit,
     },
     fieldDraftInput: intent.commit.fieldDraftInput,
-    fields: Array.from(options.fields),
+    fields: recordFields(options),
     union: options.union,
     unitDraftInput: intent.commit.unitDraftInput,
   });
@@ -591,7 +592,7 @@ export function adaptGeneratedIconDialogCancel(
   intent: IconDialogCancelIntent,
   options: AdaptGeneratedRecordIntentOptions,
 ): GeneratedFieldIntentResult {
-  const fieldConfig = findRecordFieldConfig(options.fields, intent.fieldName);
+  const fieldConfig = findRecordFieldConfig(options, intent.fieldName);
 
   if (fieldConfig === undefined) {
     return unsupportedIntent(intent, `Record field "${intent.fieldName}" is not available.`);
@@ -614,7 +615,7 @@ export function adaptGeneratedIconDialogSave(
   intent: IconDialogSaveIntent,
   options: AdaptGeneratedRecordIntentOptions,
 ): GeneratedFieldIntentResult {
-  const fieldConfig = findRecordFieldConfig(options.fields, intent.fieldName);
+  const fieldConfig = findRecordFieldConfig(options, intent.fieldName);
 
   if (fieldConfig === undefined) {
     return unsupportedIntent(intent, `Record field "${intent.fieldName}" is not available.`);
@@ -650,7 +651,7 @@ export function adaptGeneratedMediaAssetSelect(
   intent: MediaAssetSelectIntent,
   options: AdaptGeneratedRecordIntentOptions,
 ): GeneratedFieldIntentResult {
-  const fieldConfig = findRecordFieldConfig(options.fields, intent.fieldName);
+  const fieldConfig = findRecordFieldConfig(options, intent.fieldName);
 
   if (fieldConfig === undefined) {
     return unsupportedIntent(intent, `Record field "${intent.fieldName}" is not available.`);
@@ -890,7 +891,7 @@ function recordValueCommitResult({
       },
     },
     fieldNames: [fieldConfig.fieldName],
-    fields: Array.from(options.fields),
+    fields: recordFields(options),
     union: options.union,
   });
   const fieldError = selectFieldError(resolution, fieldConfig.fieldName);
@@ -931,7 +932,7 @@ function recordDraftCommitResult({
       },
     },
     fieldNames: [fieldConfig.fieldName],
-    fields: Array.from(options.fields),
+    fields: recordFields(options),
     union: options.union,
   });
   const fieldError = selectFieldError(resolution, fieldConfig.fieldName);
@@ -955,10 +956,18 @@ function recordDraftCommitResult({
 }
 
 function findRecordFieldConfig(
-  fields: readonly RecordFieldConfig[],
+  options: AdaptGeneratedRecordIntentOptions,
   fieldName: string,
 ): RecordFieldConfig | undefined {
-  return fields.find((fieldConfig) => fieldConfig.fieldName === fieldName);
+  return recordFields(options).find((fieldConfig) => fieldConfig.fieldName === fieldName);
+}
+
+function recordFields(options: AdaptGeneratedRecordIntentOptions): RecordFieldConfig[] {
+  return selectRecordFieldsForActiveUnionValues(
+    Array.from(options.fields),
+    options.union,
+    options.state.baselineValues,
+  );
 }
 
 function numberFormatForField(
