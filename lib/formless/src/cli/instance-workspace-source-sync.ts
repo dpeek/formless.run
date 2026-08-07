@@ -1740,19 +1740,6 @@ export async function prepareWorkspacePushSourceSync(
   });
 
   const localDomainIntents = workspaceDomainIntentsFromSource(localControlPlane);
-  const liveDomains =
-    input.existingSelectedTarget === undefined
-      ? []
-      : await readLiveWorkspaceDomainIntents(
-          {
-            adminToken: input.adminToken,
-            target: input.selectedTarget,
-          },
-          dependencies,
-        );
-  const domainDesiredDrift = shouldCompareWorkspaceDomainIntents(localDomainIntents, liveDomains)
-    ? compareWorkspaceDomainIntentToLive(localDomainIntents, liveDomains)
-    : [];
   const localProgramMedia = await workspaceProgramMediaFromSnapshot({
     controlPlane: localControlPlane,
     manifest: input.manifest,
@@ -1787,6 +1774,19 @@ export async function prepareWorkspacePushSourceSync(
           },
           dependencies,
         );
+  const liveDomains =
+    input.existingSelectedTarget === undefined || remoteRead.status === "unreadable"
+      ? []
+      : await readLiveWorkspaceDomainIntents(
+          {
+            adminToken: input.adminToken,
+            target: input.selectedTarget,
+          },
+          dependencies,
+        );
+  const domainDesiredDrift = shouldCompareWorkspaceDomainIntents(localDomainIntents, liveDomains)
+    ? compareWorkspaceDomainIntentToLive(localDomainIntents, liveDomains)
+    : [];
   const syncPlan =
     remoteRead.status === "readable"
       ? createWorkspaceSyncPlan({

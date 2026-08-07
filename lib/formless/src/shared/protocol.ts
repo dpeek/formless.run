@@ -1,4 +1,4 @@
-import type { AppSchema } from "@dpeek/formless-schema";
+import { isSourceSchemaHash, type AppSchema } from "@dpeek/formless-schema";
 import type { RecordValues, StoredRecord } from "@dpeek/formless-storage";
 import type { SourceSchemaHash } from "@dpeek/formless-schema";
 
@@ -136,6 +136,87 @@ export type BrowserReplicaSchemaProvenance = {
   kind: "program";
   sourceSchemaHash: SourceSchemaHash;
 };
+
+export const ACTIVE_SCHEMA_REFRESH_BLOCKED_CODE = "active-schema-refresh-blocked";
+
+export type ActiveSchemaRefreshBlocker = {
+  currentSchemaProvenance?: BrowserReplicaSchemaProvenance;
+  reason: string;
+  schemaKey?: string;
+  storageIdentity?: string;
+  targetSchemaProvenance: BrowserReplicaSchemaProvenance;
+};
+
+export type ActiveSchemaRefreshBlockedResponse = {
+  blocker: ActiveSchemaRefreshBlocker;
+  code: typeof ACTIVE_SCHEMA_REFRESH_BLOCKED_CODE;
+  error: string;
+};
+
+export function activeSchemaRefreshBlockedResponse(
+  error: string,
+  blocker: ActiveSchemaRefreshBlocker,
+): ActiveSchemaRefreshBlockedResponse {
+  return { blocker, code: ACTIVE_SCHEMA_REFRESH_BLOCKED_CODE, error };
+}
+
+export function parseActiveSchemaRefreshBlockedResponse(
+  value: unknown,
+): ActiveSchemaRefreshBlockedResponse | undefined {
+  if (
+    !isRecord(value) ||
+    value.code !== ACTIVE_SCHEMA_REFRESH_BLOCKED_CODE ||
+    typeof value.error !== "string"
+  ) {
+    return undefined;
+  }
+
+  const blocker = parseActiveSchemaRefreshBlocker(value.blocker);
+
+  return blocker === undefined
+    ? undefined
+    : { blocker, code: ACTIVE_SCHEMA_REFRESH_BLOCKED_CODE, error: value.error };
+}
+
+function parseActiveSchemaRefreshBlocker(value: unknown): ActiveSchemaRefreshBlocker | undefined {
+  if (
+    !isRecord(value) ||
+    typeof value.reason !== "string" ||
+    (value.schemaKey !== undefined && typeof value.schemaKey !== "string") ||
+    (value.storageIdentity !== undefined && typeof value.storageIdentity !== "string")
+  ) {
+    return undefined;
+  }
+
+  const currentSchemaProvenance =
+    value.currentSchemaProvenance === undefined
+      ? undefined
+      : parseBrowserReplicaSchemaProvenance(value.currentSchemaProvenance);
+  const targetSchemaProvenance = parseBrowserReplicaSchemaProvenance(value.targetSchemaProvenance);
+
+  if (
+    (value.currentSchemaProvenance !== undefined && currentSchemaProvenance === undefined) ||
+    targetSchemaProvenance === undefined
+  ) {
+    return undefined;
+  }
+
+  return {
+    ...(currentSchemaProvenance === undefined ? {} : { currentSchemaProvenance }),
+    reason: value.reason,
+    ...(value.schemaKey === undefined ? {} : { schemaKey: value.schemaKey }),
+    ...(value.storageIdentity === undefined ? {} : { storageIdentity: value.storageIdentity }),
+    targetSchemaProvenance,
+  };
+}
+
+function parseBrowserReplicaSchemaProvenance(
+  value: unknown,
+): BrowserReplicaSchemaProvenance | undefined {
+  return isRecord(value) && value.kind === "program" && isSourceSchemaHash(value.sourceSchemaHash)
+    ? { kind: "program", sourceSchemaHash: value.sourceSchemaHash }
+    : undefined;
+}
 
 export type BrowserReplicaUpgradeFacts = {
   runtimeProtocolVersion: number;

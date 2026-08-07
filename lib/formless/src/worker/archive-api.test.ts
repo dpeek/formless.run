@@ -12,6 +12,7 @@ import {
 } from "../program/target.ts";
 import { STORAGE_SNAPSHOT_KIND, STORAGE_SNAPSHOT_VERSION } from "@dpeek/formless-storage";
 import type { StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
+import type { AppSchema } from "@dpeek/formless-schema";
 import type { BootstrapResponse } from "../shared/protocol.ts";
 import {
   instanceControlPlaneTestStorageSnapshot,
@@ -27,8 +28,13 @@ let harness: Harness;
 
 beforeAll(async () => {
   harness = await createWorkerHarness(
-    "src/worker/index.ts",
-    { FORMLESS_AUTHORITY: { className: "FormlessAuthority", useSQLite: true } },
+    "src/worker/archive-api-legacy-storage-test.ts",
+    {
+      FORMLESS_AUTHORITY: {
+        className: "ArchiveApiLegacyStorageTestAuthority",
+        useSQLite: true,
+      },
+    },
     {
       bindings: { FORMLESS_ADMIN_TOKEN: adminToken },
       r2Buckets: ["FORMLESS_MEDIA"],
@@ -57,6 +63,46 @@ afterAll(async () => {
 });
 
 describe("instance archive restore API", () => {
+  it("recovers Program storage blocked by an incompatible active schema refresh", async () => {
+    const legacyRestore = await harness.durableObjectFetch(
+      "FORMLESS_AUTHORITY",
+      FORMLESS_PROGRAM_STORAGE_IDENTITY,
+      "/_test/restore-program-storage",
+      {
+        body: JSON.stringify(legacyBlockStorageSnapshot()),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      },
+    );
+
+    expect(legacyRestore.status, await legacyRestore.clone().text()).toBe(200);
+
+    const unauthorizedSnapshot = await harness.durableObjectFetch(
+      "FORMLESS_AUTHORITY",
+      FORMLESS_PROGRAM_STORAGE_IDENTITY,
+      "/api/formless/program/snapshot?actorKind=cliDeployer",
+    );
+    expect(unauthorizedSnapshot.status, await unauthorizedSnapshot.clone().text()).toBe(401);
+
+    const metadata = await harness.fetch("/api/formless/deploy");
+    const restored = await harness.fetch("/api/formless/archive/restore", {
+      body: JSON.stringify({ archive: programInstanceArchive(), mediaFiles: [] }),
+      headers: { ...adminHeaders(), "Content-Type": "application/json" },
+      method: "POST",
+    });
+    const bootstrap = await harness.fetch("/api/formless/program/bootstrap?actorKind=owner", {
+      headers: adminHeaders(),
+    });
+    expect(metadata.status).toBe(200);
+    expect(restored.status, await restored.clone().text()).toBe(200);
+    expect(bootstrap.status, await bootstrap.clone().text()).toBe(200);
+    const body = (await bootstrap.json()) as BootstrapResponse;
+    expect(body.records.map((record) => record.id)).toContain("task-program-restored");
+    expect(body.records.find((record) => record.id === "block-legacy")?.deletedAt).toEqual(
+      expect.any(String),
+    );
+  });
+
   it("restores one complete Program snapshot", async () => {
     const archive = programInstanceArchive();
     const restored = await harness.fetch("/api/formless/archive/restore", {
@@ -260,6 +306,30 @@ function archiveRecords(): StoredRecord[] {
       surface: "public-site",
     }),
   ];
+}
+
+function legacyBlockStorageSnapshot(): StorageSnapshot {
+  const schema = structuredClone(formlessProgramSchema) as AppSchema;
+  const block = schema.entities.find((entity) => entity.key === "block");
+
+  if (!block) {
+    throw new Error("Expected Program block entity.");
+  }
+
+  block.fields = block.fields.map((field) => {
+    if (field.key !== "site") {
+      return field;
+    }
+
+    return { ...field, required: false };
+  });
+
+  return {
+    ...instanceControlPlaneTestStorageSnapshot([
+      storedRecord("block", "block-legacy", { label: "Legacy", type: "markdown" }),
+    ]),
+    schema,
+  };
 }
 
 function storedRecord(entity: string, id: string, values: StoredRecord["values"]): StoredRecord {

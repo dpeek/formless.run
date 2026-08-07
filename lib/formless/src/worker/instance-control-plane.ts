@@ -14,6 +14,7 @@ import {
   parseFormlessProgramStorageSnapshot,
 } from "../program/runtime.ts";
 import type { DeploymentTarget } from "../shared/deployment-runtime.ts";
+import { activeSchemaRefreshBlockedResponse } from "../shared/protocol.ts";
 import type { InstanceDomainProviderRedirectIntent } from "../shared/domain-provider-api.ts";
 import type {
   InstanceDomainMapping,
@@ -40,7 +41,10 @@ import { selectPublicOperationRoute } from "./public-operations.ts";
 import { validateRecordValues } from "./authority-validation.ts";
 import { assertUniqueConstraints } from "./constraints.ts";
 import { ArchiveRestoreGuardConflictError, BadRequestError } from "./errors.ts";
-import { ARCHIVE_RESTORE_CONFLICT_CODE } from "./archive-restore-protocol.ts";
+import {
+  ARCHIVE_RESTORE_CONFLICT_CODE,
+  isArchiveRestoreOperationKind,
+} from "./archive-restore-protocol.ts";
 import {
   createRecordSetForOperationOutcome,
   ActiveSchemaRefreshBlockedError,
@@ -259,7 +263,9 @@ export async function handleInstanceControlPlaneDurableObjectRequest(
       );
     }
 
-    ensureControlPlaneStorage(storage);
+    if (!isArchiveRestoreOperationKind(operation.kind)) {
+      ensureControlPlaneStorage(storage);
+    }
     const source = formlessProgramSource();
     const result = await executeAuthorityOperation({
       ...(operation.kind === "entityOperation" && programAuthorization?.authorized
@@ -304,7 +310,7 @@ export async function handleInstanceControlPlaneDurableObjectRequest(
     }
 
     if (error instanceof ActiveSchemaRefreshBlockedError) {
-      return jsonResponse({ error: error.message, blocker: error.blocker }, 409);
+      return jsonResponse(activeSchemaRefreshBlockedResponse(error.message, error.blocker), 409);
     }
 
     if (error instanceof BadRequestError) {

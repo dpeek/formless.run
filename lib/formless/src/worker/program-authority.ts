@@ -49,7 +49,7 @@ export function ensureFormlessProgramStorage(storage: DurableObjectStorage) {
     validate: (records) =>
       validateFormlessProgramRecords(
         "Formless Program records",
-        selectCurrentFormlessProgramRecords(records),
+        selectCurrentFormlessProgramRecords(records).filter((record) => !record.deletedAt),
         { sharedRuntime: programSharedRuntime },
       ),
     writeIdPrefix: "identity-role-reconcile",

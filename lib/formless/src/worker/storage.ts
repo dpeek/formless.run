@@ -9,7 +9,11 @@ import {
   formatStoredRecordsForArtifact,
 } from "@dpeek/formless-storage";
 import type { RecordValues, StorageSnapshot, StoredRecord } from "@dpeek/formless-storage";
-import type { BootstrapResponse, ChangeRow } from "../shared/protocol.ts";
+import type {
+  ActiveSchemaRefreshBlocker,
+  BootstrapResponse,
+  ChangeRow,
+} from "../shared/protocol.ts";
 import type {
   CreateRecordWriteRequest,
   DeleteRecordWriteRequest,
@@ -143,13 +147,7 @@ export type StorageSnapshotSource = {
   snapshot: StorageSnapshot;
 };
 
-export type ActiveSchemaRefreshBlocker = {
-  currentSchemaProvenance?: ProgramSchemaProvenance;
-  reason: string;
-  schemaKey?: string;
-  storageIdentity?: string;
-  targetSchemaProvenance: ProgramSchemaProvenance;
-};
+export type { ActiveSchemaRefreshBlocker } from "../shared/protocol.ts";
 
 export class ActiveSchemaRefreshBlockedError extends Error {
   readonly blocker: ActiveSchemaRefreshBlocker;

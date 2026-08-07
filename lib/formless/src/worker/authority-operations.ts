@@ -61,6 +61,7 @@ import {
 import {
   ARCHIVE_RESTORE_GUARD_PATH,
   ARCHIVE_RESTORE_GUARD_RELEASE_PATH,
+  ARCHIVE_RESTORE_PATH,
   type ArchiveRestoreGuardedSnapshotRequest,
   type ArchiveRestoreGuardReleaseRequest,
   type ArchiveRestoreGuardReleaseResponse,
@@ -253,7 +254,7 @@ export function selectAuthorityOperation(
     };
   }
 
-  if (input.method === "POST" && input.path === "/snapshot/restore") {
+  if (input.method === "POST" && input.path === ARCHIVE_RESTORE_PATH) {
     return { kind: "restoreSnapshot", metadata: metadata("restoreSnapshot", "write") };
   }
 
@@ -288,7 +289,6 @@ export async function executeAuthorityOperation(
 
   switch (operation.kind) {
     case "beginArchiveRestore": {
-      initializeStorageFromSource(input.storage, input.source);
       const request = parseArchiveRestoreGuardRequest(input.body);
 
       return {

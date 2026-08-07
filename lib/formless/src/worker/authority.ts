@@ -1,5 +1,9 @@
 import { DurableObject } from "cloudflare:workers";
-import type { SyncSocketAttachment, SyncSocketServerMessage } from "../shared/protocol.ts";
+import {
+  activeSchemaRefreshBlockedResponse,
+  type SyncSocketAttachment,
+  type SyncSocketServerMessage,
+} from "../shared/protocol.ts";
 import { parseAuthorityApiRoute } from "../shared/program-storage-identity.ts";
 import { handleInstanceArchiveDurableObjectRequest } from "./archive-api.ts";
 import {
@@ -117,11 +121,41 @@ export class FormlessAuthority extends DurableObject<Env> {
     }
 
     if (this.ctx.id.name === FORMLESS_PROGRAM_STORAGE_IDENTITY) {
-      ensureFormlessProgramStorage(this.ctx.storage);
+      try {
+        ensureFormlessProgramStorage(this.ctx.storage);
+      } catch (error) {
+        if (
+          !(error instanceof ActiveSchemaRefreshBlockedError) ||
+          parseAuthorityApiRoute(url.pathname) === undefined
+        ) {
+          throw error;
+        }
+      }
     }
 
     if (this.ctx.id.name === FORMLESS_INSTANCE_AUTHORITY_NAME) {
+      const instanceArchiveResponse = await handleInstanceArchiveDurableObjectRequest(
+        request,
+        this.ctx.storage,
+        this.bindings,
+      );
+
+      if (instanceArchiveResponse) {
+        return instanceArchiveResponse;
+      }
+
       await ensureRuntimeInstanceAuthConfig(this.ctx.storage, request, this.bindings);
+    }
+
+    const instanceControlPlaneResponse = await handleInstanceControlPlaneDurableObjectRequest(
+      request,
+      this.ctx.storage,
+      this.bindings,
+      new AuthorityWriteModule(this.ctx.storage, () => this.scheduleCommittedWriteBroadcast()),
+    );
+
+    if (instanceControlPlaneResponse) {
+      return instanceControlPlaneResponse;
     }
 
     const localSessionBootstrapResponse = await handleLocalSessionBootstrapDurableObjectRequest(
@@ -281,17 +315,6 @@ export class FormlessAuthority extends DurableObject<Env> {
       return instanceEmailRuntimeResponse;
     }
 
-    const instanceControlPlaneResponse = await handleInstanceControlPlaneDurableObjectRequest(
-      request,
-      this.ctx.storage,
-      this.bindings,
-      new AuthorityWriteModule(this.ctx.storage, () => this.scheduleCommittedWriteBroadcast()),
-    );
-
-    if (instanceControlPlaneResponse) {
-      return instanceControlPlaneResponse;
-    }
-
     const identityControlPlaneResponse = await handleIdentityControlPlaneDurableObjectRequest(
       request,
       this.ctx.storage,
@@ -300,16 +323,6 @@ export class FormlessAuthority extends DurableObject<Env> {
 
     if (identityControlPlaneResponse) {
       return identityControlPlaneResponse;
-    }
-
-    const instanceArchiveResponse = await handleInstanceArchiveDurableObjectRequest(
-      request,
-      this.ctx.storage,
-      this.bindings,
-    );
-
-    if (instanceArchiveResponse) {
-      return instanceArchiveResponse;
     }
 
     if (url.pathname === INTERNAL_PUBLIC_SITE_BOOTSTRAP_PATH) {
@@ -501,7 +514,7 @@ export class FormlessAuthority extends DurableObject<Env> {
       }
 
       if (error instanceof ActiveSchemaRefreshBlockedError) {
-        return jsonResponse({ error: error.message, blocker: error.blocker }, 409);
+        return jsonResponse(activeSchemaRefreshBlockedResponse(error.message, error.blocker), 409);
       }
 
       throw error;

@@ -96,31 +96,39 @@ export async function authorizeProgramAccess(
     };
   }
 
-  const access = await validateInstanceAuthAccessSession(request, env, {
-    requiredAuthority: "authenticated",
-    target: options.hostSessionTarget,
-  });
+  try {
+    const access = await validateInstanceAuthAccessSession(request, env, {
+      requiredAuthority: "authenticated",
+      target: options.hostSessionTarget,
+    });
 
-  if (access.ok) {
-    const authority = await (options.resolveAuthority?.(access.principalId) ??
-      readInternalIdentityAuthorityForPrincipal(env, access.principalId));
+    if (access.ok) {
+      const authority = await (options.resolveAuthority?.(access.principalId) ??
+        readInternalIdentityAuthorityForPrincipal(env, access.principalId));
 
-    if (
-      authority?.id === access.principalId &&
-      evaluateAccessRequirement(requirement, authority.callerFacts, schema)
-    ) {
-      return {
-        authorized: true,
-        callerFacts: authority.callerFacts,
-        session: access.session,
-        via: access.via,
-      };
+      if (
+        authority?.id === access.principalId &&
+        evaluateAccessRequirement(requirement, authority.callerFacts, schema)
+      ) {
+        return {
+          authorized: true,
+          callerFacts: authority.callerFacts,
+          session: access.session,
+          via: access.via,
+        };
+      }
     }
-  }
+  } catch {}
 
+  return unauthorizedProgramAccess(options.error);
+}
+
+function unauthorizedProgramAccess(
+  error: string,
+): Extract<ProgramAccessAuthorizationResult, { authorized: false }> {
   return {
     authorized: false,
-    error: options.error,
+    error,
     headers: {
       "WWW-Authenticate": 'Bearer realm="formless-admin"',
     },
@@ -238,7 +246,7 @@ async function authorizeOwnerSessionOrAdmin(
     return { authorized: true, via: "admin-bearer" };
   }
 
-  const session = await validateInstanceAuthAccessSession(request, env, {
+  const session = await validateInstanceAuthAccessSessionSafely(request, env, {
     ...(options.resolveOwnerSession === undefined
       ? {}
       : {
@@ -251,13 +259,19 @@ async function authorizeOwnerSessionOrAdmin(
     target: options.hostSessionTarget,
   });
 
-  if (session.ok) {
+  if (session?.ok) {
     return { authorized: true, session: session.session, via: session.via };
   }
 
+  return unauthorizedInstanceAccess(options.error);
+}
+
+function unauthorizedInstanceAccess(
+  error: string,
+): Extract<InstanceWriteAuthorizationResult, { authorized: false }> {
   return {
     authorized: false,
-    error: options.error,
+    error,
     headers: {
       "WWW-Authenticate": 'Bearer realm="formless-admin"',
     },
@@ -288,7 +302,7 @@ async function authorizeManagementSessionOrAdmin(
     return { authorized: true, via: "admin-bearer" };
   }
 
-  const session = await validateInstanceAuthAccessSession(request, env, {
+  const session = await validateInstanceAuthAccessSessionSafely(request, env, {
     ...(options.resolveManagementAuthority === undefined
       ? {}
       : {
@@ -302,7 +316,7 @@ async function authorizeManagementSessionOrAdmin(
     target: options.hostSessionTarget,
   });
 
-  if (session.ok) {
+  if (session?.ok) {
     return { authorized: true, session: session.session, via: session.via };
   }
 
@@ -314,6 +328,18 @@ async function authorizeManagementSessionOrAdmin(
     },
     status: 401,
   };
+}
+
+async function validateInstanceAuthAccessSessionSafely(
+  request: Request,
+  env: AuthorityAdminGuardEnv,
+  options: Parameters<typeof validateInstanceAuthAccessSession>[2],
+): Promise<Awaited<ReturnType<typeof validateInstanceAuthAccessSession>> | undefined> {
+  try {
+    return await validateInstanceAuthAccessSession(request, env, options);
+  } catch {
+    return undefined;
+  }
 }
 
 function normalizedAdminToken(value: string | undefined) {

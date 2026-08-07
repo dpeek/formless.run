@@ -17,6 +17,7 @@ import {
   ARCHIVE_RESTORE_CONFLICT_CODE,
   ARCHIVE_RESTORE_GUARD_PATH,
   ARCHIVE_RESTORE_GUARD_RELEASE_PATH,
+  ARCHIVE_RESTORE_PATH,
   type ArchiveRestoreConflictResponse,
   type ArchiveRestoreGuardResponse,
 } from "./archive-restore-protocol.ts";
@@ -246,7 +247,7 @@ async function restoreProgramViaAuthority(
   const response = await programAuthorityFetch(
     request,
     env,
-    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}/snapshot/restore`,
+    `${FORMLESS_PROGRAM_API_ROUTE_PREFIX}${ARCHIVE_RESTORE_PATH}`,
     {
       body: JSON.stringify({ guardToken, snapshot: program }),
       method: "POST",

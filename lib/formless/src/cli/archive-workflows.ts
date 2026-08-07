@@ -35,7 +35,10 @@ import {
   type MediaAsset,
 } from "@dpeek/formless-media";
 import { parseStorageSnapshot, type StorageSnapshot } from "@dpeek/formless-storage";
-import { FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER } from "../shared/protocol.ts";
+import {
+  FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER,
+  parseActiveSchemaRefreshBlockedResponse,
+} from "../shared/protocol.ts";
 import {
   resolveFormlessCliAdminToken,
   formlessCliTargetFetchHeaders,
@@ -327,7 +330,17 @@ async function fetchRemoteProgramArchiveSource(input: {
   });
 
   if (!response.ok) {
-    throw new Error(`Failed GET ${url}: HTTP ${response.status} ${await response.text()}`);
+    const text = await response.text();
+    const schemaRefreshBlocker = parseActiveSchemaRefreshBlockedResponseText(text);
+
+    if (response.status === 409 && schemaRefreshBlocker !== undefined) {
+      throw new CurrentTargetArchiveSourceValidationError(
+        "validation",
+        `Current target Program schema refresh is blocked: ${schemaRefreshBlocker.blocker.reason}`,
+      );
+    }
+
+    throw new Error(`Failed GET ${url}: HTTP ${response.status} ${text}`);
   }
 
   let value: unknown;
@@ -358,6 +371,14 @@ async function fetchRemoteProgramArchiveSource(input: {
       "validation",
       error instanceof Error ? error.message : "Current target snapshot source is invalid.",
     );
+  }
+}
+
+function parseActiveSchemaRefreshBlockedResponseText(text: string) {
+  try {
+    return parseActiveSchemaRefreshBlockedResponse(JSON.parse(text) as unknown);
+  } catch {
+    return undefined;
   }
 }
 

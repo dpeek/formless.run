@@ -47,7 +47,10 @@ import {
   FORMLESS_RUNTIME_PROTOCOL_VERSION,
   FORMLESS_STORAGE_MIGRATION_SET_ID,
 } from "../shared/deploy-metadata.ts";
-import { FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER } from "../shared/protocol.ts";
+import {
+  ACTIVE_SCHEMA_REFRESH_BLOCKED_CODE,
+  FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER,
+} from "../shared/protocol.ts";
 import { SITE_PUBLIC_RENDERER_RUNTIME_EXTENSION_KEY } from "../shared/workspace-runtime-extensions.ts";
 import {
   ALCHEMY_PASSWORD_ENV_NAME,
@@ -1571,7 +1574,17 @@ describe("deployment runtime domain", () => {
         restorePlan(),
         { ok: true, report: { applied: true, summary: restoreSummary() } },
       ],
-      snapshotResponse: {},
+      snapshotResponse: Response.json(
+        {
+          blocker: {
+            reason: 'Field "site" is required.',
+            targetSchemaProvenance: formlessProgramSchemaProvenance,
+          },
+          code: ACTIVE_SCHEMA_REFRESH_BLOCKED_CODE,
+          error: "Active schema refresh blocked.",
+        },
+        { status: 409 },
+      ),
     });
 
     await writeWorkspaceConfig(workspaceRoot);
@@ -2411,17 +2424,20 @@ function sourceSyncFetch(
       const schema = options.controlPlaneSchema ?? formlessProgramSchema;
       const schemaProvenance =
         options.controlPlaneSchemaProvenance ?? formlessProgramSchemaProvenance;
-
-      return Response.json(
+      const snapshotResponse =
         options.snapshotResponseFactory?.() ??
-          options.snapshotResponse ??
-          controlPlaneSnapshot(options.controlPlaneRecords ?? deployControlPlaneRecords(), schema),
-        {
-          headers: {
-            [FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER]: schemaProvenance.sourceSchemaHash,
-          },
+        options.snapshotResponse ??
+        controlPlaneSnapshot(options.controlPlaneRecords ?? deployControlPlaneRecords(), schema);
+
+      if (snapshotResponse instanceof Response) {
+        return snapshotResponse;
+      }
+
+      return Response.json(snapshotResponse, {
+        headers: {
+          [FORMLESS_CLIENT_SOURCE_SCHEMA_HASH_HEADER]: schemaProvenance.sourceSchemaHash,
         },
-      );
+      });
     }
 
     if (parsedUrl.pathname === "/api/formless/program/media/documents") {

@@ -184,6 +184,21 @@ export default {
       return earlyEmailVerificationResponse;
     }
 
+    const deployMetadataResponse = handleDeployMetadataRequest(request, env);
+
+    if (deployMetadataResponse) {
+      return deployMetadataResponse;
+    }
+
+    const archiveResponse = await handleInstanceArchiveApiRequest(
+      capabilityForwardRequests.archive,
+      env,
+    );
+
+    if (archiveResponse) {
+      return archiveResponse;
+    }
+
     const runtimeRoute = await resolveInstanceRuntimeRouteForRequest(request, env, {
       includeHostless: false,
     });
@@ -282,12 +297,6 @@ export default {
 
     if (publishedSiteIndexingResponse) {
       return publishedSiteIndexingResponse;
-    }
-
-    const deployMetadataResponse = handleDeployMetadataRequest(request, env);
-
-    if (deployMetadataResponse) {
-      return deployMetadataResponse;
     }
 
     const instanceAuthHandoffResponse = await handleInstanceAuthHandoffRequest(
@@ -406,15 +415,6 @@ export default {
 
     if (accountPasskeyResponse) {
       return accountPasskeyResponse;
-    }
-
-    const archiveResponse = await handleInstanceArchiveApiRequest(
-      capabilityForwardRequests.archive,
-      env,
-    );
-
-    if (archiveResponse) {
-      return archiveResponse;
     }
 
     const instanceUpgradeStatusResponse = await handleInstanceUpgradeStatusApiRequest(request, env);
