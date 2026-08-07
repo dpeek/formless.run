@@ -40,21 +40,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
           editor: "boolean",
           commit: "immediate",
         },
-        {
-          field: "home",
-          editor: "reference",
-          commit: "immediate",
-        },
-        {
-          field: "header",
-          editor: "reference",
-          commit: "immediate",
-        },
-        {
-          field: "footer",
-          editor: "reference",
-          commit: "immediate",
-        },
       ],
     },
     {

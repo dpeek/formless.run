@@ -69,7 +69,7 @@ type InstanceShellRouteProps = {
 
 export type ProgramScreenRouteChildKind = "runtime" | "unavailable" | "workspace";
 
-const registeredProgramRuntimeScreenKeys: ReadonlySet<string> = new Set(["access"]);
+const registeredProgramRuntimeScreenKeys: ReadonlySet<string> = new Set(["access", "instanceHome"]);
 
 export function selectProgramScreenRouteChildKind({
   registeredRuntimeScreenKeys,
@@ -87,6 +87,7 @@ export function selectProgramScreenRouteChildKind({
 
 export type AppRouteComponents = {
   AccessRoute: ElementType;
+  InstanceHomeRoute: ElementType;
   ApplicationShellRuntimeBoundary: ElementType<ApplicationShellRuntimeBoundaryProps>;
   AuthAccountRoute: ElementType;
   CollaboratorInvitationAcceptanceRoute: ElementType;
@@ -99,6 +100,11 @@ export type AppRouteComponents = {
 const defaultRouteComponents: AppRouteComponents = {
   AccessRoute: lazy(() =>
     import("./app/routes/access.tsx").then((module) => ({ default: module.AccessRoute })),
+  ),
+  InstanceHomeRoute: lazy(() =>
+    import("./app/routes/instance-home.tsx").then((module) => ({
+      default: module.InstanceHomeRoute,
+    })),
   ),
   ApplicationShellRuntimeBoundary: lazy(() =>
     import("./app/application-shell-runtime.tsx").then((module) => ({
@@ -436,6 +442,7 @@ function AppRoutes({
     AuthAccountRoute,
     CollaboratorInvitationAcceptanceRoute,
     InstanceShellRoute,
+    InstanceHomeRoute,
     LocalSessionRoute,
     AccountSignInRoute,
     SitePageRoute,
@@ -539,7 +546,13 @@ function AppRoutes({
             return (
               <Route key={screen.key} path={screen.path}>
                 {childKind === "runtime" ? (
-                  <AccessRoute />
+                  screen.key === "access" ? (
+                    <AccessRoute />
+                  ) : screen.key === "instanceHome" ? (
+                    <InstanceHomeRoute />
+                  ) : (
+                    <NotFoundRoute />
+                  )
                 ) : childKind === "workspace" ? (
                   <InstanceShellRoute
                     localWorkspaceGatewayAvailable={localWorkspaceGatewayAvailable}

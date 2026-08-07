@@ -239,20 +239,19 @@ describe("Site schema authoring", () => {
     ).toEqual([
       { name: "createSite", kind: "create", entity: "site" },
       { name: "createHomePage", kind: "create", entity: "block" },
+      { name: "createContactPage", kind: "create", entity: "block" },
       { name: "createHeader", kind: "create", entity: "block" },
-      { name: "createHeaderPrimary", kind: "create", entity: "block" },
       { name: "createFooter", kind: "create", entity: "block" },
       { name: "createFooterSection", kind: "create", entity: "block" },
-      { name: "createHeaderHomeLink", kind: "create", entity: "block" },
+      { name: "createFooterContactLink", kind: "create", entity: "block" },
+      { name: "createContactForm", kind: "create", entity: "block" },
       { name: "createFooterHomeLink", kind: "create", entity: "block" },
-      { name: "createWelcomeHero", kind: "create", entity: "block" },
-      { name: "createAboutMarkdown", kind: "create", entity: "block" },
-      { name: "placeHeaderPrimary", kind: "create", entity: "block-placement" },
-      { name: "placeHeaderHomeLink", kind: "create", entity: "block-placement" },
+      { name: "createWelcomeMarkdown", kind: "create", entity: "block" },
+      { name: "placeFooterContactLink", kind: "create", entity: "block-placement" },
+      { name: "placeContactForm", kind: "create", entity: "block-placement" },
       { name: "placeFooterSection", kind: "create", entity: "block-placement" },
       { name: "placeFooterHomeLink", kind: "create", entity: "block-placement" },
-      { name: "placeWelcomeHero", kind: "create", entity: "block-placement" },
-      { name: "placeAboutMarkdown", kind: "create", entity: "block-placement" },
+      { name: "placeWelcomeMarkdown", kind: "create", entity: "block-placement" },
       { name: "assignSiteRoots", kind: "patch", entity: "site" },
     ]);
     expect(operation.effect.steps[0]).toMatchObject({
@@ -263,7 +262,12 @@ describe("Site schema authoring", () => {
           length: 10,
           prefix: "site-",
         },
-        label: { kind: "literal", value: "Untitled site" },
+        label: { kind: "literal", value: "Formless" },
+        description: {
+          kind: "literal",
+          value: "Formless is a schema-as-data runtime for building custom software on Cloudflare",
+        },
+        icon: { kind: "literal", value: expect.stringContaining('fill="currentColor"') },
       },
     });
     expect(operation.effect.steps.at(-1)).toMatchObject({

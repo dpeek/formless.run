@@ -179,6 +179,8 @@ from reusable package modules.
 - AND the product-supplied route-management workspace and runtime-owned
   access-management screen are portable screen declarations contributed through
   independently replaceable modules
+- AND the product-owned `instanceHome` runtime screen declares the root path
+  `/` without making any package workspace the root route
 - AND the result is one valid `AppSchemaSource` rather than a second Program
   schema language or wrapper contract
 - AND instance, identity, standard, Task, and Site entities retain their
@@ -279,9 +281,10 @@ from reusable package modules.
 - WHEN the root declares grouped navigation
 - THEN `navigation.groups` is an ordered array of stable group keys, human
   labels, and ordered screen-key references
-- AND the default Program declares Tasks, Site, and Instance groups while
+- AND the default Program declares Home, Tasks, Site, and Instance groups while
   a downstream Program may replace that complete grouping and add its own
   groups
+- AND the Home group selects the product-owned `instanceHome` screen
 - AND the default Tasks and Site groups select `taskHome` and `siteEditor`
   respectively
 - AND the default Instance group selects `routes` and `access` in that order

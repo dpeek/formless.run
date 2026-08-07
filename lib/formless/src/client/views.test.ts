@@ -2219,9 +2219,6 @@ describe("home view model collections", () => {
       "icon",
       "initialThemeMode",
       "themeSwitchable",
-      "home",
-      "header",
-      "footer",
     ]);
     expect(
       fields.map((field) => ({
@@ -2247,9 +2244,6 @@ describe("home view model collections", () => {
         editor: "boolean",
         commit: "immediate",
       },
-      { fieldName: "home", editor: "reference", commit: "immediate" },
-      { fieldName: "header", editor: "reference", commit: "immediate" },
-      { fieldName: "footer", editor: "reference", commit: "immediate" },
     ]);
   });
 

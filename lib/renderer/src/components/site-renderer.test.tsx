@@ -81,7 +81,7 @@ describe("Astryx public Site page shell", () => {
     expect(github.href).toBe("https://github.com/dpeek");
     expect(github.target).toBe("_blank");
     expect(new Set(github.rel.split(" "))).toEqual(new Set(["noreferrer", "noopener"]));
-    expect(rendererText(renderer)).toContain(
+    expect(rendererText(renderer)).not.toContain(
       "Product design and engineering for teams building ambitious software.",
     );
 
@@ -170,19 +170,16 @@ describe("Astryx public Site page shell", () => {
     ["header only", { header: publicSiteRendererPropsFixture.tree.frame.header }, true, false],
     ["footer only", { footer: publicSiteRendererPropsFixture.tree.frame.footer }, false, true],
     ["no frame roots", {}, false, false],
-  ] as const)(
-    "keeps page content available with %s",
-    async (_name, frame, hasHeader, hasFooter) => {
-      viewport.isMobile = false;
-      const renderer = await renderPage(shellRendererProps(frame));
+  ] as const)("renders the page shell with %s", async (_name, frame, hasHeader, hasFooter) => {
+    viewport.isMobile = false;
+    const renderer = await renderPage(shellRendererProps(frame));
 
-      expect(rendererText(renderer)).toContain("Clear digital products for ambitious teams.");
-      expect(renderer.container.querySelector('nav[aria-label="Header"]') !== null).toBe(hasHeader);
-      expect(renderer.container.querySelector('nav[aria-label="Pages"]') !== null).toBe(hasFooter);
+    expect(renderer.container.querySelector('[data-site-block-type="page"]')).not.toBeNull();
+    expect(renderer.container.querySelector('nav[aria-label="Header"]') !== null).toBe(hasHeader);
+    expect(renderer.container.querySelector('nav[aria-label="Pages"]') !== null).toBe(hasFooter);
 
-      await unmount(renderer);
-    },
-  );
+    await unmount(renderer);
+  });
 });
 
 describe("Astryx public Site structural blocks", () => {
@@ -268,18 +265,17 @@ describe("Astryx public Site structural blocks", () => {
     );
 
     expect(headingOutline(renderer)).toEqual([
-      [1, "Structural page"],
-      [2, "A clear opening"],
-      [2, "Placed group label"],
-      [3, "Nested section"],
-      [5, "Section detail"],
-      [4, "Capabilities"],
-      [5, "Direction"],
-      [6, "Card detail"],
-      [5, "Delivery"],
-      [4, "Outcomes"],
-      [2, "Closing notes"],
-      [3, "Closing detail"],
+      [1, "A clear opening"],
+      [1, "Placed group label"],
+      [2, "Nested section"],
+      [4, "Section detail"],
+      [3, "Capabilities"],
+      [4, "Direction"],
+      [5, "Card detail"],
+      [4, "Delivery"],
+      [3, "Outcomes"],
+      [1, "Closing notes"],
+      [2, "Closing detail"],
     ]);
     expect(rendererText(renderer)).toContain("First paragraph.");
     expect(rendererText(renderer)).toContain("Second paragraph.");
@@ -671,7 +667,7 @@ describe("Astryx public Site lists, summaries, and post detail", () => {
       },
     });
 
-    expect(headingOutline(renderer)[0]).toEqual([1, "Post detail flow"]);
+    expect(headingOutline(renderer)[0]).toEqual([1, "Middle section"]);
     expect(rendererText(renderer)).not.toContain("Summary-only copy must stay out");
     expect(rendererText(renderer)).not.toContain("Slotted summary content");
     expect(rendererText(renderer)).toContain("Detail body with a");

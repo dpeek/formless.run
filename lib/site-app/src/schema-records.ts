@@ -41,7 +41,15 @@ const siteStarterRecordPlan: RecordPlanStepSchema[] = [
         length: 10,
         prefix: "site-",
       },
-      label: starterLiteral("Untitled site"),
+      label: starterLiteral("Formless"),
+      description: starterLiteral(
+        "Formless is a schema-as-data runtime for building custom software on Cloudflare",
+      ),
+      icon: starterLiteral(`<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M0 134.118C0 60.0465 60.0465 0 134.118 0H480C497.673 0 512 14.3269 512 32C512 98.2742 458.274 152 392 152H17.8824C8.0062 152 0 143.994 0 134.118Z" fill="currentColor"/>
+<path d="M0 204C0 190.745 10.7452 180 24 180H347C364.673 180 379 194.327 379 212C379 278.274 325.274 332 259 332H24C10.7452 332 0 321.255 0 308V204Z" fill="currentColor"/>
+<path d="M0 384C0 370.745 10.7452 360 24 360H213C230.673 360 245 374.327 245 392C245 458.274 191.274 512 125 512H48C21.4903 512 0 490.51 0 464V384Z" fill="currentColor"/>
+</svg>`),
     },
   },
   {
@@ -56,6 +64,17 @@ const siteStarterRecordPlan: RecordPlanStepSchema[] = [
     },
   },
   {
+    name: "createContactPage",
+    kind: "create",
+    entity: "block",
+    values: {
+      site: starterReference("site", "createSite"),
+      type: starterLiteral("page"),
+      label: starterLiteral("Contact"),
+      href: starterLiteral("/contact"),
+    },
+  },
+  {
     name: "createHeader",
     kind: "create",
     entity: "block",
@@ -63,16 +82,6 @@ const siteStarterRecordPlan: RecordPlanStepSchema[] = [
       site: starterReference("site", "createSite"),
       type: starterLiteral("header"),
       label: starterLiteral("Header"),
-    },
-  },
-  {
-    name: "createHeaderPrimary",
-    kind: "create",
-    entity: "block",
-    values: {
-      site: starterReference("site", "createSite"),
-      type: starterLiteral("headerPrimary"),
-      label: starterLiteral("Header primary"),
     },
   },
   {
@@ -92,19 +101,30 @@ const siteStarterRecordPlan: RecordPlanStepSchema[] = [
     values: {
       site: starterReference("site", "createSite"),
       type: starterLiteral("footerSection"),
-      label: starterLiteral("Footer section"),
+      label: starterLiteral("Sitemap"),
     },
   },
   {
-    name: "createHeaderHomeLink",
+    name: "createFooterContactLink",
     kind: "create",
     entity: "block",
     values: {
       site: starterReference("site", "createSite"),
       type: starterLiteral("link"),
-      label: starterLiteral("Home"),
+      label: starterLiteral("Contact"),
       linkTargetMode: starterLiteral("internal"),
-      linkTargetBlock: starterReference("block", "createHomePage"),
+      linkTargetBlock: starterReference("block", "createContactPage"),
+    },
+  },
+  {
+    name: "createContactForm",
+    kind: "create",
+    entity: "block",
+    values: {
+      site: starterReference("site", "createSite"),
+      type: starterLiteral("contactForm"),
+      label: starterLiteral("Contact"),
+      operationName: starterLiteral("submit"),
     },
   },
   {
@@ -120,44 +140,52 @@ const siteStarterRecordPlan: RecordPlanStepSchema[] = [
     },
   },
   {
-    name: "createWelcomeHero",
-    kind: "create",
-    entity: "block",
-    values: {
-      site: starterReference("site", "createSite"),
-      type: starterLiteral("hero"),
-      label: starterLiteral("Welcome"),
-      body: starterLiteral("Welcome to your new site."),
-    },
-  },
-  {
-    name: "createAboutMarkdown",
+    name: "createWelcomeMarkdown",
     kind: "create",
     entity: "block",
     values: {
       site: starterReference("site", "createSite"),
       type: starterLiteral("markdown"),
-      label: starterLiteral("About"),
-      body: starterLiteral("Add a short introduction to your site."),
+      label: starterLiteral("Welcome to Formless"),
+      body: starterLiteral(`Formless is a schema-as-data app runtime for building custom software on Cloudflare.
+
+One app definition describes records, fields, relationships, queries, read
+models, views, screens, actions, public output, and deploy behavior. The runtime
+turns that definition into storage, sync, generated UI, media, public pages,
+archives, and deploy paths.
+
+## Web CMS
+
+One of the things you can build on Formless is this simple Web CMS. It supports posts, projects, markdown rendering and syntax highlighted code blocks so you can stop procrastinating and finally start that blog.
+
+\`\`\`ts
+type Formless = {
+  field: string;
+}
+\`\`\`
+
+## Conclusion
+
+Formless does very little out of the box. It's a set of powerful building blocks for building exactly the software you want.`),
     },
   },
   {
-    name: "placeHeaderPrimary",
+    name: "placeFooterContactLink",
     kind: "create",
     entity: "block-placement",
     values: {
-      parent: starterReference("block", "createHeader"),
-      block: starterReference("block", "createHeaderPrimary"),
-      order: starterLiteral(1000),
+      parent: starterReference("block", "createFooterSection"),
+      block: starterReference("block", "createFooterContactLink"),
+      order: starterLiteral(2000),
     },
   },
   {
-    name: "placeHeaderHomeLink",
+    name: "placeContactForm",
     kind: "create",
     entity: "block-placement",
     values: {
-      parent: starterReference("block", "createHeaderPrimary"),
-      block: starterReference("block", "createHeaderHomeLink"),
+      parent: starterReference("block", "createContactPage"),
+      block: starterReference("block", "createContactForm"),
       order: starterLiteral(1000),
     },
   },
@@ -182,23 +210,13 @@ const siteStarterRecordPlan: RecordPlanStepSchema[] = [
     },
   },
   {
-    name: "placeWelcomeHero",
+    name: "placeWelcomeMarkdown",
     kind: "create",
     entity: "block-placement",
     values: {
       parent: starterReference("block", "createHomePage"),
-      block: starterReference("block", "createWelcomeHero"),
+      block: starterReference("block", "createWelcomeMarkdown"),
       order: starterLiteral(1000),
-    },
-  },
-  {
-    name: "placeAboutMarkdown",
-    kind: "create",
-    entity: "block-placement",
-    values: {
-      parent: starterReference("block", "createHomePage"),
-      block: starterReference("block", "createAboutMarkdown"),
-      order: starterLiteral(2000),
     },
   },
   {

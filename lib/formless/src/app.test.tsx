@@ -12,6 +12,13 @@ import {
 import { formlessProgramSchema } from "./program/runtime.ts";
 
 describe("application route selection", () => {
+  it("selects the instance home inside the application shell", () => {
+    const home = renderRoute("/");
+
+    expect(home).toContain('data-surface="application-shell"');
+    expect(home).toContain('data-route="instance-home"');
+  });
+
   it("selects Program surfaces inside the application shell", () => {
     const instance = renderRoute("/settings/access");
     const contactIntakeScreen = renderRoute("/site/subscribers");
@@ -170,6 +177,7 @@ function routeComponents(): AppRouteComponents {
     ),
     AuthAccountRoute: () => <output data-route="auth-account" />,
     CollaboratorInvitationAcceptanceRoute: () => <output data-route="invitation" />,
+    InstanceHomeRoute: () => <output data-route="instance-home" />,
     InstanceShellRoute: ({ routesScreenPath, screenKey, screenPath }) => (
       <output
         data-route="instance"

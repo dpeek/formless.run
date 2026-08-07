@@ -433,7 +433,7 @@ describe("Worker document routing", () => {
   });
 
   it("keeps non-published unknown document routes out of static fallback", () => {
-    expect(shouldDeferToStaticAssets(documentRequest("http://example.com/"))).toBe(false);
+    expect(shouldDeferToStaticAssets(documentRequest("http://example.com/"))).toBe(true);
     expect(shouldDeferToStaticAssets(documentRequest("http://example.com/blog/post"))).toBe(false);
     expect(
       shouldDeferToStaticAssets(documentRequest("http://example.com/"), {
@@ -450,7 +450,7 @@ describe("Worker document routing", () => {
       shouldDeferToStaticAssets(documentRequest("http://published-site.example.com/"), {
         profile: "instance",
       }),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       shouldDeferToStaticAssets(documentRequest("http://example.com/admin"), {
         profile: "instance",

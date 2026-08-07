@@ -55,7 +55,7 @@ describe("published Site launch assets", () => {
     expect(svg.contentType).toBe("image/svg+xml; charset=utf-8");
     expect(svg.cacheControl).toBe(PUBLIC_SITE_ICON_CACHE_CONTROL);
     expect(svg.etag).toMatch(/^"site-icon:favicon-svg:/);
-    expect(svg.bytesAsText()).toBe(resolveSiteIconSvgSource(testSiteIconSource()));
+    expect(svg.bytesAsText()).toBe(whiteFaviconSvg(testSiteIconSource()));
     expect(ico.contentType).not.toContain("text/html");
     expect(ico.cacheControl).toBe(PUBLIC_SITE_ICON_CACHE_CONTROL);
     expect(ico.etag).toMatch(/^"site-icon:favicon-ico:/);
@@ -102,7 +102,7 @@ describe("published Site launch assets", () => {
     const png = await assetBytes("/apple-touch-icon.png");
     const ico = await assetBytes("/favicon.ico");
 
-    expect(svg.bytesAsText()).toBe(resolveSiteIconSvgSource(DEFAULT_SITE_ICON_SVG));
+    expect(svg.bytesAsText()).toBe(whiteFaviconSvg(DEFAULT_SITE_ICON_SVG));
     expect(svg.bytesAsText()).not.toContain("<script");
     expect(png.bytes.subarray(0, 8)).toEqual(
       new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
@@ -160,6 +160,10 @@ function testSiteIconSource(): string {
   }
 
   return icon;
+}
+
+function whiteFaviconSvg(source: string): string {
+  return resolveSiteIconSvgSource(source).replace(/^<svg\b/, '<svg color="#fff"');
 }
 
 async function patchSiteIcon(icon: string) {

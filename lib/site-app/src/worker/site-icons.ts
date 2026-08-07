@@ -99,20 +99,26 @@ async function buildCachedSiteIconResponse(
 }
 
 async function siteIconBody(kind: SiteIconRouteKind, svg: string): Promise<BodyInit> {
+  const faviconSvg = whiteCurrentColorSvg(svg);
+
   switch (kind) {
     case "favicon-svg":
-      return svg;
+      return faviconSvg;
     case "apple-touch-png":
-      return byteBody(await renderSvgToPng(svg, 180));
+      return byteBody(await renderSvgToPng(faviconSvg, 180));
     case "favicon-ico": {
       const entries = await Promise.all([
-        renderSvgToPng(svg, 16).then((png) => ({ height: 16, png, width: 16 })),
-        renderSvgToPng(svg, 32).then((png) => ({ height: 32, png, width: 32 })),
+        renderSvgToPng(faviconSvg, 16).then((png) => ({ height: 16, png, width: 16 })),
+        renderSvgToPng(faviconSvg, 32).then((png) => ({ height: 32, png, width: 32 })),
       ]);
 
       return byteBody(encodeIcoFromPngs(entries));
     }
   }
+}
+
+function whiteCurrentColorSvg(svg: string): string {
+  return svg.replace(/^<svg\b/, '<svg color="#fff"');
 }
 
 async function renderSvgToPng(svg: string, size: number): Promise<Uint8Array> {

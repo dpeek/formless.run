@@ -35,16 +35,14 @@ import { TextInput } from "@astryxdesign/core/TextInput";
 import { createStaticSource, Typeahead, type SearchableItem } from "@astryxdesign/core/Typeahead";
 import {
   TopNav,
-  TopNavHeading,
   TopNavItem,
-  type TopNavHeadingProps,
+  type TopNavItemProps,
   type TopNavProps,
 } from "@astryxdesign/core/TopNav";
 import { VStack } from "@astryxdesign/core/VStack";
 import { VisuallyHidden } from "@astryxdesign/core/VisuallyHidden";
 import { MoonIcon, SunIcon } from "@heroicons/react/24/outline";
 import { Markdown } from "@astryxdesign/core/Markdown";
-import { NavIcon } from "@astryxdesign/core/NavIcon";
 import {
   createSitePublicFormSessionController,
   isExternalSiteHref,
@@ -111,23 +109,14 @@ export function AstryxSitePresentation({
       <FormlessSiteShell
         header={
           header ? (
-            <LayoutHeader hasDivider>
+            <LayoutHeader>
               <TopNav
                 xstyle={siteTopNavXstyle}
                 label={header.label}
                 heading={
-                  <TopNavHeading
-                    xstyle={siteTopNavHeadingXstyle}
-                    heading={siteLabel}
-                    headingHref={homeHref}
-                    logo={
-                      <NavIcon
-                        icon={<SourceIcon source={tree.site?.icon} color="inherit" aria-hidden />}
-                      />
-                    }
-                  />
+                  <FormlessSiteIdentity icon={tree.site?.icon} label={siteLabel} href={homeHref} />
                 }
-                centerContent={
+                startContent={
                   !isMobile ? (
                     <FormlessSiteDesktopNav
                       group={headerNavigation.find((group) => group.kind === "primary")}
@@ -136,6 +125,7 @@ export function AstryxSitePresentation({
                 }
                 endContent={
                   <FormlessSiteHeaderActions
+                    hasMobileNavigation={hasMobileNavigation}
                     isMobile={isMobile}
                     secondaryGroup={headerNavigation.find((group) => group.kind === "secondary")}
                     themeMode={theme.mode}
@@ -194,24 +184,14 @@ const styles = stylex.create({
     paddingInlineStart: 0,
     paddingInlineEnd: 0,
   },
-  siteTopNavHeading: {
-    paddingInlineStart: 0,
+  siteIdentityNavItem: {
+    color: colorVars["--color-text-primary"],
+    fontWeight: fontWeightVars["--font-weight-semibold"],
+    marginInlineStart: `calc(-1 * ${spacingVars["--spacing-3"]})`,
   },
   mainContent: {
     paddingBlockStart: spacingVars["--spacing-12"],
     paddingBlockEnd: spacingVars["--spacing-12"],
-  },
-  pageHero: {
-    paddingBlockEnd: spacingVars["--spacing-4"],
-  },
-  siteIdentity: {
-    alignSelf: "flex-start",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    width: spacingVars["--spacing-10"],
-    height: spacingVars["--spacing-10"],
-    color: colorVars["--color-icon-primary"],
   },
   blockStack: {
     width: "100%",
@@ -395,8 +375,8 @@ const dynamicStyles = stylex.create({
 // Astryx core and this package can resolve different StyleX type brands.
 // The runtime style objects are compatible; keep the cast at the boundary.
 const siteTopNavXstyle = styles.siteTopNav as unknown as NonNullable<TopNavProps["xstyle"]>;
-const siteTopNavHeadingXstyle = styles.siteTopNavHeading as unknown as NonNullable<
-  TopNavHeadingProps["xstyle"]
+const siteIdentityNavItemXstyle = styles.siteIdentityNavItem as unknown as NonNullable<
+  TopNavItemProps["xstyle"]
 >;
 
 type FormlessSiteShellProps = {
@@ -425,7 +405,27 @@ export function FormlessSiteShell({ content, footer, header, mobileNav }: Formle
   );
 }
 
+function FormlessSiteIdentity({
+  icon,
+  label,
+  href,
+}: {
+  icon?: string;
+  label: string;
+  href: string;
+}) {
+  return (
+    <TopNavItem
+      href={href}
+      icon={<SourceIcon source={icon} color="inherit" aria-hidden />}
+      label={label}
+      xstyle={siteIdentityNavItemXstyle}
+    />
+  );
+}
+
 type FormlessSiteHeaderActionsProps = {
+  hasMobileNavigation: boolean;
   isMobile: boolean;
   secondaryGroup?: ProjectedNavigationGroup;
   themeMode: "light" | "dark";
@@ -435,6 +435,7 @@ type FormlessSiteHeaderActionsProps = {
 };
 
 function FormlessSiteHeaderActions({
+  hasMobileNavigation,
   isMobile,
   secondaryGroup,
   themeMode,
@@ -459,7 +460,7 @@ function FormlessSiteHeaderActions({
           onClick={onToggleTheme}
         />
       ) : null}
-      {isMobile ? (
+      {isMobile && hasMobileNavigation ? (
         <IconButton
           label="Open navigation"
           tooltip="Open navigation"
@@ -572,14 +573,7 @@ function FormlessPublicSiteRouteEntrypoint({
     ...(formSessionControllers ? { sessionControllers: formSessionControllers } : {}),
   } satisfies ProjectedFormRenderingFacts;
 
-  return (
-    <ProjectedPageBlock
-      block={tree.page}
-      formFacts={formFacts}
-      routeFacts={rendererProps}
-      siteIcon={tree.site?.icon}
-    />
-  );
+  return <ProjectedPageBlock block={tree.page} formFacts={formFacts} routeFacts={rendererProps} />;
 }
 
 function FormlessSiteFooter({
@@ -589,14 +583,8 @@ function FormlessSiteFooter({
   footer: SiteBlockNode;
   rendererProps: SitePublicRendererProps;
 }) {
-  const { tree } = rendererProps;
   const footerComposition = projectedFooterComposition(footer, rendererProps);
-  const footerNotes =
-    footerComposition.notes.length > 0
-      ? footerComposition.notes
-      : tree.site?.description
-        ? [tree.site.description]
-        : [];
+  const footerNotes = footerComposition.notes;
 
   return (
     <VStack gap={8}>
@@ -799,12 +787,10 @@ function ProjectedPageBlock({
   block,
   formFacts,
   routeFacts,
-  siteIcon,
 }: {
   block: SiteBlockNode;
   formFacts: ProjectedFormRenderingFacts;
   routeFacts: SitePublicRendererProps;
-  siteIcon?: string;
 }) {
   const isPostDetail = routeFacts.tree.route?.kind === "post";
   const primaryImage = isPostDetail ? primaryImagePlacement(block) : undefined;
@@ -816,21 +802,15 @@ function ProjectedPageBlock({
       data-site-block-id={block.id}
       {...stylex.props(styles.mainContent)}
     >
-      <VStack gap={4} {...stylex.props(styles.pageHero)}>
-        {siteIcon ? (
-          <span {...stylex.props(styles.siteIdentity)}>
-            <SourceIcon source={siteIcon} color="inherit" size="lg" aria-hidden />
-          </span>
-        ) : null}
-        {block.label ? <Heading level={1}>{block.label}</Heading> : null}
+      <VStack gap={4}>
         {primaryImage ? (
           <ProjectedPrimaryImage placement={primaryImage} variant="post-detail" />
         ) : null}
-        {isPostDetail ? null : <ProjectedMarkdown body={block.body} headingLevelStart={2} />}
+        {isPostDetail ? null : <ProjectedMarkdown body={block.body} headingLevelStart={1} />}
       </VStack>
       <ProjectedPlacementList
         formFacts={formFacts}
-        headingLevel={2}
+        headingLevel={1}
         placements={defaultPlacements(block)}
         routeFacts={routeFacts}
       />

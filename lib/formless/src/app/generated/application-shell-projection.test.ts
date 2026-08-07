@@ -297,6 +297,7 @@ describe("generated application shell projection", () => {
       required(routesProjection.sections.find((section) => section.role === "workspaceSwitcher"))
         .destinations,
     ).toEqual([
+      expect.objectContaining({ href: "/", label: "Home", selected: false }),
       expect.objectContaining({ href: "/tasks", label: "Tasks", selected: false }),
       expect.objectContaining({ href: "/site", label: "Site", selected: false }),
       expect.objectContaining({

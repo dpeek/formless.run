@@ -133,7 +133,7 @@ describe("application root runtime", () => {
             (link) => `${link.textContent}:${link.getAttribute("href")}`,
           ),
         ),
-      ).toEqual(new Set(["Tasks:/tasks", "Site:/site", "Instance:/settings/routes"])),
+      ).toEqual(new Set(["Home:/", "Tasks:/tasks", "Site:/site", "Instance:/settings/routes"])),
     );
     expect(
       required(document.body.querySelector('[role="menuitem"] [aria-current="page"]')).textContent,

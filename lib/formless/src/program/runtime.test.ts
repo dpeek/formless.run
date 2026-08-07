@@ -152,6 +152,13 @@ describe("Formless Program runtime contracts", () => {
   });
 
   it("loads every concrete Program screen route", () => {
+    expect(resolveFormlessProgramScreenRouteTarget("/")).toEqual({
+      access: { role: "member" },
+      key: "instanceHome",
+      label: "Home",
+      path: "/",
+      type: "runtime",
+    });
     expect(resolveFormlessProgramScreenRouteTarget("/settings/routes")).toEqual({
       access: { role: "administrator" },
       key: "routes",
@@ -228,16 +235,18 @@ describe("Formless Program runtime contracts", () => {
     const runtimeRootSchema: AppSchema = {
       ...formlessProgramSchema,
       navigation: { primaryScreens: ["access"] },
-      screens: formlessProgramSchema.screens.map((screen) =>
-        screen.key === "access"
-          ? {
-              key: screen.key,
-              type: "runtime",
-              label: screen.label,
-              access: screen.access,
-            }
-          : screen,
-      ),
+      screens: formlessProgramSchema.screens
+        .filter((screen) => screen.key !== "instanceHome")
+        .map((screen) =>
+          screen.key === "access"
+            ? {
+                key: screen.key,
+                type: "runtime",
+                label: screen.label,
+                access: screen.access,
+              }
+            : screen,
+        ),
     };
     expect(resolveFormlessProgramScreenRouteTargetByKey("access", runtimeRootSchema)).toEqual({
       access: { role: "administrator" },
@@ -248,9 +257,13 @@ describe("Formless Program runtime contracts", () => {
     });
 
     const missingAccess: unknown = structuredClone(rawFormlessProgramSchema);
-    const [firstScreen] = (missingAccess as { screens: Array<{ access?: unknown }> }).screens;
+    const routesScreen = (
+      missingAccess as {
+        screens: Array<{ access?: unknown; key: string }>;
+      }
+    ).screens.find((screen) => screen.key === "routes");
 
-    delete firstScreen?.access;
+    delete routesScreen?.access;
 
     expect(() => parseFormlessProgramSchemaArtifact(missingAccess)).toThrow(
       'Formless Program schema screen "routes" must declare explicit access.',

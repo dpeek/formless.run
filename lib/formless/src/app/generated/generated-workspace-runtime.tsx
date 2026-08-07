@@ -2174,6 +2174,16 @@ function selectWorkspaceSectionRuntimeInput({
           : {},
       operationStateByExecutionKey,
       recordState: recordStateByResultId[facts.resultId],
+      referenceOptionsByFieldName:
+        facts.section.collection.result.type === "record"
+          ? selectWorkspaceRecordReferenceOptions(
+              collectRecordPresentationFields(
+                facts.section.collection.result.recordFields,
+                facts.section.collection.result.recordUnion,
+              ),
+              snapshot,
+            )
+          : {},
       schema,
     },
     tree: {

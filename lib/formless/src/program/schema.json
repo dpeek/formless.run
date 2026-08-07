@@ -4887,21 +4887,6 @@
           "commit": "immediate",
           "editor": "boolean",
           "field": "themeSwitchable"
-        },
-        {
-          "commit": "immediate",
-          "editor": "reference",
-          "field": "home"
-        },
-        {
-          "commit": "immediate",
-          "editor": "reference",
-          "field": "header"
-        },
-        {
-          "commit": "immediate",
-          "editor": "reference",
-          "field": "footer"
         }
       ],
       "key": "siteSettingsForm"
@@ -5599,6 +5584,11 @@
   ],
   "navigation": {
     "groups": [
+      {
+        "key": "home",
+        "label": "Home",
+        "screens": ["instanceHome"]
+      },
       {
         "key": "tasks",
         "label": "Tasks",
@@ -7100,6 +7090,15 @@
     "owner": "runtime"
   },
   "screens": [
+    {
+      "access": {
+        "role": "member"
+      },
+      "key": "instanceHome",
+      "label": "Home",
+      "path": "/",
+      "type": "runtime"
+    },
     {
       "access": {
         "role": "administrator"

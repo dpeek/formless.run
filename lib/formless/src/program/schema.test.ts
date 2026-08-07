@@ -29,6 +29,7 @@ import {
   formlessIdentityControlPlaneAccessScreenSchemaModule,
   formlessInstanceControlPlanePresentationSchemaModule,
   formlessInstanceControlPlaneRoutesScreenSchemaModule,
+  formlessInstanceHomeScreenSchemaModule,
   formlessProgramSchemaModules,
   formlessProgramSourceSchema,
   formlessSiteContactIntakePresentationSchemaModule,
@@ -56,6 +57,15 @@ describe("Formless Program schema", () => {
       formlessInstanceControlPlanePresentationSchemaModule.tableViews.map(({ key }) => key),
     ).toEqual(["routeTable"]);
     expect(formlessInstanceControlPlanePresentationSchemaModule).not.toHaveProperty("screens");
+    expect(formlessInstanceHomeScreenSchemaModule.screens).toEqual([
+      {
+        access: { role: "member" },
+        key: "instanceHome",
+        label: "Home",
+        path: "/",
+        type: "runtime",
+      },
+    ]);
     expect(
       formlessInstanceControlPlaneRoutesScreenSchemaModule.screens.map((screen) => ({
         access: screen.access,
@@ -204,6 +214,7 @@ describe("Formless Program schema", () => {
     ]);
     expect(formlessProgramSchemaModules.every((module) => !("authorization" in module))).toBe(true);
     expect(parsed.screens.map(({ access, key }) => ({ access, key }))).toEqual([
+      { access: { role: "member" }, key: "instanceHome" },
       { access: { role: "administrator" }, key: "routes" },
       { access: { role: "administrator" }, key: "access" },
       { access: { role: "member" }, key: "taskHome" },
@@ -214,6 +225,7 @@ describe("Formless Program schema", () => {
     ]);
     expect(parsed.surfaceMounts).toEqual(formlessSitePreviewSurfaceMountSchemaModule.surfaceMounts);
     expect(screens.routes?.path).toBe("/settings/routes");
+    expect(screens.instanceHome).toMatchObject({ type: "runtime", path: "/" });
     expect(screens.access).toMatchObject({ type: "runtime", path: "/settings/access" });
     expect(screens.taskHome?.path).toBe("/tasks");
     expect(screens.siteEditor?.path).toBe("/site");
@@ -221,6 +233,7 @@ describe("Formless Program schema", () => {
     expect(screens.siteContacts?.path).toBe("/site/contacts");
     expect(screens.siteSubscribers?.path).toBe("/site/subscribers");
     expect(parsed.navigation?.groups).toEqual([
+      { key: "home", label: "Home", screens: ["instanceHome"] },
       { key: "tasks", label: "Tasks", screens: ["taskHome"] },
       {
         key: "site",

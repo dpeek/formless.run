@@ -131,6 +131,19 @@ export const formlessSitePreviewSurfaceMountSchemaModule = defineAppSchemaModule
 export const formlessInstanceControlPlanePresentationSchemaModule =
   instanceControlPlanePresentationSchemaModule;
 
+export const formlessInstanceHomeScreenSchemaModule = defineAppSchemaModule({
+  key: "instance-home-screen",
+  screens: [
+    {
+      key: "instanceHome",
+      type: "runtime",
+      label: "Home",
+      path: "/",
+      access: programMemberScreenAccess,
+    },
+  ],
+});
+
 export const formlessInstanceControlPlaneRoutesScreenSchemaModule = defineAppSchemaModule({
   ...instanceControlPlaneRoutesScreenSchemaModule,
   screens: instanceControlPlaneRoutesScreenSchemaModule.screens.map((screen) => ({
@@ -158,6 +171,7 @@ export const formlessProgramBuiltInModules = {
   siteRecords: formlessSiteRecordSchemaModule,
   sitePreviewSurfaceMounts: formlessSitePreviewSurfaceMountSchemaModule,
   instanceControlPlanePresentation: formlessInstanceControlPlanePresentationSchemaModule,
+  instanceHomeScreen: formlessInstanceHomeScreenSchemaModule,
   instanceControlPlaneRoutesScreen: formlessInstanceControlPlaneRoutesScreenSchemaModule,
   identityControlPlaneAccessScreen: formlessIdentityControlPlaneAccessScreenSchemaModule,
   tasksPresentation: formlessTasksPresentationSchemaModule,
@@ -174,6 +188,7 @@ export const formlessProgramSchemaModules = [
   formlessProgramBuiltInModules.siteRecords,
   formlessProgramBuiltInModules.sitePreviewSurfaceMounts,
   formlessProgramBuiltInModules.instanceControlPlanePresentation,
+  formlessProgramBuiltInModules.instanceHomeScreen,
   formlessProgramBuiltInModules.instanceControlPlaneRoutesScreen,
   formlessProgramBuiltInModules.identityControlPlaneAccessScreen,
   formlessProgramBuiltInModules.tasksPresentation,
@@ -207,6 +222,7 @@ export const formlessProgramDefaultNavigation: NonNullable<
   AppSchemaCompositionSource["navigation"]
 > = {
   groups: [
+    { key: "home", label: "Home", screens: ["instanceHome"] },
     { key: "tasks", label: "Tasks", screens: ["taskHome"] },
     {
       key: "site",

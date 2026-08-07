@@ -123,7 +123,9 @@ and the materialized Program route declarations.
 
 - GIVEN the runtime profile is `instance`
 - WHEN a management browser opens the default Program
-- THEN `/settings/routes` selects the route-management screen and
+- THEN `/` selects the product-owned runtime instance home within the Program
+  shell without selecting a package workspace
+- AND `/settings/routes` selects the route-management screen and
   `/settings/access` selects the dedicated access-management screen
 - AND `/tasks` selects the package-owned Tasks workspace through its
   Program-owned path and `member` access requirement

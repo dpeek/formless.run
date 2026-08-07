@@ -10,7 +10,7 @@ only. Use full Git revisions so every pairing remains reproducible.
 | Project | Status | Verified consumer revision | Verified Formless revision | Target Formless revision | Verified |
 | --- | --- | --- | --- | --- | --- |
 | `verifi-labs.com` | Active; baseline not recorded | Unknown | Unknown | — | Pending |
-| `dpeek.com` | Upgrade in progress | Pending | Unknown | `fffaa841e9a83911e91022f3168e9593d96963ca` | Pending |
+| `dpeek.com` | Upgrade in progress | Pending | Unknown | `d1590da0e11ebe8edb5744fd1afc5469f0df856f` | Pending |
 | `codeless.run` | Prospective | — | — | — | — |
 
 ## verifi-labs.com
@@ -31,7 +31,7 @@ only. Use full Git revisions so every pairing remains reproducible.
 - Linked packages: currently being settled by the in-progress upgrade.
 - Consumer seams: `formless.ts`, Site composition, and saved `state/`.
 - Verification evidence: pending completion of the upgrade to
-  `fffaa841e9a83911e91022f3168e9593d96963ca`.
+  `d1590da0e11ebe8edb5744fd1afc5469f0df856f`.
 - Migration to target: in progress. Record only remaining consumer-specific
   actions discovered during the upgrade.
 

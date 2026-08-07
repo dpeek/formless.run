@@ -323,6 +323,7 @@ function programRouteComponents(
     ApplicationShellRuntimeBoundary: Shell,
     AuthAccountRoute: () => null,
     CollaboratorInvitationAcceptanceRoute: () => null,
+    InstanceHomeRoute: () => <Workspace screenKey="instanceHome" />,
     InstanceShellRoute: ({ screenKey }) => <Workspace screenKey={screenKey} />,
     LocalSessionRoute: () => null,
     AccountSignInRoute: () => null,

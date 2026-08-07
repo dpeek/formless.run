@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { WORKSPACE_GATEWAY_ENABLED_ENV } from "@dpeek/formless-gateway";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 
 import {
@@ -191,6 +192,7 @@ describe("Runtime Vite config", () => {
       env: {
         FORMLESS_ADMIN_TOKEN: "secret",
         FORMLESS_RUNTIME_PROFILE: "instance",
+        [WORKSPACE_GATEWAY_ENABLED_ENV]: "1",
         FORMLESS_WRANGLER_PERSIST: persistPath,
       },
       packageRoot: repoRoot,
@@ -211,6 +213,7 @@ describe("Runtime Vite config", () => {
         EXISTING: "1",
         FORMLESS_ADMIN_TOKEN: "secret",
         FORMLESS_RUNTIME_PROFILE: "instance",
+        [WORKSPACE_GATEWAY_ENABLED_ENV]: "1",
       },
     });
   });
