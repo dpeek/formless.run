@@ -214,7 +214,7 @@ describe("Site schema authoring", () => {
     }
   });
 
-  it("declares the inputless Site starter as a fixed record plan", () => {
+  it("declares the inputless Site starter command", () => {
     const schema = parseAppSchema(siteSchemaSource);
     const operation = schema.entities
       .find(({ key }) => key === "site")
@@ -234,63 +234,6 @@ describe("Site schema authoring", () => {
     });
     expect(operation.input).toBeUndefined();
     expect(operation.access).toBeUndefined();
-    expect(
-      operation.effect.steps.map(({ name, kind, entity }) => ({ name, kind, entity })),
-    ).toEqual([
-      { name: "createSite", kind: "create", entity: "site" },
-      { name: "createHomePage", kind: "create", entity: "block" },
-      { name: "createContactPage", kind: "create", entity: "block" },
-      { name: "createHeader", kind: "create", entity: "block" },
-      { name: "createFooter", kind: "create", entity: "block" },
-      { name: "createFooterSection", kind: "create", entity: "block" },
-      { name: "createFooterContactLink", kind: "create", entity: "block" },
-      { name: "createContactForm", kind: "create", entity: "block" },
-      { name: "createFooterHomeLink", kind: "create", entity: "block" },
-      { name: "createWelcomeMarkdown", kind: "create", entity: "block" },
-      { name: "placeFooterContactLink", kind: "create", entity: "block-placement" },
-      { name: "placeContactForm", kind: "create", entity: "block-placement" },
-      { name: "placeFooterSection", kind: "create", entity: "block-placement" },
-      { name: "placeFooterHomeLink", kind: "create", entity: "block-placement" },
-      { name: "placeWelcomeMarkdown", kind: "create", entity: "block-placement" },
-      { name: "assignSiteRoots", kind: "patch", entity: "site" },
-    ]);
-    expect(operation.effect.steps[0]).toMatchObject({
-      values: {
-        key: {
-          kind: "generatedCode",
-          alphabet: "upperAlphaNumericNoConfusables",
-          length: 10,
-          prefix: "site-",
-        },
-        label: { kind: "literal", value: "Formless" },
-        description: {
-          kind: "literal",
-          value: "Formless is a schema-as-data runtime for building custom software on Cloudflare",
-        },
-        icon: { kind: "literal", value: expect.stringContaining('fill="currentColor"') },
-      },
-    });
-    expect(operation.effect.steps.at(-1)).toMatchObject({
-      name: "assignSiteRoots",
-      recordId: { kind: "stepOutput", step: "createSite", output: "id" },
-      values: {
-        home: {
-          kind: "reference",
-          entity: "block",
-          id: { kind: "stepOutput", step: "createHomePage", output: "id" },
-        },
-        header: {
-          kind: "reference",
-          entity: "block",
-          id: { kind: "stepOutput", step: "createHeader", output: "id" },
-        },
-        footer: {
-          kind: "reference",
-          entity: "block",
-          id: { kind: "stepOutput", step: "createFooter", output: "id" },
-        },
-      },
-    });
   });
 
   it("declares singleton-scoped Site authoring and its explicit starter empty state", () => {

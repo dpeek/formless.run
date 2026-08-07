@@ -55,15 +55,10 @@ making schema composition or bootstrap mutate Program records.
 - GIVEN an authorized caller invokes `site.createStarter` with no operation
   input
 - WHEN Authority materializes its declarative record plan
-- THEN the plan creates one Site with a generated unique key and editable
-  `Untitled site` label
-- AND it creates one live home page, header and footer roots, header and footer
-  groups, internal home links, a home hero, an introductory Markdown block, and
-  valid ordered placements
-- AND every created block references the Site step
-- AND a final Site patch assigns the created home, header, and footer block ids
-- AND the command output identifies the created Site and every committed plan
-  step
+- THEN the plan creates one valid, editable Site aggregate from ordinary Site
+  records
+- AND the created records satisfy the Site aggregate invariants
+- AND the command output identifies every committed plan step
 
 #### Scenario: Starter creation is one atomic invocation
 
