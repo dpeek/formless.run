@@ -1,4 +1,5 @@
 import { Button } from "@astryxdesign/core/Button";
+import { PublicSiteThemeProvider } from "@dpeek/formless-site-app/public/react";
 import { useMemo } from "react";
 
 import {
@@ -23,11 +24,13 @@ export function AstryxSitePageFixtureRenderer({
   );
 
   return (
-    <AstryxSitePresentation
-      formChallengeComponent={AstryxPublicFormFixtureChallenge}
-      formSessionControllers={formSessionControllers}
-      rendererProps={fixture.rendererProps}
-    />
+    <PublicSiteThemeProvider site={fixture.rendererProps.tree.site}>
+      <AstryxSitePresentation
+        formChallengeComponent={AstryxPublicFormFixtureChallenge}
+        formSessionControllers={formSessionControllers}
+        rendererProps={fixture.rendererProps}
+      />
+    </PublicSiteThemeProvider>
   );
 }
 
