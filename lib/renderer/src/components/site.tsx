@@ -14,6 +14,7 @@ import {
   colorVars,
   fontWeightVars,
   radiusVars,
+  shadowVars,
   spacingVars,
 } from "@astryxdesign/core/theme/tokens.stylex";
 import { Card } from "@astryxdesign/core/Card";
@@ -149,7 +150,7 @@ export function AstryxSitePresentation({
         }
         footer={
           footer ? (
-            <LayoutFooter>
+            <LayoutFooter {...stylex.props(styles.siteFooter)}>
               <FormlessSiteFooter footer={footer} rendererProps={rendererProps} />
             </LayoutFooter>
           ) : undefined
@@ -184,6 +185,9 @@ const styles = stylex.create({
     paddingInlineStart: 0,
     paddingInlineEnd: 0,
   },
+  siteFooter: {
+    paddingBlockEnd: spacingVars["--spacing-12"],
+  },
   siteIdentityNavItem: {
     color: colorVars["--color-text-primary"],
     fontWeight: fontWeightVars["--font-weight-semibold"],
@@ -214,6 +218,22 @@ const styles = stylex.create({
   },
   heroBlock: {
     paddingBlock: spacingVars["--spacing-4"],
+  },
+  heroContent: {
+    alignItems: "center",
+    textAlign: "center",
+  },
+  heroHeading: {
+    backgroundImage: `linear-gradient(45deg, ${colorVars["--color-icon-orange"]}, ${colorVars["--color-error"]}, ${colorVars["--color-icon-purple"]})`,
+    backgroundClip: "text",
+    WebkitBackgroundClip: "text",
+    color: "transparent",
+    WebkitTextFillColor: "transparent",
+    fontSize: "clamp(3rem, 8vw, 5.25rem)",
+  },
+  heroSubtitle: {
+    maxWidth: 672,
+    textWrap: "balance",
   },
   featureBlock: {
     paddingBlock: spacingVars["--spacing-4"],
@@ -300,6 +320,12 @@ const styles = stylex.create({
     borderColor: colorVars["--color-border"],
     backgroundColor: colorVars["--color-background-muted"],
   },
+  projectSummaryImageFrame: {
+    borderWidth: 0,
+    borderStyle: "none",
+    borderColor: "transparent",
+    borderRadius: 0,
+  },
   image: {
     display: "block",
     width: "100%",
@@ -347,15 +373,43 @@ const styles = stylex.create({
     width: "100%",
     maxWidth: 260,
   },
+  projectSummaryMedia: {
+    flexBasis: "50%",
+    flexGrow: 1,
+    maxWidth: "50%",
+  },
+  projectSummaryMediaMobile: {
+    flexBasis: "100%",
+    maxWidth: "100%",
+    borderInlineEndWidth: 0,
+  },
+  projectSummaryContent: {
+    flex: 1,
+    padding: spacingVars["--spacing-6"],
+  },
   summaryContent: {
     minWidth: 0,
     flex: 1,
+  },
+  projectSummaryLayout: {
+    alignItems: "stretch",
+    width: "100%",
+  },
+  projectSummaryCard: {
+    boxShadow: shadowVars["--shadow-med"],
   },
   linkList: {
     minWidth: 160,
   },
   footerColumns: {
     alignItems: "flex-start",
+  },
+  footerLink: {
+    paddingBlockStart: spacingVars["--spacing-1"],
+    paddingBlockEnd: spacingVars["--spacing-1"],
+  },
+  footerSocialLink: {
+    paddingInlineEnd: spacingVars["--spacing-4"],
   },
   inlineLinkIcon: {
     display: "inline-flex",
@@ -600,15 +654,23 @@ function FormlessSiteFooter({
               {group.label}
             </Text>
             <nav aria-label={group.label}>
-              <VStack gap={2}>
-                {group.links.map((item) => (
-                  <ProjectedFooterLink
-                    key={`${item.label}:${item.publicHref}`}
-                    item={item}
-                    social={group.kind === "social"}
-                  />
-                ))}
-              </VStack>
+              {group.kind === "social" ? (
+                <HStack gap={0} vAlign="center">
+                  {group.links.map((item) => (
+                    <ProjectedFooterLink
+                      key={`${item.label}:${item.publicHref}`}
+                      item={item}
+                      social
+                    />
+                  ))}
+                </HStack>
+              ) : (
+                <VStack gap={0}>
+                  {group.links.map((item) => (
+                    <ProjectedFooterLink key={`${item.label}:${item.publicHref}`} item={item} social={false} />
+                  ))}
+                </VStack>
+              )}
             </nav>
           </VStack>
         ))}
@@ -866,13 +928,15 @@ function ProjectedHeroBlock({
   const mediaIds = new Set(media.map((placement) => placement.id));
   const children = defaultPlacements(block).filter((placement) => !mediaIds.has(placement.id));
   const content = (
-    <VStack gap={4}>
+    <VStack gap={4} {...stylex.props(styles.heroContent)}>
       {block.label ? (
-        <Heading level={headingLevel} type="display-1">
+        <Heading level={headingLevel} type="display-1" {...stylex.props(styles.heroHeading)}>
           {block.label}
         </Heading>
       ) : null}
-      <ProjectedPlainText body={block.body} />
+      <div {...stylex.props(styles.heroSubtitle)}>
+        <ProjectedPlainText body={block.body} />
+      </div>
     </VStack>
   );
 
@@ -916,21 +980,32 @@ function ProjectedFeatureBlock({
   headingLevel: SiteHeadingLevel;
   routeFacts: SitePublicRendererProps;
 }) {
+  const isMobile = useMediaQuery("(max-width: 768px)");
   const media = slottedPlacements(block, "media", "image");
   const actions = slottedPlacements(block, "actions", "link");
   const mediaSide = block.alignment === "right" ? "right" : "left";
+  const heading = block.label ? <Heading level={headingLevel}>{block.label}</Heading> : null;
   const content = (
     <VStack gap={4} {...stylex.props(styles.featureContent)}>
-      {block.label ? <Heading level={headingLevel}>{block.label}</Heading> : null}
       <ProjectedMarkdown body={block.body} headingLevelStart={nextHeadingLevel(headingLevel)} />
       {actions.length > 0 ? (
         <nav aria-label={`${block.label} actions`} data-site-feature-actions>
-          <ProjectedPlacementList
-            formFacts={formFacts}
-            headingLevel={nextHeadingLevel(headingLevel)}
-            placements={actions}
-            routeFacts={routeFacts}
-          />
+          <VStack gap={0}>
+            {actions.map((placement) =>
+              placement.block.href ? (
+                <ProjectedFooterLink
+                  key={placement.id}
+                  item={toProjectedShellLink(
+                    placement.block,
+                    placement.block.href,
+                    routeFacts,
+                    placement,
+                  )}
+                  social={false}
+                />
+              ) : null,
+            )}
+          </VStack>
         </nav>
       ) : null}
     </VStack>
@@ -955,8 +1030,14 @@ function ProjectedFeatureBlock({
       {...stylex.props(styles.featureBlock)}
     >
       <VStack gap={5}>
+        {heading}
         {mediaContent ? (
-          <Grid columns={{ minWidth: 280, max: 2, repeat: "fit" }} gap={6} width="100%">
+          <Grid
+            columns={isMobile ? 1 : { minWidth: 280, max: 2, repeat: "fit" }}
+            gap={isMobile ? 4 : 6}
+            align={isMobile ? "stretch" : "start"}
+            width="100%"
+          >
             {mediaSide === "left" ? (
               <>
                 {mediaContent}
@@ -970,7 +1051,32 @@ function ProjectedFeatureBlock({
             )}
           </Grid>
         ) : (
-          content
+          <VStack gap={4} {...stylex.props(styles.featureContent)}>
+            <ProjectedMarkdown
+              body={block.body}
+              headingLevelStart={nextHeadingLevel(headingLevel)}
+            />
+            {actions.length > 0 ? (
+              <nav aria-label={`${block.label} actions`} data-site-feature-actions>
+                <VStack gap={0}>
+                  {actions.map((placement) =>
+                    placement.block.href ? (
+                      <ProjectedFooterLink
+                        key={placement.id}
+                        item={toProjectedShellLink(
+                          placement.block,
+                          placement.block.href,
+                          routeFacts,
+                          placement,
+                        )}
+                        social={false}
+                      />
+                    ) : null,
+                  )}
+                </VStack>
+              </nav>
+            ) : null}
+          </VStack>
         )}
         <ProjectedPlacementList
           formFacts={formFacts}
@@ -1023,13 +1129,18 @@ function ProjectedCardGridBlock({
   headingLevel: SiteHeadingLevel;
   routeFacts: SitePublicRendererProps;
 }) {
+  const isMobile = useMediaQuery("(max-width: 768px)");
   const cards = defaultPlacements(block);
 
   return (
     <VStack gap={3} data-site-block-type={block.type}>
       {block.label ? <Heading level={headingLevel}>{block.label}</Heading> : null}
       <ProjectedMarkdown body={block.body} headingLevelStart={nextHeadingLevel(headingLevel)} />
-      <Grid columns={{ minWidth: 220, max: 3, repeat: "fit" }} gap={4} width="100%">
+      <Grid
+        columns={isMobile ? 1 : { minWidth: 220, max: 3, repeat: "fit" }}
+        gap={4}
+        width="100%"
+      >
         {cards.map((placement) => (
           <ProjectedSiteBlock
             key={placement.id}
@@ -1098,13 +1209,18 @@ function ProjectedMetricGridBlock({
   headingLevel: SiteHeadingLevel;
   routeFacts: SitePublicRendererProps;
 }) {
+  const isMobile = useMediaQuery("(max-width: 768px)");
   const metrics = defaultPlacements(block);
 
   return (
     <VStack gap={3} data-site-block-type={block.type}>
       {block.label ? <Heading level={headingLevel}>{block.label}</Heading> : null}
       <ProjectedMarkdown body={block.body} headingLevelStart={nextHeadingLevel(headingLevel)} />
-      <Grid columns={{ minWidth: 180, max: 3, repeat: "fit" }} gap={3} width="100%">
+      <Grid
+        columns={isMobile ? 1 : { minWidth: 180, max: 3, repeat: "fit" }}
+        gap={3}
+        width="100%"
+      >
         {metrics.map((placement) => (
           <ProjectedSiteBlock
             key={placement.id}
@@ -1192,16 +1308,11 @@ function ProjectedImageBlock({ block }: { block: SiteBlockNode }) {
       data-site-image="block"
     >
       <ProjectedImageSurface block={block} variant="block" />
-      <figcaption>
-        <Text type="supporting" as="span" color="secondary">
-          {block.label}
-        </Text>
-      </figcaption>
     </figure>
   );
 }
 
-type ProjectedImageVariant = "block" | "post-detail" | "summary";
+type ProjectedImageVariant = "block" | "post-detail" | "summary" | "project-summary";
 
 function ProjectedPrimaryImage({
   placement,
@@ -1239,6 +1350,7 @@ function ProjectedImageSurface({
     <div
       {...stylex.props(
         styles.imageFrame,
+        variant === "project-summary" ? styles.projectSummaryImageFrame : null,
         block.width && block.height ? dynamicStyles.imageAspect(block.width, block.height) : null,
       )}
       data-site-image-aspect-ratio={aspectRatio}
@@ -1251,7 +1363,10 @@ function ProjectedImageSurface({
           height={block.height}
           loading="lazy"
           width={block.width}
-          {...stylex.props(styles.image, variant === "summary" ? styles.summaryImage : null)}
+          {...stylex.props(
+            styles.image,
+            variant === "summary" || variant === "project-summary" ? styles.summaryImage : null,
+          )}
         />
       ) : (
         <div
@@ -1359,23 +1474,46 @@ function ProjectedContentSummary({
   headingLevel: SiteHeadingLevel;
   routeFacts: SitePublicRendererProps;
 }) {
+  const isMobile = useMediaQuery("(max-width: 768px)");
   const primaryImage = primaryImagePlacement(block);
   const publicHref = block.href
     ? profileAwareSiteHref(block.href, routeFacts.linkMode, routeFacts.routeBase)
     : undefined;
   const summaryContent = (
     <HStack
-      gap={4}
+      gap={block.type === "project" ? 0 : 4}
       wrap="wrap"
       data-site-summary-layout={primaryImage ? "media-start" : "text-only"}
-      {...stylex.props(styles.summaryLayout, publicHref ? styles.summaryInteractiveContent : null)}
+      {...stylex.props(
+        styles.summaryLayout,
+        block.type === "project" ? styles.projectSummaryLayout : null,
+        publicHref ? styles.summaryInteractiveContent : null,
+      )}
     >
       {primaryImage ? (
-        <div data-site-summary-media {...stylex.props(styles.summaryMedia)}>
-          <ProjectedPrimaryImage placement={primaryImage} variant="summary" />
+        <div
+          data-site-summary-media
+          {...stylex.props(
+            styles.summaryMedia,
+            block.type === "project"
+              ? [styles.projectSummaryMedia, isMobile ? styles.projectSummaryMediaMobile : null]
+              : null,
+          )}
+        >
+          <ProjectedPrimaryImage
+            placement={primaryImage}
+            variant={block.type === "project" ? "project-summary" : "summary"}
+          />
         </div>
       ) : null}
-      <VStack gap={3} data-site-summary-content {...stylex.props(styles.summaryContent)}>
+      <VStack
+        gap={3}
+        data-site-summary-content
+        {...stylex.props(
+          styles.summaryContent,
+          block.type === "project" ? styles.projectSummaryContent : null,
+        )}
+      >
         {block.date && block.type !== "project" ? (
           <time dateTime={block.date} {...stylex.props(styles.summaryDate)}>
             {block.date}
@@ -1389,10 +1527,14 @@ function ProjectedContentSummary({
 
   return (
     <Card
-      padding={5}
+      padding={block.type === "project" ? 0 : 5}
+      variant={block.type === "project" ? "muted" : undefined}
       data-site-block-type={block.type}
       data-site-summary-id={block.id}
-      {...stylex.props(publicHref ? styles.summaryCard : null)}
+      {...stylex.props(
+        publicHref ? styles.summaryCard : null,
+        block.type === "project" ? styles.projectSummaryCard : null,
+      )}
     >
       {publicHref ? (
         <Link
@@ -2437,9 +2579,9 @@ function ProjectedPlainText({ body }: { body?: string }) {
   );
 }
 
-function ProjectedLinkLabel({ item }: { item: ProjectedShellLink }) {
+function ProjectedLinkLabel({ item, gap = 1 }: { item: ProjectedShellLink; gap?: number }) {
   return (
-    <HStack gap={1} vAlign="center">
+    <HStack gap={gap} vAlign="center">
       <ProjectedLinkIcon item={item} />
       <span>{item.label}</span>
     </HStack>
@@ -2453,22 +2595,33 @@ function ProjectedFooterLink({ item, social }: { item: ProjectedShellLink; socia
       label={social ? item.label : undefined}
       target={siteLinkTarget(item.publicHref)}
       rel={siteLinkRel(item.publicHref)}
-      isExternalLink={item.isExternal}
+      isExternalLink={social ? false : item.isExternal}
       isStandalone
-      tooltip={social ? item.label : undefined}
+      tooltip={social && !item.icon ? item.label : undefined}
+      {...stylex.props(social ? [styles.footerLink, styles.footerSocialLink] : styles.footerLink)}
       data-public-href={item.publicHref}
       data-site-social-link={social ? true : undefined}
     >
-      {social && item.icon ? <ProjectedLinkIcon item={item} /> : <ProjectedLinkLabel item={item} />}
+      {social && item.icon ? (
+        <ProjectedLinkIcon item={item} size="lg" />
+      ) : (
+        <ProjectedLinkLabel item={item} gap={2} />
+      )}
     </Link>
   );
 }
 
-function ProjectedLinkIcon({ item }: { item: ProjectedShellLink }) {
+function ProjectedLinkIcon({
+  item,
+  size = "sm",
+}: {
+  item: ProjectedShellLink;
+  size?: "sm" | "md" | "lg";
+}) {
   if (item.icon) {
     return (
       <span {...stylex.props(styles.inlineLinkIcon)}>
-        <SourceIcon source={item.icon} color="inherit" size="sm" aria-hidden />
+        <SourceIcon source={item.icon} color="inherit" size={size} aria-hidden />
       </span>
     );
   }
@@ -2584,8 +2737,12 @@ function projectedFooterComposition(
     const nestedLinks = projectedFrameLinks(block, routeFacts);
     if (nestedLinks.length > 0) {
       groups.push({ kind: "links", label: block.label, links: nestedLinks });
-    } else if (block.body) {
+    }
+    if (block.body) {
       notes.push(block.body);
+    }
+    if (block.type === "group" && nestedLinks.length === 0 && block.label) {
+      notes.push(block.label);
     }
   }
 
