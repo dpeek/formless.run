@@ -7,14 +7,16 @@ import { prepareReleaseTarballs } from "./release-packaging.ts";
 
 const registry = "http://localhost:4873/";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const destination = mkdtempSync(path.join(tmpdir(), "formless-local-packages-"));
+const destination = mkdtempSync(path.join(tmpdir(), "formless-packages-"));
 
 try {
+  const local = false;
   const tarballs = prepareReleaseTarballs({ destination, repoRoot });
+  const localArgs = local ? ["--registry", registry] : [];
 
   for (const [name, tarballPath] of tarballs) {
     console.log(`Publishing ${name}`);
-    const result = spawnSync("bun", ["publish", tarballPath, "--registry", registry], {
+    const result = spawnSync("bun", ["publish", tarballPath, ...localArgs], {
       cwd: repoRoot,
       stdio: "inherit",
     });

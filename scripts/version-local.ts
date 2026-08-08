@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 const version = process.argv[2];
 
 if (!version || !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) {
-  console.error("Usage: bun run version:local -- <version>");
-  console.error("Example: bun run version:local -- 0.1.10");
+  console.error("Usage: bun run version -- <version>");
+  console.error("Example: bun run version -- 0.1.10");
   process.exit(1);
 }
 

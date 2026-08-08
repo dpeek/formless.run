@@ -37,14 +37,14 @@ if (!match) {
 }
 
 const nextVersion = `${match[1]}.${match[2]}.${Number(match[3]) + 1}`;
-const versionResult = spawnSync("bun", ["run", "version:local", "--", nextVersion], {
+const versionResult = spawnSync("bun", ["run", "version", "--", nextVersion], {
   cwd: repoRoot,
   stdio: "inherit",
 });
 
 if (versionResult.status !== 0) process.exit(versionResult.status ?? 1);
 
-const publishResult = spawnSync("bun", ["run", "publish:local"], {
+const publishResult = spawnSync("bun", ["run", "publish"], {
   cwd: repoRoot,
   stdio: "inherit",
 });
