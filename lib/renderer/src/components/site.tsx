@@ -400,7 +400,7 @@ const styles = stylex.create({
   footerColumns: {
     alignItems: "flex-start",
   },
-  footerLink: {
+  listLink: {
     paddingBlockStart: spacingVars["--spacing-1"],
     paddingBlockEnd: spacingVars["--spacing-1"],
   },
@@ -811,9 +811,7 @@ function ProjectedSiteBlock({
     case "image":
       return <ProjectedImageBlock block={block} />;
     case "link":
-      return (
-        <ProjectedInlineLinkBlock block={block} placement={placement} routeFacts={routeFacts} />
-      );
+      return <ProjectedSiteLinkBlock block={block} placement={placement} routeFacts={routeFacts} />;
     case "subscribeForm":
     case "contactForm":
     case "publicOperationForm":
@@ -993,11 +991,12 @@ function ProjectedFeatureBlock({
           <VStack gap={0}>
             {actions.map((placement) =>
               placement.block.href ? (
-                <ProjectedInlineLinkBlock
+                <ProjectedSiteLinkBlock
                   block={placement.block}
                   key={placement.id}
                   placement={placement}
                   routeFacts={routeFacts}
+                  appearance="list"
                 />
               ) : null,
             )}
@@ -1057,11 +1056,12 @@ function ProjectedFeatureBlock({
                 <VStack gap={0}>
                   {actions.map((placement) =>
                     placement.block.href ? (
-                      <ProjectedInlineLinkBlock
+                      <ProjectedSiteLinkBlock
                         block={placement.block}
                         key={placement.id}
                         placement={placement}
                         routeFacts={routeFacts}
+                        appearance="list"
                       />
                     ) : null,
                   )}
@@ -1367,11 +1367,13 @@ function ProjectedImageSurface({
   );
 }
 
-function ProjectedInlineLinkBlock({
+function ProjectedSiteLinkBlock({
+  appearance,
   block,
   placement,
   routeFacts,
 }: {
+  appearance?: ProjectedSiteLinkAppearance;
   block: SiteBlockNode;
   placement?: SitePlacementNode;
   routeFacts: SitePublicRendererProps;
@@ -1382,35 +1384,7 @@ function ProjectedInlineLinkBlock({
 
   const item = toProjectedShellLink(block, block.href, routeFacts, placement);
 
-  if (placement?.slot === "actions") {
-    return (
-      <Button
-        label={item.label}
-        href={item.publicHref}
-        target={siteLinkTarget(item.publicHref)}
-        rel={siteLinkRel(item.publicHref)}
-        icon={
-          item.icon ? <SourceIcon source={item.icon} color="inherit" size="sm" aria-hidden /> : null
-        }
-        variant="primary"
-        data-public-href={item.publicHref}
-        data-site-action-link
-      />
-    );
-  }
-
-  return (
-    <Link
-      href={item.publicHref}
-      target={siteLinkTarget(item.publicHref)}
-      rel={siteLinkRel(item.publicHref)}
-      isExternalLink={item.isExternal}
-      isStandalone
-      data-public-href={item.publicHref}
-    >
-      <ProjectedLinkLabel item={item} />
-    </Link>
-  );
+  return <ProjectedSiteLink appearance={appearance} item={item} />;
 }
 
 function ProjectedContentListBlock({
@@ -2576,21 +2550,49 @@ function ProjectedLinkLabel({
   );
 }
 
-function ProjectedFooterLink({ item, social }: { item: ProjectedShellLink; social: boolean }) {
+type ProjectedSiteLinkAppearance = "inline" | "list";
+
+function ProjectedSiteLink({
+  appearance = "inline",
+  item,
+}: {
+  appearance?: ProjectedSiteLinkAppearance;
+  item: ProjectedShellLink;
+}) {
   return (
     <Link
       href={item.publicHref}
-      label={social ? item.label : undefined}
       target={siteLinkTarget(item.publicHref)}
       rel={siteLinkRel(item.publicHref)}
-      isExternalLink={social ? false : item.isExternal}
+      isExternalLink={item.isExternal}
       isStandalone
-      tooltip={social && !item.icon ? item.label : undefined}
-      {...stylex.props(social ? [styles.footerLink, styles.footerSocialLink] : styles.footerLink)}
+      {...stylex.props(appearance === "list" ? styles.listLink : null)}
       data-public-href={item.publicHref}
-      data-site-social-link={social ? true : undefined}
     >
-      {social && item.icon ? (
+      <ProjectedLinkLabel item={item} gap={appearance === "list" ? 2 : 1} />
+    </Link>
+  );
+}
+
+function ProjectedFooterLink({ item, social }: { item: ProjectedShellLink; social: boolean }) {
+  if (!social) {
+    return <ProjectedSiteLink appearance="list" item={item} />;
+  }
+
+  return (
+    <Link
+      href={item.publicHref}
+      label={item.label}
+      target={siteLinkTarget(item.publicHref)}
+      rel={siteLinkRel(item.publicHref)}
+      isExternalLink={false}
+      isStandalone
+      tooltip={!item.icon ? item.label : undefined}
+      {...stylex.props([styles.listLink, styles.footerSocialLink])}
+      data-public-href={item.publicHref}
+      data-site-social-link
+    >
+      {item.icon ? (
         <ProjectedLinkIcon item={item} size="lg" />
       ) : (
         <ProjectedLinkLabel item={item} gap={2} />

@@ -412,8 +412,11 @@ describe("Astryx public Site links, source icons, and media", () => {
       new Set(["noreferrer", "noopener"]),
     );
 
-    const action = componentByLabel(renderer, "Button", "Start now");
+    const action = required(
+      renderer.container.querySelector<HTMLAnchorElement>('a[href="/contact"]'),
+    );
     expect(action.getAttribute("href")).toBe("/contact");
+    expect(action.textContent).toBe("Start now");
     expect(action.querySelector('path[d="M4 12h16"]')).not.toBeNull();
 
     const social = required(
