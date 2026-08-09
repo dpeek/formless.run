@@ -667,7 +667,11 @@ function FormlessSiteFooter({
               ) : (
                 <VStack gap={0}>
                   {group.links.map((item) => (
-                    <ProjectedFooterLink key={`${item.label}:${item.publicHref}`} item={item} social={false} />
+                    <ProjectedFooterLink
+                      key={`${item.label}:${item.publicHref}`}
+                      item={item}
+                      social={false}
+                    />
                   ))}
                 </VStack>
               )}
@@ -1136,11 +1140,7 @@ function ProjectedCardGridBlock({
     <VStack gap={3} data-site-block-type={block.type}>
       {block.label ? <Heading level={headingLevel}>{block.label}</Heading> : null}
       <ProjectedMarkdown body={block.body} headingLevelStart={nextHeadingLevel(headingLevel)} />
-      <Grid
-        columns={isMobile ? 1 : { minWidth: 220, max: 3, repeat: "fit" }}
-        gap={4}
-        width="100%"
-      >
+      <Grid columns={isMobile ? 1 : { minWidth: 220, max: 3, repeat: "fit" }} gap={4} width="100%">
         {cards.map((placement) => (
           <ProjectedSiteBlock
             key={placement.id}
@@ -1216,11 +1216,7 @@ function ProjectedMetricGridBlock({
     <VStack gap={3} data-site-block-type={block.type}>
       {block.label ? <Heading level={headingLevel}>{block.label}</Heading> : null}
       <ProjectedMarkdown body={block.body} headingLevelStart={nextHeadingLevel(headingLevel)} />
-      <Grid
-        columns={isMobile ? 1 : { minWidth: 180, max: 3, repeat: "fit" }}
-        gap={3}
-        width="100%"
-      >
+      <Grid columns={isMobile ? 1 : { minWidth: 180, max: 3, repeat: "fit" }} gap={3} width="100%">
         {metrics.map((placement) => (
           <ProjectedSiteBlock
             key={placement.id}
