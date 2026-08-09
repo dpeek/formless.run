@@ -442,7 +442,7 @@ function validateIdentityControlPlaneRecord(
       );
     }
 
-    if (field.type === "reference" && value !== undefined) {
+    if (record.deletedAt === undefined && field.type === "reference" && value !== undefined) {
       validateIdentityControlPlaneReference(
         context,
         record,

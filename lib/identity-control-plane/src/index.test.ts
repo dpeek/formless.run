@@ -306,6 +306,59 @@ describe("identity control-plane schema contracts", () => {
     ).toThrow('violates identity uniqueness "auth:program-role-assignment.uniqueActiveAssignment"');
   });
 
+  it("does not enforce references from tombstoned identity records", () => {
+    const tombstonedAt = "2026-08-09T00:00:00.000Z";
+    const oldPrincipal = {
+      ...record("principal", "principal:old-owner", {
+        displayName: "Old Owner",
+        kind: "human",
+        status: "active",
+      }),
+      deletedAt: tombstonedAt,
+    };
+    const oldAssignment = {
+      ...record("role-assignment", "role-assignment:old-owner", {
+        role: "role:instance.owner",
+        scopeKind: "instance",
+        status: "active",
+        targetKind: "principal",
+        targetPrincipal: oldPrincipal.id,
+      }),
+      deletedAt: tombstonedAt,
+    };
+    const records = [
+      record("role", "role:instance.owner", {
+        displayLabel: "Owner",
+        key: "instance.owner",
+        status: "active",
+      }),
+      oldPrincipal,
+      oldAssignment,
+      record("principal", "principal:new-owner", {
+        displayName: "New Owner",
+        kind: "human",
+        status: "active",
+      }),
+      record("role-assignment", "role-assignment:new-owner", {
+        role: "role:instance.owner",
+        scopeKind: "instance",
+        status: "active",
+        targetKind: "principal",
+        targetPrincipal: "principal:new-owner",
+      }),
+    ];
+
+    expect(() => validateIdentityControlPlaneRecords("Identity records", records)).not.toThrow();
+    expect(() =>
+      validateIdentityControlPlaneRecords("Identity records", [
+        ...records.filter((candidate) => candidate.id !== oldAssignment.id),
+        { ...oldAssignment, deletedAt: undefined },
+      ]),
+    ).toThrow(
+      'record "role-assignment:old-owner" field "auth:role-assignment.targetPrincipal" cannot reference tombstoned record "principal:old-owner"',
+    );
+  });
+
   it("authorizes owner and Program administrator invitation grants", () => {
     const records = identityRecords();
     const grantRecords = [
