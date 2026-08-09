@@ -1,6 +1,6 @@
 {
   "name": "@dpeek/formless-identity-control-plane",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "files": [
     "dist",
     "src",
