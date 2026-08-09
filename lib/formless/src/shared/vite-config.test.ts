@@ -18,6 +18,7 @@ import { FORMLESS_WORKSPACE_PROGRAM_RUNTIME_ENV_NAME } from "../cli/program-runt
 import {
   FORMLESS_CLIENT_ASSET_MANIFEST_FILE,
   FORMLESS_IMMUTABLE_CLIENT_ASSET_DIRECTORY,
+  formlessCloudflareWorkerDependencyOptimizationPlugin,
   runtimeCloudflarePluginConfig,
   runtimeViteConfig,
   runtimeWorkerConfigPath,
@@ -143,6 +144,44 @@ describe("Runtime Vite config", () => {
     });
     expect(namedPlugins(productionBuildTestConfig.plugins)).toContain("@stylexjs/unplugin");
     expect(productionBuildTestConfig.resolve?.alias).toBeUndefined();
+  });
+
+  it("prebundles CommonJS React entrypoints for Cloudflare Worker development", async () => {
+    const plugin = formlessCloudflareWorkerDependencyOptimizationPlugin();
+    const configEnvironment = plugin.configEnvironment;
+
+    if (typeof configEnvironment !== "function") {
+      throw new Error("Expected Cloudflare Worker dependency optimization config.");
+    }
+
+    expect(
+      await configEnvironment.call(
+        {} as never,
+        "client",
+        {},
+        {
+          command: "serve",
+          isSsrTargetWebworker: false,
+          mode: "development",
+        },
+      ),
+    ).toBeUndefined();
+    expect(
+      await configEnvironment.call(
+        {} as never,
+        "formless",
+        {},
+        {
+          command: "serve",
+          isSsrTargetWebworker: true,
+          mode: "development",
+        },
+      ),
+    ).toEqual({
+      optimizeDeps: {
+        include: ["react", "react/jsx-dev-runtime", "react/jsx-runtime"],
+      },
+    });
   });
 
   it("uses the Worker-owned Wrangler config and preserves runtime Cloudflare overrides", () => {

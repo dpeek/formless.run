@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -9,6 +9,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
+import { createServer } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -61,6 +62,7 @@ try {
     "src/application-assembly.tsx",
     "src/application-provider.tsx",
     "src/application.css",
+    "src/components/input-density.ts",
     "src/site-renderer.tsx",
     "src/site-provider.tsx",
     "src/global.css",
@@ -100,6 +102,9 @@ try {
     throw new Error("Installed CLI did not load the downstream TypeScript configuration.");
   }
 
+  console.log("Starting the installed development runtime...");
+  await requireInstalledDevRuntime({ cliPath, installRoot, workspaceRoot });
+
   console.log("Building bundled browser and Worker runtime...");
   runBun(["run", "vp", "build"], formlessRoot, releaseEnv);
   requireRuntimeBuild(formlessRoot);
@@ -136,7 +141,7 @@ try {
   }
 
   console.log(
-    "Packed install smoke passed: CLI help, downstream config, default build, and custom renderer build.",
+    "Packed install smoke passed: CLI help, downstream config, development runtime, default build, and custom renderer build.",
   );
 } finally {
   rmSync(smokeRoot, { force: true, recursive: true });
@@ -172,6 +177,103 @@ function runCommand(
   }
 
   return [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
+}
+
+async function requireInstalledDevRuntime(input: {
+  cliPath: string;
+  installRoot: string;
+  workspaceRoot: string;
+}): Promise<void> {
+  const port = await availablePort();
+
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(
+      input.cliPath,
+      ["dev", "--workspace", input.workspaceRoot, "--reset"],
+      {
+        cwd: input.installRoot,
+        env: {
+          ...process.env,
+          HOST: "127.0.0.1",
+          PORT: String(port),
+        },
+        stdio: "pipe",
+      },
+    );
+    let output = "";
+    let ready = false;
+    let settled = false;
+    let shutdownTimer: ReturnType<typeof setTimeout> | undefined;
+    const startupTimer = setTimeout(() => {
+      child.kill("SIGKILL");
+      finish(new Error(`Installed Formless development runtime timed out.\n${safeDevOutput(output)}`));
+    }, 45_000);
+    const capture = (chunk: Buffer) => {
+      output = `${output}${chunk.toString()}`.slice(-40_000);
+
+      if (!ready && output.includes("/api/formless/local-session/bootstrap?")) {
+        ready = true;
+        child.kill("SIGTERM");
+        shutdownTimer = setTimeout(() => child.kill("SIGKILL"), 5_000);
+      }
+    };
+    const finish = (error?: Error) => {
+      if (settled) return;
+
+      settled = true;
+      clearTimeout(startupTimer);
+      if (shutdownTimer) clearTimeout(shutdownTimer);
+      if (error) reject(error);
+      else resolve();
+    };
+
+    child.stdout.on("data", capture);
+    child.stderr.on("data", capture);
+    child.once("error", (error) => finish(error));
+    child.once("close", (code, signal) => {
+      if (ready) {
+        finish();
+        return;
+      }
+
+      finish(
+        new Error(
+          `Installed Formless development runtime exited with ${
+            signal ? `signal ${signal}` : `code ${code ?? "unknown"}`
+          }.\n${safeDevOutput(output)}`,
+        ),
+      );
+    });
+  });
+}
+
+function availablePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+
+      if (!address || typeof address === "string") {
+        server.close();
+        reject(new Error("Could not reserve a local port for the installed development runtime."));
+        return;
+      }
+
+      server.close((error) => {
+        if (error) reject(error);
+        else resolve(address.port);
+      });
+    });
+  });
+}
+
+function safeDevOutput(output: string): string {
+  return output.replace(
+    /https?:\/\/\S+\/api\/formless\/local-session\/bootstrap\?\S+/g,
+    "[redacted local session bootstrap URL]",
+  );
 }
 
 function requireFiles(root: string, files: string[]): void {

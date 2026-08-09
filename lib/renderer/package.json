@@ -21,7 +21,6 @@
     "!src/components/fixture-layout.tsx",
     "!src/components/generated-fields.tsx",
     "!src/components/generated-workspace.tsx",
-    "!src/components/input-density.ts",
     "!src/components/instance-management.tsx",
     "!src/components/lists.tsx",
     "!src/components/operations.tsx",

@@ -62,6 +62,11 @@ type RuntimeViteConfigInput = {
 const defaultPackageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const workerConfigRelativePath = "src/worker/wrangler.jsonc";
 const formlessStylexLayerOrder = "@layer reset, astryx-base, astryx-theme, product;";
+const formlessWorkerOptimizedDependencies = [
+  "react",
+  "react/jsx-dev-runtime",
+  "react/jsx-runtime",
+] as const;
 export const FORMLESS_CLIENT_ASSET_MANIFEST_FILE = "assets/formless-client-manifest.json";
 export const FORMLESS_IMMUTABLE_CLIENT_ASSET_DIRECTORY = "assets/immutable";
 export const FORMLESS_CLIENT_ASSET_HEADERS = `/${FORMLESS_IMMUTABLE_CLIENT_ASSET_DIRECTORY}/*
@@ -137,7 +142,12 @@ export function runtimeViteConfig(input: RuntimeViteConfigInput = {}) {
       formlessClientAssetHeadersPlugin(),
       ...publicVitePlugins(activeStylexPlugins),
       ...publicVitePlugins(react()),
-      ...(env.VITEST ? [] : [...publicVitePlugins(cloudflare(cloudflarePluginConfig))]),
+      ...(env.VITEST
+        ? []
+        : [
+            ...publicVitePlugins(cloudflare(cloudflarePluginConfig)),
+            formlessCloudflareWorkerDependencyOptimizationPlugin(),
+          ]),
     ],
     resolve: {
       dedupe: ["react", "react-dom"],
@@ -185,6 +195,23 @@ export function formlessStylexLayerOrderPlugin(): Plugin {
           tag: "style",
         },
       ];
+    },
+  };
+}
+
+export function formlessCloudflareWorkerDependencyOptimizationPlugin(): Plugin {
+  return {
+    name: "formless-cloudflare-worker-dependency-optimization",
+    configEnvironment(name) {
+      if (name === "client") {
+        return;
+      }
+
+      return {
+        optimizeDeps: {
+          include: [...formlessWorkerOptimizedDependencies],
+        },
+      };
     },
   };
 }

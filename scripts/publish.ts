@@ -10,6 +10,15 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const destination = mkdtempSync(path.join(tmpdir(), "formless-packages-"));
 
 try {
+  const smoke = spawnSync("bun", ["run", "smoke:release-packaging"], {
+    cwd: repoRoot,
+    stdio: "inherit",
+  });
+
+  if (smoke.status !== 0) {
+    process.exit(smoke.status ?? 1);
+  }
+
   const local = false;
   const tarballs = prepareReleaseTarballs({ destination, repoRoot });
   const localArgs = local ? ["--registry", registry] : [];

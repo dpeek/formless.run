@@ -322,6 +322,7 @@ describe("installed runtime build hosts", () => {
     for (const target of Object.values(manifest.exports)) {
       expect(packedFiles).toContain(target.slice(2));
     }
+    expect(packedFiles).toContain("src/components/input-density.ts");
   });
 
   it("packs the Bun CLI and package-local runtime build inputs", () => {
