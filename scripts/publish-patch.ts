@@ -37,6 +37,18 @@ if (!match) {
 }
 
 const nextVersion = `${match[1]}.${match[2]}.${Number(match[3]) + 1}`;
+const existingTag = spawnSync("git", ["tag", "--list", nextVersion], {
+  cwd: repoRoot,
+  encoding: "utf8",
+});
+
+if (existingTag.status !== 0) process.exit(existingTag.status ?? 1);
+
+if (existingTag.stdout.trim()) {
+  console.error(`Tag already exists: ${nextVersion}`);
+  process.exit(1);
+}
+
 const versionResult = spawnSync("bun", ["run", "version", "--", nextVersion], {
   cwd: repoRoot,
   stdio: "inherit",
@@ -49,4 +61,25 @@ const publishResult = spawnSync("bun", ["run", "publish"], {
   stdio: "inherit",
 });
 
-process.exit(publishResult.status ?? 1);
+if (publishResult.status !== 0) process.exit(publishResult.status ?? 1);
+
+const addResult = spawnSync("git", ["add", "-A", "."], {
+  cwd: repoRoot,
+  stdio: "inherit",
+});
+
+if (addResult.status !== 0) process.exit(addResult.status ?? 1);
+
+const commitResult = spawnSync("git", ["commit", "-m", nextVersion], {
+  cwd: repoRoot,
+  stdio: "inherit",
+});
+
+if (commitResult.status !== 0) process.exit(commitResult.status ?? 1);
+
+const tagResult = spawnSync("git", ["tag", nextVersion], {
+  cwd: repoRoot,
+  stdio: "inherit",
+});
+
+process.exit(tagResult.status ?? 1);
