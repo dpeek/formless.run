@@ -414,6 +414,22 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
       union: "blockByType",
       variants: [
         {
+          variant: "page",
+          presentation: "fields",
+          fields: [
+            {
+              field: "href",
+              editor: "href",
+              commit: "field-commit",
+            },
+            {
+              field: "icon",
+              editor: "icon",
+              commit: "field-commit",
+            },
+          ],
+        },
+        {
           variant: "header",
           presentation: "contextLink",
           labelField: "label",
@@ -1031,6 +1047,7 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
       defaultQuery: "placementsForSelectedBlock",
       result: {
         type: "tree",
+        presentation: "inlineEditor",
         relationship: "blockPlacements",
         childField: "block",
         childItemView: "blockTreeNode",

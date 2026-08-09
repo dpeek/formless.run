@@ -588,25 +588,37 @@ export function useGeneratedWorkspaceRuntimeController({
         controller,
         intent: intent.intent.intent,
         invoke: (invokeIntent) =>
-          executeGeneratedOperationControl({
-            binding: runtime.binding,
-            callerInput: {
-              bindingId: runtime.binding.id,
-              recordId: runtime.placementId,
-              source: invokeIntent.invocationSource,
-            },
-            controller,
-          }),
+          runtime.kind === "rootDelete"
+            ? executeRecordDeleteOperation({
+                binding: runtime.binding,
+                controller,
+                recordId: runtime.recordId,
+                recordLabel: runtime.recordLabel,
+                source: invokeIntent.invocationSource,
+              })
+            : executeGeneratedOperationControl({
+                binding: runtime.binding,
+                callerInput: {
+                  bindingId: runtime.binding.id,
+                  recordId: runtime.placementId,
+                  source: invokeIntent.invocationSource,
+                },
+                controller,
+              }),
         onConfirmationOpenChange: (open) =>
           setConfirmationOpenByControlId((current) => ({
             ...current,
             [runtime.binding.id]: open,
           })),
-        onSuccess: () =>
-          setTreeSelectedPlacementIdByResultId((current) => ({
-            ...current,
-            [resolved.result.contract.id]: runtime.fallbackPlacementId,
-          })),
+        ...(runtime.kind === "rootDelete"
+          ? {}
+          : {
+              onSuccess: () =>
+                setTreeSelectedPlacementIdByResultId((current) => ({
+                  ...current,
+                  [resolved.result.contract.id]: runtime.fallbackPlacementId,
+                })),
+            }),
       });
       return;
     }
@@ -2038,6 +2050,7 @@ function selectWorkspaceRuntimeFoundation({
         ),
         ...section.result.foundation.runtimePlan.orderings.map((runtime) => runtime.binding),
         ...section.result.foundation.runtimePlan.removePlacements.map((runtime) => runtime.binding),
+        ...section.result.foundation.runtimePlan.rootDeletes.map((runtime) => runtime.binding),
       );
     }
     if (section.contextResult) {
@@ -2281,6 +2294,10 @@ function selectWorkspaceSectionRuntimeInput({
         operationStateByExecutionKey,
       },
       placementRemoval: {
+        confirmationOpenByControlId,
+        operationStateByExecutionKey,
+      },
+      rootDelete: {
         confirmationOpenByControlId,
         operationStateByExecutionKey,
       },

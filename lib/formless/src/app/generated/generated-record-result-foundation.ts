@@ -200,9 +200,6 @@ export function selectGeneratedRecordResultFoundation({
   const fieldDisabledReasons = Object.fromEntries(
     session.visibleFields.map((field) => [field.fieldName, resolvedEditingDisabledReason]),
   );
-  const treeChildFieldsRenderInline =
-    fieldPresentation === "treeChild" &&
-    generatedRecordResultFieldsRenderInline(session.visibleFields);
   const fields = projectGeneratedRecordFields({
     canPatch: result.updateOperation !== undefined,
     density: fieldPresentation === "treePlacement" ? "compact" : density,
@@ -230,13 +227,11 @@ export function selectGeneratedRecordResultFoundation({
     pendingByFieldName: nextFieldState.pendingByFieldName as Readonly<Record<string, boolean>>,
     pendingLabelByFieldName: nextFieldState.pendingLabelByFieldName,
     presentationByFieldName:
-      fieldPresentation === "contextDetail" || fieldPresentation === "treeChild"
+      fieldPresentation === "contextDetail"
         ? Object.fromEntries(
             session.visibleFields.map((field) => [
               field.fieldName,
-              !treeChildFieldsRenderInline && isGeneratedRecordResultHeadingField(field)
-                ? "heading"
-                : "default",
+              isGeneratedRecordResultHeadingField(field) ? "heading" : "default",
             ]),
           )
         : undefined,
@@ -246,11 +241,11 @@ export function selectGeneratedRecordResultFoundation({
     session,
     showLabel: true,
     showLabelByFieldName:
-      fieldPresentation === "contextDetail" || fieldPresentation === "treeChild"
+      fieldPresentation === "contextDetail"
         ? Object.fromEntries(
             session.visibleFields.map((field) => [
               field.fieldName,
-              !treeChildFieldsRenderInline && !isGeneratedRecordResultHeadingField(field),
+              !isGeneratedRecordResultHeadingField(field),
             ]),
           )
         : undefined,
@@ -607,20 +602,4 @@ function isGeneratedRecordResultHeadingField(fieldConfig: RecordFieldConfig): bo
 
 function isGeneratedRecordResultRichField(fieldConfig: RecordFieldConfig): boolean {
   return fieldConfig.field.type === "text" && fieldConfig.editor === "markdown";
-}
-
-function generatedRecordResultFieldsRenderInline(fields: readonly RecordFieldConfig[]): boolean {
-  if (fields.length !== 2) {
-    return false;
-  }
-
-  const fieldNames = new Set(fields.map((field) => field.fieldName));
-  return (
-    fieldNames.has("label") &&
-    fieldNames.has("href") &&
-    fields.every(
-      (field) =>
-        field.field.type === "text" && (field.editor === "text" || field.editor === "href"),
-    )
-  );
 }

@@ -5256,6 +5256,22 @@
       "union": "blockByType",
       "variants": [
         {
+          "fields": [
+            {
+              "commit": "field-commit",
+              "editor": "href",
+              "field": "href"
+            },
+            {
+              "commit": "field-commit",
+              "editor": "icon",
+              "field": "icon"
+            }
+          ],
+          "presentation": "fields",
+          "variant": "page"
+        },
+        {
           "labelField": "label",
           "presentation": "contextLink",
           "target": {
@@ -8331,6 +8347,7 @@
             }
           ]
         },
+        "presentation": "inlineEditor",
         "relationship": "blockPlacements",
         "type": "tree"
       },

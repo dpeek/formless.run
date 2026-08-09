@@ -1,5 +1,6 @@
 import { DropdownMenu, type DropdownMenuOption } from "@astryxdesign/core/DropdownMenu";
 import { VStack } from "@astryxdesign/core/VStack";
+import { PlusIcon } from "@heroicons/react/24/outline";
 import type {
   CreateIntent,
   FieldIntent,
@@ -14,14 +15,20 @@ export function AstryxTreeChildCreation({
   creation,
   onIntent,
   parent,
+  renderTrigger = true,
   resultId,
 }: {
   creation: TreeChildCreationContract;
   onIntent: TreeIntentHandler;
   parent: TreeParentIdentity;
+  renderTrigger?: boolean;
   resultId: string;
 }) {
   const surface = creation.activeCreateSurface;
+
+  if (!renderTrigger && !surface) {
+    return null;
+  }
 
   return (
     <VStack
@@ -31,15 +38,9 @@ export function AstryxTreeChildCreation({
       role="group"
       width="100%"
     >
-      <DropdownMenu
-        button={{
-          children: "Add child",
-          isDisabled: creation.variants.every((variant) => !variant.availability.available),
-          label: creation.accessibilityLabel,
-          variant: "secondary",
-        }}
-        items={astryxTreeChildVariantMenuItems(creation, onIntent)}
-      />
+      {renderTrigger ? (
+        <AstryxTreeChildCreationTrigger creation={creation} onIntent={onIntent} />
+      ) : null}
       {surface ? (
         <AstryxCreateSurfaceRenderer
           onFieldIntent={(fieldId, intent) =>
@@ -60,6 +61,29 @@ export function AstryxTreeChildCreation({
         />
       ) : null}
     </VStack>
+  );
+}
+
+export function AstryxTreeChildCreationTrigger({
+  creation,
+  onIntent,
+}: {
+  creation: TreeChildCreationContract;
+  onIntent: TreeIntentHandler;
+}) {
+  return (
+    <DropdownMenu
+      button={{
+        icon: <PlusIcon />,
+        isDisabled: creation.variants.every((variant) => !variant.availability.available),
+        isIconOnly: true,
+        label: creation.accessibilityLabel,
+        size: "sm",
+        variant: "ghost",
+      }}
+      hasChevron={false}
+      items={astryxTreeChildVariantMenuItems(creation, onIntent)}
+    />
   );
 }
 

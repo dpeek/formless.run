@@ -63,12 +63,15 @@ export function AstryxWorkspaceCollectionRenderer({
   scope: WorkspaceIntentScope;
 }) {
   const presentation = collection.presentation;
+  const treeOwnsContextDetail =
+    presentation.result.kind === "treeResult" &&
+    presentation.result.presentation === "inlineEditor";
 
   return (
     <AstryxWorkspaceCollectionFrame
       collection={collection}
       contextResult={
-        presentation.contextDetail ? (
+        presentation.contextDetail && !treeOwnsContextDetail ? (
           <AstryxWorkspaceRecordResult
             contextId={
               presentation.kind === "listDetail"
@@ -99,12 +102,15 @@ export function AstryxSubscribedWorkspaceCollectionRenderer({
 }) {
   const onIntent = useWorkspaceIntentHandler();
   const presentation = collection.presentation;
+  const mainResult = useResult(presentation.result);
+  const treeOwnsContextDetail =
+    mainResult?.kind === "treeResult" && mainResult.presentation === "inlineEditor";
 
   return (
     <AstryxWorkspaceCollectionFrame
       collection={collection}
       contextResult={
-        presentation.contextDetail ? (
+        presentation.contextDetail && !treeOwnsContextDetail ? (
           <AstryxSubscribedWorkspaceContextResult
             contextId={
               presentation.kind === "listDetail"

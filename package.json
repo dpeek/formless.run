@@ -27,6 +27,7 @@
   "devDependencies": {
     "@arethetypeswrong/core": "^0.18.2",
     "@astryxdesign/core": "0.1.4",
+    "@cloudflare/workers-types": "^4.20260426.1",
     "@fission-ai/openspec": "^1.5.0",
     "@types/node": "^25.6.0",
     "agent-browser": "^0.32.3",

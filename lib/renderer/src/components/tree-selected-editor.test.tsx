@@ -160,12 +160,9 @@ describe("Astryx tree selected-item editor", () => {
     const unavailable = renderTree("unavailable");
     const editingDisabled = renderTree("editing-disabled");
 
-    expect(noSelection).toContain("Select an item to edit.");
-    expect(noSelection).toContain(
-      'data-formless-astryx-tree-editor-empty="tree:fixture:no-selection"',
-    );
+    expect(noSelection).toContain(">Group<");
+    expect(noSelection).not.toContain("Select an item to edit.");
     expect(missingChild).toContain("The placed block is unavailable.");
-    expect(missingChild).toContain("Placement fields");
     expect(missingChild).toContain("Remove placement");
     expect(missingChild).not.toContain("Child fields");
     expect(missingChild).not.toContain("This selected item is unavailable.");
@@ -173,7 +170,7 @@ describe("Astryx tree selected-item editor", () => {
     expect(unavailable).not.toContain("data-formless-astryx-tree-editor");
     expect(editingDisabled).toContain("Editing requires an owner session.");
     expect(editingDisabled).toContain("This selected item is unavailable.");
-    expect(editingDisabled.match(/<fieldset[^>]*disabled=""/g)).toHaveLength(2);
+    expect(editingDisabled.match(/<fieldset[^>]*disabled=""/g)).toHaveLength(1);
   });
 });
 

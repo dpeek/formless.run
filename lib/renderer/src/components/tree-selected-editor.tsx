@@ -101,17 +101,63 @@ export function AstryxTreeFieldSet({
   kind,
   onIntent,
   resultId,
+  showLabel = true,
 }: {
-  editor: TreeSelectedEditorContract;
+  editor: Pick<TreeSelectedEditorContract, "itemId">;
   fieldSet: FieldSetContract;
   kind: "child" | "placement";
   onIntent: TreeIntentHandler;
   resultId: string;
+  showLabel?: boolean;
 }) {
   const label = fieldSet.label ?? (kind === "placement" ? "Placement" : "Child");
   const headingId = `${fieldSet.id}:heading`;
 
-  return (
+  const content = (
+    <VStack gap={3} width="100%">
+      {showLabel ? (
+        <Heading id={headingId} level={3}>
+          {label}
+        </Heading>
+      ) : null}
+      {fieldSet.disabledReason ? (
+        <Text color="secondary" display="block" role="status" type="supporting">
+          {fieldSet.disabledReason}
+        </Text>
+      ) : null}
+      <fieldset
+        {...(showLabel ? { "aria-labelledby": headingId } : {})}
+        disabled={fieldSet.disabled}
+        title={fieldSet.disabledReason}
+        {...stylex.props(styles.fieldSet)}
+      >
+        <FormLayout direction="vertical">
+          {fieldSet.fields.map((field) => (
+            <FieldRenderer
+              field={field}
+              key={field.fieldId}
+              onIntent={(intent) =>
+                dispatchAstryxTreeFieldIntent(
+                  onIntent,
+                  resultId,
+                  editor,
+                  fieldSet,
+                  kind,
+                  field,
+                  intent,
+                )
+              }
+            />
+          ))}
+        </FormLayout>
+      </fieldset>
+      {fieldSet.errors?.map((error) => (
+        <FieldStatus key={error} message={error} type="error" variant="detached" />
+      ))}
+    </VStack>
+  );
+
+  return showLabel ? (
     <Card
       aria-labelledby={headingId}
       data-formless-astryx-tree-field-set={fieldSet.id}
@@ -121,53 +167,22 @@ export function AstryxTreeFieldSet({
       variant="muted"
       width="100%"
     >
-      <VStack gap={3} width="100%">
-        <Heading id={headingId} level={3}>
-          {label}
-        </Heading>
-        {fieldSet.disabledReason ? (
-          <Text color="secondary" display="block" role="status" type="supporting">
-            {fieldSet.disabledReason}
-          </Text>
-        ) : null}
-        <fieldset
-          aria-labelledby={headingId}
-          disabled={fieldSet.disabled}
-          title={fieldSet.disabledReason}
-          {...stylex.props(styles.fieldSet)}
-        >
-          <FormLayout direction="vertical">
-            {fieldSet.fields.map((field) => (
-              <FieldRenderer
-                field={field}
-                key={field.fieldId}
-                onIntent={(intent) =>
-                  dispatchAstryxTreeFieldIntent(
-                    onIntent,
-                    resultId,
-                    editor,
-                    fieldSet,
-                    kind,
-                    field,
-                    intent,
-                  )
-                }
-              />
-            ))}
-          </FormLayout>
-        </fieldset>
-        {fieldSet.errors?.map((error) => (
-          <FieldStatus key={error} message={error} type="error" variant="detached" />
-        ))}
-      </VStack>
+      {content}
     </Card>
+  ) : (
+    <div
+      data-formless-astryx-tree-field-set={fieldSet.id}
+      data-formless-astryx-tree-field-set-kind={kind}
+    >
+      {content}
+    </div>
   );
 }
 
 export function dispatchAstryxTreeFieldIntent(
   onIntent: TreeIntentHandler,
   resultId: string,
-  editor: TreeSelectedEditorContract,
+  editor: Pick<TreeSelectedEditorContract, "itemId">,
   fieldSet: FieldSetContract,
   kind: "child" | "placement",
   field: FieldContract,

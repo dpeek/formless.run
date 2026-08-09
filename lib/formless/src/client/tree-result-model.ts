@@ -114,6 +114,12 @@ export function selectTreeResultModel(
     "update",
     "record",
   );
+  const childDeleteOperation = selectEntityOperationByKind(
+    childField.to,
+    childEntity,
+    "delete",
+    "record",
+  );
   const placementUpdateOperation = selectEntityOperationByKind(
     entityName,
     entity,
@@ -127,8 +133,10 @@ export function selectTreeResultModel(
     relationship,
     childFieldName: result.childField,
     childField,
+    presentation: result.presentation ?? "outlineDetail",
     childEntityName: childField.to,
     childEntity,
+    ...(childDeleteOperation === undefined ? {} : { childDeleteOperation }),
     ...(childUpdateOperation === undefined ? {} : { childUpdateOperation }),
     childItemViewName: result.childItemView,
     childRecordFields: selectRecordFields(childItemView, childEntity),

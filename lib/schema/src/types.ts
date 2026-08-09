@@ -803,6 +803,7 @@ export type CollectionResultSchema =
       relationship: string;
       childField: string;
       childItemView: string;
+      presentation?: "inlineEditor";
       placementItemView?: string;
       ordering?: ResultOrderingSchema;
       branches?: TreeBranchPolicySchema;

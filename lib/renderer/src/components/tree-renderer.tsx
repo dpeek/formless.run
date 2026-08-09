@@ -1,7 +1,12 @@
 import { Banner } from "@astryxdesign/core/Banner";
+import { Card } from "@astryxdesign/core/Card";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
-import { Grid } from "@astryxdesign/core/Grid";
+import { HStack } from "@astryxdesign/core/HStack";
+import { Icon } from "@astryxdesign/core/Icon";
+import { IconButton } from "@astryxdesign/core/IconButton";
+import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
+import { FolderIcon, FolderOpenIcon } from "@heroicons/react/24/outline";
 import type {
   CollectionEmptyStatePrimaryActionContract,
   CreateFieldIntentHandler,
@@ -16,10 +21,13 @@ import type {
   WorkspaceIntentScope,
 } from "@dpeek/formless-presentation/contract";
 import { useTreeResult, useWorkspaceIntentHandler } from "@dpeek/formless-presentation/host/react";
-import { AstryxTreeResultSignals } from "./tree-actions.tsx";
-import { AstryxTreeChildCreation } from "./tree-child-creation.tsx";
-import { AstryxTreeOutline } from "./tree-outline.tsx";
-import { AstryxTreeSelectedEditor } from "./tree-selected-editor.tsx";
+import {
+  AstryxTreeResultSignals,
+  AstryxTreeSelectedActions,
+  AstryxTreeSelectedDiagnostics,
+} from "./tree-actions.tsx";
+import { AstryxTreeChildCreation, AstryxTreeChildCreationTrigger } from "./tree-child-creation.tsx";
+import { AstryxTreeFieldSet } from "./tree-selected-editor.tsx";
 import { AstryxCreateSurfaceRenderer } from "./create-renderer.tsx";
 import {
   AstryxOperationButton,
@@ -129,35 +137,209 @@ export function AstryxTreeResultRenderer({
     return <Banner container="card" status="warning" title={tree.availability.message} />;
   }
 
-  const selectedItem = findSelectedTreeItem(tree.items);
-
   return (
-    <Grid
+    <VStack
       aria-label={tree.accessibilityLabel}
-      columns={{ max: 2, minWidth: 320, repeat: "fit" }}
       data-formless-astryx-tree-layout={tree.id}
       gap={5}
       width="100%"
     >
-      <VStack gap={3} width="100%">
-        <AstryxTreeResultSignals tree={tree} />
-        <AstryxTreeOutline onIntent={onIntent} tree={tree} />
-        {tree.rootChildCreation ? (
+      <AstryxTreeResultSignals tree={tree} />
+      <AstryxTreeRootNode onIntent={onIntent} tree={tree} />
+    </VStack>
+  );
+}
+
+function AstryxTreeRootNode({
+  onIntent,
+  tree,
+}: {
+  onIntent: TreeIntentHandler;
+  tree: TreeResultContract;
+}) {
+  const root = tree.root;
+
+  return (
+    <Card data-formless-astryx-tree-node={root.id} padding={0} variant="transparent" width="100%">
+      <VStack gap={4} width="100%">
+        <HStack align="center" gap={3} justify="between" width="100%">
+          <HStack align="center" gap={2}>
+            <Icon aria-hidden icon={root.childCreation ? FolderOpenIcon : FolderIcon} size="sm" />
+            <Text color="secondary" type="supporting">
+              {root.typeLabel ?? "Block"}
+            </Text>
+          </HStack>
+          <HStack align="center" gap={1}>
+            {root.childCreation ? (
+              <AstryxTreeChildCreationTrigger creation={root.childCreation} onIntent={onIntent} />
+            ) : null}
+            {root.deleteRecord ? (
+              <AstryxTreeRootDelete
+                control={root.deleteRecord}
+                onIntent={onIntent}
+                resultId={tree.id}
+              />
+            ) : null}
+          </HStack>
+        </HStack>
+        {root.deleteRecord ? (
+          <AstryxTreeRootDeleteEffects
+            control={root.deleteRecord}
+            onIntent={onIntent}
+            resultId={tree.id}
+          />
+        ) : null}
+        {root.childFields ? (
+          <AstryxTreeFieldSet
+            editor={{ itemId: root.id }}
+            fieldSet={root.childFields}
+            kind="child"
+            onIntent={onIntent}
+            resultId={tree.id}
+            showLabel={false}
+          />
+        ) : null}
+        {tree.items.map((item) => (
+          <AstryxTreeInlineNode item={item} key={item.id} onIntent={onIntent} tree={tree} />
+        ))}
+        {root.childCreation ? (
           <AstryxTreeChildCreation
-            creation={tree.rootChildCreation}
+            creation={root.childCreation}
             onIntent={onIntent}
             parent={{ kind: "root" }}
+            renderTrigger={false}
             resultId={tree.id}
           />
         ) : null}
       </VStack>
-      <AstryxTreeSelectedEditor
-        editor={tree.selectedEditor}
-        onIntent={onIntent}
-        selectedItem={selectedItem}
-        tree={tree}
-      />
-    </Grid>
+    </Card>
+  );
+}
+
+function AstryxTreeInlineNode({
+  item,
+  onIntent,
+  tree,
+}: {
+  item: TreeItemContract;
+  onIntent: TreeIntentHandler;
+  tree: TreeResultContract;
+}) {
+  const editor = item.editor;
+  const disclosure = item.disclosure;
+  const expanded = disclosure?.open ?? true;
+
+  return (
+    <Card data-formless-astryx-tree-node={item.id} padding={4} width="100%">
+      <VStack gap={4} width="100%">
+        <HStack align="center" gap={3} justify="between" width="100%">
+          <HStack align="center" gap={2}>
+            {disclosure ? (
+              <IconButton
+                icon={
+                  <Icon
+                    aria-hidden
+                    icon={disclosure.open ? FolderOpenIcon : FolderIcon}
+                    size="sm"
+                  />
+                }
+                label={disclosure.accessibilityLabel}
+                onClick={() => void onIntent(disclosure.intent)}
+                size="sm"
+                variant="ghost"
+              />
+            ) : (
+              <Icon aria-hidden icon={FolderIcon} size="sm" />
+            )}
+            <Text color="secondary" type="supporting">
+              {item.variant?.label ?? "Block"}
+            </Text>
+          </HStack>
+          <HStack align="center" gap={1}>
+            {editor?.childCreation ? (
+              <AstryxTreeChildCreationTrigger creation={editor.childCreation} onIntent={onIntent} />
+            ) : null}
+            {editor ? (
+              <AstryxTreeSelectedActions
+                editor={editor}
+                item={item}
+                onIntent={onIntent}
+                resultId={tree.id}
+              />
+            ) : null}
+          </HStack>
+        </HStack>
+        {editor ? <AstryxTreeSelectedDiagnostics editor={editor} item={item} /> : null}
+        {expanded && editor?.childFields ? (
+          <AstryxTreeFieldSet
+            editor={editor}
+            fieldSet={editor.childFields}
+            kind="child"
+            onIntent={onIntent}
+            resultId={tree.id}
+            showLabel={false}
+          />
+        ) : null}
+        {expanded
+          ? item.children.map((child) => (
+              <AstryxTreeInlineNode item={child} key={child.id} onIntent={onIntent} tree={tree} />
+            ))
+          : null}
+        {expanded && editor?.childCreation ? (
+          <AstryxTreeChildCreation
+            creation={editor.childCreation}
+            onIntent={onIntent}
+            parent={{ itemId: item.id, kind: "item" }}
+            renderTrigger={false}
+            resultId={tree.id}
+          />
+        ) : null}
+      </VStack>
+    </Card>
+  );
+}
+
+function AstryxTreeRootDelete({
+  control,
+  onIntent,
+  resultId,
+}: {
+  control: NonNullable<TreeResultContract["root"]["deleteRecord"]>;
+  onIntent: TreeIntentHandler;
+  resultId: string;
+}) {
+  return (
+    <AstryxOperationButton
+      button={control.trigger}
+      onIntent={(intent) =>
+        onIntent({ controlId: control.id, intent, resultId, type: "treeOperation" })
+      }
+    />
+  );
+}
+
+function AstryxTreeRootDeleteEffects({
+  control,
+  onIntent,
+  resultId,
+}: {
+  control: NonNullable<TreeResultContract["root"]["deleteRecord"]>;
+  onIntent: TreeIntentHandler;
+  resultId: string;
+}) {
+  const dispatch = (intent: OperationPresentationIntent) =>
+    onIntent({ controlId: control.id, intent, resultId, type: "treeOperation" });
+
+  return (
+    <>
+      {control.confirmation ? (
+        <AstryxOperationDestructiveConfirmation
+          confirmation={control.confirmation}
+          onIntent={dispatch}
+        />
+      ) : null}
+      <AstryxOperationFeedback feedback={control.feedback} />
+    </>
   );
 }
 
@@ -225,19 +407,6 @@ export function dispatchAstryxWorkspaceTreeIntent(
   }
 
   return handler({ ...scope, intent, resultId, type: "workspaceTree" });
-}
-
-function findSelectedTreeItem(items: readonly TreeItemContract[]): TreeItemContract | undefined {
-  for (const item of items) {
-    if (item.selected) {
-      return item;
-    }
-    const selectedChild = findSelectedTreeItem(item.children);
-    if (selectedChild) {
-      return selectedChild;
-    }
-  }
-  return undefined;
 }
 
 function ignoreTreeIntent() {}

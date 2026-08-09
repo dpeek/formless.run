@@ -22,6 +22,7 @@ import { CheckboxInput } from "@astryxdesign/core/CheckboxInput";
 import { DateInput } from "@astryxdesign/core/DateInput";
 import { Grid } from "@astryxdesign/core/Grid";
 import { HStack } from "@astryxdesign/core/HStack";
+import type { SpacingStep } from "@astryxdesign/core/Layout";
 import { useMediaQuery } from "@astryxdesign/core/hooks";
 import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
@@ -997,15 +998,11 @@ function ProjectedFeatureBlock({
           <VStack gap={0}>
             {actions.map((placement) =>
               placement.block.href ? (
-                <ProjectedFooterLink
+                <ProjectedInlineLinkBlock
+                  block={placement.block}
                   key={placement.id}
-                  item={toProjectedShellLink(
-                    placement.block,
-                    placement.block.href,
-                    routeFacts,
-                    placement,
-                  )}
-                  social={false}
+                  placement={placement}
+                  routeFacts={routeFacts}
                 />
               ) : null,
             )}
@@ -1065,15 +1062,11 @@ function ProjectedFeatureBlock({
                 <VStack gap={0}>
                   {actions.map((placement) =>
                     placement.block.href ? (
-                      <ProjectedFooterLink
+                      <ProjectedInlineLinkBlock
+                        block={placement.block}
                         key={placement.id}
-                        item={toProjectedShellLink(
-                          placement.block,
-                          placement.block.href,
-                          routeFacts,
-                          placement,
-                        )}
-                        social={false}
+                        placement={placement}
+                        routeFacts={routeFacts}
                       />
                     ) : null,
                   )}
@@ -2575,7 +2568,7 @@ function ProjectedPlainText({ body }: { body?: string }) {
   );
 }
 
-function ProjectedLinkLabel({ item, gap = 1 }: { item: ProjectedShellLink; gap?: number }) {
+function ProjectedLinkLabel({ item, gap = 1 }: { item: ProjectedShellLink; gap?: SpacingStep }) {
   return (
     <HStack gap={gap} vAlign="center">
       <ProjectedLinkIcon item={item} />

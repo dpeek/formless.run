@@ -85,7 +85,7 @@ import {
   type GeneratedTreeDisclosureRuntime,
   type GeneratedTreeFieldIntentRuntime,
   type GeneratedTreeItemSelectionRuntime,
-  type GeneratedTreePlacementRemovalRuntime,
+  type GeneratedTreeOperationRuntime,
   type GeneratedTreeOrderingRuntime,
   type GeneratedTreeContextNavigationRuntime,
   type SelectGeneratedTreeFoundationOptions,
@@ -359,7 +359,7 @@ export type GeneratedWorkspaceResolvedIntent =
   | {
       kind: "treeOperation";
       result: GeneratedWorkspaceNestedResultRuntime & { kind: "treeResult" };
-      runtime: GeneratedTreePlacementRemovalRuntime;
+      runtime: GeneratedTreeOperationRuntime;
       section: GeneratedWorkspaceSectionRuntimePlan;
     }
   | {

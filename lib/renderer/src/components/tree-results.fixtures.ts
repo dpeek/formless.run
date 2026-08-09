@@ -506,14 +506,28 @@ function readyTree({
     editing,
     feedback,
     id,
-    items,
+    items: projectInlineEditors(items, selectedEditor),
     kind: "treeResult",
-    root: root(rootLabel, id),
+    root: {
+      ...root(rootLabel, id),
+      ...(rootChildCreation ? { childCreation: rootChildCreation } : {}),
+    },
     rootChildCreation,
     selectedEditor,
     status,
     warnings,
   };
+}
+
+function projectInlineEditors(
+  items: readonly TreeItemContract[],
+  selectedEditor: TreeSelectedEditorContract | undefined,
+): TreeItemContract[] {
+  return items.map((item) => ({
+    ...item,
+    children: projectInlineEditors(item.children, selectedEditor),
+    ...(item.id === selectedEditor?.itemId ? { editor: selectedEditor } : {}),
+  }));
 }
 
 function treeItem({

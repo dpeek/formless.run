@@ -1644,6 +1644,7 @@ export type TreeItemContract = {
   children: readonly TreeItemContract[];
   contextActions: readonly TreeContextActionContract[];
   disclosure?: TreeItemDisclosureContract;
+  editor?: TreeSelectedEditorContract;
   id: string;
   kind: "treeItem";
   label: string;
@@ -1675,9 +1676,13 @@ export type TreeSelectedEditorContract = {
 
 export type TreeRootContract = {
   accessibilityLabel: string;
+  childCreation?: TreeChildCreationContract;
+  childFields?: FieldSetContract;
+  deleteRecord?: OperationControlContract;
   id: string;
   kind: "treeRoot";
   label: string;
+  typeLabel?: string;
 };
 
 export type TreeResultContract = {
@@ -1689,6 +1694,7 @@ export type TreeResultContract = {
   id: string;
   items: readonly TreeItemContract[];
   kind: "treeResult";
+  presentation?: "inlineEditor" | "outlineDetail";
   root: TreeRootContract;
   rootChildCreation?: TreeChildCreationContract;
   selectedEditor?: TreeSelectedEditorContract;

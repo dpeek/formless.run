@@ -40,7 +40,6 @@ describe("Astryx tree child creation", () => {
       { itemId: tree.selectedEditor?.itemId, kind: "item" },
       { itemId: tree.selectedEditor?.itemId, kind: "item" },
     ]);
-    expect(html.match(/data-formless-astryx-tree-child-creation=/g)).toHaveLength(2);
     expect(html).toContain('aria-label="Add child to Homepage"');
     expect(html).toContain('aria-label="Add child to Navigation"');
     expect(html).toContain('aria-haspopup="menu"');

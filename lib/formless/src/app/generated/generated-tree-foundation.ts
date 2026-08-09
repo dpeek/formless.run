@@ -38,7 +38,7 @@ import {
   type GeneratedRecordResultRecordState,
   type SelectGeneratedRecordResultFoundationOptions,
 } from "./generated-record-result-foundation.ts";
-import { selectRecordLabel } from "./record-delete-runtime.ts";
+import { projectDeleteRecordButtonBinding, selectRecordLabel } from "./record-delete-runtime.ts";
 import { selectRecordContextLinkForActiveUnion } from "./union-presentation.ts";
 import {
   projectGeneratedTreeChildCreation,
@@ -76,6 +76,13 @@ export type GeneratedTreeOrderingProjectionOptions = {
   >;
 };
 
+export type GeneratedTreeRootDeleteProjectionOptions = {
+  confirmationOpenByControlId?: Readonly<Record<string, boolean | undefined>>;
+  operationStateByExecutionKey?: Readonly<
+    Record<string, GeneratedOperationExecutionState | undefined>
+  >;
+};
+
 export type SelectGeneratedTreeFoundationOptions = {
   childCreation?: GeneratedTreeChildCreationProjectionOptions;
   childFields?: GeneratedTreeRecordProjectionOptions;
@@ -87,6 +94,7 @@ export type SelectGeneratedTreeFoundationOptions = {
   ordering?: GeneratedTreeOrderingProjectionOptions;
   placementFields?: GeneratedTreeRecordProjectionOptions;
   placementRemoval?: GeneratedTreePlacementRemovalProjectionOptions;
+  rootDelete?: GeneratedTreeRootDeleteProjectionOptions;
   recordsById: Record<string, StoredRecord>;
   result: TreeResultModel;
   rootRecordId?: string | null;
@@ -131,8 +139,20 @@ export type GeneratedTreePlacementRemovalRuntime = {
   binding: GeneratedOperationControlBinding;
   fallbackPlacementId: string | null;
   itemId: string;
+  kind: "placementRemoval";
   placementId: string;
 };
+
+export type GeneratedTreeRootDeleteRuntime = {
+  binding: GeneratedOperationControlBinding;
+  kind: "rootDelete";
+  recordId: string;
+  recordLabel: string;
+};
+
+export type GeneratedTreeOperationRuntime =
+  | GeneratedTreePlacementRemovalRuntime
+  | GeneratedTreeRootDeleteRuntime;
 
 export type GeneratedTreeOrderingRuntime = {
   actionId: string;
@@ -154,6 +174,8 @@ export type GeneratedTreeRuntimePlan = {
   orderings: readonly GeneratedTreeOrderingRuntime[];
   removePlacementByControlId: ReadonlyMap<string, GeneratedTreePlacementRemovalRuntime>;
   removePlacements: readonly GeneratedTreePlacementRemovalRuntime[];
+  rootDeleteByControlId: ReadonlyMap<string, GeneratedTreeRootDeleteRuntime>;
+  rootDeletes: readonly GeneratedTreeRootDeleteRuntime[];
   resultId: string;
   selectedPlacementId: string | null;
 };
@@ -176,6 +198,7 @@ export function selectGeneratedTreeFoundation({
   placementRemoval,
   recordsById,
   result,
+  rootDelete: rootDeleteOptions,
   rootRecordId,
   schema = null,
   selectedPlacementId,
@@ -238,54 +261,91 @@ export function selectGeneratedTreeFoundation({
           result,
           resultId: id,
         });
-  const selectedChildRecord =
-    selectedItem?.childRecordId === undefined
-      ? undefined
-      : selectChildRecord(selectedItem.childRecordId, recordsById, result);
-  const selectedChildCreation =
-    selectedItem === undefined ||
-    selectedChildRecord === undefined ||
-    selectedItem.structure.state !== "branch"
-      ? undefined
-      : projectGeneratedTreeChildCreation({
-          creationId: `${selectedItem.id}:children`,
-          editing,
-          options: childCreation,
-          parent: { itemId: selectedItem.id, kind: "item" },
-          parentLabel: selectedItem.label,
-          parentRecord: selectedChildRecord,
-          result,
-          resultId: id,
-        });
-  const selectedPlacementRemoval =
-    selectedItem === undefined
-      ? undefined
-      : projectGeneratedTreePlacementRemoval({
-          fallbackPlacementId:
-            flatItems.find((item) => item.placementId !== selectedItem.placementId)?.placementId ??
-            null,
-          item: selectedItem,
-          options: placementRemoval,
-          result,
-        });
-  const childCreations = [rootChildCreation, selectedChildCreation].filter(
-    (creation) => creation !== undefined,
+  const itemProjections = flatItems.map((item) => {
+    const childRecord = selectChildRecord(item.childRecordId, recordsById, result);
+    const childCreationForItem =
+      childRecord === undefined || item.structure.state !== "branch"
+        ? undefined
+        : projectGeneratedTreeChildCreation({
+            creationId: `${item.id}:children`,
+            editing,
+            options: childCreation,
+            parent: { itemId: item.id, kind: "item" },
+            parentLabel: item.label,
+            parentRecord: childRecord,
+            result,
+            resultId: id,
+          });
+    const placementRemovalForItem = projectGeneratedTreePlacementRemoval({
+      fallbackPlacementId:
+        flatItems.find((candidate) => candidate.placementId !== item.placementId)?.placementId ??
+        null,
+      item,
+      options: placementRemoval,
+      result,
+    });
+    const projection = projectGeneratedTreeSelectedEditor({
+      childFields,
+      childCreation: childCreationForItem?.contract,
+      editing,
+      fieldStateByFieldSetId,
+      item,
+      placementFields,
+      removePlacement: placementRemovalForItem?.control,
+      recordsById,
+      result,
+      schema,
+    });
+
+    return {
+      childCreation: childCreationForItem,
+      placementRemoval: placementRemovalForItem,
+      projection,
+    };
+  });
+  const editorByItemId = new Map(
+    itemProjections.map(({ projection }) => [projection.editor.itemId, projection.editor]),
   );
+  const itemsWithEditors = projectGeneratedTreeInlineEditors(selectedItems, editorByItemId);
+  const inlineItems = flattenTreeItems(itemsWithEditors);
   const selectedProjection =
     selectedItem === undefined
       ? undefined
-      : projectGeneratedTreeSelectedEditor({
-          childFields,
-          childCreation: selectedChildCreation?.contract,
-          editing,
+      : itemProjections.find(({ projection }) => projection.editor.itemId === selectedItem.id)
+          ?.projection;
+  const rootFieldTarget =
+    rootRecord === undefined
+      ? undefined
+      : selectGeneratedTreeRecordFieldRuntime({
           fieldStateByFieldSetId,
-          item: selectedItem,
-          placementFields,
-          removePlacement: selectedPlacementRemoval?.control,
+          itemId: `${id}:root${selectedRootId === undefined ? "" : `:${selectedRootId}`}`,
+          kind: "child",
+          options: childFields,
+          record: rootRecord,
           recordsById,
           result,
           schema,
         });
+  const rootDelete =
+    rootRecord === undefined
+      ? undefined
+      : projectGeneratedTreeRootDelete({
+          options: rootDeleteOptions,
+          record: rootRecord,
+          result,
+          rootLabel,
+        });
+  const childCreations = [
+    rootChildCreation,
+    ...itemProjections.map(({ childCreation: creation }) => creation),
+  ].filter((creation) => creation !== undefined);
+  const fieldTargets = [
+    ...(rootFieldTarget === undefined ? [] : [rootFieldTarget]),
+    ...itemProjections.flatMap(({ projection }) => projection.fieldTargets),
+  ];
+  const placementRemovals = itemProjections.flatMap(({ placementRemoval: removal }) =>
+    removal === undefined ? [] : [removal],
+  );
 
   return {
     runtimePlan: {
@@ -302,7 +362,7 @@ export function selectGeneratedTreeFoundation({
         ),
       ),
       contextActionById: new Map(
-        flatItems.flatMap((item) =>
+        inlineItems.flatMap((item) =>
           item.contextActions.flatMap((action) =>
             item.childRecordId === undefined
               ? []
@@ -327,26 +387,20 @@ export function selectGeneratedTreeFoundation({
             : [[item.id, { itemId: item.id, open: item.disclosure.intent.open }] as const],
         ),
       ),
-      fieldTargetByFieldSetId: new Map(
-        selectedProjection?.fieldTargets.map((target) => [target.fieldSetId, target]) ?? [],
-      ),
+      fieldTargetByFieldSetId: new Map(fieldTargets.map((target) => [target.fieldSetId, target])),
       itemById: new Map(
-        flatItems.map((item) => [item.id, { itemId: item.id, placementId: item.placementId }]),
+        inlineItems.map((item) => [item.id, { itemId: item.id, placementId: item.placementId }]),
       ),
       orderingByItemId: orderingPlan.orderingByItemId,
       orderings: orderingPlan.orderings,
       removePlacementByControlId: new Map(
-        selectedPlacementRemoval === undefined
-          ? []
-          : [
-              [
-                selectedPlacementRemoval.runtime.binding.id,
-                selectedPlacementRemoval.runtime,
-              ] as const,
-            ],
+        placementRemovals.map((removal) => [removal.runtime.binding.id, removal.runtime] as const),
       ),
-      removePlacements:
-        selectedPlacementRemoval === undefined ? [] : [selectedPlacementRemoval.runtime],
+      removePlacements: placementRemovals.map((removal) => removal.runtime),
+      rootDeleteByControlId: new Map(
+        rootDelete === undefined ? [] : [[rootDelete.runtime.binding.id, rootDelete.runtime]],
+      ),
+      rootDeletes: rootDelete === undefined ? [] : [rootDelete.runtime],
       resultId: id,
       selectedPlacementId: selectedItem?.placementId ?? null,
     },
@@ -355,28 +409,40 @@ export function selectGeneratedTreeFoundation({
       availability:
         rootRecord === undefined
           ? { message: rootUnavailableMessage, state: "unavailable" }
-          : items.length === 0
-            ? {
-                emptyState: {
-                  ...(emptyStateAction === undefined ? {} : { action: emptyStateAction }),
-                  id: `${id}:empty`,
-                  kind: "treeEmptyState",
-                  title: "No placements yet.",
-                },
-                state: "empty",
-              }
-            : { state: "ready" },
+          : result.presentation === "inlineEditor"
+            ? { state: "ready" }
+            : items.length === 0
+              ? {
+                  emptyState: {
+                    ...(emptyStateAction === undefined ? {} : { action: emptyStateAction }),
+                    id: `${id}:empty`,
+                    kind: "treeEmptyState",
+                    title: "No placements yet.",
+                  },
+                  state: "empty",
+                }
+              : { state: "ready" },
       density: "default",
       editing,
       feedback: projectGeneratedTreeOrderingFeedback(orderingPlan.orderings, ordering),
       id,
-      items: selectedItems,
+      items: itemsWithEditors,
       kind: "treeResult",
+      presentation: result.presentation,
       root: {
         accessibilityLabel: `${rootLabel} tree root`,
+        ...(rootChildCreation === undefined ? {} : { childCreation: rootChildCreation.contract }),
+        ...(rootFieldTarget === undefined
+          ? {}
+          : { childFields: treeFieldSet(rootFieldTarget, editing, "Block fields") }),
+        ...(rootDelete === undefined ? {} : { deleteRecord: rootDelete.control }),
         id: `${id}:root${selectedRootId === undefined ? "" : `:${selectedRootId}`}`,
         kind: "treeRoot",
         label: rootLabel,
+        typeLabel:
+          rootRecord === undefined
+            ? result.childEntity.label
+            : treeRootTypeLabel(rootRecord, result),
       },
       ...(rootChildCreation === undefined ? {} : { rootChildCreation: rootChildCreation.contract }),
       ...(selectedProjection === undefined ? {} : { selectedEditor: selectedProjection.editor }),
@@ -508,11 +574,15 @@ export function resolveGeneratedTreeFieldIntent(
 export function resolveGeneratedTreeOperationIntent(
   runtimePlan: GeneratedTreeRuntimePlan,
   intent: TreeOperationIntent,
-): GeneratedTreePlacementRemovalRuntime | undefined {
+): GeneratedTreeOperationRuntime | undefined {
   if (intent.resultId !== runtimePlan.resultId || intent.controlId !== intent.intent.controlId) {
     return undefined;
   }
 
+  const rootDelete = runtimePlan.rootDeleteByControlId.get(intent.controlId);
+  if (rootDelete !== undefined && intent.itemId === undefined) {
+    return rootDelete;
+  }
   const runtime = runtimePlan.removePlacementByControlId.get(intent.controlId);
   return runtime?.itemId === intent.itemId ? runtime : undefined;
 }
@@ -766,6 +836,23 @@ function projectGeneratedTreeSelection(
   }));
 }
 
+function projectGeneratedTreeInlineEditors(
+  items: readonly TreeItemContract[],
+  editorByItemId: ReadonlyMap<string, TreeItemContract["editor"]>,
+): TreeItemContract[] {
+  return items.map((item) => ({
+    ...item,
+    children: projectGeneratedTreeInlineEditors(item.children, editorByItemId),
+    ...(editorByItemId.get(item.id) === undefined ? {} : { editor: editorByItemId.get(item.id) }),
+  }));
+}
+
+function treeRootTypeLabel(record: StoredRecord, result: TreeResultModel) {
+  const discriminator = result.branches?.variants.discriminatorFieldName ?? "type";
+  const type = stringValue(record.values[discriminator]);
+  return type === undefined ? result.childEntity.label : humanizeFieldName(type);
+}
+
 function projectGeneratedTreeSelectedEditor({
   childFields,
   childCreation,
@@ -903,10 +990,10 @@ function projectGeneratedTreePlacementRemoval({
       },
       presentation: {
         accessibilityLabel: `Remove ${item.label} placement`,
-        content: { icon: "remove", kind: "iconAndLabel", label: binding.label },
+        content: { icon: "delete", kind: "iconOnly" },
         density: "compact",
         pendingLabel: "Removing placement...",
-        prominence: "destructive",
+        prominence: "quiet",
       },
       state: projectedState,
     }),
@@ -914,8 +1001,58 @@ function projectGeneratedTreePlacementRemoval({
       binding,
       fallbackPlacementId,
       itemId: item.id,
+      kind: "placementRemoval",
       placementId: item.placementId,
     },
+  };
+}
+
+function projectGeneratedTreeRootDelete({
+  options,
+  record,
+  result,
+  rootLabel,
+}: {
+  options: GeneratedTreeRootDeleteProjectionOptions | undefined;
+  record: StoredRecord;
+  result: TreeResultModel;
+  rootLabel: string;
+}):
+  | {
+      control: NonNullable<TreeResultContract["root"]["deleteRecord"]>;
+      runtime: GeneratedTreeRootDeleteRuntime;
+    }
+  | undefined {
+  if (result.childDeleteOperation === undefined) {
+    return undefined;
+  }
+  const binding = projectDeleteRecordButtonBinding({
+    deleteOperation: result.childDeleteOperation,
+    entityLabel: result.childEntity.label,
+    idPrefix: `${result.childEntityName}:tree-root`,
+    recordId: record.id,
+    recordLabel: rootLabel,
+  });
+  if (binding === undefined) {
+    return undefined;
+  }
+  const state =
+    options?.operationStateByExecutionKey?.[binding.executionKey] ??
+    createIdleGeneratedOperationExecutionState(binding.executionKey);
+
+  return {
+    control: projectGeneratedOperationControl({
+      binding,
+      confirmationOpen: options?.confirmationOpenByControlId?.[binding.id] ?? false,
+      presentation: {
+        accessibilityLabel: `Delete ${rootLabel}`,
+        content: { icon: "delete", kind: "iconOnly" },
+        density: "compact",
+        prominence: "quiet",
+      },
+      state,
+    }),
+    runtime: { binding, kind: "rootDelete", recordId: record.id, recordLabel: rootLabel },
   };
 }
 

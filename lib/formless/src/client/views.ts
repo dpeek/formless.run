@@ -458,8 +458,10 @@ export type HomeResultConfig =
           type: "reference";
         }
       >;
+      presentation: "inlineEditor" | "outlineDetail";
       childEntityName: string;
       childEntity: EntitySchema;
+      childDeleteOperation?: EntityOperationPresentationConfig;
       childUpdateOperation?: EntityOperationPresentationConfig;
       childItemViewName: string;
       childRecordFields: RecordFieldConfig[];

@@ -229,7 +229,11 @@ describe("generated tree foundation", () => {
       rootRecordId: root.id,
       selectedPlacementId: "placement-post",
     });
-    const removal = required(initial.runtimePlan.removePlacements[0]);
+    const removal = required(
+      initial.runtimePlan.removePlacements.find(
+        (candidate) => candidate.placementId === "placement-post",
+      ),
+    );
     const foundation = selectGeneratedTreeFoundation({
       id: resultId,
       placementRemoval: {
@@ -336,7 +340,7 @@ describe("generated tree foundation", () => {
     expect(editingDisabled.selectedEditor?.editing).toEqual(editingDisabled.editing);
   });
 
-  it("projects explicit empty and unavailable root states", () => {
+  it("keeps an inline-editor root available without placements", () => {
     const root = block("root", "page", "Empty root");
     const result = siteTreeResult();
     const emptyStateAction = {
@@ -364,14 +368,7 @@ describe("generated tree foundation", () => {
     }).tree;
 
     expect(empty).toMatchObject({
-      availability: {
-        emptyState: {
-          action: { control: { id: "tree:create-starter" }, role: "command" },
-          id: "tree:empty:empty",
-          title: "No placements yet.",
-        },
-        state: "empty",
-      },
+      availability: { state: "ready" },
       items: [],
       root: { label: "Empty root" },
     });
@@ -559,8 +556,7 @@ describe("generated tree foundation", () => {
     expect(childLabel).toMatchObject({
       density: "default",
       drafts: { draft: "Draft link" },
-      labelVisibility: "hidden",
-      presentationMode: "heading",
+      labelVisibility: "visible",
       recordId: child.id,
     });
     expect(childReference).toMatchObject({
@@ -1039,7 +1035,9 @@ describe("generated tree foundation", () => {
       },
     });
     expect(missing.tree.selectedEditor).not.toHaveProperty("childFields");
-    expect(missing.runtimePlan.removePlacements).toHaveLength(1);
+    expect(missing.runtimePlan.removePlacements).toContainEqual(
+      expect.objectContaining({ placementId: missingPlacement.id }),
+    );
 
     for (const [placementId, childRecordId, privateLabel] of [
       [deletedPlacement.id, deletedChild.id, "PRIVATE_DELETED_CHILD"],
@@ -1061,9 +1059,9 @@ describe("generated tree foundation", () => {
       });
       expect(editor).not.toHaveProperty("childCreation");
       expect(editor).not.toHaveProperty("childFields");
-      expect(Array.from(foundation.runtimePlan.fieldTargetByFieldSetId.values())).toEqual([
+      expect(Array.from(foundation.runtimePlan.fieldTargetByFieldSetId.values())).toContainEqual(
         expect.objectContaining({ kind: "placement", recordId: placementId }),
-      ]);
+      );
       expect(JSON.stringify(editor)).not.toContain(privateLabel);
     }
   });
@@ -1109,8 +1107,8 @@ describe("generated tree foundation", () => {
       status: { status: "idle" },
       trigger: {
         accessibilityLabel: "Remove Second child placement",
-        content: { icon: "remove", kind: "iconAndLabel", label: "Remove child" },
-        prominence: "destructive",
+        content: { icon: "delete", kind: "iconOnly" },
+        prominence: "quiet",
       },
     });
     expect(runtime).toMatchObject({
@@ -1122,7 +1120,7 @@ describe("generated tree foundation", () => {
         input: { action: "remove", kind: "treeComposition" },
       },
     });
-    expect(initial.runtimePlan.removePlacements).toHaveLength(1);
+    expect(initial.runtimePlan.removePlacements).toHaveLength(2);
     expect(initial.runtimePlan.removePlacements[0]?.binding.canonicalOperationKey).not.toBe(
       "block.delete",
     );

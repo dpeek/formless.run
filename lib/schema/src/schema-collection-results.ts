@@ -176,7 +176,7 @@ export function parseCollectionResult(
       `Collection view "${viewName}" result`,
       value,
       ["type", "relationship", "childField", "childItemView"],
-      ["placementItemView", "ordering", "branches", "composition", "maxDepth"],
+      ["placementItemView", "ordering", "branches", "composition", "maxDepth", "presentation"],
     );
 
     if (!collectionContext) {
@@ -281,6 +281,10 @@ export function parseCollectionResult(
       `Collection view "${viewName}" result maxDepth`,
       value.maxDepth,
     );
+    const presentation = parseOptionalTreePresentation(
+      `Collection view "${viewName}" result presentation`,
+      value.presentation,
+    );
     const ordering = parseOptionalResultOrdering(
       `Collection view "${viewName}" result ordering`,
       value.ordering,
@@ -314,6 +318,7 @@ export function parseCollectionResult(
       relationship: relationshipName,
       childField: childFieldName,
       childItemView: childItemViewName,
+      ...(presentation === undefined ? {} : { presentation }),
       ...(placementItemViewName === undefined ? {} : { placementItemView: placementItemViewName }),
       ...(ordering === undefined ? {} : { ordering }),
       ...(branches === undefined ? {} : { branches }),
@@ -325,6 +330,19 @@ export function parseCollectionResult(
   throw new Error(
     `Collection view "${viewName}" result type must be "list", "record", "table", or "tree".`,
   );
+}
+
+function parseOptionalTreePresentation(
+  context: string,
+  value: unknown,
+): "inlineEditor" | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value !== "inlineEditor") {
+    throw new Error(`${context} must be "inlineEditor" when provided.`);
+  }
+  return value;
 }
 
 function parseOptionalTreeMaxDepth(context: string, value: unknown): number | undefined {
