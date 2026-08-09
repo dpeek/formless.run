@@ -12,7 +12,7 @@ import {
 import { createTreeResultFixtures, type TreeResultFixtureId } from "./tree-results.fixtures.ts";
 
 describe("Astryx tree hierarchy outline", () => {
-  it("renders concise accessible rows with tree roles, semantic icons, facts, and context actions", () => {
+  it("renders concise accessible rows with tree roles, semantic icons, slot facts, and context actions", () => {
     const tree = treeFixture("shallow");
     const html = renderToStaticMarkup(<AstryxTreeOutline onIntent={() => {}} tree={tree} />);
 
@@ -26,8 +26,8 @@ describe("Astryx tree hierarchy outline", () => {
     expect(html).toContain('aria-expanded="true"');
     expect(html).toContain('aria-expanded="false"');
     expect(html).toContain("Navigation block");
-    expect(html).toContain("Navigation · Header · Branch");
-    expect(html).toContain("Logo · Start · Leaf");
+    expect(html).toContain("Navigation · Header");
+    expect(html).toContain("Logo · Start");
     expect(html).toContain('data-slot="icon"');
     expect(html).toContain('aria-label="Open navigation block"');
     expect(html).not.toContain("Home block");
@@ -86,7 +86,7 @@ describe("Astryx tree hierarchy outline", () => {
       contextAction.intent,
     ]);
     expect(astryxTreeOutlineItems([disabled], onIntent)[0]).toMatchObject({
-      description: "Gallery · Main · Leaf · This block cannot be edited.",
+      description: "Gallery · Main · This block cannot be edited.",
       isDisabled: true,
       isSelected: true,
     });

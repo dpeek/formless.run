@@ -107,7 +107,7 @@ describe("Astryx table renderer", () => {
   it("renders semantic headers, mixed cells, action hierarchy, async state, warnings, and footer", () => {
     const html = renderTable(tableFixture());
 
-    expect(html).toContain('<table aria-label="Tasks"');
+    expect(html).toMatch(/<table[^>]*aria-label="Tasks"/);
     expect(html).toContain('aria-label="Ordering"');
     expect(html).toContain('scope="col"');
     expect(html).toContain('scope="row"');

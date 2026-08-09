@@ -34,7 +34,7 @@
     "schema:materialize": "bun run scripts/materialize-program-schema.ts"
   },
   "dependencies": {
-    "@astryxdesign/build": "0.1.4",
+    "@astryxdesign/build": "0.3.0",
     "@cf-wasm/resvg": "0.3.4",
     "@cloudflare/vite-plugin": "^1.45.1",
     "@dpeek/formless-archive": "workspace:*",

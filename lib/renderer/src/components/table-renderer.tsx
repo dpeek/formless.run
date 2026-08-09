@@ -126,7 +126,7 @@ export function AstryxTableRenderer({
         density={astryxTableDensity(table.density)}
         dividers="none"
         hasHover
-        tableProps={{ "aria-label": table.accessibilityLabel }}
+        aria-label={table.accessibilityLabel}
         textOverflow="wrap"
         verticalAlign="top"
       >

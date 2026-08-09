@@ -188,7 +188,6 @@ describe("Astryx tree actions and diagnostics", () => {
     const depthHtml = renderToStaticMarkup(
       <AstryxTreeResultRenderer tree={treeFixture("maximum-depth")} />,
     );
-    const leafHtml = renderToStaticMarkup(<AstryxTreeResultRenderer tree={treeFixture("leaf")} />);
 
     expect(disabledHtml).toContain('data-formless-astryx-tree-warning-source="tree"');
     expect(disabledHtml).toContain('data-formless-astryx-tree-warning-source="placement"');
@@ -202,7 +201,6 @@ describe("Astryx tree actions and diagnostics", () => {
     expect(missingHtml).toContain("The placed block is unavailable.");
     expect(cycleHtml).toContain("This branch stops before repeating an ancestor.");
     expect(depthHtml).toContain("Maximum tree depth reached.");
-    expect(leafHtml).toContain(">Leaf<");
   });
 });
 

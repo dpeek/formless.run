@@ -341,7 +341,7 @@ function AstryxAccessPeople({
             density="balanced"
             dividers="rows"
             idKey="id"
-            tableProps={{ "aria-labelledby": headingId }}
+            aria-labelledby={headingId}
             textOverflow="wrap"
             verticalAlign="top"
           />
@@ -446,7 +446,7 @@ function AstryxAccessInvitations({
             density="balanced"
             dividers="rows"
             idKey="id"
-            tableProps={{ "aria-labelledby": headingId }}
+            aria-labelledby={headingId}
             textOverflow="wrap"
             verticalAlign="top"
           />
@@ -472,7 +472,7 @@ function AstryxAccessEmptyTable<Row extends Record<string, unknown>>({
       columns={columns}
       density="balanced"
       dividers="rows"
-      tableProps={{ "aria-labelledby": headingId }}
+      aria-labelledby={headingId}
       textOverflow="wrap"
       verticalAlign="top"
     >

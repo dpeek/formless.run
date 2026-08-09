@@ -155,12 +155,7 @@ function astryxTreeOutlineItem(
 }
 
 function astryxTreeItemDescription(item: TreeItemContract) {
-  const structuralFact =
-    "message" in item.structure
-      ? item.structure.message
-      : item.structure.state === "branch"
-        ? "Branch"
-        : "Leaf";
+  const structuralFact = "message" in item.structure ? item.structure.message : undefined;
   const unavailableMessage = item.availability.available ? undefined : item.availability.message;
 
   return [...new Set([item.variant?.label, item.slot?.label, structuralFact, unavailableMessage])]

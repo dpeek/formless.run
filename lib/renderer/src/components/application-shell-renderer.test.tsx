@@ -90,7 +90,6 @@ describe("Astryx application shell renderer", () => {
     expect(statusDetails.querySelector('time[datetime="2026-07-16T01:00:00.000Z"]')).not.toBeNull();
     expect(statusDetails.textContent).toContain("Queued");
     expect(statusDetails.textContent).toContain("Workspace changes are queued.");
-    expect(requiredByProps(container, { "aria-label": "Ada Lovelace", role: "img" })).toBeDefined();
     expect(interactiveByLabel(container, "Ada Lovelace")).toBeDefined();
     expect(rendererText(mountedRenderer)).toContain("Route workspace");
 

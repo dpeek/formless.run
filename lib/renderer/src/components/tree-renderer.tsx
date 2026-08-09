@@ -1,12 +1,15 @@
 import { Banner } from "@astryxdesign/core/Banner";
 import { Card } from "@astryxdesign/core/Card";
+import { Divider } from "@astryxdesign/core/Divider";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { HStack } from "@astryxdesign/core/HStack";
 import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
+import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
 import { FolderIcon, FolderOpenIcon } from "@heroicons/react/24/outline";
+import * as stylex from "@stylexjs/stylex";
 import type {
   CollectionEmptyStatePrimaryActionContract,
   CreateFieldIntentHandler,
@@ -35,6 +38,15 @@ import {
   AstryxOperationDestructiveConfirmation,
   AstryxOperationFeedback,
 } from "./operation-renderer.tsx";
+
+const styles = stylex.create({
+  childCards: {
+    paddingBlockStart: spacingVars["--spacing-4"],
+  },
+  inlineNode: {
+    marginInline: `calc(${spacingVars["--spacing-8"]} * -1)`,
+  },
+});
 
 export function AstryxSubscribedTreeResultRenderer({
   reference,
@@ -160,9 +172,22 @@ function AstryxTreeRootNode({
   const root = tree.root;
 
   return (
-    <Card data-formless-astryx-tree-node={root.id} padding={0} variant="transparent" width="100%">
-      <VStack gap={4} width="100%">
-        <HStack align="center" gap={3} justify="between" width="100%">
+    <Card
+      data-formless-astryx-tree-node={root.id}
+      elevation="med"
+      padding={0}
+      variant="transparent"
+      width="100%"
+    >
+      <VStack gap={0} width="100%">
+        <HStack
+          align="center"
+          gap={3}
+          justify="between"
+          paddingBlock={4}
+          paddingInline={8}
+          width="100%"
+        >
           <HStack align="center" gap={2}>
             <Icon aria-hidden icon={root.childCreation ? FolderOpenIcon : FolderIcon} size="sm" />
             <Text color="secondary" type="supporting">
@@ -182,35 +207,46 @@ function AstryxTreeRootNode({
             ) : null}
           </HStack>
         </HStack>
-        {root.deleteRecord ? (
-          <AstryxTreeRootDeleteEffects
-            control={root.deleteRecord}
-            onIntent={onIntent}
-            resultId={tree.id}
-          />
-        ) : null}
-        {root.childFields ? (
-          <AstryxTreeFieldSet
-            editor={{ itemId: root.id }}
-            fieldSet={root.childFields}
-            kind="child"
-            onIntent={onIntent}
-            resultId={tree.id}
-            showLabel={false}
-          />
-        ) : null}
-        {tree.items.map((item) => (
-          <AstryxTreeInlineNode item={item} key={item.id} onIntent={onIntent} tree={tree} />
-        ))}
-        {root.childCreation ? (
-          <AstryxTreeChildCreation
-            creation={root.childCreation}
-            onIntent={onIntent}
-            parent={{ kind: "root" }}
-            renderTrigger={false}
-            resultId={tree.id}
-          />
-        ) : null}
+        <Divider isFullBleed />
+        <VStack gap={4} padding={8} width="100%">
+          {root.deleteRecord ? (
+            <AstryxTreeRootDeleteEffects
+              control={root.deleteRecord}
+              onIntent={onIntent}
+              resultId={tree.id}
+            />
+          ) : null}
+          {root.childFields ? (
+            <AstryxTreeFieldSet
+              editor={{ itemId: root.id }}
+              fieldSet={root.childFields}
+              kind="child"
+              onIntent={onIntent}
+              resultId={tree.id}
+              showLabel={false}
+            />
+          ) : null}
+          {tree.items.length > 0 ? (
+            <VStack
+              gap={4}
+              width="100%"
+              xstyle={root.childFields ? styles.childCards : undefined}
+            >
+              {tree.items.map((item) => (
+                <AstryxTreeInlineNode item={item} key={item.id} onIntent={onIntent} tree={tree} />
+              ))}
+            </VStack>
+          ) : null}
+          {root.childCreation ? (
+            <AstryxTreeChildCreation
+              creation={root.childCreation}
+              onIntent={onIntent}
+              parent={{ kind: "root" }}
+              renderTrigger={false}
+              resultId={tree.id}
+            />
+          ) : null}
+        </VStack>
       </VStack>
     </Card>
   );
@@ -230,9 +266,23 @@ function AstryxTreeInlineNode({
   const expanded = disclosure?.open ?? true;
 
   return (
-    <Card data-formless-astryx-tree-node={item.id} padding={4} width="100%">
-      <VStack gap={4} width="100%">
-        <HStack align="center" gap={3} justify="between" width="100%">
+    <Card
+      data-formless-astryx-tree-node={item.id}
+      elevation="med"
+      padding={0}
+      variant="muted"
+      width={`calc(100% + ${spacingVars["--spacing-8"]} * 2)`}
+      {...stylex.props(styles.inlineNode)}
+    >
+      <VStack gap={0} width="100%">
+        <HStack
+          align="center"
+          gap={3}
+          justify="between"
+          paddingBlock={4}
+          paddingInline={8}
+          width="100%"
+        >
           <HStack align="center" gap={2}>
             {disclosure ? (
               <IconButton
@@ -269,31 +319,40 @@ function AstryxTreeInlineNode({
             ) : null}
           </HStack>
         </HStack>
-        {editor ? <AstryxTreeSelectedDiagnostics editor={editor} item={item} /> : null}
-        {expanded && editor?.childFields ? (
-          <AstryxTreeFieldSet
-            editor={editor}
-            fieldSet={editor.childFields}
-            kind="child"
-            onIntent={onIntent}
-            resultId={tree.id}
-            showLabel={false}
-          />
-        ) : null}
-        {expanded
-          ? item.children.map((child) => (
-              <AstryxTreeInlineNode item={child} key={child.id} onIntent={onIntent} tree={tree} />
-            ))
-          : null}
-        {expanded && editor?.childCreation ? (
-          <AstryxTreeChildCreation
-            creation={editor.childCreation}
-            onIntent={onIntent}
-            parent={{ itemId: item.id, kind: "item" }}
-            renderTrigger={false}
-            resultId={tree.id}
-          />
-        ) : null}
+        <Divider isFullBleed />
+        <VStack gap={4} padding={8} width="100%">
+          {editor ? <AstryxTreeSelectedDiagnostics editor={editor} item={item} /> : null}
+          {expanded && editor?.childFields ? (
+            <AstryxTreeFieldSet
+              editor={editor}
+              fieldSet={editor.childFields}
+              kind="child"
+              onIntent={onIntent}
+              resultId={tree.id}
+              showLabel={false}
+            />
+          ) : null}
+          {expanded && item.children.length > 0 ? (
+            <VStack
+              gap={4}
+              width="100%"
+              xstyle={editor?.childFields ? styles.childCards : undefined}
+            >
+              {item.children.map((child) => (
+                <AstryxTreeInlineNode item={child} key={child.id} onIntent={onIntent} tree={tree} />
+              ))}
+            </VStack>
+          ) : null}
+          {expanded && editor?.childCreation ? (
+            <AstryxTreeChildCreation
+              creation={editor.childCreation}
+              onIntent={onIntent}
+              parent={{ itemId: item.id, kind: "item" }}
+              renderTrigger={false}
+              resultId={tree.id}
+            />
+          ) : null}
+        </VStack>
       </VStack>
     </Card>
   );

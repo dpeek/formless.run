@@ -392,6 +392,7 @@ function AstryxShellStatus({ status }: { status: ShellStatusContract }) {
       content={<AstryxShellStatusDetails status={status} />}
       focusTrigger="always"
       hasHoverIndication={false}
+      label={`Sync status details: ${sync.label}`}
       placement="above"
     >
       <span {...stylex.props(shellStyles.statusTrigger)}>
@@ -504,7 +505,7 @@ function AstryxShellSession({
     <VStack gap={1}>
       <DropdownMenu
         button={{
-          icon: <Avatar name={session.identity.displayName} size="xsmall" />,
+          icon: <Avatar name={session.identity.displayName} size="xsm" />,
           isIconOnly: true,
           label: session.identity.displayName,
           size: "sm",

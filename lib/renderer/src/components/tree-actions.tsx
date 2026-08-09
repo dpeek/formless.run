@@ -2,7 +2,6 @@ import { Banner } from "@astryxdesign/core/Banner";
 import type { DropdownMenuOption } from "@astryxdesign/core/DropdownMenu";
 import { HStack } from "@astryxdesign/core/HStack";
 import { MoreMenu } from "@astryxdesign/core/MoreMenu";
-import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import type {
   OperationControlContract,
@@ -113,10 +112,6 @@ export function AstryxTreeSelectedDiagnostics({
       <AstryxTreeWarnings warnings={editor.warnings} />
       {structure && "message" in structure ? (
         <Banner container="card" status="warning" title={structure.message} />
-      ) : structure ? (
-        <Text color="secondary" display="block" role="status" type="supporting">
-          {structure.state === "branch" ? "Branch" : "Leaf"}
-        </Text>
       ) : null}
       {editor.availability.available ? null : (
         <Banner container="card" status="warning" title={editor.availability.message} />

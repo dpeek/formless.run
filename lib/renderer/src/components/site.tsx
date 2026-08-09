@@ -14,7 +14,6 @@ import {
   colorVars,
   fontWeightVars,
   radiusVars,
-  shadowVars,
   spacingVars,
 } from "@astryxdesign/core/theme/tokens.stylex";
 import { Card } from "@astryxdesign/core/Card";
@@ -394,9 +393,6 @@ const styles = stylex.create({
   projectSummaryLayout: {
     alignItems: "stretch",
     width: "100%",
-  },
-  projectSummaryCard: {
-    boxShadow: shadowVars["--shadow-med"],
   },
   linkList: {
     minWidth: 160,
@@ -1516,13 +1512,11 @@ function ProjectedContentSummary({
   return (
     <Card
       padding={block.type === "project" ? 0 : 5}
+      elevation={block.type === "project" ? "med" : undefined}
       variant={block.type === "project" ? "muted" : undefined}
       data-site-block-type={block.type}
       data-site-summary-id={block.id}
-      {...stylex.props(
-        publicHref ? styles.summaryCard : null,
-        block.type === "project" ? styles.projectSummaryCard : null,
-      )}
+      {...stylex.props(publicHref ? styles.summaryCard : null)}
     >
       {publicHref ? (
         <Link
