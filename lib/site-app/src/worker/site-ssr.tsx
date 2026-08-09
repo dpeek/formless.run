@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { renderToReadableStream } from "react-dom/server.edge";
 
+import { PublicSiteDocumentShell } from "../react/document-shell.tsx";
 import { renderInitialSitePageTreeScript } from "../react/initial-tree.ts";
 import { normalizeSitePageSlug } from "../react/slug.ts";
 import {
@@ -94,7 +95,7 @@ export async function renderPublishedSiteDocumentResponse(
       workspaceRenderer: input.workspaceRenderer,
     });
     const appHtml = await renderReactToString(
-      <PublishedSiteDocumentShell>
+      <PublicSiteDocumentShell>
         <PublicSiteThemeProvider site={tree.site}>
           <Renderer
             linkMode={documentKind === "preview" ? "preview" : "published"}
@@ -102,7 +103,7 @@ export async function renderPublishedSiteDocumentResponse(
             tree={tree}
           />
         </PublicSiteThemeProvider>
-      </PublishedSiteDocumentShell>,
+      </PublicSiteDocumentShell>,
     );
 
     return htmlResponse(
@@ -142,13 +143,13 @@ async function renderNotFoundDocument(
 
   return renderDocument(
     await renderReactToString(
-      <PublishedSiteDocumentShell>
+      <PublicSiteDocumentShell>
         <SystemStateRenderer
           homeHref={sitePagePathForSlug("home", "published", input.routeBase)}
           kind="not-found"
           slug={slug}
         />
-      </PublishedSiteDocumentShell>,
+      </PublicSiteDocumentShell>,
     ),
     {
       clientAssets: input.clientAssets,
@@ -173,9 +174,9 @@ async function renderErrorDocument(
 
   return renderDocument(
     await renderReactToString(
-      <PublishedSiteDocumentShell>
+      <PublicSiteDocumentShell>
         <SystemStateRenderer kind="failure" message="Site page failed to render." slug={slug} />
-      </PublishedSiteDocumentShell>,
+      </PublicSiteDocumentShell>,
     ),
     {
       clientAssets: input.clientAssets,
@@ -189,10 +190,6 @@ async function renderErrorDocument(
       rendererDocumentTheme: input.rendererDocumentTheme,
     },
   );
-}
-
-function PublishedSiteDocumentShell({ children }: { children: ReactNode }) {
-  return <main style={{ minHeight: "100dvh" }}>{children}</main>;
 }
 
 async function renderReactToString(node: ReactNode): Promise<string> {

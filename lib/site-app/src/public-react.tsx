@@ -3,6 +3,7 @@ export {
   readInitialSitePageTree,
   renderInitialSitePageTreeScript,
 } from "./react/initial-tree.ts";
+export { PublicSiteDocumentShell } from "./react/document-shell.tsx";
 export {
   normalizeSitePageSlug,
   SitePageRoute,

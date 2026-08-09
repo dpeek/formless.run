@@ -1060,6 +1060,14 @@ The system SHALL keep published and mapped public Site browser assets scoped to
 public Site interactivity rather than the
 generated admin app shell or authenticated Program replica.
 
+#### Scenario: Hydrate the Worker-rendered document shell
+
+- GIVEN Worker SSR emits a public Site document with hydratable browser assets
+- WHEN the public Site browser entrypoint hydrates the existing app root
+- THEN Worker SSR and browser hydration render the same structural app shell
+- AND hydration does not discard the Worker-rendered page because of a root
+  element mismatch
+
 #### Scenario: Published documents inject public Site assets
 
 - GIVEN a published Site document needs browser code for a workspace public

@@ -21,8 +21,7 @@ import { Card } from "@astryxdesign/core/Card";
 import { CheckboxInput } from "@astryxdesign/core/CheckboxInput";
 import { DateInput } from "@astryxdesign/core/DateInput";
 import { Grid } from "@astryxdesign/core/Grid";
-import { HStack } from "@astryxdesign/core/HStack";
-import type { SpacingStep } from "@astryxdesign/core/Layout";
+import { HStack, type HStackProps } from "@astryxdesign/core/HStack";
 import { useMediaQuery } from "@astryxdesign/core/hooks";
 import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
@@ -2568,7 +2567,13 @@ function ProjectedPlainText({ body }: { body?: string }) {
   );
 }
 
-function ProjectedLinkLabel({ item, gap = 1 }: { item: ProjectedShellLink; gap?: SpacingStep }) {
+function ProjectedLinkLabel({
+  item,
+  gap = 1,
+}: {
+  item: ProjectedShellLink;
+  gap?: HStackProps["gap"];
+}) {
   return (
     <HStack gap={gap} vAlign="center">
       <ProjectedLinkIcon item={item} />

@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot, hydrateRoot } from "react-dom/client";
 import {
+  PublicSiteDocumentShell,
   SitePageRoute,
   readInitialSitePageTree,
   type SitePageRouteState,
@@ -40,16 +41,18 @@ const initialPreviewState = routeBase ? readInitialPreviewState(slug) : undefine
 
 const appTree = (
   <StrictMode>
-    <SitePageRoute
-      apiRoutePrefix={FORMLESS_PROGRAM_API_ROUTE_PREFIX}
-      builtInRenderer={FormlessSitePageRenderer}
-      builtInSystemStateRenderer={FormlessSiteSystemStateRenderer}
-      linkMode={routeBase ? "preview" : "published"}
-      routeBase={routeBase}
-      slug={slug}
-      state={initialPreviewState}
-      workspaceRenderer={workspaceSitePublicRenderer}
-    />
+    <PublicSiteDocumentShell>
+      <SitePageRoute
+        apiRoutePrefix={FORMLESS_PROGRAM_API_ROUTE_PREFIX}
+        builtInRenderer={FormlessSitePageRenderer}
+        builtInSystemStateRenderer={FormlessSiteSystemStateRenderer}
+        linkMode={routeBase ? "preview" : "published"}
+        routeBase={routeBase}
+        slug={slug}
+        state={initialPreviewState}
+        workspaceRenderer={workspaceSitePublicRenderer}
+      />
+    </PublicSiteDocumentShell>
   </StrictMode>
 );
 
