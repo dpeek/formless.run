@@ -18,7 +18,6 @@ import { FORMLESS_WORKSPACE_PROGRAM_RUNTIME_ENV_NAME } from "../cli/program-runt
 import {
   FORMLESS_CLIENT_ASSET_MANIFEST_FILE,
   FORMLESS_IMMUTABLE_CLIENT_ASSET_DIRECTORY,
-  astryxCloudflareWorkerSourceCompilationPlugin,
   runtimeCloudflarePluginConfig,
   runtimeViteConfig,
   runtimeWorkerConfigPath,
@@ -70,7 +69,7 @@ describe("Runtime Vite config", () => {
     });
   });
 
-  it("orders the supported Astryx StyleX integration before React and Cloudflare", () => {
+  it("orders Formless StyleX compilation before React and Cloudflare", () => {
     const developmentConfig = runtimeViteConfig({
       env: { NODE_ENV: "development" },
       packageRoot: repoRoot,
@@ -88,14 +87,11 @@ describe("Runtime Vite config", () => {
         "formless-workspace-program-runtime",
         "formless-workspace-runtime-extensions",
         "formless-client-asset-headers",
-        "astryx-config",
-        "astryx-css-layer-order",
+        "formless-stylex-layer-order",
         "@stylexjs/unplugin",
-        "astryx-split-layers",
         "vite:react-babel",
         "vite:react-refresh",
         "vite-plugin-cloudflare",
-        "formless-astryx-cloudflare-worker-source-compilation",
       ]),
     );
     expect(developmentPlugins.indexOf("@stylexjs/unplugin")).toBeLessThan(
@@ -103,9 +99,6 @@ describe("Runtime Vite config", () => {
     );
     expect(developmentPlugins.indexOf("@stylexjs/unplugin")).toBeLessThan(
       developmentPlugins.indexOf("vite-plugin-cloudflare"),
-    );
-    expect(developmentPlugins.indexOf("vite-plugin-cloudflare")).toBeLessThan(
-      developmentPlugins.indexOf("formless-astryx-cloudflare-worker-source-compilation"),
     );
   });
 
@@ -143,52 +136,13 @@ describe("Runtime Vite config", () => {
     }) as ViteConfigWithEnvironments;
 
     expect(namedPlugins(testConfig.plugins)).not.toContain("astryx-config");
+    expect(namedPlugins(testConfig.plugins)).not.toContain("formless-stylex-layer-order");
     expect(namedPlugins(testConfig.plugins)).not.toContain("@stylexjs/unplugin");
-    expect(namedPlugins(testConfig.plugins)).not.toContain("astryx-split-layers");
     expect(testConfig.resolve?.alias).toEqual({
       "@stylexjs/stylex": resolve(repoRoot, "src/test/stylex.ts"),
     });
     expect(namedPlugins(productionBuildTestConfig.plugins)).toContain("@stylexjs/unplugin");
     expect(productionBuildTestConfig.resolve?.alias).toBeUndefined();
-  });
-
-  it("keeps Astryx source out of Cloudflare Worker dependency optimization", async () => {
-    const plugin = astryxCloudflareWorkerSourceCompilationPlugin();
-    const configEnvironment = plugin.configEnvironment;
-
-    if (typeof configEnvironment !== "function") {
-      throw new Error("Expected Astryx Cloudflare Worker environment config.");
-    }
-
-    expect(
-      await configEnvironment.call(
-        {} as never,
-        "client",
-        {},
-        {
-          command: "serve",
-          isSsrTargetWebworker: false,
-          mode: "development",
-        },
-      ),
-    ).toBeUndefined();
-    expect(
-      await configEnvironment.call(
-        {} as never,
-        "formless",
-        {},
-        {
-          command: "serve",
-          isSsrTargetWebworker: true,
-          mode: "development",
-        },
-      ),
-    ).toEqual({
-      optimizeDeps: {
-        exclude: ["@astryxdesign/core", "@astryxdesign/theme-neutral"],
-        include: ["react/jsx-runtime"],
-      },
-    });
   });
 
   it("uses the Worker-owned Wrangler config and preserves runtime Cloudflare overrides", () => {

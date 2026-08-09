@@ -1,12 +1,8 @@
-import { createRequire } from "node:module";
-
 import type { Plugin } from "esbuild";
 import stylexEsbuild from "@stylexjs/unplugin/esbuild";
 
-const require = createRequire(import.meta.url);
-
-export function astryxStylexWorkerBundlePlugin(rendererRoot: string): Plugin {
-  const stylexOptions = {
+export function formlessStylexWorkerBundlePlugin(rendererRoot: string): Plugin {
+  return stylexEsbuild({
     dev: false,
     runtimeInjection: false,
     treeshakeCompensation: true,
@@ -14,22 +10,6 @@ export function astryxStylexWorkerBundlePlugin(rendererRoot: string): Plugin {
       rootDir: rendererRoot,
       type: "commonJS",
     },
-  } as const;
-
-  return stylexEsbuild({
-    ...stylexOptions,
-    useCSSLayers: true,
-    babelConfig: {
-      plugins: [
-        [
-          require.resolve("@astryxdesign/build/babel"),
-          {
-            ...stylexOptions,
-            babelConfig: undefined,
-            libraryPrefix: "astryx",
-          },
-        ],
-      ],
-    },
+    useCSSLayers: { prefix: "product" },
   } as never) as Plugin;
 }

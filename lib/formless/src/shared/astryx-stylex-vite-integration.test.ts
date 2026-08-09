@@ -6,6 +6,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { build, type PluginOption } from "vite-plus";
 import { afterEach, describe, expect, it } from "vite-plus/test";
+import { Layout } from "@astryxdesign/core/Layout";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 import {
   FORMLESS_CLIENT_ASSET_HEADERS,
@@ -112,6 +115,9 @@ describe("Formless Renderer Astryx StyleX root build integration", () => {
     const sharedCss = publicSiteCss.filter((fileName) => applicationCss.includes(fileName));
     const publicSiteCssText = cssText(publicSiteCss, cssAssets);
     const emittedJavaScript = chunks.map(({ code }) => code).join("\n");
+    const serverRenderedAstryxClasses = atomicClasses(
+      renderToStaticMarkup(createElement(Layout, { content: "production SSR" })),
+    );
 
     expect(applicationModules).toEqual(
       expect.arrayContaining([
@@ -149,12 +155,15 @@ describe("Formless Renderer Astryx StyleX root build integration", () => {
     expect(headers).toBe(FORMLESS_CLIENT_ASSET_HEADERS);
     expect(sharedCss.length).toBeGreaterThan(0);
     expect(publicSiteCssText).toMatch(/min-height:\s*260px/);
-    expect(publicSiteCssText).toContain("@layer priority");
+    expect(publicSiteCssText).toContain("@layer product.priority");
     expect(emittedCss).toContain("@layer");
-    expect(emittedCss).toMatch(/\.astryx[a-z0-9]+/);
     expect(emittedCss).toMatch(/\.x[a-z0-9]+/);
     expect(emittedCss).not.toContain("stylex.create");
     expect(emittedJavaScript).not.toContain("createTheme");
+    expect(serverRenderedAstryxClasses.length).toBeGreaterThan(0);
+    serverRenderedAstryxClasses.forEach((className) =>
+      expect(emittedCss).toContain(`.${className}`),
+    );
   }, 30000);
   it("shares React with a hook-using browser renderer from an external workspace", async () => {
     const workspaceRoot = await makeExternalRendererWorkspace();
@@ -383,4 +392,14 @@ function assetText(asset: BuildAsset): string {
 
 function cssText(fileNames: readonly string[], assets: ReadonlyMap<string, string>): string {
   return fileNames.map((fileName) => assets.get(fileName) ?? "").join("\n");
+}
+
+function atomicClasses(markup: string): string[] {
+  return [
+    ...new Set(
+      [...markup.matchAll(/class="([^"]+)"/g)]
+        .flatMap(([, classNames]) => classNames.split(/\s+/))
+        .filter((className) => /^x[a-z0-9]+$/.test(className)),
+    ),
+  ].sort();
 }

@@ -2,8 +2,8 @@ import path from "node:path";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { astryxStylex } from "@astryxdesign/build/vite";
 import { cloudflare, type PluginConfig, type WorkerConfig } from "@cloudflare/vite-plugin";
+import stylex from "@stylexjs/unplugin";
 import react from "@vitejs/plugin-react";
 import { type Plugin, type PluginOption } from "vite-plus";
 import {
@@ -61,8 +61,7 @@ type RuntimeViteConfigInput = {
 
 const defaultPackageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const workerConfigRelativePath = "src/worker/wrangler.jsonc";
-const astryxWorkerSourcePackages = ["@astryxdesign/core", "@astryxdesign/theme-neutral"] as const;
-const astryxWorkerOptimizedDependencies = ["react/jsx-runtime"] as const;
+const formlessStylexLayerOrder = "@layer reset, astryx-base, astryx-theme, product;";
 export const FORMLESS_CLIENT_ASSET_MANIFEST_FILE = "assets/formless-client-manifest.json";
 export const FORMLESS_IMMUTABLE_CLIENT_ASSET_DIRECTORY = "assets/immutable";
 export const FORMLESS_CLIENT_ASSET_HEADERS = `/${FORMLESS_IMMUTABLE_CLIENT_ASSET_DIRECTORY}/*
@@ -91,15 +90,22 @@ export function runtimeViteConfig(input: RuntimeViteConfigInput = {}) {
     ...(siteProjectRoot ? [siteProjectRoot] : []),
   ];
   const cloudflarePluginConfig = runtimeCloudflarePluginConfig({ env, packageRoot });
-  const activeAstryxPlugins = isUnitTest
+  const activeStylexPlugins = isUnitTest
     ? []
-    : astryxStylex({
-        dev: env.NODE_ENV !== "production",
-        rootDir: workspaceRoot,
-        stylexOverrides: {
+    : [
+        formlessStylexLayerOrderPlugin(),
+        stylex.vite({
+          dev: env.NODE_ENV !== "production",
+          runtimeInjection: false,
+          treeshakeCompensation: true,
+          unstable_moduleResolution: {
+            rootDir: workspaceRoot,
+            type: "commonJS",
+          },
           cssInjectionTarget: isSharedClientCssAsset,
-        },
-      });
+          useCSSLayers: { prefix: "product" },
+        }),
+      ];
 
   return {
     environments: {
@@ -129,14 +135,9 @@ export function runtimeViteConfig(input: RuntimeViteConfigInput = {}) {
       }),
       formlessWorkspaceRuntimeExtensionsPlugin({ env }),
       formlessClientAssetHeadersPlugin(),
-      ...publicVitePlugins(activeAstryxPlugins),
+      ...publicVitePlugins(activeStylexPlugins),
       ...publicVitePlugins(react()),
-      ...(env.VITEST
-        ? []
-        : [
-            ...publicVitePlugins(cloudflare(cloudflarePluginConfig)),
-            astryxCloudflareWorkerSourceCompilationPlugin(),
-          ]),
+      ...(env.VITEST ? [] : [...publicVitePlugins(cloudflare(cloudflarePluginConfig))]),
     ],
     resolve: {
       dedupe: ["react", "react-dom"],
@@ -173,6 +174,21 @@ export function formlessClientAssetHeadersPlugin(): Plugin {
   };
 }
 
+export function formlessStylexLayerOrderPlugin(): Plugin {
+  return {
+    name: "formless-stylex-layer-order",
+    transformIndexHtml() {
+      return [
+        {
+          children: formlessStylexLayerOrder,
+          injectTo: "head-prepend",
+          tag: "style",
+        },
+      ];
+    },
+  };
+}
+
 export function runtimeFormlessProgramArtifactFromEnv(env: NodeJS.ProcessEnv): string | undefined {
   const artifactPath = env[FORMLESS_PROGRAM_ARTIFACT_PATH_ENV_NAME]?.trim();
 
@@ -196,24 +212,6 @@ function isSharedClientCssAsset(fileName: string): boolean {
     ((baseName.startsWith("global-") || baseName.startsWith("target-")) &&
       baseName.endsWith(".css"))
   );
-}
-
-export function astryxCloudflareWorkerSourceCompilationPlugin(): Plugin {
-  return {
-    name: "formless-astryx-cloudflare-worker-source-compilation",
-    configEnvironment(name) {
-      if (name === "client") {
-        return;
-      }
-
-      return {
-        optimizeDeps: {
-          exclude: [...astryxWorkerSourcePackages],
-          include: [...astryxWorkerOptimizedDependencies],
-        },
-      };
-    },
-  };
 }
 
 export function packageInstallNodeModulesRoot(root: string): string | null {

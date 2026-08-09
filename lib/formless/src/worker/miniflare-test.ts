@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { build, type Plugin } from "esbuild";
 import { Miniflare, type WorkerOptions } from "miniflare";
-import { astryxStylexWorkerBundlePlugin } from "../runtime/stylex-esbuild.ts";
+import { formlessStylexWorkerBundlePlugin } from "../runtime/stylex-esbuild.ts";
 import { SITE_PUBLIC_RENDERER_WORKER_VIRTUAL_MODULE_ID } from "../shared/workspace-runtime-extensions.ts";
 
 type DispatchFetchInit = Parameters<Miniflare["dispatchFetch"]>[1];
@@ -144,7 +144,7 @@ async function buildWorkerBundle(
       outfile: scriptPath,
       platform: "browser",
       plugins: [
-        astryxStylexWorkerBundlePlugin(resolve("lib/renderer")),
+        formlessStylexWorkerBundlePlugin(resolve("lib/renderer")),
         workerRuntimeExtensionVirtualModulesPlugin(),
       ],
     });
