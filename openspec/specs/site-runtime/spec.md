@@ -1331,5 +1331,16 @@ domain Site targeting is introduced.
   resource receives a `HEAD` request
 - WHEN the matching `GET` request would have returned status and headers
 - THEN `HEAD` returns matching status and headers without a body
-- AND successful published SSR HTML can be cached while SSR errors use
-  `Cache-Control: no-store`
+- AND successful and not-found published SSR HTML may be retained only with
+  mandatory revalidation and is not served through a stale-while-revalidate
+  window
+- AND SSR errors use `Cache-Control: no-store`
+
+#### Scenario: Published Site client asset cache coherence
+
+- GIVEN a production browser build emits public Site JavaScript and stylesheets
+- WHEN SSR resolves its client assets from the build manifest
+- THEN the manifest references content-addressed files under an immutable asset
+  path
+- AND immutable client assets use a long-lived immutable cache policy
+- AND the stable-name client asset manifest is not cached

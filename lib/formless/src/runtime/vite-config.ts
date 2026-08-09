@@ -63,6 +63,14 @@ const defaultPackageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.u
 const workerConfigRelativePath = "src/worker/wrangler.jsonc";
 const astryxWorkerSourcePackages = ["@astryxdesign/core", "@astryxdesign/theme-neutral"] as const;
 const astryxWorkerOptimizedDependencies = ["react/jsx-runtime"] as const;
+export const FORMLESS_CLIENT_ASSET_MANIFEST_FILE = "assets/formless-client-manifest.json";
+export const FORMLESS_IMMUTABLE_CLIENT_ASSET_DIRECTORY = "assets/immutable";
+export const FORMLESS_CLIENT_ASSET_HEADERS = `/${FORMLESS_IMMUTABLE_CLIENT_ASSET_DIRECTORY}/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/${FORMLESS_CLIENT_ASSET_MANIFEST_FILE}
+  Cache-Control: no-store
+`;
 
 // vite-plus bundles its own Vite core, while third-party plugins type against public "vite".
 const publicVitePlugins = (plugins: unknown[]): PluginOption[] => plugins as PluginOption[];
@@ -97,8 +105,9 @@ export function runtimeViteConfig(input: RuntimeViteConfigInput = {}) {
     environments: {
       client: {
         build: {
+          assetsDir: FORMLESS_IMMUTABLE_CLIENT_ASSET_DIRECTORY,
           cssMinify: "esbuild" as const,
-          manifest: "assets/formless-client-manifest.json",
+          manifest: FORMLESS_CLIENT_ASSET_MANIFEST_FILE,
           rollupOptions: {
             input: {
               app: path.resolve(packageRoot, "index.html"),
@@ -119,6 +128,7 @@ export function runtimeViteConfig(input: RuntimeViteConfigInput = {}) {
         workspaceRoot,
       }),
       formlessWorkspaceRuntimeExtensionsPlugin({ env }),
+      formlessClientAssetHeadersPlugin(),
       ...publicVitePlugins(activeAstryxPlugins),
       ...publicVitePlugins(react()),
       ...(env.VITEST
@@ -142,6 +152,23 @@ export function runtimeViteConfig(input: RuntimeViteConfigInput = {}) {
       fs: {
         allow: serverFsAllow,
       },
+    },
+  };
+}
+
+export function formlessClientAssetHeadersPlugin(): Plugin {
+  return {
+    name: "formless-client-asset-headers",
+    apply: "build",
+    applyToEnvironment(environment) {
+      return environment.name === "client";
+    },
+    generateBundle() {
+      this.emitFile({
+        fileName: "_headers",
+        source: FORMLESS_CLIENT_ASSET_HEADERS,
+        type: "asset",
+      });
     },
   };
 }

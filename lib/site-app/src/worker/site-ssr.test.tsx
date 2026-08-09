@@ -4,10 +4,6 @@ import { INITIAL_SITE_PAGE_TREE_SCRIPT_ID } from "../react/initial-tree.ts";
 import type { SitePublicRendererProps } from "../public-renderer.ts";
 import type { SitePublicSystemStateRendererProps } from "../public-system-state.ts";
 import type { SiteBlockNode, SitePageTree } from "../types.ts";
-import {
-  PUBLISHED_SITE_HTML_CACHE_CONTROL,
-  PUBLISHED_SITE_NOT_FOUND_CACHE_CONTROL,
-} from "./site-cache.ts";
 import { renderPublishedSiteDocumentResponse } from "./site-ssr.tsx";
 
 const rendererDocumentTheme = {
@@ -44,7 +40,7 @@ describe("published Site document rendering", () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("Cache-Control")).toBe(PUBLISHED_SITE_HTML_CACHE_CONTROL);
+    expect(response.headers.get("Cache-Control")).toBe("public, max-age=0, must-revalidate");
     expect(response.headers.get("Content-Type")).toBe("text/html; charset=utf-8");
     expect(html).toContain("<!doctype html>");
     expect(html).toContain('<div id="app"><main style="min-height:100dvh"><article');
@@ -175,7 +171,7 @@ describe("published Site document rendering", () => {
     const html = await response.text();
 
     expect(response.status).toBe(404);
-    expect(response.headers.get("Cache-Control")).toBe(PUBLISHED_SITE_NOT_FOUND_CACHE_CONTROL);
+    expect(response.headers.get("Cache-Control")).toBe("public, max-age=0, must-revalidate");
     expect(html).toContain('data-system-state="not-found"');
     expect(html).toContain('data-home-href="/"');
     expect(html).toContain("<title>Page not found | Site</title>");

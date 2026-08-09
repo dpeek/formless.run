@@ -16,6 +16,8 @@ import { formlessProgramDefaultComposition } from "../program/schema.ts";
 import { formlessProgramDefaultRuntimeComposition } from "../program/default.ts";
 import { FORMLESS_WORKSPACE_PROGRAM_RUNTIME_ENV_NAME } from "../cli/program-runtime-bundler.ts";
 import {
+  FORMLESS_CLIENT_ASSET_MANIFEST_FILE,
+  FORMLESS_IMMUTABLE_CLIENT_ASSET_DIRECTORY,
   astryxCloudflareWorkerSourceCompilationPlugin,
   runtimeCloudflarePluginConfig,
   runtimeViteConfig,
@@ -25,6 +27,7 @@ import {
 const repoRoot = resolve(fileURLToPath(new URL("../../", import.meta.url)));
 
 type ViteConfigBuild = {
+  assetsDir?: unknown;
   manifest?: unknown;
   rollupOptions?: {
     input?: unknown;
@@ -59,7 +62,8 @@ describe("Runtime Vite config", () => {
     const clientBuild = config.environments?.client?.build;
 
     expect(config.build).toBeUndefined();
-    expect(clientBuild?.manifest).toBe("assets/formless-client-manifest.json");
+    expect(clientBuild?.assetsDir).toBe(FORMLESS_IMMUTABLE_CLIENT_ASSET_DIRECTORY);
+    expect(clientBuild?.manifest).toBe(FORMLESS_CLIENT_ASSET_MANIFEST_FILE);
     expect(clientBuild?.rollupOptions?.input).toEqual({
       app: resolve(repoRoot, "index.html"),
       "public-site": resolve(repoRoot, "src/public-site-main.tsx"),
@@ -83,6 +87,7 @@ describe("Runtime Vite config", () => {
       expect.arrayContaining([
         "formless-workspace-program-runtime",
         "formless-workspace-runtime-extensions",
+        "formless-client-asset-headers",
         "astryx-config",
         "astryx-css-layer-order",
         "@stylexjs/unplugin",

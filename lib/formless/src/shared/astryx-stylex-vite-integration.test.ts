@@ -8,6 +8,9 @@ import { build, type PluginOption } from "vite-plus";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 
 import {
+  FORMLESS_CLIENT_ASSET_HEADERS,
+  FORMLESS_CLIENT_ASSET_MANIFEST_FILE,
+  FORMLESS_IMMUTABLE_CLIENT_ASSET_DIRECTORY,
   runtimeViteConfig,
   SITE_PUBLIC_RENDERER_BROWSER_VIRTUAL_MODULE_ID,
 } from "../runtime/vite-config.ts";
@@ -67,8 +70,9 @@ describe("Formless Renderer Astryx StyleX root build integration", () => {
     };
     const result = await build({
       build: {
+        assetsDir: FORMLESS_IMMUTABLE_CLIENT_ASSET_DIRECTORY,
         cssCodeSplit: true,
-        manifest: "assets/formless-client-manifest.json",
+        manifest: FORMLESS_CLIENT_ASSET_MANIFEST_FILE,
         minify: false,
         rollupOptions: {
           input: {
@@ -104,6 +108,7 @@ describe("Formless Renderer Astryx StyleX root build integration", () => {
         .map((asset) => [asset.fileName, assetText(asset)]),
     );
     const emittedCss = [...cssAssets.values()].join("\n");
+    const headers = requiredAssetText(assets, "_headers");
     const sharedCss = publicSiteCss.filter((fileName) => applicationCss.includes(fileName));
     const publicSiteCssText = cssText(publicSiteCss, cssAssets);
     const emittedJavaScript = chunks.map(({ code }) => code).join("\n");
@@ -133,6 +138,15 @@ describe("Formless Renderer Astryx StyleX root build integration", () => {
     );
     expect(applicationCss.length).toBeGreaterThan(0);
     expect(publicSiteCss.length).toBeGreaterThan(0);
+    expect(applicationEntryChunk.fileName).toMatch(contentAddressedClientAssetPattern("js"));
+    expect(publicSiteEntryChunk.fileName).toMatch(contentAddressedClientAssetPattern("js"));
+    applicationCss.forEach((fileName) =>
+      expect(fileName).toMatch(contentAddressedClientAssetPattern("css")),
+    );
+    publicSiteCss.forEach((fileName) =>
+      expect(fileName).toMatch(contentAddressedClientAssetPattern("css")),
+    );
+    expect(headers).toBe(FORMLESS_CLIENT_ASSET_HEADERS);
     expect(sharedCss.length).toBeGreaterThan(0);
     expect(publicSiteCssText).toMatch(/min-height:\s*260px/);
     expect(publicSiteCssText).toContain("@layer priority");
@@ -300,13 +314,29 @@ function reachableModules(entry: BuildChunk, chunks: readonly BuildChunk[]): str
 }
 
 function emittedManifest(assets: readonly BuildAsset[]): Record<string, ManifestChunk> {
-  const asset = assets.find(({ fileName }) => fileName === "assets/formless-client-manifest.json");
+  const asset = assets.find(({ fileName }) => fileName === FORMLESS_CLIENT_ASSET_MANIFEST_FILE);
 
   if (!asset) {
     throw new Error("Missing emitted client manifest.");
   }
 
   return JSON.parse(assetText(asset)) as Record<string, ManifestChunk>;
+}
+
+function requiredAssetText(assets: readonly BuildAsset[], fileName: string): string {
+  const asset = assets.find((candidate) => candidate.fileName === fileName);
+
+  if (!asset) {
+    throw new Error(`Missing emitted asset ${fileName}.`);
+  }
+
+  return assetText(asset);
+}
+
+function contentAddressedClientAssetPattern(extension: "css" | "js"): RegExp {
+  return new RegExp(
+    `^${FORMLESS_IMMUTABLE_CLIENT_ASSET_DIRECTORY}/.+-[A-Za-z0-9_-]+\\.${extension}$`,
+  );
 }
 
 function requiredManifestEntry(
