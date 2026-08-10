@@ -15,6 +15,7 @@ import {
   type ScreenSchemaSource,
   type SelectedRecordDetailSchema,
   type SelectedRecordDetailSchemaSource,
+  type StackScreenLayoutSchemaSource,
   type WorkspaceScreenSchema,
 } from "./index.ts";
 import { taskCollectionView, taskSchema, taskScreen } from "./schema-test-fixtures.ts";
@@ -868,20 +869,20 @@ describe("schema screens", () => {
     ).toThrow(`Screen "access" has unsupported key "${key}".`);
   });
 
-  it("parses semantic layout widths with a standard default", () => {
+  it("parses constrained layout widths with constrained and standard defaults", () => {
     for (const width of ["narrow", "standard", "wide"] as const) {
+      const layout = {
+        type: "stack",
+        surface: "constrained",
+        width,
+        sections: [{ id: "tasks", type: "collection", view: "taskHome" }],
+      } satisfies StackScreenLayoutSchemaSource;
       const schema = parseAppSchema({
         ...taskSchema(),
         screens: [
           {
             key: "home",
-            ...taskScreen({
-              layout: {
-                type: "stack",
-                width,
-                sections: [{ id: "tasks", type: "collection", view: "taskHome" }],
-              },
-            }),
+            ...taskScreen({ layout }),
           },
         ],
       });
@@ -889,15 +890,15 @@ describe("schema screens", () => {
         schema.screens.find(
           (definition): definition is KeyedDefinition<WorkspaceScreenSchema> =>
             definition.key === "home" && definition.type === "workspace",
-        )?.layout.width,
-      ).toBe(width);
+        )?.layout,
+      ).toMatchObject({ surface: "constrained", width });
     }
     expect(
       parseAppSchema(taskSchema()).screens.find(
         (definition): definition is KeyedDefinition<WorkspaceScreenSchema> =>
           definition.key === "home" && definition.type === "workspace",
-      )?.layout.width,
-    ).toBe("standard");
+      )?.layout,
+    ).toMatchObject({ surface: "constrained", width: "standard" });
     expect(() =>
       parseAppSchema({
         ...taskSchema(),
@@ -915,6 +916,63 @@ describe("schema screens", () => {
         ],
       }),
     ).toThrow('Screen "home" layout width must be "narrow", "standard", or "wide".');
+  });
+
+  it("parses and canonically serializes full layout surfaces without a width", () => {
+    const layout = {
+      type: "stack",
+      surface: "full",
+      sections: [{ id: "tasks", type: "collection", view: "taskHome" }],
+    } satisfies StackScreenLayoutSchemaSource;
+    const source = {
+      ...taskSchema(),
+      screens: [
+        {
+          key: "home",
+          ...taskScreen({ layout }),
+        },
+      ],
+    };
+    const schema = parseAppSchema(source);
+    const screen = schema.screens.find(
+      (definition): definition is KeyedDefinition<WorkspaceScreenSchema> =>
+        definition.key === "home" && definition.type === "workspace",
+    )!;
+
+    expect(screen.layout).toEqual({
+      type: "stack",
+      surface: "full",
+      sections: [{ id: "tasks", type: "collection", view: "taskHome" }],
+    });
+    expect(JSON.parse(stringifySchema(schema)).screens[0].layout).toEqual(screen.layout);
+    expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
+  });
+
+  it("rejects unsupported layout surfaces and widths on full surfaces", () => {
+    const schemaWithLayout = (layout: unknown) => ({
+      ...taskSchema(),
+      screens: [{ key: "home", ...taskScreen({ layout }) }],
+    });
+
+    expect(() =>
+      parseAppSchema(
+        schemaWithLayout({
+          type: "stack",
+          surface: "viewport",
+          sections: [{ id: "tasks", type: "collection", view: "taskHome" }],
+        }),
+      ),
+    ).toThrow('Screen "home" layout surface must be "constrained" or "full".');
+    expect(() =>
+      parseAppSchema(
+        schemaWithLayout({
+          type: "stack",
+          surface: "full",
+          width: "wide",
+          sections: [{ id: "tasks", type: "collection", view: "taskHome" }],
+        }),
+      ),
+    ).toThrow('Screen "home" layout width is not supported for a full surface.');
   });
   it("parses browser actors, roles, and flat alternatives from typed source", () => {
     const authoredAlternative = {

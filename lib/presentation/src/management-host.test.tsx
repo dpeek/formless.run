@@ -100,6 +100,7 @@ function workspaceNode(): WorkspaceManifestNode {
       kind: "workspaceManifest",
       label: "Routes",
       sections: [],
+      surface: "constrained",
       width: "standard",
     },
   };

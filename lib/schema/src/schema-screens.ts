@@ -30,6 +30,7 @@ import type {
   RuntimeScreenSchema,
   ScreenAccessRequirement,
   ScreenLayoutSchema,
+  ScreenLayoutSurfaceSchema,
   ScreenLayoutWidthSchema,
   ScreenSchema,
   ScreenSectionSchema,
@@ -529,26 +530,48 @@ function parseScreenLayout(
     throw new Error(`${context} must be an object.`);
   }
 
-  assertExactKeys(context, value, ["type", "sections"], ["width"]);
+  assertExactKeys(context, value, ["type", "sections"], ["surface", "width"]);
 
   if (value.type !== "stack") {
     throw new Error(`${context} type must be "stack".`);
   }
 
+  const surface = parseScreenLayoutSurface(screenName, value.surface);
+  const sections = parseScreenSections(
+    screenName,
+    value.sections,
+    views,
+    queries,
+    entities,
+    itemViews,
+    tableViews,
+    relationships,
+  );
+  if (surface === "full") {
+    if (value.width !== undefined) {
+      throw new Error(`Screen "${screenName}" layout width is not supported for a full surface.`);
+    }
+    return { type: "stack", surface, sections };
+  }
+
   return {
     type: "stack",
+    surface,
     width: parseScreenLayoutWidth(screenName, value.width),
-    sections: parseScreenSections(
-      screenName,
-      value.sections,
-      views,
-      queries,
-      entities,
-      itemViews,
-      tableViews,
-      relationships,
-    ),
+    sections,
   };
+}
+
+function parseScreenLayoutSurface(screenName: string, value: unknown): ScreenLayoutSurfaceSchema {
+  if (value === undefined) {
+    return "constrained";
+  }
+
+  if (value !== "constrained" && value !== "full") {
+    throw new Error(`Screen "${screenName}" layout surface must be "constrained" or "full".`);
+  }
+
+  return value;
 }
 
 function parseScreenLayoutWidth(screenName: string, value: unknown): ScreenLayoutWidthSchema {

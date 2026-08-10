@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import type {
   RecordResultContract,
@@ -8,6 +9,7 @@ import type {
   WorkspaceSelectedRecordSectionContract,
 } from "@dpeek/formless-presentation/contract";
 import { PresentationHostProvider } from "@dpeek/formless-presentation/host/react";
+import { FormlessApplicationRenderer } from "../application-assembly.tsx";
 import { operationControlFixtures } from "./operation-controls.fixtures.ts";
 import {
   createFormlessGeneratedWorkspaceFixtureHost,
@@ -33,11 +35,13 @@ describe("selected-record workspace renderer", () => {
 
     expect(renderer.queryByRole("button", { name: "Back to Orders" })).toBeNull();
     expect(renderer.queryByRole("heading", { name: "Order details" })).toBeNull();
+    expect(fixture.workspace.surface).toBe("full");
+    expect("width" in fixture.workspace).toBe(false);
 
-    const firstOrder = renderer.getByRole("listitem", { name: "Prepare launch checklist" });
-    fireEvent.click(
-      within(firstOrder).getByRole("button", { name: "Select Prepare launch checklist" }),
-    );
+    const firstOrder = renderer.getByRole("listitem", { name: "Patrick Lee" });
+    expect(within(firstOrder).getByText("LH3BJMV5")).toBeDefined();
+    expect(renderer.queryByRole("button", { name: "View" })).toBeNull();
+    fireEvent.click(within(firstOrder).getByRole("button"));
 
     await waitFor(() =>
       expect(renderer.getByRole("heading", { name: "Order details" })).toBeDefined(),
@@ -67,6 +71,25 @@ describe("selected-record workspace renderer", () => {
       expect(renderer.queryByRole("heading", { name: "Order details" })).toBeNull(),
     );
     expect(renderer.queryByRole("button", { name: "Back to Orders" })).toBeNull();
+  });
+
+  it("renders the full Orders workspace through the production application assembly", () => {
+    const fixture = requiredFixture("selected-record");
+    const fixtureHost = createFormlessGeneratedWorkspaceFixtureHost(fixture.workspace);
+    const html = renderToStaticMarkup(
+      <PresentationHostProvider host={fixtureHost.host}>
+        <FormlessApplicationRenderer
+          presentation={{ kind: "workspace", reference: fixtureHost.workspaceReference }}
+        />
+      </PresentationHostProvider>,
+    );
+
+    expect(html).toContain("align-items:stretch;flex:1");
+    expect(html).toContain("height:100%");
+    expect(html).not.toContain("max-width:1600px");
+    expect(html).toContain("Patrick Lee");
+    expect(html).toContain("Order details");
+    expect(html).toContain("Related compounds");
   });
 
   it("keeps canonical pending confirmation, empty table, and unavailable record renderers", () => {

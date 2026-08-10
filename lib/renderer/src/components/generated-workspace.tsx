@@ -150,7 +150,9 @@ export function projectGeneratedWorkspaceFixturePublication(
           kind: "workspaceManifest",
           label: workspace.label,
           sections: sections.map(({ reference }) => reference),
-          width: workspace.width,
+          ...(workspace.surface === "full"
+            ? { surface: workspace.surface }
+            : { surface: workspace.surface, width: workspace.width }),
         },
       },
       ...sections.flatMap(({ nodes }) => nodes),
@@ -723,9 +725,11 @@ function applyWorkspaceResultFieldIntent(
   >["intent"],
 ): WorkspaceResultContract {
   if (result.kind === "list") {
-    const sourceField = result.items
-      .find((item) => item.id === recordId)
-      ?.fields.find((field) => field.fieldId === fieldId);
+    const sourceItem = result.items.find((item) => item.id === recordId);
+    const sourceField =
+      sourceItem?.presentation === "fields"
+        ? sourceItem.fields.find((field) => field.fieldId === fieldId)
+        : undefined;
 
     return sourceField ? applyListFieldIntent(result, recordId ?? "", sourceField, intent) : result;
   }
@@ -788,10 +792,14 @@ function mapResultOperation(
   if (result.kind === "list") {
     return {
       ...result,
-      items: result.items.map((item) => ({
-        ...item,
-        actions: mapListActionGroup(item.actions, controlId, intent),
-      })),
+      items: result.items.map((item) =>
+        item.presentation === "summary"
+          ? item
+          : {
+              ...item,
+              actions: mapListActionGroup(item.actions, controlId, intent),
+            },
+      ),
     };
   }
 
@@ -818,7 +826,7 @@ function mapResultOperation(
 }
 
 function mapListActionGroup(
-  actions: ListContract["items"][number]["actions"],
+  actions: Extract<ListContract["items"][number], { presentation: "fields" }>["actions"],
   controlId: string,
   intent: OperationPresentationIntent,
 ) {

@@ -701,6 +701,10 @@ export type EntityUnionSchema = {
 export type ViewFieldBindingSchema = ViewFieldSchema & {
   field: string;
 };
+export type ViewFieldBindingSchemaSource = Omit<ViewFieldBindingSchema, "editor" | "commit"> & {
+  editor?: FieldEditor;
+  commit?: FieldCommitPolicy;
+};
 export type CreateViewFieldBindingSchema = CreateViewFieldSchema & {
   field: string;
 };
@@ -713,6 +717,12 @@ export type ViewVariantFieldsPresentationSchema = {
   presentation: "fields";
   fields: ViewFieldBindingSchema[];
 };
+export type ViewVariantFieldsPresentationSchemaSource = Omit<
+  ViewVariantFieldsPresentationSchema,
+  "fields"
+> & {
+  fields: ViewFieldBindingSchemaSource[];
+};
 export type ViewVariantContextLinkPresentationSchema = {
   presentation: "contextLink";
   labelField: string;
@@ -722,6 +732,9 @@ export type ViewVariantContextLinkPresentationSchema = {
 export type ItemViewVariantPresentationSchema =
   | ViewVariantFieldsPresentationSchema
   | ViewVariantContextLinkPresentationSchema;
+export type ItemViewVariantPresentationSchemaSource =
+  | ViewVariantFieldsPresentationSchemaSource
+  | ViewVariantContextLinkPresentationSchema;
 export type EditViewVariantPresentationSchema = ViewVariantFieldsPresentationSchema;
 export type CreateViewVariantFieldsPresentationSchema = {
   presentation: "fields";
@@ -729,6 +742,9 @@ export type CreateViewVariantFieldsPresentationSchema = {
 };
 export type CreateViewVariantPresentationSchema = CreateViewVariantFieldsPresentationSchema;
 export type ItemViewVariantBindingSchema = ItemViewVariantPresentationSchema & {
+  variant: string;
+};
+export type ItemViewVariantBindingSchemaSource = ItemViewVariantPresentationSchemaSource & {
   variant: string;
 };
 export type CreateViewVariantBindingSchema = CreateViewVariantPresentationSchema & {
@@ -740,6 +756,7 @@ export type EditViewVariantBindingSchema = EditViewVariantPresentationSchema & {
 export type BaseItemViewSchema = {
   entity: string;
   fields: ViewFieldBindingSchema[];
+  presentation?: undefined;
 };
 export type StaticItemViewSchema = BaseItemViewSchema & {
   union?: undefined;
@@ -751,7 +768,44 @@ export type UnionItemViewSchema = BaseItemViewSchema & {
   variants: ItemViewVariantBindingSchema[];
   fallback?: ItemViewVariantPresentationSchema;
 };
-export type ItemViewSchema = StaticItemViewSchema | UnionItemViewSchema;
+export type FieldItemViewSchema = StaticItemViewSchema | UnionItemViewSchema;
+export type ItemViewSummaryFieldSchema = {
+  field: string;
+};
+export type ItemViewSummarySlotsSchema = {
+  title: ItemViewSummaryFieldSchema;
+  subtitle?: ItemViewSummaryFieldSchema;
+};
+export type ItemViewSummaryPresentationSchema = {
+  type: "summary";
+  slots: ItemViewSummarySlotsSchema;
+};
+export type SummaryItemViewSchema = {
+  entity: string;
+  presentation: ItemViewSummaryPresentationSchema;
+  fields?: undefined;
+  union?: undefined;
+  variants?: undefined;
+  fallback?: undefined;
+};
+export type ItemViewSchema = FieldItemViewSchema | SummaryItemViewSchema;
+
+export type BaseItemViewSchemaSource = Omit<BaseItemViewSchema, "fields"> & {
+  fields: ViewFieldBindingSchemaSource[];
+};
+export type StaticItemViewSchemaSource = BaseItemViewSchemaSource & {
+  union?: undefined;
+  variants?: undefined;
+  fallback?: undefined;
+};
+export type UnionItemViewSchemaSource = BaseItemViewSchemaSource & {
+  union: string;
+  variants: ItemViewVariantBindingSchemaSource[];
+  fallback?: ItemViewVariantPresentationSchemaSource;
+};
+export type FieldItemViewSchemaSource = StaticItemViewSchemaSource | UnionItemViewSchemaSource;
+export type SummaryItemViewSchemaSource = SummaryItemViewSchema;
+export type ItemViewSchemaSource = FieldItemViewSchemaSource | SummaryItemViewSchemaSource;
 export type CountDisplaySchema = {
   type: "count";
   label?: string;
@@ -1083,17 +1137,40 @@ export type CollectionScreenSectionSchemaSource = Omit<CollectionScreenSectionSc
 export type ScreenSectionSchemaSource = CollectionScreenSectionSchemaSource;
 
 export type ScreenLayoutWidthSchema = "narrow" | "standard" | "wide";
+export type ScreenLayoutSurfaceSchema = "constrained" | "full";
 
-export type StackScreenLayoutSchema = {
+export type ConstrainedStackScreenLayoutSchema = {
   type: "stack";
-  width?: ScreenLayoutWidthSchema;
+  surface: "constrained";
+  width: ScreenLayoutWidthSchema;
   sections: ScreenSectionSchema[];
 };
 
+export type FullStackScreenLayoutSchema = {
+  type: "stack";
+  surface: "full";
+  width?: never;
+  sections: ScreenSectionSchema[];
+};
+
+export type StackScreenLayoutSchema =
+  | ConstrainedStackScreenLayoutSchema
+  | FullStackScreenLayoutSchema;
 export type ScreenLayoutSchema = StackScreenLayoutSchema;
-export type StackScreenLayoutSchemaSource = Omit<StackScreenLayoutSchema, "sections"> & {
+export type ConstrainedStackScreenLayoutSchemaSource = Omit<
+  ConstrainedStackScreenLayoutSchema,
+  "sections" | "surface" | "width"
+> & {
+  surface?: "constrained";
+  width?: ScreenLayoutWidthSchema;
   sections: ScreenSectionSchemaSource[];
 };
+export type FullStackScreenLayoutSchemaSource = Omit<FullStackScreenLayoutSchema, "sections"> & {
+  sections: ScreenSectionSchemaSource[];
+};
+export type StackScreenLayoutSchemaSource =
+  | ConstrainedStackScreenLayoutSchemaSource
+  | FullStackScreenLayoutSchemaSource;
 export type ScreenLayoutSchemaSource = StackScreenLayoutSchemaSource;
 
 export type WorkspaceScreenSchema = {
@@ -1746,6 +1823,7 @@ export type AppSchemaSource = Omit<
   AppSchema,
   | "authorization"
   | "entities"
+  | "itemViews"
   | "navigation"
   | "screens"
   | "surfaceMounts"
@@ -1756,6 +1834,7 @@ export type AppSchemaSource = Omit<
   version: 1;
   authorization?: AppAuthorizationSchemaSource;
   entities: KeyedDefinition<EntitySchemaSource>[];
+  itemViews: KeyedDefinition<ItemViewSchemaSource>[];
   navigation?: AppNavigationSchemaSource;
   screens: KeyedDefinition<ScreenSchemaSource>[];
   surfaceMounts?: KeyedDefinition<SurfaceMountSchemaSource>[];

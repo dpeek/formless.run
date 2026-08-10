@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 import type { EntitySchema, FieldSchema } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type {
+  ListContract,
   ListOperationActionContract,
   OperationControlContract,
 } from "@dpeek/formless-presentation/contract";
@@ -95,7 +96,8 @@ describe("generated Formless UI list projection", () => {
       ],
       kind: "list",
     });
-    expect(contract.items[0]?.ordering).toMatchObject({
+    const item = fieldItem(contract, 0);
+    expect(item.ordering).toMatchObject({
       actions: [
         {
           direction: "top",
@@ -114,7 +116,7 @@ describe("generated Formless UI list projection", () => {
       kind: "ordering",
       pending: true,
     });
-    const deleteAction = contract.items[0]?.actions.secondary[0] as ListOperationActionContract;
+    const deleteAction = item.actions.secondary[0] as ListOperationActionContract;
     expect(deleteAction.control.confirmation).toMatchObject({
       closeIntent: { open: false, type: "operationConfirmationOpenChange" },
       open: true,
@@ -122,6 +124,58 @@ describe("generated Formless UI list projection", () => {
     expect(JSON.stringify(contract)).not.toContain('"plan"');
     expect(JSON.stringify(contract)).not.toContain('"rank"');
     expect(JSON.stringify(contract)).not.toContain("canonicalOperationKey");
+  });
+
+  it("formats summary slots into a distinct item contract without field presentation facts", () => {
+    const projected = selectGeneratedListFoundation({
+      entity: taskEntity,
+      entityName: "task",
+      id: "tasks:summary",
+      recordIds: ["article-1", "article-2"],
+      recordsById: {
+        "article-1": taskRecord("article-1", {
+          kind: "article",
+          order: 1000,
+          title: "Release notes",
+        }),
+        "article-2": taskRecord("article-2", {
+          order: 2000,
+          title: "Title only",
+        }),
+      },
+      result: {
+        ...listResult(),
+        presentation: {
+          type: "summary",
+          slots: {
+            title: { field: textField(), fieldName: "title" },
+            subtitle: { field: kindField, fieldName: "kind" },
+          },
+        },
+      },
+    });
+    const item = projected.list.items[0];
+
+    expect(item).toEqual({
+      accessibilityLabel: "Release notes",
+      id: "article-1",
+      kind: "listItem",
+      presentation: "summary",
+      subtitle: "Article",
+      title: "Release notes",
+    });
+    expect(projected.list.items[1]).toEqual({
+      accessibilityLabel: "Title only",
+      id: "article-2",
+      kind: "listItem",
+      presentation: "summary",
+      title: "Title only",
+    });
+    expect(projected.runtimePlan.fields).toEqual([]);
+    expect(projected.runtimePlan.operations).toEqual([]);
+    for (const forbidden of ["actions", "availability", "fields", "ordering", "warnings"]) {
+      expect(item).not.toHaveProperty(forbidden);
+    }
   });
 
   it("projects editing-disabled, empty, unavailable, and display-safe fallback states", () => {
@@ -234,28 +288,23 @@ describe("generated Formless UI list projection", () => {
       recordsById,
       result,
     });
+    const firstItem = fieldItem(projected.list, 0);
+    const secondItem = fieldItem(projected.list, 1);
 
     expect(projected.list.items.map((item) => item.id)).toEqual(["link-1", "article-1"]);
-    expect(projected.list.items[0]?.fields.map((field) => field.fieldName)).toEqual([
-      "kind",
-      "title",
-      "url",
-    ]);
-    expect(projected.list.items[1]?.fields.map((field) => field.fieldName)).toEqual([
-      "kind",
-      "title",
-      "url",
-    ]);
-    expect(
-      projected.list.items[1]?.fields.find((field) => field.fieldName === "url"),
-    ).toMatchObject({ control: { editor: "href" }, rendererKind: "text" });
-    expect(projected.list.items[1]?.actions.secondary[0]).toMatchObject({
+    expect(firstItem.fields.map((field) => field.fieldName)).toEqual(["kind", "title", "url"]);
+    expect(secondItem.fields.map((field) => field.fieldName)).toEqual(["kind", "title", "url"]);
+    expect(secondItem.fields.find((field) => field.fieldName === "url")).toMatchObject({
+      control: { editor: "href" },
+      rendererKind: "text",
+    });
+    expect(secondItem.actions.secondary[0]).toMatchObject({
       control: { confirmation: { open: true } },
       role: "delete",
     });
-    expect(projected.list.items[1]?.ordering?.pending).toBe(true);
+    expect(secondItem.ordering?.pending).toBe(true);
 
-    const titleField = projected.list.items[1]?.fields.find((field) => field.fieldName === "title");
+    const titleField = secondItem.fields.find((field) => field.fieldName === "title");
     expect(titleField).toBeDefined();
     if (titleField === undefined) {
       throw new Error("Missing projected title field.");
@@ -297,9 +346,7 @@ describe("generated Formless UI list projection", () => {
       ).toBeUndefined();
     }
 
-    const downAction = projected.list.items[1]?.ordering?.actions.find(
-      (action) => action.direction === "down",
-    );
+    const downAction = secondItem.ordering?.actions.find((action) => action.direction === "down");
     const runtime = downAction
       ? selectGeneratedListRuntimeForIntent(projected.runtimePlan, downAction.intent)
       : undefined;
@@ -364,16 +411,18 @@ describe("generated Formless UI list projection", () => {
       recordsById: { [record.id]: record },
       result,
     });
+    const item = fieldItem(projected.list, 0);
 
-    expect(projected.list.items[0]?.fields.map((field) => field.fieldName)).toEqual([
+    expect(item.fields.map((field) => field.fieldName)).toEqual([
       "kind",
       "title",
       "summary",
       "bodyIcon",
     ]);
-    expect(
-      projected.list.items[0]?.fields.find((field) => field.fieldName === "bodyIcon"),
-    ).toMatchObject({ icon: { valueMode: "svgSource" }, rendererKind: "icon" });
+    expect(item.fields.find((field) => field.fieldName === "bodyIcon")).toMatchObject({
+      icon: { valueMode: "svgSource" },
+      rendererKind: "icon",
+    });
   });
 });
 
@@ -395,6 +444,15 @@ function recordField(
     recordValue: value,
     surface: "record",
   });
+}
+
+function fieldItem(list: ListContract, index: number) {
+  const item = list.items[index];
+  if (item?.presentation !== "fields") {
+    throw new Error(`Expected field-presented list item at index ${index}.`);
+  }
+
+  return item;
 }
 
 function operationControl(

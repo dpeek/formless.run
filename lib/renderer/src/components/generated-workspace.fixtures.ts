@@ -221,28 +221,36 @@ function selectedRecordWorkspace(selectedRecordId: string | null): WorkspaceCont
   if (sourceResult.kind !== "list") {
     throw new Error("Selected-record fixtures require a list result.");
   }
-  const result = {
-    ...sourceResult,
-    accessibilityLabel: "Orders",
-    items: sourceResult.items.map((item) => ({
-      ...item,
-      actions: {
-        ...item.actions,
-        primary: [],
-        secondary: [],
-      },
-      ordering: undefined,
-    })),
-  };
-  const selectionIntents = result.items.map((item) => ({
+  const selectionIntents = sourceResult.items.map((item) => ({
     ...scope,
     recordId: item.id,
     type: "workspaceSelectedRecordSelection" as const,
   }));
-  const selectionIntent = selectionIntents.find(
-    (candidate) => candidate.recordId === selectedRecordId,
-  );
-  const selected = selectionIntent !== undefined ? selectedRecordId : null;
+  const selected = selectionIntents.some((intent) => intent.recordId === selectedRecordId)
+    ? selectedRecordId
+    : null;
+  const result = {
+    ...sourceResult,
+    accessibilityLabel: "Orders",
+    items: sourceResult.items.map((item, index) => {
+      const summary = orderSummaryFacts[index];
+      const selectionIntent = selectionIntents[index];
+      if (!summary || !selectionIntent) {
+        throw new Error(`Missing selected-record summary facts for ${item.id}.`);
+      }
+
+      return {
+        accessibilityLabel: summary.title,
+        id: item.id,
+        kind: "listItem" as const,
+        presentation: "summary" as const,
+        selected: item.id === selected,
+        selectionIntent,
+        subtitle: summary.subtitle,
+        title: summary.title,
+      };
+    }),
+  };
 
   return workspace(
     "orders",
@@ -286,8 +294,15 @@ function selectedRecordWorkspace(selectedRecordId: string | null): WorkspaceCont
     ],
     [],
     "wide",
+    "full",
   );
 }
+
+const orderSummaryFacts = [
+  { subtitle: "LH3BJMV5", title: "Patrick Lee" },
+  { subtitle: "YK4NQ83S", title: "Aster Biologics" },
+  { subtitle: "ZC7HP2KT", title: "Carla Nguyen" },
+] as const;
 
 export function selectFormlessGeneratedWorkspaceRecord(
   collection: WorkspaceCollectionContract,
@@ -305,6 +320,7 @@ export function selectFormlessGeneratedWorkspaceRecord(
       presentation: {
         ...unselectedPresentation,
         activePresentation: "list",
+        result: selectSummaryResultItem(unselectedPresentation.result, null),
         sections: [],
         selectedRecordId: null,
       },
@@ -334,9 +350,25 @@ export function selectFormlessGeneratedWorkspaceRecord(
         recordId,
         type: "workspaceSelectedRecordBack",
       },
+      result: selectSummaryResultItem(presentation.result, recordId),
       sections: selectedRecordDetailSections(scope, presentation.result, recordId),
       selectedRecordId: recordId,
     },
+  };
+}
+
+function selectSummaryResultItem(
+  result: Extract<WorkspaceResultContract, { kind: "list" }>,
+  selectedRecordId: string | null,
+): Extract<WorkspaceResultContract, { kind: "list" }> {
+  return {
+    ...result,
+    items: result.items.map((item) => {
+      if (item.presentation !== "summary" || item.selectionIntent === undefined) {
+        return item;
+      }
+      return { ...item, selected: item.id === selectedRecordId };
+    }),
   };
 }
 
@@ -562,16 +594,18 @@ function workspace(
   sections: readonly WorkspaceSectionContract[],
   actions: readonly WorkspaceLinkActionContract[] = [],
   width: WorkspaceWidth = "standard",
+  surface: WorkspaceContract["surface"] = "constrained",
 ): WorkspaceContract {
-  return {
+  const contract = {
     accessibilityLabel: `${label} workspace`,
     actions,
     id: `workspace:${id}`,
     kind: "workspace",
     label,
     sections,
-    width,
-  };
+  } as const;
+
+  return surface === "full" ? { ...contract, surface } : { ...contract, surface, width };
 }
 
 function section(
@@ -881,19 +915,23 @@ function listResult(
   return {
     ...list,
     id,
-    items: list.items.map((item) => ({
-      ...item,
-      ordering:
-        item.ordering === undefined
-          ? undefined
-          : {
-              ...item.ordering,
-              actions: item.ordering.actions.map((action) => ({
-                ...action,
-                intent: { ...action.intent, listId: id },
-              })),
-            },
-    })),
+    items: list.items.map((item) =>
+      item.presentation === "summary"
+        ? item
+        : {
+            ...item,
+            ordering:
+              item.ordering === undefined
+                ? undefined
+                : {
+                    ...item.ordering,
+                    actions: item.ordering.actions.map((action) => ({
+                      ...action,
+                      intent: { ...action.intent, listId: id },
+                    })),
+                  },
+          },
+    ),
   };
 }
 

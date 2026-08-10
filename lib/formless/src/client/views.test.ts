@@ -22,6 +22,7 @@ import {
   type TableColumnConfig,
 } from "./views.ts";
 import {
+  isFieldItemViewSchema,
   isOperationHandlerEffectForSelectionCapability,
   parseAppSchema,
   type AppSchema,
@@ -3658,7 +3659,13 @@ function taskSchemaWithFieldPresentations(): AppSchema {
   const priority = taskEntity?.fields.find((definition) => definition.key === "priority")!;
   const itemView = rawSchema.itemViews.find((definition) => definition.key === "taskListItem")!;
   const createView = rawSchema.views.find((definition) => definition.key === "taskCreate")!;
-  if (!taskEntity || priority?.type !== "enum" || !itemView || createView?.type !== "create") {
+  if (
+    !taskEntity ||
+    priority?.type !== "enum" ||
+    !itemView ||
+    !isFieldItemViewSchema(itemView) ||
+    createView?.type !== "create"
+  ) {
     throw new Error("Missing task presentation fixture shape.");
   }
   priority.values.find((definition) => definition.key === "low")!.presentation = {

@@ -79,7 +79,7 @@ export function applyListFieldIntent(
   return {
     ...list,
     items: list.items.map((item) =>
-      item.id === itemId
+      item.id === itemId && item.presentation === "fields"
         ? {
             ...item,
             fields: item.fields.map((field) =>
@@ -184,7 +184,7 @@ function withOrderingAvailability(
   index: number,
   itemCount: number,
 ): ListItemContract {
-  if (!item.ordering) {
+  if (item.presentation === "summary" || !item.ordering) {
     return item;
   }
 
@@ -238,14 +238,18 @@ function mapListActions(
           },
         }
       : {}),
-    items: list.items.map((item) => ({
-      ...item,
-      actions: {
-        ...item.actions,
-        primary: item.actions.primary.map(update),
-        secondary: item.actions.secondary.map(update),
-      },
-    })),
+    items: list.items.map((item) =>
+      item.presentation === "summary"
+        ? item
+        : {
+            ...item,
+            actions: {
+              ...item.actions,
+              primary: item.actions.primary.map(update),
+              secondary: item.actions.secondary.map(update),
+            },
+          },
+    ),
   };
 }
 

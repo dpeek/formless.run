@@ -159,6 +159,7 @@ describe("task source schema", () => {
         path: "/",
         layout: {
           type: "stack",
+          surface: "constrained",
           sections: [{ id: "tasks", type: "collection", view: "taskHome" }],
           width: "standard",
         },
@@ -183,6 +184,7 @@ describe("rate source schema", () => {
         path: "/",
         layout: {
           type: "stack",
+          surface: "constrained",
           sections: [{ id: "rates", type: "collection", view: "rateHome" }],
           width: "standard",
         },
@@ -194,6 +196,7 @@ describe("rate source schema", () => {
         path: "/setup",
         layout: {
           type: "stack",
+          surface: "constrained",
           sections: [
             { id: "cards", type: "collection", view: "cardHome" },
             { id: "resources", type: "collection", view: "resourceHome" },

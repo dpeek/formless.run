@@ -21,6 +21,22 @@ import {
 } from "./generated-workspace-contract-host.ts";
 
 describe("generated workspace contract host adapter", () => {
+  it("publishes full workspace extent without synthesizing a width", () => {
+    const constrained = workspaceFixture();
+    const { surface: sourceSurface, width: sourceWidth, ...workspaceBase } = constrained;
+    void sourceSurface;
+    void sourceWidth;
+    const publication = projectGeneratedWorkspaceContractHostPublication({
+      ...workspaceBase,
+      surface: "full",
+    });
+    const host = createMemoryPresentationHost({ nodes: publication.nodes });
+    const workspace = required(host.read(publication.workspaceReference));
+
+    expect(workspace.surface).toBe("full");
+    expect("width" in workspace).toBe(false);
+  });
+
   it("flattens complete list, table, and context projections into scoped host nodes", () => {
     const publication = projectGeneratedWorkspaceContractHostPublication(workspaceFixture());
     const host = createMemoryPresentationHost({ nodes: publication.nodes });
@@ -81,7 +97,10 @@ describe("generated workspace contract host adapter", () => {
       throw new Error("Expected list result.");
     }
     const initialFieldIds = Object.fromEntries(
-      initialList.items.map((item) => [item.id, item.fields.map((field) => field.fieldId)]),
+      initialList.items.map((item) => [
+        item.id,
+        item.presentation === "fields" ? item.fields.map((field) => field.fieldId) : [],
+      ]),
     );
     const notifications = {
       context: 0,
@@ -130,7 +149,10 @@ describe("generated workspace contract host adapter", () => {
     }
     expect(
       Object.fromEntries(
-        republishedList.items.map((item) => [item.id, item.fields.map((field) => field.fieldId)]),
+        republishedList.items.map((item) => [
+          item.id,
+          item.presentation === "fields" ? item.fields.map((field) => field.fieldId) : [],
+        ]),
       ),
     ).toEqual(initialFieldIds);
 
@@ -376,6 +398,7 @@ function workspaceFixture(options: WorkspaceFixtureOptions = {}): WorkspaceContr
     kind: "workspace",
     label: "Tasks",
     sections: (options.sectionOrder ?? ["tasks", "archive"]).map((key) => sections[key]),
+    surface: "constrained",
     width: "standard",
   };
 }
@@ -389,14 +412,27 @@ function selectedRecordWorkspaceFixture(relationshipLabel = "Task compounds"): W
   const screenId = "workspace:selected-tasks";
   const sectionId = "section:selected-tasks";
   const collectionId = "collection:selected-tasks";
-  const mainResult = listResult({});
-  const selectionIntents = mainResult.items.map(({ id: recordId }) => ({
+  const sourceResult = listResult({});
+  const selectionIntents = sourceResult.items.map(({ id: recordId }) => ({
     collectionId,
     recordId,
     screenId,
     sectionId,
     type: "workspaceSelectedRecordSelection" as const,
   }));
+  const mainResult: ListContract = {
+    ...sourceResult,
+    editing: { disabledReason: "Summary items are read-only.", enabled: false },
+    items: sourceResult.items.map((item) => ({
+      accessibilityLabel: item.accessibilityLabel,
+      id: item.id,
+      kind: "listItem",
+      presentation: "summary",
+      selected: item.id === "task-1",
+      selectionIntent: required(selectionIntents.find(({ recordId }) => recordId === item.id)),
+      title: item.id === "task-1" ? "Initial title" : "Second task",
+    })),
+  };
 
   return {
     accessibilityLabel: "Selected tasks workspace",
@@ -456,6 +492,7 @@ function selectedRecordWorkspaceFixture(relationshipLabel = "Task compounds"): W
         label: "Tasks",
       },
     ],
+    surface: "constrained",
     width: "wide",
   };
 }
@@ -718,6 +755,7 @@ function listResult(options: WorkspaceFixtureOptions): ListContract {
           kind: "ordering",
           pending: id === "task-1" && (options.orderingPending ?? false),
         },
+        presentation: "fields",
         warnings:
           id === "task-1" && options.warning
             ? [

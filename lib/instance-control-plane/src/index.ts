@@ -20,6 +20,7 @@ import type {
   FieldSchema,
   ToManyRelationshipSchema,
   ToOneRelationshipSchema,
+  ViewFieldBindingSchema,
 } from "@dpeek/formless-schema";
 import { type RecordValues, type StoredRecord } from "@dpeek/formless-storage";
 export * from "./types.ts";
@@ -2988,7 +2989,7 @@ function viewField(editor: FieldEditor) {
       editor === "boolean" || editor === "enum" || editor === "reference"
         ? "immediate"
         : "field-commit",
-  } satisfies Omit<AppSchema["itemViews"][number]["fields"][number], "field">;
+  } satisfies Omit<ViewFieldBindingSchema, "field">;
 }
 function createField(editor: FieldEditor) {
   return { editor } satisfies Omit<

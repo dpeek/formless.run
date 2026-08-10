@@ -5,6 +5,7 @@ import {
   fieldEditorControl,
   fieldSupportsEditor,
   inputValueToFieldValue,
+  isFieldItemViewSchema,
   isValidStoredFieldValue,
   parseAppSchema,
   stringifySchema,
@@ -94,10 +95,12 @@ describe("schema fields", () => {
     ).toMatchObject({
       presentation: { icon: "priority", color: "priority.high" },
     });
+    const itemView = schema.itemViews.find((definition) => definition.key === "taskItem")!;
+    expect(isFieldItemViewSchema(itemView)).toBe(true);
     expect(
-      schema.itemViews
-        .find((definition) => definition.key === "taskItem")!
-        .fields.find((definition) => definition.field === "priority"),
+      isFieldItemViewSchema(itemView)
+        ? itemView.fields.find((definition) => definition.field === "priority")
+        : undefined,
     ).toMatchObject({
       presentation: { list: "both", mode: "iconOnly", trigger: "icon" },
     });

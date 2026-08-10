@@ -203,6 +203,7 @@ function workspacePublication(
           kind: "workspaceManifest",
           label,
           sections: [],
+          surface: "constrained",
           width: "standard",
         },
       },

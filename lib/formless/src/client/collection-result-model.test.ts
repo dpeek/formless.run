@@ -31,6 +31,49 @@ describe("collection result model", () => {
       "done",
     ]);
   });
+
+  it("selects declared summary slot fields without record field bindings", () => {
+    const view = requiredCollectionView(taskSourceSchema, "taskHome");
+    if (view.result.type !== "list") {
+      throw new Error("Expected task home to use a list result.");
+    }
+    const itemViewName = view.result.itemView;
+    const schema = {
+      ...taskSourceSchema,
+      itemViews: taskSourceSchema.itemViews.map((itemView) =>
+        itemView.key === itemViewName
+          ? {
+              key: itemView.key,
+              entity: itemView.entity,
+              presentation: {
+                type: "summary" as const,
+                slots: {
+                  title: { field: "title" },
+                  subtitle: { field: "priority" },
+                },
+              },
+            }
+          : itemView,
+      ),
+    } satisfies AppSchema;
+
+    const result = selectListResultModel(
+      schema,
+      view.result,
+      "task",
+      schema.entities.find((definition) => definition.key === "task")!,
+    );
+
+    expect(result.recordFields).toEqual([]);
+    expect(result.presentation).toMatchObject({
+      type: "summary",
+      slots: {
+        title: { field: { type: "text" }, fieldName: "title" },
+        subtitle: { field: { type: "enum" }, fieldName: "priority" },
+      },
+    });
+  });
+
   it("selects table result columns and footer slots through the result dispatcher", () => {
     const view = requiredCollectionView(rateSourceSchema, "rateHome");
     const result = selectHomeResultModel(

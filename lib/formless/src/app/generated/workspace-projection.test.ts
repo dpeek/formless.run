@@ -31,6 +31,7 @@ describe("generated Formless UI workspace projection", () => {
     const workspace = projectGeneratedWorkspaceContract({
       id: "tasks",
       label: "Tasks",
+      surface: "constrained",
       width: "standard",
       sections: [
         {
@@ -101,6 +102,7 @@ describe("generated Formless UI workspace projection", () => {
     const workspace = projectGeneratedWorkspaceContract({
       id: "directory",
       label: "Directory",
+      surface: "constrained",
       width: "wide",
       sections: [
         {
@@ -149,6 +151,7 @@ describe("generated Formless UI workspace projection", () => {
     const workspace = projectGeneratedWorkspaceContract({
       id: "site",
       label: "Site",
+      surface: "constrained",
       width: "wide",
       sections: [
         {
@@ -272,6 +275,7 @@ describe("generated Formless UI workspace projection", () => {
     const listDetail = projectGeneratedWorkspaceContract({
       id: "site",
       label: "Site",
+      surface: "constrained",
       width: "narrow",
       sections: [
         {
@@ -321,6 +325,7 @@ describe("generated Formless UI workspace projection", () => {
     const unavailable = projectGeneratedWorkspaceContract({
       id: "site",
       label: "Site",
+      surface: "constrained",
       width: "standard",
       sections: [
         {
@@ -351,6 +356,7 @@ describe("generated Formless UI workspace projection", () => {
     const workspace = projectGeneratedWorkspaceContract({
       id: "site",
       label: "Site",
+      surface: "constrained",
       width: "standard",
       sections: [
         {
@@ -486,6 +492,7 @@ describe("generated Formless UI workspace projection", () => {
       projectGeneratedWorkspaceContract({
         id: "site",
         label: "Site",
+        surface: "constrained",
         width: "wide",
         sections: [
           {

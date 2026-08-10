@@ -30,10 +30,12 @@ import { projectGeneratedOperationControl } from "./operation-projection.ts";
 import { projectGeneratedRecordFields, type GeneratedReferenceOption } from "./field-projection.ts";
 import {
   selectOrderingMoveMenuItems,
+  selectOrderedResultRecordIds,
   selectResultOrderingContext,
   type OrderingMoveMenuItem,
   type ResultOrderingContext,
 } from "./ordering-ui.ts";
+import { formatFieldDisplayValue } from "./format.ts";
 import { projectDeleteRecordButtonBinding, selectRecordLabel } from "./record-delete-runtime.ts";
 import {
   initialGeneratedUpdateDraftSessionState,
@@ -150,6 +152,18 @@ export function selectGeneratedListFoundation({
   result,
   schema = null,
 }: SelectGeneratedListFoundationOptions): GeneratedListFoundation {
+  if (result.presentation?.type === "summary") {
+    return selectGeneratedSummaryListFoundation({
+      density,
+      entity,
+      emptyStateAction,
+      id,
+      recordIds,
+      recordsById,
+      result,
+    });
+  }
+
   const orderingContext = selectResultOrderingContext({
     entityName,
     ordering: result.ordering,
@@ -288,6 +302,78 @@ export function selectGeneratedListFoundation({
       orderedRecordIds,
     }),
     runtimePlan,
+  };
+}
+
+function selectGeneratedSummaryListFoundation({
+  density,
+  entity,
+  emptyStateAction,
+  id,
+  recordIds,
+  recordsById,
+  result,
+}: Pick<
+  SelectGeneratedListFoundationOptions,
+  "density" | "entity" | "emptyStateAction" | "id" | "recordIds" | "recordsById" | "result"
+>): GeneratedListFoundation {
+  const presentation = result.presentation;
+  if (presentation?.type !== "summary") {
+    throw new Error(`Generated list "${id}" requires summary presentation facts.`);
+  }
+
+  const orderedRecordIds = selectOrderedResultRecordIds(
+    [...recordIds],
+    recordsById,
+    result.ordering,
+  );
+  const itemsByRecordId: Record<string, GeneratedListItemProjectionFacts> = {};
+
+  for (const recordId of orderedRecordIds) {
+    const record = recordsById[recordId];
+    const title =
+      record === undefined
+        ? ""
+        : formatFieldDisplayValue(
+            presentation.slots.title,
+            record.values[presentation.slots.title.fieldName],
+          );
+    const subtitle =
+      record === undefined || presentation.slots.subtitle === undefined
+        ? ""
+        : formatFieldDisplayValue(
+            presentation.slots.subtitle,
+            record.values[presentation.slots.subtitle.fieldName],
+          );
+
+    itemsByRecordId[recordId] = {
+      accessibilityLabel: title || `${entity.label} ${recordId}`,
+      presentation: "summary",
+      ...(subtitle === "" ? {} : { subtitle }),
+      title,
+    };
+  }
+
+  return {
+    fieldStateByRecordId: {},
+    list: projectGeneratedListContract({
+      accessibilityLabel: `${entity.label} records`,
+      density,
+      editingDisabledReason: `Editing is disabled for ${entity.label}.`,
+      editingEnabled: false,
+      ...(emptyStateAction === undefined ? {} : { emptyStateAction }),
+      id,
+      itemsByRecordId,
+      orderedRecordIds,
+    }),
+    runtimePlan: {
+      fieldById: new Map(),
+      fields: [],
+      operationByControlId: new Map(),
+      operations: [],
+      orderingByRecordId: new Map(),
+      resultId: id,
+    },
   };
 }
 

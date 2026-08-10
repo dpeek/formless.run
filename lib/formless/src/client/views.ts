@@ -176,6 +176,17 @@ export type ValueUnitFieldConfig = {
     }
   >;
 };
+export type ListSummaryFieldConfig = {
+  fieldName: string;
+  field: FieldSchema;
+};
+export type ListSummaryPresentationConfig = {
+  type: "summary";
+  slots: {
+    title: ListSummaryFieldConfig;
+    subtitle?: ListSummaryFieldConfig;
+  };
+};
 export type TableColumnBaseConfig = {
   key: string;
   label: string;
@@ -440,6 +451,7 @@ export type HomeResultConfig =
       transitionOperations: TransitionStateOperationConfig[];
       recordUnion?: RecordUnionPresentationConfig;
       ordering?: ResultOrderingConfig;
+      presentation?: ListSummaryPresentationConfig;
     }
   | {
       type: "record";
@@ -520,11 +532,22 @@ export type HomeScreenCollectionSectionModel = {
 
 export type HomeScreenSectionModel = HomeScreenCollectionSectionModel;
 
-export type HomeScreenLayoutModel = {
+type HomeScreenLayoutModelBase = {
   type: "stack";
-  width: ScreenLayoutWidthSchema;
   sections: HomeScreenSectionModel[];
 };
+
+export type HomeScreenLayoutModel = HomeScreenLayoutModelBase &
+  (
+    | {
+        surface: "constrained";
+        width: ScreenLayoutWidthSchema;
+      }
+    | {
+        surface: "full";
+        width?: never;
+      }
+  );
 
 export type HomeScreenModel = {
   screenName: string;
@@ -629,6 +652,37 @@ function selectScreenModel(
   primary: boolean,
   collectionModelsByViewName: Map<string, HomeViewModel>,
 ): HomeScreenModel {
+  const sections = screen.layout.sections.map((section) => {
+    const collectionModel = collectionModelsByViewName.get(section.view);
+
+    if (!collectionModel) {
+      throw new Error(`Missing collection view model "${section.view}".`);
+    }
+
+    const detail =
+      section.detail === undefined
+        ? undefined
+        : selectHomeSelectedRecordDetail(
+            schema,
+            section.detail,
+            collectionModel.entityName,
+            collectionModel.entity,
+          );
+    const collection = selectScreenSectionCollection(
+      collectionModel.collection,
+      section.query,
+      detail,
+    );
+
+    return {
+      id: section.id,
+      type: section.type,
+      label: section.label ?? collectionModel.label,
+      viewName: section.view,
+      collection,
+    };
+  });
+
   return {
     screenName,
     type: screen.type,
@@ -638,40 +692,15 @@ function selectScreenModel(
     navigation: {
       primary,
     },
-    layout: {
-      type: screen.layout.type,
-      width: screen.layout.width ?? "standard",
-      sections: screen.layout.sections.map((section) => {
-        const collectionModel = collectionModelsByViewName.get(section.view);
-
-        if (!collectionModel) {
-          throw new Error(`Missing collection view model "${section.view}".`);
-        }
-
-        const detail =
-          section.detail === undefined
-            ? undefined
-            : selectHomeSelectedRecordDetail(
-                schema,
-                section.detail,
-                collectionModel.entityName,
-                collectionModel.entity,
-              );
-        const collection = selectScreenSectionCollection(
-          collectionModel.collection,
-          section.query,
-          detail,
-        );
-
-        return {
-          id: section.id,
-          type: section.type,
-          label: section.label ?? collectionModel.label,
-          viewName: section.view,
-          collection,
-        };
-      }),
-    },
+    layout:
+      screen.layout.surface === "full"
+        ? { type: screen.layout.type, surface: screen.layout.surface, sections }
+        : {
+            type: screen.layout.type,
+            surface: screen.layout.surface,
+            width: screen.layout.width,
+            sections,
+          },
   };
 }
 

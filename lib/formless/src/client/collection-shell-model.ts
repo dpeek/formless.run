@@ -17,7 +17,11 @@ import type {
   ToManyRelationshipSchema,
   ViewSchema,
 } from "@dpeek/formless-schema";
-import { parseEntityOperationKey, type QueryExpression } from "@dpeek/formless-schema";
+import {
+  isFieldItemViewSchema,
+  parseEntityOperationKey,
+  type QueryExpression,
+} from "@dpeek/formless-schema";
 import {
   selectCommandOperationUi,
   type CommandOperationTargetCountConfig,
@@ -643,6 +647,9 @@ export function selectRecordFields(
   view: ItemViewSchema,
   entity: EntitySchema,
 ): RecordFieldConfig[] {
+  if (!isFieldItemViewSchema(view)) {
+    return [];
+  }
   return view.fields.map((viewField) => {
     const fieldName = viewField.field;
     const selectedField = selectAddressableRecordFieldConfig(entity, fieldName);

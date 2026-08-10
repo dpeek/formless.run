@@ -16,6 +16,7 @@ import type {
   FieldContract,
   FieldIntent,
   ListContract,
+  ListFieldItemContract,
   ListIntentHandler,
   ListItemContract,
   ListOperationActionContract,
@@ -116,13 +117,15 @@ export function AstryxListRenderer({
             ))}
           </List>
           {list.items.flatMap((item) =>
-            [...item.actions.primary, ...item.actions.secondary].map((action) => (
-              <AstryxListActionEffects
-                action={action}
-                key={`${item.id}:${action.control.id}:effects`}
-                onOperationIntent={onOperationIntent}
-              />
-            )),
+            item.presentation === "summary"
+              ? []
+              : [...item.actions.primary, ...item.actions.secondary].map((action) => (
+                  <AstryxListActionEffects
+                    action={action}
+                    key={`${item.id}:${action.control.id}:effects`}
+                    onOperationIntent={onOperationIntent}
+                  />
+                )),
           )}
         </>
       )}
@@ -167,6 +170,24 @@ function AstryxListItem({
   onOperationIntent: AstryxListOperationIntentHandler;
   selected: boolean;
 }) {
+  if (item.presentation === "summary") {
+    return (
+      <ListItem
+        aria-label={item.accessibilityLabel}
+        description={item.subtitle}
+        isSelected={item.selected ?? false}
+        label={item.title}
+        onClick={
+          onItemSelect && item.selectionIntent
+            ? () => {
+                void onItemSelect(item);
+              }
+            : undefined
+        }
+      />
+    );
+  }
+
   return (
     <ListItem
       aria-label={item.accessibilityLabel}
@@ -248,7 +269,7 @@ function AstryxListOverflow({
   onListIntent,
   onOperationIntent,
 }: {
-  item: ListItemContract;
+  item: ListFieldItemContract;
   onListIntent: ListIntentHandler;
   onOperationIntent: AstryxListOperationIntentHandler;
 }) {
@@ -261,7 +282,7 @@ function AstryxListOverflow({
   return <MoreMenu items={items} label={astryxListOverflowLabel(item)} size="sm" variant="ghost" />;
 }
 
-function AstryxListWarningIndicator({ item }: { item: ListItemContract }) {
+function AstryxListWarningIndicator({ item }: { item: ListFieldItemContract }) {
   const message = item.warnings
     .flatMap((warning) => warning.items.map((warningItem) => warningItem.message))
     .join(" ");
@@ -302,7 +323,7 @@ export function astryxListDensity(density: ListContract["density"]): ListDensity
 }
 
 export function astryxListOverflowItems(
-  item: ListItemContract,
+  item: ListFieldItemContract,
   onOperationIntent: AstryxListOperationIntentHandler,
   onListIntent: ListIntentHandler,
 ): DropdownMenuOption[] {
@@ -374,7 +395,7 @@ export function dispatchAstryxListOrderingIntent(
   return handler(action.intent);
 }
 
-function astryxListOverflowLabel(item: ListItemContract) {
+function astryxListOverflowLabel(item: ListFieldItemContract) {
   return item.actions.secondary.length > 0
     ? item.actions.secondaryAccessibilityLabel
     : (item.ordering?.accessibilityLabel ?? item.actions.secondaryAccessibilityLabel);

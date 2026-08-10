@@ -6,6 +6,7 @@ import {
 } from "@dpeek/formless-renderer/application/assembly";
 import { FormlessApplicationRendererProvider } from "@dpeek/formless-renderer/application/provider";
 import { createMemoryPresentationHost } from "@dpeek/formless-presentation/host";
+import type { WorkspaceContract } from "@dpeek/formless-presentation/contract";
 import { PresentationHostProvider } from "@dpeek/formless-presentation/host/react";
 import { createFormlessApplicationShellFixtures } from "./components/application-shell.fixtures.ts";
 import { projectFormlessApplicationShellFixturePublication } from "./components/application-shell.tsx";
@@ -125,7 +126,44 @@ describe("Formless application renderer", () => {
     expect(managementHtml.match(/max-width:1200px/g)).toHaveLength(1);
     expect(workspaceHtml.match(/max-width:1600px/g)).toHaveLength(1);
   });
+
+  it("lets a full workspace consume the application shell extent without a constrained frame", () => {
+    const fixture = requiredFixture(createFormlessGeneratedWorkspaceFixtures(), "multi-section");
+    const publication = projectGeneratedWorkspaceFixturePublication(
+      fullWorkspace(fixture.workspace),
+    );
+    const host = createMemoryPresentationHost({
+      nodes: publication.nodes,
+      serverNodes: publication.nodes,
+    });
+    const html = renderToStaticMarkup(
+      <PresentationHostProvider host={host}>
+        <FormlessApplicationRenderer
+          presentation={{ kind: "workspace", reference: publication.workspaceReference }}
+        />
+      </PresentationHostProvider>,
+    );
+    const workspaceStart = html.indexOf('aria-label="Directory workspace"');
+    const frameHtml = html.slice(0, workspaceStart);
+
+    expect(workspaceStart).toBeGreaterThan(0);
+    expect(html).toContain("height:100%");
+    expect(frameHtml).not.toContain("max-width:");
+    expect(frameHtml).not.toContain("padding-inline:");
+    expect(frameHtml).not.toContain("padding-block:");
+  });
 });
+
+function fullWorkspace(workspace: WorkspaceContract): WorkspaceContract {
+  if (workspace.surface === "full") {
+    return workspace;
+  }
+  const { surface, width, ...workspaceBase } = workspace;
+  void surface;
+  void width;
+  return { ...workspaceBase, surface: "full" };
+}
+
 function requiredFixture<
   Fixture extends {
     id: string;

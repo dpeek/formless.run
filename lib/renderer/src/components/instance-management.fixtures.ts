@@ -439,6 +439,7 @@ function managementWorkspace(
     kind: "workspace",
     label,
     sections: [section],
+    surface: "constrained",
     width: "standard",
   };
 }

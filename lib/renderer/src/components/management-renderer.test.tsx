@@ -261,6 +261,7 @@ function routesWorkspace(): WorkspaceContract {
     kind: "workspace",
     label: "Routes",
     sections: [],
+    surface: "constrained",
     width: "standard",
   };
 }

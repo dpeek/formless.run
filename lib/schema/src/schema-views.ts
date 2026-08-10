@@ -51,11 +51,15 @@ import type {
   EditViewSchema,
   EntitySchema,
   EntityUnionSchema,
+  FieldItemViewSchema,
+  ItemViewSummaryFieldSchema,
+  ItemViewSummaryPresentationSchema,
   ItemViewSchema,
   KeyedDefinition,
   RelationshipSchema,
   ReadModelSchema,
   TableViewSchema,
+  SummaryItemViewSchema,
   ViewSchema,
 } from "./types.ts";
 
@@ -119,6 +123,10 @@ function parseItemView(
     throw new Error(`Item view "${itemViewName}" must be an object.`);
   }
 
+  if (value.presentation !== undefined) {
+    return parseSummaryItemView(itemViewName, value, entities);
+  }
+
   assertExactKeys(
     `Item view "${itemViewName}"`,
     value,
@@ -150,6 +158,96 @@ function parseItemView(
     fields,
     ...unionPresentation,
   };
+}
+
+export function isSummaryItemViewSchema(
+  itemView: ItemViewSchema,
+): itemView is SummaryItemViewSchema {
+  return itemView.presentation?.type === "summary";
+}
+
+export function isFieldItemViewSchema(itemView: ItemViewSchema): itemView is FieldItemViewSchema {
+  return itemView.presentation === undefined;
+}
+
+function parseSummaryItemView(
+  itemViewName: string,
+  value: Record<string, unknown>,
+  entities: Record<string, EntitySchema>,
+): SummaryItemViewSchema {
+  const context = `Item view "${itemViewName}"`;
+  assertExactKeys(context, value, ["key", "entity", "presentation"]);
+
+  const entityName = parseRequiredNonEmptyString(`${context} entity`, value.entity);
+  const entity = entities[entityName];
+  if (!entity) {
+    throw new Error(`${context} references unknown entity "${entityName}".`);
+  }
+
+  return {
+    entity: entityName,
+    presentation: parseItemViewSummaryPresentation(context, value.presentation, entityName, entity),
+  };
+}
+
+function parseItemViewSummaryPresentation(
+  context: string,
+  value: unknown,
+  entityName: string,
+  entity: EntitySchema,
+): ItemViewSummaryPresentationSchema {
+  if (!isRecord(value)) {
+    throw new Error(`${context} presentation must be an object.`);
+  }
+  assertExactKeys(`${context} presentation`, value, ["type", "slots"]);
+  if (value.type !== "summary") {
+    throw new Error(`${context} presentation type must be "summary".`);
+  }
+  if (!isRecord(value.slots)) {
+    throw new Error(`${context} summary slots must be an object.`);
+  }
+  assertExactKeys(`${context} summary slots`, value.slots, ["title"], ["subtitle"]);
+
+  const title = parseItemViewSummaryField(
+    `${context} summary title`,
+    value.slots.title,
+    entityName,
+    entity,
+  );
+  const subtitle =
+    value.slots.subtitle === undefined
+      ? undefined
+      : parseItemViewSummaryField(
+          `${context} summary subtitle`,
+          value.slots.subtitle,
+          entityName,
+          entity,
+        );
+
+  return {
+    type: "summary",
+    slots: {
+      title,
+      ...(subtitle === undefined ? {} : { subtitle }),
+    },
+  };
+}
+
+function parseItemViewSummaryField(
+  context: string,
+  value: unknown,
+  entityName: string,
+  entity: EntitySchema,
+): ItemViewSummaryFieldSchema {
+  if (!isRecord(value)) {
+    throw new Error(`${context} must be an object.`);
+  }
+  assertExactKeys(context, value, ["field"]);
+  const fieldName = parseRequiredNonEmptyString(`${context} field`, value.field);
+  if (definitionsToRecord(entity.fields)[fieldName] === undefined) {
+    throw new Error(`${context} references unknown field "${entityName}.${fieldName}".`);
+  }
+  return { field: fieldName };
 }
 
 export function parseViews(

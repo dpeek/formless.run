@@ -3,6 +3,7 @@ import type {
   ListActionContract,
   ListActionGroupContract,
   ListContract,
+  ListFieldItemContract,
   ListOperationActionContract,
   ListOrderingContract,
   OperationControlContract,
@@ -15,10 +16,10 @@ export type GeneratedListPlacedAction = {
   placement: "primary" | "secondary";
 };
 
-export type GeneratedListItemProjectionFacts = {
+export type GeneratedListFieldItemProjectionFacts = {
   accessibilityLabel?: string;
   actions?: readonly GeneratedListPlacedAction[];
-  fields?: ListContract["items"][number]["fields"];
+  fields?: ListFieldItemContract["fields"];
   ordering?: {
     accessibilityLabel?: string;
     items: readonly OrderingMoveMenuItem[];
@@ -26,7 +27,19 @@ export type GeneratedListItemProjectionFacts = {
   };
   readinessWarnings?: readonly RecordReadinessWarning[];
   unavailableMessage?: string;
+  presentation?: "fields";
 };
+
+export type GeneratedListSummaryItemProjectionFacts = {
+  accessibilityLabel: string;
+  presentation: "summary";
+  subtitle?: string;
+  title: string;
+};
+
+export type GeneratedListItemProjectionFacts =
+  | GeneratedListFieldItemProjectionFacts
+  | GeneratedListSummaryItemProjectionFacts;
 
 export type ProjectGeneratedListContractOptions = {
   accessibilityLabel: string;
@@ -73,6 +86,18 @@ export function projectGeneratedListContract({
     id,
     items: orderedRecordIds.map((recordId) => {
       const facts = itemsByRecordId[recordId];
+
+      if (facts?.presentation === "summary") {
+        return {
+          accessibilityLabel: facts.accessibilityLabel,
+          id: recordId,
+          kind: "listItem" as const,
+          presentation: "summary" as const,
+          ...(facts.subtitle === undefined ? {} : { subtitle: facts.subtitle }),
+          title: facts.title,
+        };
+      }
+
       const warnings = facts?.readinessWarnings ?? [];
 
       return {
@@ -102,6 +127,7 @@ export function projectGeneratedListContract({
                 pending: facts.ordering.pending,
               }),
             }),
+        presentation: "fields" as const,
         warnings:
           warnings.length === 0
             ? []

@@ -11,6 +11,7 @@ import { Section } from "@astryxdesign/core/Section";
 import { Tab, TabList } from "@astryxdesign/core/TabList";
 import { Heading, Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
+import { borderVars, colorVars } from "@astryxdesign/core/theme/tokens.stylex";
 import { memo, type ReactNode } from "react";
 import type {
   CreateIntent,
@@ -39,6 +40,7 @@ import type {
   WorkspaceSelectedRecordSectionContract,
   WorkspaceSelectedRecordSectionShellContract,
   WorkspaceSelectedRecordShellContract,
+  WorkspaceSurface,
   WorkspaceSummaryContract,
 } from "@dpeek/formless-presentation/contract";
 import { presentationReferenceKey } from "@dpeek/formless-presentation/host";
@@ -64,10 +66,12 @@ export function AstryxWorkspaceCollectionRenderer({
   collection,
   onIntent,
   scope,
+  surface = "constrained",
 }: {
   collection: WorkspaceCollectionContract;
   onIntent: WorkspaceIntentHandler;
   scope: WorkspaceIntentScope;
+  surface?: WorkspaceSurface;
 }) {
   const presentation = collection.presentation;
   const treeOwnsContextDetail =
@@ -110,6 +114,7 @@ export function AstryxWorkspaceCollectionRenderer({
         ) : undefined
       }
       scope={scope}
+      surface={surface}
     />
   );
 }
@@ -117,9 +122,11 @@ export function AstryxWorkspaceCollectionRenderer({
 export function AstryxSubscribedWorkspaceCollectionRenderer({
   collection,
   scope,
+  surface = "constrained",
 }: {
   collection: WorkspaceCollectionShellContract;
   scope: WorkspaceIntentScope;
+  surface?: WorkspaceSurface;
 }) {
   const onIntent = useWorkspaceIntentHandler();
   const presentation = collection.presentation;
@@ -160,6 +167,7 @@ export function AstryxSubscribedWorkspaceCollectionRenderer({
         ) : undefined
       }
       scope={scope}
+      surface={surface}
     />
   );
 }
@@ -171,6 +179,7 @@ function AstryxWorkspaceCollectionFrame({
   onIntent,
   selectedRecordDetail,
   scope,
+  surface,
 }: {
   collection: WorkspaceCollectionContract | WorkspaceCollectionShellContract;
   contextResult?: ReactNode;
@@ -178,6 +187,7 @@ function AstryxWorkspaceCollectionFrame({
   onIntent: WorkspaceIntentHandler;
   selectedRecordDetail?: ReactNode;
   scope: WorkspaceIntentScope;
+  surface: WorkspaceSurface;
 }) {
   if (collection.availability.state === "empty") {
     return (
@@ -211,14 +221,17 @@ function AstryxWorkspaceCollectionFrame({
   }
 
   const presentation = collection.presentation;
+  const fillsFullSelectedRecordSurface =
+    surface === "full" && presentation.kind === "selectedRecord";
 
   return (
     <VStack
       as="section"
       aria-label={collection.accessibilityLabel}
       data-formless-astryx-workspace-collection={collection.id}
-      gap={6}
+      gap={fillsFullSelectedRecordSurface ? 0 : 6}
       width="100%"
+      xstyle={fillsFullSelectedRecordSurface && styles.fullSelectedRecordCollection}
     >
       {presentation.kind === "selectedRecord" ? (
         <>
@@ -233,16 +246,24 @@ function AstryxWorkspaceCollectionFrame({
           <Grid
             aria-label={presentation.accessibilityLabel}
             columns={1}
-            gap={6}
+            gap={fillsFullSelectedRecordSurface ? 0 : 6}
             role="group"
             width="100%"
-            xstyle={styles.selectedRecordGrid}
+            xstyle={
+              fillsFullSelectedRecordSurface
+                ? styles.fullSelectedRecordGrid
+                : styles.selectedRecordGrid
+            }
           >
             <VStack
               gap={6}
               width="100%"
               xstyle={[
                 styles.selectedRecordPane,
+                fillsFullSelectedRecordSurface
+                  ? styles.fullSelectedRecordPane
+                  : styles.constrainedSelectedRecordPane,
+                fillsFullSelectedRecordSurface && styles.fullSelectedRecordSelectorPane,
                 presentation.activePresentation === "detail" && styles.compactHiddenPane,
               ]}
             >
@@ -261,10 +282,14 @@ function AstryxWorkspaceCollectionFrame({
             <VStack
               aria-label={presentation.accessibilityLabel}
               gap={4}
+              padding={fillsFullSelectedRecordSurface ? 5 : undefined}
               role="region"
               width="100%"
               xstyle={[
                 styles.selectedRecordPane,
+                fillsFullSelectedRecordSurface
+                  ? styles.fullSelectedRecordPane
+                  : styles.constrainedSelectedRecordPane,
                 presentation.activePresentation === "list" && styles.compactHiddenPane,
               ]}
             >
@@ -477,6 +502,45 @@ const styles = stylex.create({
   listDetailMain: {
     minWidth: 0,
   },
+  fullSelectedRecordCollection: {
+    height: "100%",
+    minHeight: 0,
+  },
+  fullSelectedRecordGrid: {
+    alignItems: "stretch",
+    flex: 1,
+    gridTemplateColumns: {
+      default: "minmax(0, 1fr)",
+      "@media (min-width: 768px)": "360px minmax(0, 1fr)",
+    },
+    height: "100%",
+    minHeight: 0,
+  },
+  fullSelectedRecordPane: {
+    height: {
+      default: "auto",
+      "@media (min-width: 768px)": "100%",
+    },
+    minHeight: 0,
+    overflowY: {
+      default: "visible",
+      "@media (min-width: 768px)": "auto",
+    },
+  },
+  fullSelectedRecordSelectorPane: {
+    borderInlineEndColor: {
+      default: "transparent",
+      "@media (min-width: 768px)": colorVars["--color-border"],
+    },
+    borderInlineEndStyle: {
+      default: "none",
+      "@media (min-width: 768px)": "solid",
+    },
+    borderInlineEndWidth: {
+      default: 0,
+      "@media (min-width: 768px)": borderVars["--border-width"],
+    },
+  },
   selectedRecordGrid: {
     alignItems: "start",
     gridTemplateColumns: {
@@ -485,11 +549,13 @@ const styles = stylex.create({
     },
   },
   selectedRecordPane: {
+    minWidth: 0,
+  },
+  constrainedSelectedRecordPane: {
     maxHeight: {
       default: "none",
       "@media (min-width: 768px)": "calc(100vh - 12rem)",
     },
-    minWidth: 0,
     overflowY: {
       default: "visible",
       "@media (min-width: 768px)": "auto",
@@ -1314,7 +1380,9 @@ function workspaceListActionRecordId(
   action: ListOperationActionContract,
 ) {
   return list.items.find((item) =>
-    [...item.actions.primary, ...item.actions.secondary].includes(action),
+    item.presentation === "fields"
+      ? [...item.actions.primary, ...item.actions.secondary].includes(action)
+      : false,
   )?.id;
 }
 function workspaceTableActionRecordId(

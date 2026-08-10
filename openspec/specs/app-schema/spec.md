@@ -1066,6 +1066,46 @@ The system SHALL let collection views select records through schema-declared que
   projection, or an unbounded output is rejected
 - AND these constraints do not expose a generic app query or listing interface
 
+### Requirement: Item View Summary Presentation
+
+The system SHALL let an item view select either its existing field-based record
+presentation or a compact renderer-neutral summary presentation whose visible
+content comes from declared entity fields.
+
+#### Scenario: Declare title and subtitle summary slots
+
+- GIVEN an item view declares `presentation.type: "summary"`
+- WHEN the item view is parsed
+- THEN `presentation.slots.title.field` references one declared field on the
+  item view entity
+- AND `presentation.slots.subtitle.field` may reference one declared field on
+  the same entity
+- AND title is required while subtitle is optional
+- AND the slot declarations remain field-value projections rather than stored
+  summary data, read models, callbacks, templates, or renderer properties
+
+#### Scenario: Keep summary and field item views distinct
+
+- GIVEN an item view declares summary presentation
+- WHEN the complete schema is parsed
+- THEN it does not also declare editable field bindings, union variants, or a
+  union fallback
+- AND summary presentation exposes exactly title and optional subtitle slots
+- AND status, badge, icon, action, operation, editor, and arbitrary named slots
+  are rejected
+- AND an item view without summary presentation retains the existing ordered
+  field-based record presentation
+
+#### Scenario: Reject invalid summary slot fields
+
+- GIVEN a summary item view omits its title, references an unknown or
+  wrong-entity field, repeats a field through unsupported slot data, or
+  declares a field whose value cannot be projected as display-safe text
+- WHEN the item view is parsed
+- THEN parsing fails
+- AND the invalid item view is not materialized, hashed, or exposed to
+  generated UI
+
 ### Requirement: Screens And Navigation
 
 The system SHALL require app schemas to define one or more screens that own
@@ -1254,6 +1294,21 @@ contain one level of destination-less labelled sections.
 - AND any other width is rejected
 - AND the width does not declare pixel dimensions, responsive breakpoints,
   presentation class names, or renderer-specific properties
+
+#### Scenario: Screen surface extent
+
+- GIVEN a workspace screen layout declares a semantic surface extent
+- WHEN the schema is parsed
+- THEN `constrained` and `full` are accepted
+- AND an omitted surface extent resolves to `constrained`
+- AND constrained layouts may use the existing `narrow`, `standard`, or `wide`
+  semantic width
+- AND full layouts fill the application shell's available inline and block
+  extent without declaring a width
+- AND any other extent or a width on a full layout is rejected
+- AND surface extent does not declare pixel dimensions, pane proportions,
+  responsive breakpoints, scrolling implementation, presentation class names,
+  or renderer-specific properties
 
 #### Scenario: Screen access policy
 

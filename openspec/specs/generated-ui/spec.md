@@ -214,7 +214,7 @@ shell.
 ### Requirement: Consistent Application Surface Layouts
 
 The system SHALL render generated and native admin surfaces through one
-constrained responsive surface-layout policy.
+responsive surface-layout policy with constrained and full workspace extents.
 
 #### Scenario: Project generated workspace width
 
@@ -225,6 +225,18 @@ constrained responsive surface-layout policy.
 - AND omitted schema width reaches the contract as `standard`
 - AND the contract does not expose pixel dimensions, responsive breakpoints,
   presentation class names, CSS values, or renderer-specific component props
+
+#### Scenario: Project generated workspace surface extent
+
+- GIVEN a generated workspace screen selects constrained or full surface
+  extent
+- WHEN generated runtime projects the workspace Presentation contract
+- THEN the contract carries the selected semantic extent
+- AND omitted schema extent reaches the contract as `constrained`
+- AND a full workspace carries no semantic width
+- AND the contract does not expose viewport dimensions, pane proportions,
+  scrolling implementation, presentation class names, CSS values, or
+  renderer-specific component props
 
 #### Scenario: Apply one top-level application surface frame
 
@@ -239,6 +251,18 @@ constrained responsive surface-layout policy.
 - AND auth and public Site surfaces retain their separate presentation frames
 - AND a workspace embedded inside Management does not receive a second surface
   frame
+
+#### Scenario: Apply a full workspace surface frame
+
+- GIVEN application assembly renders a generated workspace with full surface
+  extent
+- WHEN Formless Renderer selects page geometry
+- THEN the application surface frame fills the application shell's available
+  inline and block extent
+- AND it does not apply the constrained frame's centering, maximum content
+  width, or outer content gutters
+- AND shell navigation and viewport ownership remain unchanged
+- AND nested workspace and result renderers do not add a second page frame
 
 #### Scenario: Keep shell, surface, and result layout ownership distinct
 
@@ -551,6 +575,19 @@ summary slots, operation controls, and schema-declared result types.
 - AND selected-record detail does not select a separate context entity or use
   collection `listDetail` fallback semantics
 
+#### Scenario: Summary item view projection
+
+- GIVEN a list result references an item view with summary presentation
+- WHEN generated runtime projects the list result
+- THEN each list item carries display-safe title text and optional subtitle text
+  selected from the declared summary slot fields
+- AND it does not project the item view as record fields, field editors,
+  readiness status, badges, or record operation controls
+- AND missing optional source values produce omitted display text rather than
+  raw values or renderer-selected fallback fields
+- AND runtime retains record reads, field formatting, and schema selection
+  outside the renderer
+
 #### Scenario: Ordered list result
 
 - GIVEN a list result declares ordering
@@ -644,6 +681,8 @@ selection, reads, evaluation, operation execution, and effects.
 - AND record sections reference canonical record-result contracts while
   relationship sections reference canonical table contracts and may carry
   ordered canonical operation controls for heading placement
+- AND a summary main list carries only each record's title and optional
+  subtitle plus semantic selection state and intent
 - AND the contract declares compact presentation as `drillIn`, so compact
   rendering starts at the list, selection enters detail, and back clears the
   selection
@@ -732,6 +771,12 @@ selection, reads, evaluation, operation execution, and effects.
 - AND selected-record layouts render the list and composed detail side by side
   at wide widths and as list-to-detail drill-in with a back control at compact
   widths
+- AND a full selected-record layout fills the available workspace height, uses
+  a renderer-owned fixed selector width with the detail taking remaining inline
+  space, and lets the selector and detail panes scroll independently
+- AND summary selector rows render only title and optional subtitle, make the
+  row the selection target, and do not add a separate view action or status
+  presentation
 - AND the workspace renderer does not read storage, evaluate queries or
   aggregates, execute operations, use media clients, run sync effects, or import
   runtime data
@@ -1125,9 +1170,12 @@ record reads, authoring state, operation execution, and ordering effects.
 - WHEN generated runtime prepares the list for the Formless Renderer
 - THEN it projects a stable list id, accessible label, density, ordered items,
   empty state, and editing availability
-- AND each list item carries a stable id, accessible label, projected record
-  fields, explicit primary and secondary actions, optional ordering actions,
-  and display-safe readiness warnings
+- AND each field-presented list item carries a stable id, accessible label,
+  projected record fields, explicit primary and secondary actions, optional
+  ordering actions, and display-safe readiness warnings
+- AND each summary-presented list item instead carries a stable id, accessible
+  label, display-safe title, optional display-safe subtitle, and optional
+  controlled selection state and intent
 - AND each projected list field carries a stable occurrence id scoped by the
   list result, item record, and field placement, so the same schema field in a
   different item or result has a different identity
@@ -1163,6 +1211,19 @@ record reads, authoring state, operation execution, and ordering effects.
 - AND renderers may choose accessible menus or direct controls that preserve
   projected list-item capabilities and action placement
 
+#### Scenario: Project summary list selection
+
+- GIVEN a summary-presented list is the selector for selected-record detail
+- WHEN generated runtime prepares list-item interaction data
+- THEN each item carries controlled selected state and a semantic select-record
+  intent
+- AND the summary item carries no field, operation, delete, ordering, warning,
+  status, or badge contracts
+- AND the renderer may make the whole summary row the selection target because
+  it contains no nested interactive fields or actions
+- AND summary lists outside a selection composition remain non-interactive
+  unless another explicit contract supplies interaction
+
 #### Scenario: Formless Renderer consumes the list contract
 
 - GIVEN production generated lists publish complete renderer-neutral contracts
@@ -1196,6 +1257,8 @@ record reads, authoring state, operation execution, and ordering effects.
   retaining pending moves and their projected status
 - AND readiness warnings use a compact accessible indicator whose tooltip or
   status presentation contains only projected warning messages
+- AND summary items render title and optional subtitle without synthesizing a
+  status badge, field control, or action control
 - AND empty states use only projected title, description, and optional action
   facts rather than inventing unavailable create behavior
 - AND list behavior follows the renderer's list and action hierarchy

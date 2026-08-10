@@ -610,6 +610,8 @@ function publicOperationSchema(operations: Record<string, EntityOperationSchema>
         label: "Requests",
         layout: {
           type: "stack",
+          surface: "constrained",
+          width: "standard",
           sections: [{ id: "requests", type: "collection", view: "requestHome" }],
         },
       },

@@ -1,3 +1,4 @@
+import * as stylex from "@stylexjs/stylex";
 import { Button, type ButtonVariant } from "@astryxdesign/core/Button";
 import { Banner } from "@astryxdesign/core/Banner";
 import { HStack } from "@astryxdesign/core/HStack";
@@ -48,6 +49,7 @@ export function AstryxWorkspaceScreenRenderer({
           onIntent={onIntent}
           screenId={workspace.id}
           section={section}
+          surface={workspace.surface}
         />
       ))}
     </AstryxWorkspaceFrame>
@@ -72,6 +74,7 @@ export const AstryxSubscribedWorkspaceScreenRenderer = memo(
           <AstryxSubscribedWorkspaceSection
             key={`${sectionReference.workspaceId}:${sectionReference.sectionId}`}
             reference={sectionReference}
+            surface={workspace.surface}
           />
         ))}
       </AstryxWorkspaceFrame>
@@ -94,6 +97,7 @@ function AstryxWorkspaceFrame({
       gap={workspace.sections.length === 1 ? 4 : 8}
       role="region"
       width="100%"
+      xstyle={workspace.surface === "full" && styles.fullWorkspace}
     >
       {workspace.actions.length > 0 ? (
         <HStack justify="end" width="100%" wrap="wrap">
@@ -129,10 +133,12 @@ function AstryxWorkspaceSection({
   onIntent,
   screenId,
   section,
+  surface,
 }: {
   onIntent: WorkspaceIntentHandler;
   screenId: string;
   section: WorkspaceSectionContract;
+  surface: WorkspaceContract["surface"];
 }) {
   const scope = {
     collectionId: section.collection.id,
@@ -141,11 +147,17 @@ function AstryxWorkspaceSection({
   };
 
   return (
-    <AstryxWorkspaceSectionFrame onIntent={onIntent} scope={scope} section={section}>
+    <AstryxWorkspaceSectionFrame
+      onIntent={onIntent}
+      scope={scope}
+      section={section}
+      surface={surface}
+    >
       <AstryxWorkspaceCollectionRenderer
         collection={section.collection}
         onIntent={onIntent}
         scope={scope}
+        surface={surface}
       />
     </AstryxWorkspaceSectionFrame>
   );
@@ -154,8 +166,10 @@ function AstryxWorkspaceSection({
 const AstryxSubscribedWorkspaceSection = memo(
   function AstryxSubscribedWorkspaceSection({
     reference,
+    surface,
   }: {
     reference: WorkspaceSectionShellReference;
+    surface: WorkspaceManifestContract["surface"];
   }) {
     const onIntent = useWorkspaceIntentHandler();
     const section = useWorkspaceSectionShell(reference);
@@ -176,17 +190,24 @@ const AstryxSubscribedWorkspaceSection = memo(
     }
 
     return (
-      <AstryxWorkspaceSectionFrame onIntent={onIntent} scope={scope} section={section}>
+      <AstryxWorkspaceSectionFrame
+        onIntent={onIntent}
+        scope={scope}
+        section={section}
+        surface={surface}
+      >
         <AstryxSubscribedWorkspaceCollectionRenderer
           collection={section.collection}
           scope={scope}
+          surface={surface}
         />
       </AstryxWorkspaceSectionFrame>
     );
   },
   (previous, next) =>
     previous.reference.workspaceId === next.reference.workspaceId &&
-    previous.reference.sectionId === next.reference.sectionId,
+    previous.reference.sectionId === next.reference.sectionId &&
+    previous.surface === next.surface,
 );
 
 function AstryxWorkspaceSectionFrame({
@@ -194,15 +215,19 @@ function AstryxWorkspaceSectionFrame({
   onIntent,
   scope,
   section,
+  surface,
 }: {
   children: ReactNode;
   onIntent: WorkspaceIntentHandler;
   scope: WorkspaceIntentScope;
   section: WorkspaceSectionContract | WorkspaceSectionShellContract;
+  surface: WorkspaceContract["surface"];
 }) {
   const renderHeader = section.headingVisibility === "visible";
   const renderActionsAfterCollection =
     section.headingVisibility === "hidden" && section.actions.length > 0;
+  const fillsFullSelectedRecordSurface =
+    surface === "full" && section.collection.presentation.kind === "selectedRecord";
 
   return (
     <Section
@@ -212,8 +237,13 @@ function AstryxWorkspaceSectionFrame({
       role="region"
       variant="transparent"
       width="100%"
+      xstyle={fillsFullSelectedRecordSurface && styles.fullSelectedRecordSection}
     >
-      <VStack gap={renderHeader || renderActionsAfterCollection ? 4 : 0} width="100%">
+      <VStack
+        gap={renderHeader || renderActionsAfterCollection ? 4 : 0}
+        width="100%"
+        xstyle={fillsFullSelectedRecordSurface && styles.fullSelectedRecordSectionContent}
+      >
         {renderHeader ? (
           <HStack align="center" gap={3} justify="between" width="100%" wrap="wrap">
             {section.headingVisibility === "visible" ? (
@@ -252,6 +282,21 @@ function AstryxWorkspaceSectionFrame({
     </Section>
   );
 }
+
+const styles = stylex.create({
+  fullSelectedRecordSection: {
+    flex: 1,
+    minHeight: 0,
+  },
+  fullSelectedRecordSectionContent: {
+    height: "100%",
+    minHeight: 0,
+  },
+  fullWorkspace: {
+    height: "100%",
+    minHeight: 0,
+  },
+});
 
 function AstryxWorkspaceExternalAction({
   externalAction,

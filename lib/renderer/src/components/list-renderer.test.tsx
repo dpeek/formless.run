@@ -96,7 +96,7 @@ describe("Astryx list renderer", () => {
 
   it("dispatches field, primary, overflow, and ordering intents without exposing unavailable moves", () => {
     const list = listContract({ pending: false });
-    const item = list.items[0]!;
+    const item = firstFieldItem(list);
     const fieldIntents: unknown[] = [];
     const operationIntents: unknown[] = [];
     const listIntents: ListIntent[] = [];
@@ -147,7 +147,7 @@ describe("Astryx list renderer", () => {
 
   it("retains pending ordering status in overflow while suppressing duplicate dispatch", () => {
     const intents: ListIntent[] = [];
-    const ordering = listContract({ pending: true }).items[0]!.ordering!;
+    const ordering = firstFieldItem(listContract({ pending: true })).ordering!;
     const items = astryxListOrderingItems(ordering, (intent) => {
       intents.push(intent);
     });
@@ -198,7 +198,7 @@ function renderList(list: ListContract) {
 
 function readOnlyList(): ListContract {
   const list = listContract({ pending: false });
-  const item = list.items[0]!;
+  const item = firstFieldItem(list);
 
   return {
     ...list,
@@ -212,6 +212,15 @@ function readOnlyList(): ListContract {
       },
     ],
   };
+}
+
+function firstFieldItem(list: ListContract) {
+  const item = list.items[0];
+  if (item?.presentation !== "fields") {
+    throw new Error("Expected a field-presented list item.");
+  }
+
+  return item;
 }
 
 function listContract({ pending }: { pending: boolean }): ListContract {
@@ -254,6 +263,7 @@ function listContract({ pending }: { pending: boolean }): ListContract {
           kind: "ordering",
           pending,
         },
+        presentation: "fields",
         warnings: [
           {
             id: "task-1:warnings",
@@ -276,6 +286,7 @@ function listContract({ pending }: { pending: boolean }): ListContract {
         fields: [],
         id: "task-2",
         kind: "listItem",
+        presentation: "fields",
         warnings: [],
       },
     ],

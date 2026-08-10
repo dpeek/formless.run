@@ -1,4 +1,8 @@
-import { getFieldTypeBehavior, parseEntityOperationKey } from "@dpeek/formless-schema";
+import {
+  getFieldTypeBehavior,
+  isFieldItemViewSchema,
+  parseEntityOperationKey,
+} from "@dpeek/formless-schema";
 import type {
   AppSchema,
   CollectionTableFooterSlotSchema,
@@ -588,6 +592,9 @@ function selectEditFields(view: EditViewSchema, entity: EntitySchema): RecordFie
   });
 }
 function selectRecordFields(view: ItemViewSchema, entity: EntitySchema): RecordFieldConfig[] {
+  if (!isFieldItemViewSchema(view)) {
+    return [];
+  }
   return view.fields.map((viewField) => {
     const fieldName = viewField.field;
     const selectedField = selectAddressableRecordFieldConfig(entity, fieldName);

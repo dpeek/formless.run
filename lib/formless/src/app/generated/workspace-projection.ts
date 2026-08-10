@@ -4,6 +4,7 @@ import type {
   CollectionEmptyStatePrimaryActionContract,
   CreateIntent,
   FieldIntent,
+  ListContract,
   ListIntent,
   OperationControlContract,
   OperationPresentationIntent,
@@ -35,7 +36,7 @@ import type {
   WorkspaceSummaryContract,
   WorkspaceTableIntent,
   WorkspaceTreeIntent,
-  WorkspaceWidth,
+  WorkspaceSurfaceContract,
 } from "@dpeek/formless-presentation/contract";
 
 export type GeneratedWorkspaceIdentityScope = WorkspaceIntentScope;
@@ -170,14 +171,16 @@ export type GeneratedWorkspaceSectionProjectionFacts = {
   label: string;
 };
 
-export type ProjectGeneratedWorkspaceContractOptions = {
+type ProjectGeneratedWorkspaceContractBaseOptions = {
   accessibilityLabel?: string;
   actions?: readonly WorkspaceLinkActionContract[];
   id: string;
   label: string;
   sections: readonly GeneratedWorkspaceSectionProjectionFacts[];
-  width: WorkspaceWidth;
 };
+
+export type ProjectGeneratedWorkspaceContractOptions =
+  ProjectGeneratedWorkspaceContractBaseOptions & WorkspaceSurfaceContract;
 
 export function generatedWorkspaceScreenId(screenId: string): string {
   return `workspace:${screenId}`;
@@ -205,6 +208,7 @@ export function projectGeneratedWorkspaceContract({
   id,
   label,
   sections,
+  surface,
   width,
 }: ProjectGeneratedWorkspaceContractOptions): WorkspaceContract {
   const screenId = generatedWorkspaceScreenId(id);
@@ -223,7 +227,7 @@ export function projectGeneratedWorkspaceContract({
         section,
       }),
     ),
-    width,
+    ...(surface === "full" ? { surface } : { surface, width }),
   };
 }
 
@@ -301,6 +305,14 @@ export function projectGeneratedWorkspaceCollection({
     }
     const selectedRecord = collection.selectedRecord;
     const selectedRecordId = selectedRecord.selectedRecordId;
+    const selectionIntents = selectedRecord.recordIds.map((recordId) =>
+      projectGeneratedWorkspaceSelectedRecordSelectionIntent(scope, recordId),
+    );
+    const result = projectGeneratedWorkspaceSelectedRecordList({
+      result: collection.result,
+      selectedRecordId,
+      selectionIntents,
+    });
     const sections = projectGeneratedWorkspaceSelectedRecordSections({
       scope,
       sections: selectedRecord.sections,
@@ -330,12 +342,10 @@ export function projectGeneratedWorkspaceCollection({
         : { contextDetail: collection.context.detail }),
       id: generatedWorkspaceScopedId(scope, "selectedRecord", "detail"),
       kind: "selectedRecord",
-      result: collection.result,
+      result,
       sections,
       selectedRecordId,
-      selectionIntents: selectedRecord.recordIds.map((recordId) =>
-        projectGeneratedWorkspaceSelectedRecordSelectionIntent(scope, recordId),
-      ),
+      selectionIntents,
     };
   } else if (layout === "listDetail") {
     if (context?.presentation !== "localListDetail" || collection.context === undefined) {
@@ -647,6 +657,44 @@ export function projectGeneratedWorkspaceSelectedRecordBackIntent(
   recordId: string,
 ): WorkspaceSelectedRecordBackIntent {
   return { ...scope, recordId, type: "workspaceSelectedRecordBack" };
+}
+
+function projectGeneratedWorkspaceSelectedRecordList({
+  result,
+  selectedRecordId,
+  selectionIntents,
+}: {
+  result: ListContract;
+  selectedRecordId: string | null;
+  selectionIntents: readonly WorkspaceSelectedRecordSelectionIntent[];
+}): ListContract {
+  const intentByRecordId = new Map(
+    selectionIntents.map((intent) => [intent.recordId, intent] as const),
+  );
+  const resultRecordIds = new Set(result.items.map(({ id }) => id));
+
+  if (
+    resultRecordIds.size !== result.items.length ||
+    resultRecordIds.size !== intentByRecordId.size ||
+    [...resultRecordIds].some((recordId) => !intentByRecordId.has(recordId))
+  ) {
+    throw new Error("Selected-record workspace facts must match the main list records.");
+  }
+
+  return {
+    ...result,
+    items: result.items.map((item) => {
+      if (item.presentation !== "summary") {
+        return item;
+      }
+      const selectionIntent = intentByRecordId.get(item.id)!;
+      return {
+        ...item,
+        selected: item.id === selectedRecordId,
+        selectionIntent,
+      };
+    }),
+  };
 }
 
 export function projectGeneratedWorkspaceRecordResultIntent(

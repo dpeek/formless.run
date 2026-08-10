@@ -1043,6 +1043,8 @@ function defaultScreens(): NonNullable<AppSchema["screens"]> {
       path: "/",
       layout: {
         type: "stack",
+        surface: "constrained",
+        width: "standard",
         sections: [{ id: "tasks", type: "collection", view: "taskHome" }],
       },
       key: "taskHome",

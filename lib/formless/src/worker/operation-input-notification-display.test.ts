@@ -157,7 +157,12 @@ describe("operation input notification display rows", () => {
               key: "empty",
               type: "workspace",
               label: "Empty",
-              layout: { type: "stack", sections: [] },
+              layout: {
+                type: "stack",
+                surface: "constrained",
+                width: "standard",
+                sections: [],
+              },
             },
           ],
         },
@@ -207,7 +212,12 @@ function requestSchema(operation: EntityOperationSchema): AppSchema {
         key: "requests",
         type: "workspace",
         label: "Requests",
-        layout: { type: "stack", sections: [] },
+        layout: {
+          type: "stack",
+          surface: "constrained",
+          width: "standard",
+          sections: [],
+        },
       },
     ],
   };

@@ -165,15 +165,25 @@ describe("generated workspace foundation", () => {
       "rec_card_default",
       "rec_card_premium",
     ]);
+    const unselectedSummaryItems = unselectedPresentation.result.items.filter(
+      (item) => item.presentation === "summary",
+    );
+    expect(unselectedSummaryItems).toHaveLength(2);
+    expect(unselectedSummaryItems.every((item) => item.selected === false)).toBe(true);
+    expect(unselectedSummaryItems[0]).not.toHaveProperty("subtitle");
     const selectionIntent = required(
-      unselectedPresentation.selectionIntents.find(
-        ({ recordId }) => recordId === "rec_card_premium",
-      ),
+      unselectedSummaryItems.find(({ id }) => id === "rec_card_premium")?.selectionIntent,
     );
     expect(resolveGeneratedWorkspaceIntent(unselected.runtimePlan, selectionIntent)).toMatchObject({
       kind: "selectedRecordSelection",
       recordId: "rec_card_premium",
     });
+    expect(
+      resolveGeneratedWorkspaceIntent(unselected.runtimePlan, {
+        ...selectionIntent,
+        screenId: `${selectionIntent.screenId}:stale`,
+      }),
+    ).toBeUndefined();
 
     const selected = select("rec_card_premium");
     const selectedPresentation = required(selected.workspace.sections[0]).collection.presentation;
@@ -189,6 +199,14 @@ describe("generated workspace foundation", () => {
       ],
       selectedRecordId: "rec_card_premium",
     });
+    expect(
+      selectedPresentation.result.items.find(({ id }) => id === "rec_card_premium"),
+    ).toMatchObject({
+      presentation: "summary",
+      selected: true,
+      selectionIntent,
+      title: "Premium",
+    });
     const backIntent = required(selectedPresentation.backIntent);
     expect(resolveGeneratedWorkspaceIntent(selected.runtimePlan, backIntent)).toMatchObject({
       kind: "selectedRecordSelection",
@@ -200,6 +218,18 @@ describe("generated workspace foundation", () => {
         recordId: "rec_card_default",
       }),
     ).toBeUndefined();
+    const stale = required(
+      selectGeneratedWorkspaceFoundation({
+        screen,
+        sectionSelection: {
+          cards: { selectedQueryName: "cardDefault", selectedRecordId: "rec_card_premium" },
+        },
+        selectSectionFoundation: selectSelectedRecordDetailSectionFoundation,
+        snapshot,
+        today: "2026-08-10",
+      }),
+    );
+    expect(resolveGeneratedWorkspaceIntent(stale.runtimePlan, selectionIntent)).toBeUndefined();
     expect(
       resolveGeneratedWorkspaceIntent(selected.runtimePlan, {
         ...selectionIntent,
@@ -236,6 +266,7 @@ describe("generated workspace foundation", () => {
       }),
     );
     const resultIds = new Set<string>();
+    const selectionScopes = new Set<string>();
 
     for (const plan of foundation.runtimePlan.sections) {
       const detail = required(plan.collection.detail);
@@ -266,6 +297,26 @@ describe("generated workspace foundation", () => {
       expect(resultIds.has(projected.result.contract.id)).toBe(false);
       resultIds.add(projected.result.contract.id);
 
+      const workspaceSection = required(
+        foundation.workspace.sections.find(({ id }) => id === plan.scope.sectionId),
+      );
+      const presentation = workspaceSection.collection.presentation;
+      if (presentation.kind !== "selectedRecord") {
+        throw new Error("Missing repeated selected-record presentation.");
+      }
+      const summaryItem = required(
+        presentation.result.items.find(
+          (item) => item.presentation === "summary" && item.id === selectedRecordId,
+        ),
+      );
+      if (summaryItem.presentation !== "summary") {
+        throw new Error("Missing repeated summary selection.");
+      }
+      const summarySelectionIntent = required(summaryItem.selectionIntent);
+      selectionScopes.add(
+        `${summarySelectionIntent.screenId}:${summarySelectionIntent.sectionId}:${summarySelectionIntent.collectionId}`,
+      );
+
       const field = required(projected.result.contract.fields[0]);
       const intent = projectGeneratedWorkspaceRecordResultIntent(plan.scope, expectedId, {
         fieldId: field.fieldId,
@@ -281,6 +332,7 @@ describe("generated workspace foundation", () => {
     }
 
     expect(resultIds.size).toBe(2);
+    expect(selectionScopes.size).toBe(2);
   });
 
   it("evaluates selected-record relationship queries into scoped canonical tables", () => {
@@ -844,6 +896,9 @@ describe("generated workspace foundation", () => {
       throw new Error("Missing list result.");
     }
     const item = required(firstResult.contract.items[0]);
+    if (item.presentation !== "fields") {
+      throw new Error("Expected a field-presented list item.");
+    }
     const field = required(item.fields[0]);
     const action = required(item.ordering?.actions.find((candidate) => !candidate.disabled));
     const intent = projectGeneratedWorkspaceListIntent(
@@ -1348,12 +1403,27 @@ function projectionSnapshot(records: readonly StoredRecord[]) {
 function selectedRecordDetailRateScreen(): HomeScreenModel {
   const setup = rateSourceSchema.screens.find((screen) => screen.key === "rateSetup");
   const cardHome = rateSourceSchema.views.find((view) => view.key === "cardHome");
-  if (setup?.type !== "workspace" || cardHome?.type !== "collection") {
+  if (
+    setup?.type !== "workspace" ||
+    cardHome?.type !== "collection" ||
+    cardHome.result.type !== "list"
+  ) {
     throw new Error("Missing rate-card selected-record fixtures.");
   }
   const cards = setup.layout.sections.find((section) => section.id === "cards")!;
   const schema = {
     ...rateSourceSchema,
+    itemViews: [
+      ...rateSourceSchema.itemViews,
+      {
+        key: "cardSummary",
+        entity: "card",
+        presentation: {
+          type: "summary" as const,
+          slots: { title: { field: "name" } },
+        },
+      },
+    ],
     queries: [
       ...rateSourceSchema.queries,
       {
@@ -1373,6 +1443,7 @@ function selectedRecordDetailRateScreen(): HomeScreenModel {
         ? {
             ...cardHome,
             queries: [...cardHome.queries, { query: "cardDefault" }],
+            result: { ...cardHome.result, itemView: "cardSummary" },
           }
         : view,
     ),

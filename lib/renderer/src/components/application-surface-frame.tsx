@@ -23,13 +23,42 @@ export const astryxApplicationSurfaceFramePolicy = {
 
 export function AstryxApplicationSurfaceFrame({
   children,
+  surface,
   width,
 }: {
   children: ReactNode;
-  width: WorkspaceWidth;
-}) {
+} & (
+  | {
+      surface?: "constrained";
+      width: WorkspaceWidth;
+    }
+  | {
+      surface: "full";
+      width?: never;
+    }
+)) {
+  if (surface === "full") {
+    return (
+      <VStack
+        data-formless-astryx-application-surface={surface}
+        height="100%"
+        width="100%"
+        xstyle={styles.fullFrame}
+      >
+        <VStack height="100%" width="100%" xstyle={styles.fullContent}>
+          {children}
+        </VStack>
+      </VStack>
+    );
+  }
+
   return (
-    <VStack hAlign="center" width="100%" xstyle={styles.frame}>
+    <VStack
+      data-formless-astryx-application-surface="constrained"
+      hAlign="center"
+      width="100%"
+      xstyle={styles.constrainedFrame}
+    >
       <VStack
         data-formless-astryx-application-surface-width={width}
         maxWidth={astryxApplicationSurfaceFramePolicy.widthCaps[width]}
@@ -53,9 +82,15 @@ export const AstryxSubscribedWorkspaceSurfaceFrame = memo(
     const workspace = useWorkspaceManifest(reference);
 
     return workspace ? (
-      <AstryxApplicationSurfaceFrame width={workspace.width}>
-        {children}
-      </AstryxApplicationSurfaceFrame>
+      workspace.surface === "full" ? (
+        <AstryxApplicationSurfaceFrame surface={workspace.surface}>
+          {children}
+        </AstryxApplicationSurfaceFrame>
+      ) : (
+        <AstryxApplicationSurfaceFrame surface={workspace.surface} width={workspace.width}>
+          {children}
+        </AstryxApplicationSurfaceFrame>
+      )
     ) : null;
   },
   (previous, next) =>
@@ -64,7 +99,7 @@ export const AstryxSubscribedWorkspaceSurfaceFrame = memo(
 );
 
 const styles = stylex.create({
-  frame: {
+  constrainedFrame: {
     minWidth: 0,
     paddingBlock: spacingVars["--spacing-4"],
     paddingInline: spacingVars["--spacing-4"],
@@ -78,6 +113,14 @@ const styles = stylex.create({
     },
   },
   content: {
+    minWidth: 0,
+  },
+  fullFrame: {
+    minHeight: 0,
+    minWidth: 0,
+  },
+  fullContent: {
+    minHeight: 0,
     minWidth: 0,
   },
 });

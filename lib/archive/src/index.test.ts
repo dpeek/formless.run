@@ -72,6 +72,8 @@ const schema: AppSchema = {
       label: "Home",
       layout: {
         type: "stack",
+        surface: "constrained",
+        width: "standard",
         sections: [{ id: "notes", type: "collection", view: "notes" }],
       },
     },

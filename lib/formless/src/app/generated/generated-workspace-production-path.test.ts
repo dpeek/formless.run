@@ -67,7 +67,9 @@ describe("generated workspace production path", () => {
         id: screen.screenName,
         label: screen.label,
         sections: [],
-        width: screen.layout.width,
+        ...(screen.layout.surface === "full"
+          ? { surface: screen.layout.surface }
+          : { surface: screen.layout.surface, width: screen.layout.width }),
       });
       const publication = projectGeneratedWorkspaceContractHostPublication(workspace);
       const host = createMemoryPresentationHost({ nodes: publication.nodes });
@@ -76,6 +78,42 @@ describe("generated workspace production path", () => {
     });
 
     expect(widths).toEqual(["narrow", "standard", "wide"]);
+  });
+
+  it("carries a full screen surface through runtime projection and the Presentation Host", () => {
+    const schema: AppSchema = {
+      ...taskSourceSchema,
+      screens: taskSourceSchema.screens.map((screen) =>
+        screen.type === "workspace" && screen.key === "taskHome"
+          ? {
+              ...screen,
+              layout: {
+                type: screen.layout.type,
+                surface: "full",
+                sections: screen.layout.sections,
+              },
+            }
+          : screen,
+      ),
+    };
+    const screen = required(
+      selectScreenModels(schema).find((candidate) => candidate.screenName === "taskHome"),
+    );
+    const foundation = required(
+      selectGeneratedWorkspaceFoundation({
+        screen,
+        snapshot: projectionSnapshot(taskTestRecords),
+        today: "2026-07-19",
+      }),
+    );
+    const publication = projectGeneratedWorkspaceContractHostPublication(foundation.workspace);
+    const host = createMemoryPresentationHost({ nodes: publication.nodes });
+    const workspace = required(host.read(publication.workspaceReference));
+
+    expect(screen.layout).toMatchObject({ surface: "full", type: "stack" });
+    expect("width" in screen.layout).toBe(false);
+    expect(workspace).toMatchObject({ surface: "full" });
+    expect("width" in workspace).toBe(false);
   });
 
   it("publishes a selected route result through the scoped workspace host", () => {
@@ -98,6 +136,7 @@ describe("generated workspace production path", () => {
     expect(workspace).toMatchObject({
       id: "workspace:taskHome",
       kind: "workspaceManifest",
+      surface: "constrained",
       width: "standard",
     });
     expect(section).toMatchObject({ kind: "workspaceSectionShell" });

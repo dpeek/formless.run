@@ -87,6 +87,7 @@ function treeNodes({ itemLabel = "Hero" }: { itemLabel?: string } = {}): Present
         kind: "workspaceManifest",
         label: "Site",
         sections: [sectionReference],
+        surface: "constrained",
         width: "wide",
       },
     },

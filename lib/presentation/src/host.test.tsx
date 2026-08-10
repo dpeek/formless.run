@@ -24,8 +24,9 @@ import {
   tableResultReference,
   workspaceManifestReference,
   workspaceSectionShellReference,
-  type PresentationNodeSet,
   type DocumentThemeNode,
+  type PresentationNodeSet,
+  type WorkspaceManifestNode,
 } from "./host.ts";
 import { PresentationHostProvider, useWorkspaceManifest } from "./host-react.tsx";
 
@@ -81,6 +82,40 @@ const sessionSectionReference = shellNavigationSectionReference(
 );
 
 describe("memory Presentation Host", () => {
+  it("preserves coherent workspace surfaces and rejects full surfaces with widths", () => {
+    const [manifestNode, ...childNodes] = workspaceNodes({ includeCompanies: false });
+    if (
+      !manifestNode ||
+      manifestNode.reference.kind !== "workspaceManifestReference" ||
+      manifestNode.snapshot.kind !== "workspaceManifest"
+    ) {
+      throw new Error("Missing workspace manifest fixture.");
+    }
+    const { surface: sourceSurface, width: sourceWidth, ...manifestBase } = manifestNode.snapshot;
+    void sourceSurface;
+    void sourceWidth;
+    const fullNode = {
+      reference: manifestNode.reference,
+      snapshot: { ...manifestBase, surface: "full" as const },
+    };
+    const host = createMemoryPresentationHost({ nodes: [fullNode, ...childNodes] });
+    const fullWorkspace = host.read(workspaceReference);
+
+    expect(fullWorkspace?.surface).toBe("full");
+    expect(fullWorkspace && "width" in fullWorkspace).toBe(false);
+    expect(() =>
+      createMemoryPresentationHost({
+        nodes: [
+          {
+            ...fullNode,
+            snapshot: { ...fullNode.snapshot, width: "wide" },
+          } as unknown as WorkspaceManifestNode,
+          ...childNodes,
+        ],
+      }),
+    ).toThrow("full surface must not declare a width");
+  });
+
   it("provides typed reads through stable scoped references", () => {
     const host = createMemoryPresentationHost({
       nodes: [
@@ -118,6 +153,28 @@ describe("memory Presentation Host", () => {
     expect(shellSection).toMatchObject({ icon: "archive", label: "Workflow" });
     expect(shellSection?.destinations[0]?.countText).toBe("0");
     expect(statusSection?.status?.workspaceSave?.id).toBe("workspace-save:tasks");
+  });
+
+  it("preserves discriminated summary list items at the host boundary", () => {
+    const summaryList: ListContract = {
+      ...listResult("list:tasks", "Tasks"),
+      editing: { disabledReason: "Summary items are read-only.", enabled: false },
+      items: [
+        {
+          accessibilityLabel: "Release notes",
+          id: "task-1",
+          kind: "listItem",
+          presentation: "summary",
+          subtitle: "Article",
+          title: "Release notes",
+        },
+      ],
+    };
+    const host = createMemoryPresentationHost({
+      nodes: workspaceNodes({ includeCompanies: false, taskResult: summaryList }),
+    });
+
+    expect(host.read(taskResultReference)?.items[0]).toEqual(summaryList.items[0]);
   });
 
   it("hosts fixed and user-controlled theme snapshots beside shell nodes", () => {
@@ -624,11 +681,13 @@ function workspaceNodes({
   companyResultLabel = "Companies",
   includeCompanies = true,
   taskResultLabel = "Tasks",
+  taskResult,
   workspaceLabel = "Work",
 }: {
   companyResultLabel?: string;
   includeCompanies?: boolean;
   taskResultLabel?: string;
+  taskResult?: ListContract;
   workspaceLabel?: string;
 } = {}): PresentationNodeSet {
   const sections = includeCompanies
@@ -644,6 +703,7 @@ function workspaceNodes({
         kind: "workspaceManifest",
         label: workspaceLabel,
         sections,
+        surface: "constrained",
         width: "standard",
       },
     },
@@ -653,7 +713,7 @@ function workspaceNodes({
     },
     {
       reference: taskResultReference,
-      snapshot: listResult("list:tasks", taskResultLabel),
+      snapshot: taskResult ?? listResult("list:tasks", taskResultLabel),
     },
   ];
 

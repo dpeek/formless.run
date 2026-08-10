@@ -291,6 +291,7 @@ function workspaceController(
     kind: "workspace",
     label: "Routes",
     sections: [],
+    surface: "constrained",
     width: "standard",
   };
   return {

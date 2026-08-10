@@ -689,6 +689,7 @@ function assertNodeMatchesReference(node: PresentationNode) {
       if (snapshot.kind !== "workspaceManifest" || snapshot.id !== reference.workspaceId) {
         throw mismatchedNodeError(reference);
       }
+      assertWorkspaceManifestContract(snapshot);
       return;
     case "workspaceSectionShellReference":
       if (snapshot.kind !== "workspaceSectionShell" || snapshot.id !== reference.sectionId) {
@@ -714,6 +715,26 @@ function assertNodeMatchesReference(node: PresentationNode) {
       if (snapshot.kind !== "treeResult" || snapshot.id !== reference.resultId) {
         throw mismatchedNodeError(reference);
       }
+  }
+}
+
+function assertWorkspaceManifestContract(snapshot: WorkspaceManifestContract) {
+  if (snapshot.surface === "full") {
+    if ("width" in snapshot) {
+      throw new Error(
+        `Formless UI workspace ${JSON.stringify(snapshot.id)} full surface must not declare a width.`,
+      );
+    }
+    return;
+  }
+
+  if (
+    snapshot.surface !== "constrained" ||
+    (snapshot.width !== "narrow" && snapshot.width !== "standard" && snapshot.width !== "wide")
+  ) {
+    throw new Error(
+      `Formless UI workspace ${JSON.stringify(snapshot.id)} has an invalid surface extent.`,
+    );
   }
 }
 
@@ -1387,6 +1408,25 @@ function assertWorkspaceSelectedRecordContract(
   }
 
   const selectedRecordId = presentation.selectedRecordId;
+  for (const item of mainResult.items) {
+    if (item.presentation !== "summary") {
+      continue;
+    }
+    const selectionIntent = item.selectionIntent;
+    if (
+      item.selected !== (item.id === selectedRecordId) ||
+      selectionIntent?.type !== "workspaceSelectedRecordSelection" ||
+      selectionIntent.screenId !== sectionReference.workspaceId ||
+      selectionIntent.sectionId !== sectionReference.sectionId ||
+      selectionIntent.collectionId !== collectionId ||
+      selectionIntent.recordId !== item.id
+    ) {
+      throw new Error(
+        `Formless UI selected-record workspace ${JSON.stringify(presentation.id)} has invalid summary selection.`,
+      );
+    }
+  }
+
   if (selectedRecordId === null) {
     if (
       presentation.activePresentation !== "list" ||

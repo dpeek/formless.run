@@ -244,6 +244,7 @@ function taskItem(input: TaskItemInput): ListItemContract {
     id: input.taskId,
     kind: "listItem",
     ...(input.canOrder === false ? {} : { ordering: taskOrdering(input, displayTitle) }),
+    presentation: "fields",
     warnings: input.warning
       ? [
           {

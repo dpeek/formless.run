@@ -30,6 +30,9 @@ describe("App schema source authoring", () => {
     expect(
       source.screens.find((definition) => definition.key === "home")!.layout,
     ).not.toHaveProperty("width");
+    expect(
+      source.screens.find((definition) => definition.key === "home")!.layout,
+    ).not.toHaveProperty("surface");
     const parsed = parseAppSchema(source);
     expect(
       parsed.entities
@@ -48,8 +51,8 @@ describe("App schema source authoring", () => {
       parsed.screens.find(
         (definition): definition is KeyedDefinition<WorkspaceScreenSchema> =>
           definition.key === "home" && definition.type === "workspace",
-      )!.layout.width,
-    ).toBe("standard");
+      )!.layout,
+    ).toMatchObject({ surface: "constrained", width: "standard" });
   });
   it("rejects invalid cross-references at the definition boundary", () => {
     const source = taskSource();

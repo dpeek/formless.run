@@ -1,5 +1,6 @@
 import {
   getAppSchemaDefinitionIndex,
+  isFieldItemViewSchema,
   type AppSchema,
   type TextFieldDocumentAssetPolicySchema,
 } from "@dpeek/formless-schema";
@@ -116,6 +117,9 @@ function schemaMediaFields(schema: AppSchema): Map<string, MediaField> {
   }
 
   for (const itemView of schema.itemViews) {
+    if (!isFieldItemViewSchema(itemView)) {
+      continue;
+    }
     addMediaEditorFields(fields, schema, itemView.entity, itemView.fields);
 
     for (const variant of itemView.variants ?? []) {

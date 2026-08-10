@@ -57,7 +57,9 @@ export function projectGeneratedWorkspaceContractHostPublication(
           kind: "workspaceManifest",
           label: workspace.label,
           sections: sectionReferences,
-          width: workspace.width,
+          ...(workspace.surface === "full"
+            ? { surface: workspace.surface }
+            : { surface: workspace.surface, width: workspace.width }),
         },
       },
       ...sectionPublications.flatMap(({ nodes }) => nodes),

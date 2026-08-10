@@ -832,6 +832,8 @@ function fixtureScreens(): AppSchema["screens"] {
       label: "Fixture",
       layout: {
         type: "stack",
+        surface: "constrained",
+        width: "standard",
         sections: [{ id: "fixture", type: "collection", view: "fixture" }],
       },
     },

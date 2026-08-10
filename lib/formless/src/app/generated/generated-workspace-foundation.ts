@@ -648,7 +648,9 @@ export function selectGeneratedWorkspaceFoundation(
       id: screen.screenName,
       label: screen.label,
       sections: projectedSections,
-      width: screen.layout.width,
+      ...(screen.layout.surface === "full"
+        ? { surface: screen.layout.surface }
+        : { surface: screen.layout.surface, width: screen.layout.width }),
     }),
   };
 }

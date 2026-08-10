@@ -153,6 +153,7 @@ function workspaceNodes({
         kind: "workspaceManifest",
         label: "Tasks",
         sections: sectionReferences,
+        surface: "constrained",
         width: "standard",
       },
     },
@@ -352,6 +353,7 @@ function completeWorkspace(): WorkspaceContract {
         kind: "workspaceSection",
       },
     ],
+    surface: "constrained",
     width: "standard",
   };
 }

@@ -399,7 +399,12 @@ function operationInputSchema(
         key: "requests",
         type: "workspace",
         label: "Requests",
-        layout: { type: "stack", sections: [] },
+        layout: {
+          type: "stack",
+          surface: "constrained",
+          width: "standard",
+          sections: [],
+        },
       },
     ],
   };

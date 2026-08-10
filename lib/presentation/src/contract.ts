@@ -983,7 +983,7 @@ export type ListItemAvailability =
       message: string;
     };
 
-export type ListItemContract = {
+export type ListFieldItemContract = {
   accessibilityLabel: string;
   actions: ListActionGroupContract;
   availability: ListItemAvailability;
@@ -991,8 +991,29 @@ export type ListItemContract = {
   id: string;
   kind: "listItem";
   ordering?: ListOrderingContract;
+  presentation: "fields";
   warnings: readonly ListWarningContract[];
 };
+
+export type ListSummaryItemContract = {
+  accessibilityLabel: string;
+  id: string;
+  kind: "listItem";
+  presentation: "summary";
+  subtitle?: string;
+  title: string;
+} & (
+  | {
+      selected?: never;
+      selectionIntent?: never;
+    }
+  | {
+      selected: boolean;
+      selectionIntent: WorkspaceSelectedRecordSelectionIntent;
+    }
+);
+
+export type ListItemContract = ListFieldItemContract | ListSummaryItemContract;
 
 export type ListEmptyStateContract = {
   action?: CollectionEmptyStatePrimaryActionContract;
@@ -1938,15 +1959,28 @@ export type WorkspaceSectionContract = {
 
 export type WorkspaceWidth = "narrow" | "standard" | "wide";
 
-export type WorkspaceContract = {
+export type WorkspaceSurface = "constrained" | "full";
+
+export type WorkspaceSurfaceContract =
+  | {
+      surface: "constrained";
+      width: WorkspaceWidth;
+    }
+  | {
+      surface: "full";
+      width?: never;
+    };
+
+type WorkspaceContractBase = {
   accessibilityLabel: string;
   actions: readonly WorkspaceLinkActionContract[];
   id: string;
   kind: "workspace";
   label: string;
   sections: readonly WorkspaceSectionContract[];
-  width: WorkspaceWidth;
 };
+
+export type WorkspaceContract = WorkspaceContractBase & WorkspaceSurfaceContract;
 
 export type ShellNavigationSectionRole =
   | "program"
@@ -3164,10 +3198,11 @@ export type ResultReference =
   | MainResultReference
   | SelectedDetailResultReference;
 
-export type WorkspaceManifestContract = Omit<WorkspaceContract, "kind" | "sections"> & {
-  kind: "workspaceManifest";
-  sections: readonly WorkspaceSectionShellReference[];
-};
+export type WorkspaceManifestContract = Omit<WorkspaceContractBase, "kind" | "sections"> &
+  WorkspaceSurfaceContract & {
+    kind: "workspaceManifest";
+    sections: readonly WorkspaceSectionShellReference[];
+  };
 
 export type WorkspaceOrdinaryCollectionShellContract = Omit<
   WorkspaceOrdinaryCollectionContract,
