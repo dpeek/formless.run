@@ -143,7 +143,7 @@ describe("Astryx workspace renderer", () => {
     expect(html.indexOf("No matching tasks")).toBeLessThan(html.indexOf("No companies"));
   });
 
-  it("renders list-detail hierarchy with a selector, context record, table, and controlled actions", () => {
+  it("renders list-detail hierarchy with a selectable context list, record, table, and actions", () => {
     const scope = workspaceScope("workspace:site", "section:posts", "collection:comments");
     const selector = context(scope, "localListDetail");
     const workspace: WorkspaceContract = {
@@ -195,7 +195,9 @@ describe("Astryx workspace renderer", () => {
 
     expect(html).toContain('aria-label="Post comments"');
     expect(html).toContain('role="group"');
-    expect(html).toContain('role="combobox"');
+    expect(html).toContain('aria-label="Project contexts"');
+    expect(html).toContain('role="list"');
+    expect(html).not.toContain('role="combobox"');
     expect(html).toContain("Projects");
     expect(html).toContain("Acme");
     expect(html).toContain("Launch post");

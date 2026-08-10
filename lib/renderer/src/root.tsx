@@ -9,6 +9,7 @@ import { FormlessAccessLayout } from "./components/access.tsx";
 import { FormlessApplicationShellLayout } from "./components/application-shell.tsx";
 import { FormlessCreateSurfacesLayout } from "./components/create-surfaces.tsx";
 import { FormlessCanonicalFieldsLayout } from "./components/canonical-fields.tsx";
+import { FormlessDetailWorkspaceLayout } from "./components/detail-workspace.tsx";
 import { FormlessFieldsLayout } from "./components/fields.tsx";
 import { FormlessGeneratedFieldsLayout } from "./components/generated-fields.tsx";
 import { FormlessGeneratedWorkspaceLayout } from "./components/generated-workspace.tsx";
@@ -48,6 +49,7 @@ const formlessPrototypeLayouts: FormlessPrototypeLayout[] = [
   createFormlessPrototypeLayout("Canonical Fields", () => <FormlessCanonicalFieldsLayout />),
   createFormlessPrototypeLayout("Generated Fields", () => <FormlessGeneratedFieldsLayout />),
   createFormlessPrototypeLayout("Generated Workspace", () => <FormlessGeneratedWorkspaceLayout />),
+  createFormlessPrototypeLayout("Detail Workspace", () => <FormlessDetailWorkspaceLayout />),
   createFormlessPrototypeLayout("Application Shell", () => <FormlessApplicationShellLayout />),
   createFormlessPrototypeLayout("Access", () => <FormlessAccessLayout />),
   createFormlessPrototypeLayout("Instance Management", () => <FormlessInstanceManagementLayout />),

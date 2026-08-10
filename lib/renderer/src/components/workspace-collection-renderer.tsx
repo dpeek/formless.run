@@ -1,11 +1,12 @@
+import * as stylex from "@stylexjs/stylex";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Card } from "@astryxdesign/core/Card";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { Grid } from "@astryxdesign/core/Grid";
 import { HStack } from "@astryxdesign/core/HStack";
+import { List, ListItem } from "@astryxdesign/core/List";
 import { Section } from "@astryxdesign/core/Section";
-import { Selector, type SelectorOptionData } from "@astryxdesign/core/Selector";
 import { Tab, TabList } from "@astryxdesign/core/TabList";
 import { Heading, Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
@@ -188,17 +189,18 @@ function AstryxWorkspaceCollectionFrame({
       {presentation.kind === "listDetail" ? (
         <Grid
           aria-label={presentation.accessibilityLabel}
-          columns={{ max: 2, minWidth: 280 }}
+          columns={1}
           gap={6}
           role="group"
           width="100%"
+          xstyle={styles.listDetailGrid}
         >
           <AstryxWorkspaceListDetailSelector
             context={presentation.selector}
             onIntent={onIntent}
             scope={scope}
           />
-          <VStack gap={6} width="100%">
+          <VStack gap={6} width="100%" xstyle={styles.listDetailMain}>
             {contextResult}
             <AstryxWorkspaceQueryNavigation
               navigation={presentation.queryNavigation}
@@ -353,6 +355,18 @@ function AstryxWorkspaceContextTabs({
   );
 }
 
+const styles = stylex.create({
+  listDetailGrid: {
+    gridTemplateColumns: {
+      default: "minmax(0, 1fr)",
+      "@media (min-width: 768px)": "minmax(280px, 1fr) minmax(0, 2fr)",
+    },
+  },
+  listDetailMain: {
+    minWidth: 0,
+  },
+});
+
 function AstryxWorkspaceListDetailSelector({
   context,
   onIntent,
@@ -362,8 +376,6 @@ function AstryxWorkspaceListDetailSelector({
   onIntent: WorkspaceIntentHandler;
   scope: WorkspaceIntentScope;
 }) {
-  const options = context.options.map(astryxWorkspaceContextSelectorOption);
-
   return (
     <Card padding={4} width="100%">
       <VStack gap={3} width="100%">
@@ -373,38 +385,30 @@ function AstryxWorkspaceListDetailSelector({
         </HStack>
         <AstryxWorkspaceContextAvailability context={context} />
         {context.availability.state === "ready" ? (
-          <Selector
-            isLabelHidden
-            label={context.accessibilityLabel}
-            onChange={(optionId) => {
-              const option = context.options.find((candidate) => candidate.id === optionId);
-              if (option) {
-                void dispatchAstryxWorkspaceContextSelection(onIntent, option);
-              }
-            }}
-            options={options}
-            renderOption={(option) => {
-              const contextOption = context.options.find(
-                (candidate) => candidate.id === option.value,
-              );
-
-              return (
-                <HStack align="center" gap={2} justify="between" width="100%">
-                  <Text type="label">{option.label}</Text>
-                  {contextOption?.countText === undefined ? null : (
-                    <Badge
-                      aria-label={`${contextOption.label} count`}
-                      label={contextOption.countText}
-                      variant="neutral"
-                    />
-                  )}
-                </HStack>
-              );
-            }}
-            size="sm"
-            value={context.selectedOptionId}
-            width="100%"
-          />
+          <section aria-label={context.accessibilityLabel}>
+            <List density="compact">
+              {context.options.map((option) => (
+                <ListItem
+                  endContent={
+                    option.countText === undefined ? undefined : (
+                      <Badge
+                        aria-label={`${option.label} count`}
+                        label={option.countText}
+                        variant="neutral"
+                      />
+                    )
+                  }
+                  isDisabled={!option.availability.available}
+                  isSelected={option.selected}
+                  key={option.id}
+                  label={option.label}
+                  onClick={() => {
+                    void dispatchAstryxWorkspaceContextSelection(onIntent, option);
+                  }}
+                />
+              ))}
+            </List>
+          </section>
         ) : null}
       </VStack>
     </Card>
@@ -968,16 +972,6 @@ export function dispatchAstryxWorkspaceRecordResultIntent(
     resultId,
     type: "workspaceRecordResult",
   });
-}
-
-function astryxWorkspaceContextSelectorOption(
-  option: WorkspaceContextOptionContract,
-): SelectorOptionData {
-  return {
-    disabled: !option.availability.available,
-    label: option.label,
-    value: option.id,
-  };
 }
 
 function workspaceCollectionActionId(action: WorkspaceCollectionActionContract) {

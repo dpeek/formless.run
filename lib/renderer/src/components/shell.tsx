@@ -1,4 +1,4 @@
-import { AppShell } from "@astryxdesign/core/AppShell";
+import { AppShell, type AppShellVariant } from "@astryxdesign/core/AppShell";
 import { memo, type ReactNode, useState } from "react";
 import type {
   DocumentThemeContract,
@@ -22,6 +22,7 @@ type AstryxApplicationShellRendererProps = {
   manifest: ShellManifestContract;
   onIntent: ShellIntentHandler;
   sections: readonly ShellNavigationSectionContract[];
+  variant?: AppShellVariant;
 } & (
   | {
       onThemeIntent: DocumentThemeIntentHandler;
@@ -40,6 +41,7 @@ export function AstryxApplicationShellRenderer({
   onThemeIntent,
   sections,
   theme,
+  variant,
 }: AstryxApplicationShellRendererProps) {
   const orderedSections = orderShellSections(manifest, sections);
   const themeControl =
@@ -62,6 +64,7 @@ export function AstryxApplicationShellRenderer({
           themeControl={themeControl}
         />
       }
+      variant={variant}
     >
       {children}
     </AstryxApplicationShellFrame>
@@ -76,11 +79,13 @@ export const AstryxSubscribedApplicationShellRenderer = memo(
     shellReference,
     themeControl,
     themeReference,
+    variant,
   }: {
     children: ReactNode;
     shellReference: ShellManifestReference;
     themeControl?: ReactNode;
     themeReference?: DocumentThemeReference | undefined;
+    variant?: AppShellVariant;
   }) {
     const manifest = useShellManifest(shellReference);
 
@@ -93,11 +98,16 @@ export const AstryxSubscribedApplicationShellRenderer = memo(
         manifest={manifest}
         themeControl={themeControl}
         themeReference={themeReference}
+        variant={variant}
       >
         {children}
       </AstryxSubscribedThemedApplicationShell>
     ) : (
-      <AstryxSubscribedApplicationShellContent manifest={manifest} themeControl={themeControl}>
+      <AstryxSubscribedApplicationShellContent
+        manifest={manifest}
+        themeControl={themeControl}
+        variant={variant}
+      >
         {children}
       </AstryxSubscribedApplicationShellContent>
     );
@@ -106,6 +116,7 @@ export const AstryxSubscribedApplicationShellRenderer = memo(
     previous.shellReference.shellId === next.shellReference.shellId &&
     previous.themeReference?.themeId === next.themeReference?.themeId &&
     previous.themeControl === next.themeControl &&
+    previous.variant === next.variant &&
     previous.children === next.children,
 );
 
@@ -114,11 +125,13 @@ function AstryxSubscribedThemedApplicationShell({
   manifest,
   themeControl,
   themeReference,
+  variant,
 }: {
   children: ReactNode;
   manifest: ShellManifestContract;
   themeControl?: ReactNode;
   themeReference: DocumentThemeReference;
+  variant?: AppShellVariant;
 }) {
   const onThemeIntent = useDocumentThemeIntentHandler();
   const theme = useDocumentTheme(themeReference);
@@ -137,6 +150,7 @@ function AstryxSubscribedThemedApplicationShell({
     <AstryxSubscribedApplicationShellContent
       manifest={manifest}
       themeControl={resolvedThemeControl}
+      variant={variant}
     >
       {children}
     </AstryxSubscribedApplicationShellContent>
@@ -149,10 +163,12 @@ function AstryxSubscribedApplicationShellContent({
   children,
   manifest,
   themeControl,
+  variant,
 }: {
   children: ReactNode;
   manifest: ShellManifestContract;
   themeControl?: ReactNode;
+  variant?: AppShellVariant;
 }) {
   return (
     <AstryxApplicationShellFrame
@@ -164,6 +180,7 @@ function AstryxSubscribedApplicationShellContent({
           themeControl={themeControl}
         />
       }
+      variant={variant}
     >
       {children}
     </AstryxApplicationShellFrame>
@@ -174,10 +191,12 @@ function AstryxApplicationShellFrame({
   children,
   manifest,
   sideNav,
+  variant,
 }: {
   children: ReactNode;
   manifest: ShellManifestContract;
   sideNav: ReactNode;
+  variant?: AppShellVariant;
 }) {
   const [isMobileNavigationOpen, setIsMobileNavigationOpen] = useState(false);
 
@@ -192,6 +211,7 @@ function AstryxApplicationShellFrame({
           onOpenChange: setIsMobileNavigationOpen,
         }}
         sideNav={sideNav}
+        variant={variant}
       >
         {children}
       </AppShell>

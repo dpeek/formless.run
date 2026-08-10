@@ -227,11 +227,7 @@ function AstryxTreeRootNode({
             />
           ) : null}
           {tree.items.length > 0 ? (
-            <VStack
-              gap={4}
-              width="100%"
-              xstyle={root.childFields ? styles.childCards : undefined}
-            >
+            <VStack gap={4} width="100%" xstyle={root.childFields ? styles.childCards : undefined}>
               {tree.items.map((item) => (
                 <AstryxTreeInlineNode item={item} key={item.id} onIntent={onIntent} tree={tree} />
               ))}
