@@ -88,14 +88,7 @@ try {
   console.log("Loading downstream TypeScript configuration through the installed CLI...");
   const configLoad = runCommand(
     cliPath,
-    [
-      "token",
-      "adopt",
-      "--workspace",
-      workspaceRoot,
-      "--admin-token",
-      "packed-install-smoke-token",
-    ],
+    ["token", "adopt", "--workspace", workspaceRoot, "--admin-token", "packed-install-smoke-token"],
     installRoot,
   );
   if (!configLoad.includes("Instance workspace admin token adopted.")) {
@@ -187,26 +180,24 @@ async function requireInstalledDevRuntime(input: {
   const port = await availablePort();
 
   await new Promise<void>((resolve, reject) => {
-    const child = spawn(
-      input.cliPath,
-      ["dev", "--workspace", input.workspaceRoot, "--reset"],
-      {
-        cwd: input.installRoot,
-        env: {
-          ...process.env,
-          HOST: "127.0.0.1",
-          PORT: String(port),
-        },
-        stdio: "pipe",
+    const child = spawn(input.cliPath, ["dev", "--workspace", input.workspaceRoot, "--reset"], {
+      cwd: input.installRoot,
+      env: {
+        ...process.env,
+        HOST: "127.0.0.1",
+        PORT: String(port),
       },
-    );
+      stdio: "pipe",
+    });
     let output = "";
     let ready = false;
     let settled = false;
     let shutdownTimer: ReturnType<typeof setTimeout> | undefined;
     const startupTimer = setTimeout(() => {
       child.kill("SIGKILL");
-      finish(new Error(`Installed Formless development runtime timed out.\n${safeDevOutput(output)}`));
+      finish(
+        new Error(`Installed Formless development runtime timed out.\n${safeDevOutput(output)}`),
+      );
     }, 45_000);
     const capture = (chunk: Buffer) => {
       output = `${output}${chunk.toString()}`.slice(-40_000);
