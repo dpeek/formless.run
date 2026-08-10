@@ -1,6 +1,5 @@
 import { DropdownMenu, type DropdownMenuOption } from "@astryxdesign/core/DropdownMenu";
 import { VStack } from "@astryxdesign/core/VStack";
-import { PlusIcon } from "@heroicons/react/24/outline";
 import type {
   CreateIntent,
   FieldIntent,
@@ -10,6 +9,7 @@ import type {
   TreeParentIdentity,
 } from "@dpeek/formless-presentation/contract";
 import { AstryxCreateSurfaceRenderer } from "./create-renderer.tsx";
+import { semanticIcon } from "./semantic-icon.tsx";
 
 export function AstryxTreeChildCreation({
   creation,
@@ -74,7 +74,7 @@ export function AstryxTreeChildCreationTrigger({
   return (
     <DropdownMenu
       button={{
-        icon: <PlusIcon />,
+        icon: semanticIcon("add"),
         isDisabled: creation.variants.every((variant) => !variant.availability.available),
         isIconOnly: true,
         label: creation.accessibilityLabel,

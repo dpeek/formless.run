@@ -22,7 +22,7 @@ export const testSiteRecords: StoredRecord[] = [
       key: "primary",
       label: "Example Site",
       description: "A public test site.",
-      icon: '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><rect width="64" height="64" rx="12" fill="#111827"/><path d="M18 42V22h28v6H25v8h17v6H18Z" fill="#fff"/></svg>',
+      icon: "formless",
       initialThemeMode: "system",
       themeSwitchable: true,
       home: "rec_site_content_home",

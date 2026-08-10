@@ -1570,6 +1570,18 @@ The system SHALL render generated field displays and editors from field behavior
 - AND table, collection, shell/navigation, public Site, and tree-builder
   contracts remain owned by their specific capability boundaries
 
+#### Scenario: Resolve semantic control icons from built-in sources
+
+- GIVEN a Presentation contract carries a semantic control icon id
+- WHEN the Formless Renderer renders that control
+- THEN the renderer maps the semantic id to a stable built-in icon key and
+  renders the trusted SVG source supplied by the built-in icon package
+- AND the Presentation contract continues carrying only the semantic id
+- AND the renderer does not import the runtime picker catalog or picker labels,
+  groups, and search terms
+- AND schema definitions that replace same-key baked picker icons do not alter
+  renderer-owned semantic controls
+
 ### Requirement: Generated Create Surface Contract
 
 The system SHALL project generated create triggers, dialogs, and forms through a

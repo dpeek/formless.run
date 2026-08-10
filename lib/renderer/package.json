@@ -48,6 +48,7 @@
   "dependencies": {
     "@astryxdesign/core": "0.3.0",
     "@astryxdesign/theme-neutral": "0.3.0",
+    "@dpeek/formless-icons": "workspace:*",
     "@dpeek/formless-presentation": "workspace:*",
     "@dpeek/formless-schema": "workspace:*",
     "@dpeek/formless-site-app": "workspace:*",

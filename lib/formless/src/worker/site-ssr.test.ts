@@ -244,20 +244,12 @@ describe("published Site Worker SSR", () => {
     expect(html).not.toContain("Loading site page...");
   });
 
-  it("resolves baked icon ids in the Worker public tree", async () => {
-    await restoreProgramSiteRecords(
-      testSiteRecords.map((record) =>
-        record.entity === "site"
-          ? { ...record, values: { ...record.values, icon: "github" } }
-          : record,
-      ),
-    );
-
+  it("resolves the baked Formless id from default records in the Worker public tree", async () => {
     const response = await getDocument("/");
     const payload = initialTreePayload(await response.text());
 
     expect(payload.tree.site?.icon).toBe(
-      sanitizeSiteIconSvgSource(resolveIconCatalogSvg("github")),
+      sanitizeSiteIconSvgSource(resolveIconCatalogSvg("formless")),
     );
   });
 

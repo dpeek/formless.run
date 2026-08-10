@@ -247,19 +247,6 @@ describe("Site schema authoring", () => {
     });
   });
 
-  it("declares the default Site product icon in the portable catalog", () => {
-    const schema = parseAppSchema(siteSchemaSource);
-
-    expect(schema.icons).toEqual([
-      {
-        key: "formless",
-        label: "Formless",
-        group: "Brand",
-        source: expect.stringContaining('<svg width="512" height="512"'),
-      },
-    ]);
-  });
-
   it("declares singleton-scoped Site authoring and its explicit starter empty state", () => {
     const schema = parseAppSchema(siteSchemaSource);
     const settings = schema.views.find(({ key }) => key === "siteSettingsHome");

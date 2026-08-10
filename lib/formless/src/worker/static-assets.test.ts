@@ -7,7 +7,6 @@ import {
 } from "../test/authority-write.ts";
 import { testSiteRecords } from "../test/site-records.ts";
 import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
-import { formlessProgramSchema } from "../program/runtime.ts";
 import { resolveIconCatalogSvg } from "../shared/icon-catalog.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
 import { PUBLIC_SITE_ICON_CACHE_CONTROL } from "@dpeek/formless-site-app/worker";
@@ -49,15 +48,22 @@ afterAll(async () => {
 });
 
 describe("published Site launch assets", () => {
-  it("serves dynamic favicon and touch icon assets from Site settings", async () => {
+  it("serves root icon artifacts from the baked Formless id in default Site records", async () => {
     const svg = await assetBytes("/favicon.svg");
     const ico = await assetBytes("/favicon.ico");
     const appleTouchIcon = await assetBytes("/apple-touch-icon.png");
+    const iconValue = testSiteIconValue();
+    const iconSource = resolveIconCatalogSvg(iconValue);
+
+    expect(iconValue).toBe("formless");
+    if (!iconSource) {
+      throw new Error(`Expected baked icon source for "${iconValue}".`);
+    }
 
     expect(svg.contentType).toBe("image/svg+xml; charset=utf-8");
     expect(svg.cacheControl).toBe(PUBLIC_SITE_ICON_CACHE_CONTROL);
     expect(svg.etag).toMatch(/^"site-icon:favicon-svg:/);
-    expect(svg.bytesAsText()).toBe(whiteFaviconSvg(testSiteIconSource()));
+    expect(svg.bytesAsText()).toBe(whiteFaviconSvg(iconSource));
     expect(ico.contentType).not.toContain("text/html");
     expect(ico.cacheControl).toBe(PUBLIC_SITE_ICON_CACHE_CONTROL);
     expect(ico.etag).toMatch(/^"site-icon:favicon-ico:/);
@@ -95,24 +101,6 @@ describe("published Site launch assets", () => {
 
     expect(after.bytesAsText()).toContain("#ef4444");
     expect(after.etag).not.toBe(before.etag);
-  });
-
-  it("resolves declared and baked icon ids for generated favicon artifacts", async () => {
-    const declared = formlessProgramSchema.icons?.find(({ key }) => key === "formless")?.source;
-    const baked = resolveIconCatalogSvg("github");
-
-    if (!declared || !baked) {
-      throw new Error("Expected declared and baked icon fixtures.");
-    }
-
-    for (const [id, source] of [
-      ["formless", declared],
-      ["github", baked],
-    ] as const) {
-      await patchSiteIcon(id);
-
-      expect((await assetBytes("/favicon.svg")).bytesAsText()).toBe(whiteFaviconSvg(source));
-    }
   });
 
   it("falls back to the default icon when the stored icon id is missing", async () => {
@@ -172,11 +160,11 @@ async function restoreSiteState() {
   );
 }
 
-function testSiteIconSource(): string {
+function testSiteIconValue(): string {
   const icon = testSiteRecords.find((record) => record.entity === "site")?.values.icon;
 
   if (typeof icon !== "string") {
-    throw new Error("Site test records must include an SVG icon.");
+    throw new Error("Site test records must include an icon value.");
   }
 
   return icon;

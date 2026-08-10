@@ -67,14 +67,8 @@ describe("Program replica Site preview", () => {
     }
   });
 
-  it("resolves baked icon ids before browser preview rendering", () => {
-    const records = testSiteRecords.map((record) =>
-      record.entity === "site"
-        ? { ...record, values: { ...record.values, icon: "github" } }
-        : record,
-    );
-
-    applyBootstrapResponse(bootstrapResponse(formlessProgramSchema, records));
+  it("resolves the baked Formless id from default records before browser preview rendering", () => {
+    applyBootstrapResponse(bootstrapResponse(formlessProgramSchema, testSiteRecords));
 
     expect(renderPreview("home")).toContain('data-baked-icon="resolved"');
   });
@@ -97,11 +91,11 @@ function renderPreview(slug: string): string {
 }
 
 function PageRendererProbe({ routeBase, tree }: SitePublicRendererProps) {
-  const bakedGithub = sanitizeSiteIconSvgSource(resolveIconCatalogSvg("github"));
+  const bakedFormless = sanitizeSiteIconSvgSource(resolveIconCatalogSvg("formless"));
 
   return (
     <output
-      data-baked-icon={tree.site?.icon === bakedGithub ? "resolved" : "other"}
+      data-baked-icon={tree.site?.icon === bakedFormless ? "resolved" : "other"}
       data-page-label={tree.page.label}
       data-route-base={routeBase}
     />

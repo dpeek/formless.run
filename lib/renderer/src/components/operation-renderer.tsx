@@ -5,7 +5,6 @@ import { Badge } from "@astryxdesign/core/Badge";
 import { Button, type ButtonSize, type ButtonVariant } from "@astryxdesign/core/Button";
 import { HStack } from "@astryxdesign/core/HStack";
 import { HoverCard } from "@astryxdesign/core/HoverCard";
-import { Icon, type IconType } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { List, ListItem } from "@astryxdesign/core/List";
 import { Spinner } from "@astryxdesign/core/Spinner";
@@ -14,28 +13,6 @@ import { Text } from "@astryxdesign/core/Text";
 import { useToast, type ToastOptions } from "@astryxdesign/core/Toast";
 import { VStack } from "@astryxdesign/core/VStack";
 import { spacingVars, typeScaleVars } from "@astryxdesign/core/theme/tokens.stylex";
-import {
-  ArchiveBoxArrowDownIcon,
-  ArrowLeftIcon,
-  ArrowPathIcon,
-  ArrowRightIcon,
-  ArrowUpTrayIcon,
-  ArrowsUpDownIcon,
-  Bars2Icon,
-  CalendarDaysIcon,
-  CheckCircleIcon,
-  CheckIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
-  CloudArrowUpIcon,
-  DocumentDuplicateIcon,
-  EllipsisHorizontalIcon,
-  MinusIcon,
-  PencilSquareIcon,
-  PlusIcon,
-  TrashIcon,
-  XMarkIcon,
-} from "@heroicons/react/24/outline";
 import type {
   CompactStatusContract,
   CompactStatusIntent,
@@ -48,6 +25,7 @@ import type {
   OperationProgressStepStatus,
   SemanticIconId,
 } from "@dpeek/formless-presentation/contract";
+import { semanticIcon } from "./semantic-icon.tsx";
 
 export type AstryxOperationButtonFacts = {
   badge?: OperationButtonContract["countBadge"];
@@ -453,35 +431,8 @@ function operationProgressStepStatusLabel(status: OperationProgressStepStatus): 
 }
 
 export function operationIcon(icon: SemanticIconId) {
-  return <Icon color="inherit" icon={operationIconComponents[icon]} size="sm" />;
+  return semanticIcon(icon);
 }
-
-const operationIconComponents = {
-  add: PlusIcon,
-  archive: ArchiveBoxArrowDownIcon,
-  calendar: CalendarDaysIcon,
-  close: XMarkIcon,
-  confirm: CheckCircleIcon,
-  copy: DocumentDuplicateIcon,
-  delete: TrashIcon,
-  disclosure: ChevronRightIcon,
-  disclosureDown: ChevronDownIcon,
-  dragHandle: Bars2Icon,
-  edit: PencilSquareIcon,
-  indeterminate: MinusIcon,
-  loading: ArrowPathIcon,
-  menu: EllipsisHorizontalIcon,
-  next: ArrowRightIcon,
-  previous: ArrowLeftIcon,
-  publish: CloudArrowUpIcon,
-  remove: MinusIcon,
-  select: CheckIcon,
-  selectDown: ChevronDownIcon,
-  sort: ArrowsUpDownIcon,
-  sync: ArrowPathIcon,
-  treeDisclosure: ChevronRightIcon,
-  upload: ArrowUpTrayIcon,
-} satisfies Record<SemanticIconId, IconType>;
 
 const styles = stylex.create({
   confirmationDialog: {

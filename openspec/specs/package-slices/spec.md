@@ -1223,6 +1223,25 @@ transport, execution observation, provider execution, or Program records.
 - AND it supplies no generic operation result, display, log, error-message,
   event, state, persistence, or `.formless/operations` contract
 
+### Requirement: Built-In Icon Source Package Slice
+
+The system SHALL provide renderer-neutral trusted built-in SVG icon sources
+under `lib/icons/` for reuse across runtime catalog and renderer boundaries.
+
+#### Scenario: Runtime and renderer share trusted icon sources
+
+- GIVEN baked icon catalog resolution and Formless Renderer semantic controls
+  need the same stable SVG glyphs
+- WHEN those consumers select built-in icons
+- THEN they import trusted sources from `@dpeek/formless-icons` by stable key or
+  named export
+- AND the package contains SVG source data and source identity without React,
+  App schema, runtime, picker metadata, or renderer dependencies
+- AND consumers can import the sources they need without importing picker-only
+  labels, groups, and search terms
+- AND runtime code owns baked picker metadata while the Formless Renderer owns
+  the mapping from Presentation semantic icon ids to built-in keys
+
 ### Requirement: Source SVG Package Slice
 
 The system SHALL provide a renderer-neutral Source SVG package slice under

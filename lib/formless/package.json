@@ -39,6 +39,7 @@
     "@dpeek/formless-archive": "workspace:*",
     "@dpeek/formless-deploy": "workspace:*",
     "@dpeek/formless-gateway": "workspace:*",
+    "@dpeek/formless-icons": "workspace:*",
     "@dpeek/formless-identity-control-plane": "workspace:*",
     "@dpeek/formless-instance-control-plane": "workspace:*",
     "@dpeek/formless-media": "workspace:*",

@@ -5,7 +5,8 @@ import type { StoredRecord } from "./types.ts";
 import { sanitizeSiteIconSvgSource } from "./site-icon-source.ts";
 import { testSiteRecords } from "./test-records.ts";
 import {
-  buildSitePageTree,
+  buildSitePageTree as buildSitePageTreeWithoutDefaults,
+  type BuildSitePageTreeOptions,
   type SiteBlockNode,
   type SitePageTree,
   type SitePageTreeProjection,
@@ -13,6 +14,23 @@ import {
 
 const generatedAt = "2026-05-06T00:00:00.000Z";
 const siteSourceSchema = parseAppSchema(siteSchemaSource);
+const bakedFormlessIcon = {
+  key: "formless",
+  label: "Formless",
+  source: '<svg viewBox="0 0 24 24"><path d="M2 4h20v4H2zm0 6h15v4H2zm0 6h10v4H2z"/></svg>',
+};
+
+function buildSitePageTree(
+  schema: AppSchema,
+  records: StoredRecord[],
+  slug: string,
+  options: BuildSitePageTreeOptions = {},
+): SitePageTreeProjection {
+  return buildSitePageTreeWithoutDefaults(schema, records, slug, {
+    ...options,
+    defaultIcons: [bakedFormlessIcon, ...(options.defaultIcons ?? [])],
+  });
+}
 
 describe("site page tree projection", () => {
   it("projects home into a framed public tree with content groups and media blocks", () => {
@@ -28,7 +46,7 @@ describe("site page tree projection", () => {
       id: "rec_site_settings_primary",
       label: "Example Site",
       description: "A public test site.",
-      icon: expect.stringContaining("<svg"),
+      icon: sanitizeSiteIconSvgSource(bakedFormlessIcon.source),
       initialThemeMode: "system",
       themeSwitchable: true,
     });
@@ -147,8 +165,7 @@ describe("site page tree projection", () => {
     ]);
   });
 
-  it("resolves legacy, declared, default, and overridden icons to safe SVG", () => {
-    const declaredProduct = siteSourceSchema.icons?.find(({ key }) => key === "formless");
+  it("resolves legacy, baked default, and overridden icons to safe SVG", () => {
     const defaultGithub = {
       key: "github",
       label: "GitHub",
@@ -170,15 +187,13 @@ describe("site page tree projection", () => {
     };
     const records = baseTreeRecords().map((record) => {
       const icon =
-        record.entity === "site"
-          ? "formless"
-          : record.id === "rec_site_content_home"
-            ? legacySource
-            : record.id === "rec_site_content_link_github"
-              ? "github"
-              : record.id === "rec_site_content_link_linkedin"
-                ? "linkedin"
-                : undefined;
+        record.id === "rec_site_content_home"
+          ? legacySource
+          : record.id === "rec_site_content_link_github"
+            ? "github"
+            : record.id === "rec_site_content_link_linkedin"
+              ? "linkedin"
+              : undefined;
 
       return icon === undefined ? record : { ...record, values: { ...record.values, icon } };
     });
@@ -194,8 +209,7 @@ describe("site page tree projection", () => {
       social.placements.map(({ block }) => [block.id, block.icon]),
     );
 
-    expect(declaredProduct).toBeDefined();
-    expect(tree.site?.icon).toBe(sanitizeSiteIconSvgSource(declaredProduct?.source));
+    expect(tree.site?.icon).toBe(sanitizeSiteIconSvgSource(bakedFormlessIcon.source));
     expect(tree.page.icon).toBe(sanitizeSiteIconSvgSource(legacySource));
     expect(socialIcons.rec_site_content_link_github).toBe(
       sanitizeSiteIconSvgSource(overriddenGithub),

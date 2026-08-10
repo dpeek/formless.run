@@ -6,7 +6,6 @@ import { HStack } from "@astryxdesign/core/HStack";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { Layout, LayoutContent, LayoutFooter } from "@astryxdesign/core/Layout";
 import { VStack } from "@astryxdesign/core/VStack";
-import { PlusIcon } from "@heroicons/react/24/outline";
 import * as stylex from "@stylexjs/stylex";
 import type { FormEvent } from "react";
 import type {
@@ -17,6 +16,7 @@ import type {
   SemanticIconId,
 } from "@dpeek/formless-presentation/contract";
 import { FieldRenderer } from "./fields/field-renderer.tsx";
+import { semanticIcon } from "./semantic-icon.tsx";
 
 export function AstryxCreateSurfaceRenderer({
   onFieldIntent,
@@ -174,7 +174,7 @@ function createButtonSize(button: ButtonContract): ButtonSize {
 }
 
 function createButtonIcon(icon: SemanticIconId) {
-  return icon === "add" ? <PlusIcon /> : undefined;
+  return semanticIcon(icon);
 }
 
 const styles = stylex.create({

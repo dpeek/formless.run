@@ -24,7 +24,7 @@
     },
     "lib/archive": {
       "name": "@dpeek/formless-archive",
-      "version": "0.1.13",
+      "version": "0.1.15",
       "dependencies": {
         "@dpeek/formless-media": "workspace:*",
         "@dpeek/formless-schema": "workspace:*",
@@ -36,11 +36,11 @@
     },
     "lib/deploy": {
       "name": "@dpeek/formless-deploy",
-      "version": "0.1.13",
+      "version": "0.1.15",
     },
     "lib/formless": {
       "name": "@dpeek/formless",
-      "version": "0.1.13",
+      "version": "0.1.15",
       "bin": {
         "formless": "bin/formless.ts",
       },
@@ -50,6 +50,7 @@
         "@dpeek/formless-archive": "workspace:*",
         "@dpeek/formless-deploy": "workspace:*",
         "@dpeek/formless-gateway": "workspace:*",
+        "@dpeek/formless-icons": "workspace:*",
         "@dpeek/formless-identity-control-plane": "workspace:*",
         "@dpeek/formless-instance-control-plane": "workspace:*",
         "@dpeek/formless-media": "workspace:*",
@@ -94,14 +95,21 @@
     },
     "lib/gateway": {
       "name": "@dpeek/formless-gateway",
-      "version": "0.1.13",
+      "version": "0.1.15",
       "dependencies": {
         "@dpeek/formless-workspace": "workspace:*",
       },
     },
+    "lib/icons": {
+      "name": "@dpeek/formless-icons",
+      "version": "0.1.15",
+      "devDependencies": {
+        "@dpeek/formless-source-svg": "workspace:*",
+      },
+    },
     "lib/identity-control-plane": {
       "name": "@dpeek/formless-identity-control-plane",
-      "version": "0.1.13",
+      "version": "0.1.15",
       "dependencies": {
         "@dpeek/formless-schema": "workspace:*",
         "@dpeek/formless-storage": "workspace:*",
@@ -109,7 +117,7 @@
     },
     "lib/instance-control-plane": {
       "name": "@dpeek/formless-instance-control-plane",
-      "version": "0.1.13",
+      "version": "0.1.15",
       "dependencies": {
         "@dpeek/formless-deploy": "workspace:*",
         "@dpeek/formless-schema": "workspace:*",
@@ -118,11 +126,11 @@
     },
     "lib/media": {
       "name": "@dpeek/formless-media",
-      "version": "0.1.13",
+      "version": "0.1.15",
     },
     "lib/presentation": {
       "name": "@dpeek/formless-presentation",
-      "version": "0.1.13",
+      "version": "0.1.15",
       "dependencies": {
         "@dpeek/formless-schema": "workspace:*",
         "react": "19.2.6",
@@ -138,14 +146,15 @@
     },
     "lib/public-operations": {
       "name": "@dpeek/formless-public-operations",
-      "version": "0.1.13",
+      "version": "0.1.15",
     },
     "lib/renderer": {
       "name": "@dpeek/formless-renderer",
-      "version": "0.1.13",
+      "version": "0.1.15",
       "dependencies": {
         "@astryxdesign/core": "0.3.0",
         "@astryxdesign/theme-neutral": "0.3.0",
+        "@dpeek/formless-icons": "workspace:*",
         "@dpeek/formless-presentation": "workspace:*",
         "@dpeek/formless-schema": "workspace:*",
         "@dpeek/formless-site-app": "workspace:*",
@@ -171,14 +180,14 @@
     },
     "lib/schema": {
       "name": "@dpeek/formless-schema",
-      "version": "0.1.13",
+      "version": "0.1.15",
       "dependencies": {
-        "@dpeek/formless-source-svg": "workspace:*"
+        "@dpeek/formless-source-svg": "workspace:*",
       },
     },
     "lib/site-app": {
       "name": "@dpeek/formless-site-app",
-      "version": "0.1.13",
+      "version": "0.1.15",
       "dependencies": {
         "@cf-wasm/resvg": "0.3.4",
         "@dpeek/formless-media": "workspace:*",
@@ -200,32 +209,32 @@
     },
     "lib/source-svg": {
       "name": "@dpeek/formless-source-svg",
-      "version": "0.1.13",
+      "version": "0.1.15",
     },
     "lib/standard": {
       "name": "@dpeek/formless-standard",
-      "version": "0.1.13",
+      "version": "0.1.15",
       "dependencies": {
         "@dpeek/formless-schema": "workspace:*",
       },
     },
     "lib/storage": {
       "name": "@dpeek/formless-storage",
-      "version": "0.1.13",
+      "version": "0.1.15",
       "dependencies": {
         "@dpeek/formless-schema": "workspace:*",
       },
     },
     "lib/tasks-app": {
       "name": "@dpeek/formless-tasks-app",
-      "version": "0.1.13",
+      "version": "0.1.15",
       "dependencies": {
         "@dpeek/formless-schema": "workspace:*",
       },
     },
     "lib/workspace": {
       "name": "@dpeek/formless-workspace",
-      "version": "0.1.13",
+      "version": "0.1.15",
       "dependencies": {
         "@dpeek/formless-schema": "workspace:*",
         "@dpeek/formless-storage": "workspace:*",
@@ -422,6 +431,8 @@
     "@dpeek/formless-dev-workspace": ["@dpeek/formless-dev-workspace@workspace:dev/default"],
 
     "@dpeek/formless-gateway": ["@dpeek/formless-gateway@workspace:lib/gateway"],
+
+    "@dpeek/formless-icons": ["@dpeek/formless-icons@workspace:lib/icons"],
 
     "@dpeek/formless-identity-control-plane": ["@dpeek/formless-identity-control-plane@workspace:lib/identity-control-plane"],
 

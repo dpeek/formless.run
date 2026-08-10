@@ -1,4 +1,5 @@
 import { parseSourceSvg } from "@dpeek/formless-source-svg";
+import { addIconSource, formlessIconSource } from "@dpeek/formless-icons/sources";
 import type { AppSchema } from "@dpeek/formless-schema";
 import { describe, expect, it } from "vite-plus/test";
 import {
@@ -18,6 +19,7 @@ describe("icon catalog", () => {
     expect(new Set(keys).size).toBe(keys.length);
     expect(listIconCatalogGroups().map(({ key, label }) => ({ key, label }))).toEqual([
       { key: "ui", label: "Interface" },
+      { key: "brand", label: "Brand" },
       { key: "social", label: "Social" },
       { key: "provider", label: "Providers" },
     ]);
@@ -29,8 +31,18 @@ describe("icon catalog", () => {
   it("includes current UI purpose, social, and provider entries", () => {
     expect(findIconCatalogEntry("add")?.label).toBe("Add");
     expect(findIconCatalogEntry("copy")?.label).toBe("Copy");
-    expect(findIconCatalogEntry("priority-marker")?.label).toBe("Priority marker");
+    expect(findIconCatalogEntry("priority-marker")).toMatchObject({
+      group: "ui",
+      label: "Priority marker",
+      searchTerms: ["flag"],
+    });
     expect(findIconCatalogEntry("publish")?.label).toBe("Publish");
+    expect(findIconCatalogEntry("formless")).toEqual({
+      group: "brand",
+      key: "formless",
+      label: "Formless",
+      source: formlessIconSource,
+    });
     expect(findIconCatalogEntry("github")?.label).toBe("GitHub");
     expect(findIconCatalogEntry("linkedin")?.label).toBe("LinkedIn");
     expect(findIconCatalogEntry("bluesky")?.label).toBe("Bluesky");
@@ -51,9 +63,11 @@ describe("icon catalog", () => {
   });
 
   it("resolves current presentation tokens", () => {
+    expect(resolveIconCatalogSvg(" ADD ")).toBe(addIconSource);
     expect(resolveIconCatalogSvg("priority-marker")).toBe(
       findIconCatalogEntry("priority-marker")?.source,
     );
+    expect(resolveIconCatalogSvg("formless")).toBe(formlessIconSource);
     expect(resolveIconCatalogSvg("x")).toBe(findIconCatalogEntry("x")?.source);
     expect(findIconCatalogEntry("missing")).toBeUndefined();
   });
@@ -74,6 +88,7 @@ describe("icon catalog", () => {
     expect(merged.some((entry) => entry.key === "calendar")).toBe(true);
     expect(findAppIconCatalogEntry(schema, "product")).toEqual(schema.icons[0]);
     expect(resolveAppIconCatalogSvg(schema, "add")).toBe(overriddenAdd);
+    expect(resolveIconCatalogSvg("add")).toBe(addIconSource);
   });
 
   it("keeps every catalog SVG source parseable by the renderer-neutral safe parser", () => {

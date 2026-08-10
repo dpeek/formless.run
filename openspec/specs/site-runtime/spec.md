@@ -1234,6 +1234,16 @@ Site icons from resolved source-backed or catalog-backed Site icon values.
 - AND an unresolved id produces an explicit tree warning and the existing
   missing-icon presentation
 
+#### Scenario: Use the baked Formless icon for starter Site records
+
+- GIVEN the Site starter plan or bundled default Site records need the Formless
+  product icon
+- WHEN those records declare their Site icon value
+- THEN they store the baked icon key `formless` rather than inline SVG source
+- AND the baked runtime catalog supplies the Formless SVG source
+- AND the Site schema does not duplicate that baked icon as a product-owned
+  schema definition
+
 #### Scenario: Safe SVG icon rendering
 
 - GIVEN a resolved or legacy SVG icon is missing, invalid, or unsafe

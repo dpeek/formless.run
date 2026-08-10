@@ -1,0 +1,34 @@
+{
+  "name": "@dpeek/formless-icons",
+  "version": "0.1.15",
+  "files": [
+    "dist",
+    "src",
+    "!src/**/*.test.*"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./src/catalog.ts",
+    "./sources": "./src/sources.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/catalog.d.mts",
+        "import": "./dist/catalog.mjs"
+      },
+      "./sources": {
+        "types": "./dist/sources.d.mts",
+        "import": "./dist/sources.mjs"
+      }
+    },
+    "access": "public"
+  },
+  "scripts": {
+    "check": "vp check --fix && vp test --configLoader runner",
+    "pack": "vp pack src/catalog.ts src/sources.ts"
+  },
+  "devDependencies": {
+    "@dpeek/formless-source-svg": "workspace:*"
+  }
+}

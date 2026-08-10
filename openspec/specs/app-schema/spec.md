@@ -1255,6 +1255,18 @@ The system SHALL use field behavior to define validation, defaults, conversion, 
 - AND icon definitions remain schema data rather than Program records, media
   objects, executable runtime extensions, or renderer components
 
+#### Scenario: Compose baked icon defaults from shared sources
+
+- GIVEN the runtime supplies baked icon defaults alongside schema-declared icons
+- WHEN it builds resolution data or picker options
+- THEN each baked SVG source comes from the renderer-neutral built-in icon
+  source package under its stable key
+- AND picker labels, groups, and search terms remain separate runtime metadata
+  joined to those sources only for authoring surfaces
+- AND resolution-only consumers do not need picker metadata or renderer
+  components
+- AND the baked defaults include the `formless` product icon
+
 #### Scenario: Declare icon value interpretation
 
 - GIVEN a text field declares `format` `icon`
