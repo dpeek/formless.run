@@ -2375,6 +2375,7 @@ function selectWorkspaceSectionRuntimeInput({
       ),
       operationStateByExecutionKey,
       recordState: recordStateByResultId[contextResultId],
+      referenceOptionsByFieldName: selectWorkspaceContextDetailReferenceOptions(context, snapshot),
       schema,
     };
   }
@@ -2473,6 +2474,19 @@ function selectWorkspaceRecordReferenceOptions(
           : [],
       ];
     }),
+  );
+}
+
+export function selectWorkspaceContextDetailReferenceOptions(
+  context: Pick<
+    NonNullable<HomeScreenCollectionSectionModel["collection"]["context"]>,
+    "recordFields" | "recordUnion"
+  >,
+  snapshot: BrowserReplicaProjectionSnapshot,
+) {
+  return selectWorkspaceRecordReferenceOptions(
+    collectRecordPresentationFields(context.recordFields ?? [], context.recordUnion),
+    snapshot,
   );
 }
 
