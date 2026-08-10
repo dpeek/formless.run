@@ -126,24 +126,24 @@ describe("release package development exports", () => {
 
   it("resolves current source in TypeScript and Bun development", () => {
     const rootTsconfig = readTsconfig(path.resolve(repoRoot, "tsconfig.json"));
-    const importer = path.resolve(repoRoot, "scripts/release-packaging.test.ts");
-    const targets = conventionalPackages.flatMap(({ manifest, root }) =>
-      packageCodeExports(manifest).map(([subpath]) => ({
+    for (const { manifest, root } of conventionalPackages) {
+      const importer = path.resolve(root, "src/__release-packaging-development-resolution__.ts");
+      const targets = packageCodeExports(manifest).map(([subpath]) => ({
         source: realpathSync(path.resolve(root, manifest.exports[subpath])),
         specifier: packageSpecifier(manifest.name, subpath),
-      })),
-    );
-    const bunSourceResolutions = bunResolutions(
-      targets.map(({ specifier }) => specifier),
-      [],
-      repoRoot,
-    );
-
-    for (const target of targets) {
-      expect(resolveTypeScript(target.specifier, importer, rootTsconfig.options)).toBe(
-        target.source,
+      }));
+      const bunSourceResolutions = bunResolutions(
+        targets.map(({ specifier }) => specifier),
+        [],
+        root,
       );
-      expect(realpathFromUrl(bunSourceResolutions[target.specifier])).toBe(target.source);
+
+      for (const target of targets) {
+        expect(resolveTypeScript(target.specifier, importer, rootTsconfig.options)).toBe(
+          target.source,
+        );
+        expect(realpathFromUrl(bunSourceResolutions[target.specifier])).toBe(target.source);
+      }
     }
   });
 
