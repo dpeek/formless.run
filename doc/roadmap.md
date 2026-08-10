@@ -1,6 +1,6 @@
 # Roadmap
 
-Last updated: 2026-08-04
+Last updated: 2026-08-10
 
 Purpose: concise list of possible OpenSpec or Git-backed changes.
 
@@ -46,6 +46,11 @@ Deferred unless a concrete operation proves the primitive is needed:
 
 ### Generated UI
 
+- `add-composable-view-values`: add downstream-driven selection, typed value,
+  binding, and presentation slices that converge on
+  [Composable Selection And Value Bindings](composable-value-bindings.md)
+  without view contract versioning while current specialized primitives retain
+  their present roles.
 - `add-draft-edit-sessions`: add save/cancel edit sessions for generated record
   editing.
 - `add-cross-field-validation-ui`: show cross-field validation errors in
