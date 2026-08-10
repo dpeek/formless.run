@@ -21,11 +21,13 @@ import type {
   EnumValuePresentationSchema,
   EnumValueSchema,
   FieldSchema,
+  IconValueMode,
   KeyedDefinition,
   NumberFieldSchema,
   ReferenceFieldSchema,
   TextFieldFormat,
   TextFieldDocumentAssetPolicySchema,
+  TextFieldIconBehaviorSchema,
   TextFieldSchema,
 } from "./types.ts";
 import { DOCUMENT_ASSET_POLICY_MAX_BYTES, documentAssetMimeTypes } from "./types.ts";
@@ -43,6 +45,8 @@ const textFieldFormats = [
 ] satisfies TextFieldFormat[];
 
 const operationTextFieldFormats = ["email", "phone"] satisfies ContactTextFieldFormat[];
+
+const iconValueModes = ["svgSource", "iconIdWithSvgFallback", "iconId"] satisfies IconValueMode[];
 
 export const supportedIdentityReferenceTargets = [
   "auth:principal",
@@ -301,12 +305,16 @@ function parseField(entityName: string, fieldName: string, value: unknown): Fiel
     throw new Error(`${context} asset policy is only supported on text fields.`);
   }
 
+  if ("icon" in value && value.type !== "text") {
+    throw new Error(`${context} icon behavior is only supported on icon text fields.`);
+  }
+
   if (value.type === "text") {
     assertExactKeys(
       context,
       value,
       ["key", "type", "required"],
-      ["label", "format", "suggestions", "asset"],
+      ["label", "format", "suggestions", "asset", "icon"],
     );
     const field: TextFieldSchema = {
       type: "text",
@@ -336,6 +344,11 @@ function parseField(entityName: string, fieldName: string, value: unknown): Fiel
     const asset = parseOptionalTextFieldAssetPolicy(`${context} asset policy`, value.asset);
     if (asset !== undefined) {
       field.asset = asset;
+    }
+
+    const icon = parseOptionalTextFieldIconBehavior(`${context} icon behavior`, value.icon, format);
+    if (icon !== undefined) {
+      field.icon = icon;
     }
 
     return field;
@@ -499,6 +512,36 @@ function parseField(entityName: string, fieldName: string, value: unknown): Fiel
   throw new Error(
     `Field "${entityName}.${fieldName}" has unsupported type "${String(value.type)}".`,
   );
+}
+
+function parseOptionalTextFieldIconBehavior(
+  context: string,
+  value: unknown,
+  format: TextFieldFormat | undefined,
+): TextFieldIconBehaviorSchema | undefined {
+  if (format !== "icon") {
+    if (value !== undefined) {
+      throw new Error(`${context} is only supported when text format is "icon".`);
+    }
+    return undefined;
+  }
+
+  if (value === undefined) {
+    return { valueMode: "svgSource" };
+  }
+
+  if (!isRecord(value)) {
+    throw new Error(`${context} must be an object.`);
+  }
+
+  assertExactKeys(context, value, ["valueMode"]);
+  if (!iconValueModes.includes(value.valueMode as IconValueMode)) {
+    throw new Error(
+      `${context} valueMode must be "svgSource", "iconIdWithSvgFallback", or "iconId".`,
+    );
+  }
+
+  return { valueMode: value.valueMode as IconValueMode };
 }
 
 function parseOptionalTextFieldAssetPolicy(

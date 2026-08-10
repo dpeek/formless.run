@@ -2322,6 +2322,7 @@ function selectWorkspaceSectionRuntimeInput({
       facts,
       mediaAssetOptionsByFieldKey,
       operation,
+      schema,
       snapshot,
     }),
     placement: operation.placement,
@@ -2353,6 +2354,7 @@ function selectWorkspaceSectionRuntimeInput({
       mediaAssetOptionsByFieldKey,
       onSuccess: undefined,
       operation: context.createOperation,
+      schema,
       snapshot,
       surfaceLocalId: `context:${context.name}:${context.createOperation.operation.canonicalKey}`,
     });
@@ -2483,6 +2485,7 @@ function selectWorkspaceCollectionAction({
   facts,
   mediaAssetOptionsByFieldKey,
   operation,
+  schema,
   snapshot,
 }: {
   confirmationOpenByControlId: Readonly<Record<string, boolean | undefined>>;
@@ -2495,6 +2498,7 @@ function selectWorkspaceCollectionAction({
   facts: GeneratedWorkspaceSectionSelectionFacts;
   mediaAssetOptionsByFieldKey: GeneratedMediaAssetOptionsByFieldKey;
   operation: HomeOperationConfig;
+  schema: ReturnType<typeof useSchema>;
   snapshot: BrowserReplicaProjectionSnapshot;
 }) {
   if (operation.type === "create") {
@@ -2506,6 +2510,7 @@ function selectWorkspaceCollectionAction({
       facts,
       mediaAssetOptionsByFieldKey,
       operation,
+      schema,
       snapshot,
       surfaceLocalId: collectionOperationLocalId(operation),
     });
@@ -2565,6 +2570,7 @@ function selectWorkspaceCreateAction({
   mediaAssetOptionsByFieldKey,
   onSuccess,
   operation,
+  schema,
   snapshot,
   surfaceLocalId,
 }: {
@@ -2578,6 +2584,7 @@ function selectWorkspaceCreateAction({
   mediaAssetOptionsByFieldKey: GeneratedMediaAssetOptionsByFieldKey;
   onSuccess?: (recordId: string) => void;
   operation: CreateHomeOperationConfig;
+  schema: ReturnType<typeof useSchema>;
   snapshot: BrowserReplicaProjectionSnapshot;
   surfaceLocalId: string;
 }) {
@@ -2620,6 +2627,7 @@ function selectWorkspaceCreateAction({
       | Readonly<Record<string, boolean>>
       | undefined,
     referenceOptionsByFieldName,
+    schema,
     session,
     state,
     submitLabel: operation.label,

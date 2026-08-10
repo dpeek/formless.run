@@ -5,11 +5,13 @@ import type {
   SitePublicRendererProps,
   SitePublicSystemStateRendererProps,
 } from "@dpeek/formless-site-app/public/react";
+import { sanitizeSiteIconSvgSource } from "@dpeek/formless-site-app";
 import { applyBootstrapResponse, applyRecordMerge, resetClientStore } from "../client/store.ts";
 import { formlessProgramDefaultBrowserRuntime } from "../program/default/browser.ts";
 import { formlessProgramSchema } from "../program/runtime.ts";
 import { bootstrapResponse } from "../test/protocol-builders.ts";
 import { testSiteRecords } from "../test/site-records.ts";
+import { resolveIconCatalogSvg } from "../shared/icon-catalog.ts";
 import { CoreSitePageRoute } from "./public-site-runtime.tsx";
 
 beforeEach(() => {
@@ -64,6 +66,18 @@ describe("Program replica Site preview", () => {
       expect(renderPreview("home")).toContain('data-kind="failure"');
     }
   });
+
+  it("resolves baked icon ids before browser preview rendering", () => {
+    const records = testSiteRecords.map((record) =>
+      record.entity === "site"
+        ? { ...record, values: { ...record.values, icon: "github" } }
+        : record,
+    );
+
+    applyBootstrapResponse(bootstrapResponse(formlessProgramSchema, records));
+
+    expect(renderPreview("home")).toContain('data-baked-icon="resolved"');
+  });
 });
 
 function renderPreview(slug: string): string {
@@ -83,7 +97,15 @@ function renderPreview(slug: string): string {
 }
 
 function PageRendererProbe({ routeBase, tree }: SitePublicRendererProps) {
-  return <output data-page-label={tree.page.label} data-route-base={routeBase} />;
+  const bakedGithub = sanitizeSiteIconSvgSource(resolveIconCatalogSvg("github"));
+
+  return (
+    <output
+      data-baked-icon={tree.site?.icon === bakedGithub ? "resolved" : "other"}
+      data-page-label={tree.page.label}
+      data-route-base={routeBase}
+    />
+  );
 }
 
 function SystemStateRendererProbe({ kind, slug }: SitePublicSystemStateRendererProps) {

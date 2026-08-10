@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 import { siteSchemaSource } from "@dpeek/formless-site-app/schema";
 import { parseAppSchema, type AppSchema } from "@dpeek/formless-schema";
 import type { StoredRecord } from "./types.ts";
+import { sanitizeSiteIconSvgSource } from "./site-icon-source.ts";
 import { testSiteRecords } from "./test-records.ts";
 import {
   buildSitePageTree,
@@ -144,6 +145,103 @@ describe("site page tree projection", () => {
       "OpenSurf",
       "Formless",
     ]);
+  });
+
+  it("resolves legacy, declared, default, and overridden icons to safe SVG", () => {
+    const declaredProduct = siteSourceSchema.icons?.find(({ key }) => key === "formless");
+    const defaultGithub = {
+      key: "github",
+      label: "GitHub",
+      source: '<svg viewBox="0 0 24 24"><path d="M2 12h20"/></svg>',
+    };
+    const defaultLinkedIn = {
+      key: "linkedin",
+      label: "LinkedIn",
+      source: '<svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/></svg>',
+    };
+    const overriddenGithub = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>';
+    const legacySource = '<svg viewBox="0 0 24 24"><path d="M4 12h16"/></svg>';
+    const schema = {
+      ...structuredClone(siteSourceSchema),
+      icons: [
+        ...(siteSourceSchema.icons ?? []),
+        { key: "github", label: "Product GitHub", source: overriddenGithub },
+      ],
+    };
+    const records = baseTreeRecords().map((record) => {
+      const icon =
+        record.entity === "site"
+          ? "formless"
+          : record.id === "rec_site_content_home"
+            ? legacySource
+            : record.id === "rec_site_content_link_github"
+              ? "github"
+              : record.id === "rec_site_content_link_linkedin"
+                ? "linkedin"
+                : undefined;
+
+      return icon === undefined ? record : { ...record, values: { ...record.values, icon } };
+    });
+    const tree = requireTree(
+      buildSitePageTree(schema, records, "home", {
+        defaultIcons: [defaultGithub, defaultLinkedIn],
+        generatedAt,
+      }),
+    );
+    const footer = requireBlock(tree.frame.footer, "footer");
+    const social = childForPlacement(footer, "rec_site_place_footer_section_social");
+    const socialIcons = Object.fromEntries(
+      social.placements.map(({ block }) => [block.id, block.icon]),
+    );
+
+    expect(declaredProduct).toBeDefined();
+    expect(tree.site?.icon).toBe(sanitizeSiteIconSvgSource(declaredProduct?.source));
+    expect(tree.page.icon).toBe(sanitizeSiteIconSvgSource(legacySource));
+    expect(socialIcons.rec_site_content_link_github).toBe(
+      sanitizeSiteIconSvgSource(overriddenGithub),
+    );
+    expect(socialIcons.rec_site_content_link_linkedin).toBe(
+      sanitizeSiteIconSvgSource(defaultLinkedIn.source),
+    );
+    expect(tree.meta.warnings).toEqual([]);
+  });
+
+  it("warns and omits missing ids and unsafe icon values", () => {
+    const records = baseTreeRecords().map((record) => {
+      const icon =
+        record.id === "rec_site_content_link_home"
+          ? "missing-icon"
+          : record.id === "rec_site_content_link_blog"
+            ? '<svg viewBox="0 0 24 24"><script>alert(1)</script></svg>'
+            : undefined;
+
+      return icon === undefined ? record : { ...record, values: { ...record.values, icon } };
+    });
+    const tree = requireTree(buildSitePageTree(siteSourceSchema, records, "home", { generatedAt }));
+    const header = requireBlock(tree.frame.header, "header");
+    const primary = childForPlacement(header, "rec_site_place_header_primary");
+    const secondary = childForPlacement(header, "rec_site_place_header_secondary");
+    const home = primary.placements.find(
+      ({ block }) => block.id === "rec_site_content_link_home",
+    )?.block;
+    const blog = secondary.placements.find(
+      ({ block }) => block.id === "rec_site_content_link_blog",
+    )?.block;
+
+    expect(home).not.toHaveProperty("icon");
+    expect(blog).not.toHaveProperty("icon");
+    expect(tree.meta.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "missing-icon",
+          recordId: "rec_site_content_link_home",
+        }),
+        expect.objectContaining({
+          code: "unsafe-icon",
+          recordId: "rec_site_content_link_blog",
+        }),
+      ]),
+    );
   });
 
   it("omits manual image hrefs from public image nodes", () => {
@@ -503,8 +601,8 @@ describe("site page tree projection", () => {
     const projects = childForPlacement(explore, "rec_site_place_footer_projects");
     const resume = childForPlacement(explore, "rec_site_place_footer_resume");
 
-    expect(projects.icon).toBe(targetIcon);
-    expect(resume.icon).toBe(linkIcon);
+    expect(projects.icon).toBe(sanitizeSiteIconSvgSource(targetIcon));
+    expect(resume.icon).toBe(sanitizeSiteIconSvgSource(linkIcon));
     expect(tree.meta.warnings).toEqual([]);
   });
 

@@ -1,4 +1,5 @@
 import { parseSourceSvg, type SourceSvgElement } from "@dpeek/formless-source-svg";
+import type { IconDefinitionSchema, KeyedDefinition } from "@dpeek/formless-schema";
 
 export const DEFAULT_SITE_ICON_SVG =
   '<svg viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" fill="none" width="32" height="32" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><path d="M18 16l4-4-4-4" /><path d="M6 8 2 12l4 4" /><path d="M14.5 4l-5 16" /></svg>';
@@ -38,9 +39,47 @@ const svgAttributeNameMap: Record<string, string> = {
   y2: "y2",
 };
 
-export function resolveSiteIconSvgSource(source: string | null | undefined): string {
+export type SiteIconValueResolution =
+  | { kind: "empty" }
+  | { kind: "missing"; value: string }
+  | { kind: "resolved"; source: string }
+  | { kind: "unsafe"; value: string };
+
+export function resolveSiteIconValue(
+  value: string | null | undefined,
+  iconCatalog: readonly KeyedDefinition<IconDefinitionSchema>[] = [],
+): SiteIconValueResolution {
+  if (value === null || value === undefined || value === "") {
+    return { kind: "empty" };
+  }
+
+  const legacySource = sanitizeSiteIconSvgSource(value);
+
+  if (legacySource !== undefined) {
+    return { kind: "resolved", source: legacySource };
+  }
+
+  const definition = iconCatalog.find(({ key }) => key === value);
+
+  if (definition !== undefined) {
+    const catalogSource = sanitizeSiteIconSvgSource(definition.source);
+
+    return catalogSource === undefined
+      ? { kind: "unsafe", value }
+      : { kind: "resolved", source: catalogSource };
+  }
+
+  return value.trimStart().startsWith("<") ? { kind: "unsafe", value } : { kind: "missing", value };
+}
+
+export function resolveSiteIconSvgSource(
+  source: string | null | undefined,
+  iconCatalog: readonly KeyedDefinition<IconDefinitionSchema>[] = [],
+): string {
+  const resolution = resolveSiteIconValue(source, iconCatalog);
+
   return (
-    sanitizeSiteIconSvgSource(source) ??
+    (resolution.kind === "resolved" ? resolution.source : undefined) ??
     sanitizeSiteIconSvgSource(DEFAULT_SITE_ICON_SVG) ??
     DEFAULT_SITE_ICON_SVG
   );

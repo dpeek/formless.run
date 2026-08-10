@@ -7,7 +7,7 @@ import {
   FORMLESS_SITE_ROUTE_STATE_META_NAME,
 } from "../shared/runtime-topology.ts";
 import { INITIAL_SITE_PAGE_TREE_SCRIPT_ID } from "@dpeek/formless-site-app/react";
-import type { SitePageTreeResponse } from "@dpeek/formless-site-app";
+import { sanitizeSiteIconSvgSource, type SitePageTreeResponse } from "@dpeek/formless-site-app";
 import {
   instanceControlPlaneTestStorageSnapshot,
   restoreTestStorageSnapshot,
@@ -15,6 +15,7 @@ import {
 import { testSiteRecords } from "../test/site-records.ts";
 import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 import { formlessProgramSchema } from "../program/runtime.ts";
+import { resolveIconCatalogSvg } from "../shared/icon-catalog.ts";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type { ProgramWorkerRuntimeDefinition } from "../program/composition.ts";
 import type { Env } from "./index.ts";
@@ -241,6 +242,23 @@ describe("published Site Worker SSR", () => {
     expect(html).toContain("window.__vite_plugin_react_preamble_installed__ = true;");
     expect(html).toContain('<script type="module" src="/src/public-site-main.tsx"></script>');
     expect(html).not.toContain("Loading site page...");
+  });
+
+  it("resolves baked icon ids in the Worker public tree", async () => {
+    await restoreProgramSiteRecords(
+      testSiteRecords.map((record) =>
+        record.entity === "site"
+          ? { ...record, values: { ...record.values, icon: "github" } }
+          : record,
+      ),
+    );
+
+    const response = await getDocument("/");
+    const payload = initialTreePayload(await response.text());
+
+    expect(payload.tree.site?.icon).toBe(
+      sanitizeSiteIconSvgSource(resolveIconCatalogSvg("github")),
+    );
   });
 
   it("reads published Site documents from Program storage without installed target metadata", async () => {
@@ -704,6 +722,9 @@ function initialTreePayload(html: string) {
       };
       page: {
         label: string;
+      };
+      site?: {
+        icon?: string;
       };
     };
   };

@@ -14,6 +14,7 @@ import { startPushSync } from "../client/sync.ts";
 import type { ProgramBrowserRuntimeDefinition } from "../program/composition.ts";
 import { programBrowserRuntime } from "../program/compiled/browser.ts";
 import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
+import { iconCatalogEntries } from "../shared/icon-catalog.ts";
 import { getClientStoreSnapshot, subscribeToClientStore } from "../client/store.ts";
 
 export type PublicSiteRouteInputProps = {
@@ -128,6 +129,7 @@ function ProgramReplicaSitePageRoute({
       snapshot.schema,
       Object.values(snapshot.recordsById),
       slug,
+      { defaultIcons: iconCatalogEntries },
     );
 
     if (projection.status === "unavailable") {

@@ -6,7 +6,7 @@ import type {
   CreateIntent,
   CreateSurfaceContract,
 } from "@dpeek/formless-presentation/contract";
-import type { QueryEvaluationContext } from "@dpeek/formless-schema";
+import type { AppSchema, QueryEvaluationContext } from "@dpeek/formless-schema";
 import type { RecordValues } from "@dpeek/formless-storage";
 import { setSyncStatus } from "../../client/sync-status.ts";
 import {
@@ -84,6 +84,7 @@ export type GeneratedCreateRuntimeOptions = {
   open: boolean;
   operation: CreateHomeOperationConfig;
   queryContext?: QueryEvaluationContext;
+  schema?: AppSchema | null;
   submitValues?: (values: RecordValues) => Promise<{ recordId: string }>;
   surfaceId: string;
   trigger: GeneratedCreateTriggerPresentation;
@@ -102,6 +103,7 @@ export function useGeneratedCreateRuntime({
   open,
   operation,
   queryContext,
+  schema = null,
   submitValues,
   surfaceId,
   trigger,
@@ -150,6 +152,7 @@ export function useGeneratedCreateRuntime({
     open,
     pendingByFieldName: mediaFieldState.pendingByFieldName as Readonly<Record<string, boolean>>,
     referenceOptionsByFieldName,
+    schema,
     session: draftSession,
     state: draftSessionState,
     submitLabel: operation.label,
@@ -339,12 +342,14 @@ export function useGeneratedCreateRuntime({
 export function projectInitialGeneratedCreateRuntimeSurface({
   operation,
   queryContext,
+  schema = null,
   snapshot,
   surfaceId,
   trigger,
 }: {
   operation: CreateHomeOperationConfig;
   queryContext?: QueryEvaluationContext;
+  schema?: AppSchema | null;
   snapshot: BrowserReplicaProjectionSnapshot;
   surfaceId: string;
   trigger: GeneratedCreateTriggerPresentation;
@@ -369,6 +374,7 @@ export function projectInitialGeneratedCreateRuntimeSurface({
       operation.fields,
       snapshot,
     ),
+    schema,
     session,
     state,
     submitLabel: operation.label,

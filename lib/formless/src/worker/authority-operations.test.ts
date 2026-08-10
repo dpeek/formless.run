@@ -2102,6 +2102,7 @@ describe("authority operation execution", () => {
       expect(recordsById.has(step.recordId)).toBe(true);
     }
     expect(firstSite).toMatchObject({ id: firstSiteId, entity: "site" });
+    expect(firstSite?.values.icon).toBe("formless");
     expect(firstSite?.values).not.toHaveProperty("starterVersion");
     expect(firstSite?.values).not.toHaveProperty("starterProvenance");
     expect(firstSiteId).not.toBe(secondSiteId);

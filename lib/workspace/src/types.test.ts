@@ -26,8 +26,11 @@ import {
   type WorkspaceProgramRecordStateFile,
 } from "./index.ts";
 
+const iconSource = '<svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z" /></svg>';
+
 const workspaceRecordStateSchema = {
   version: 1,
+  icons: [{ key: "square", label: "Square", source: iconSource }],
   entities: [
     {
       id: "entity_ba20159d-45ba-46a1-a75f-acae3340b296",
@@ -36,6 +39,14 @@ const workspaceRecordStateSchema = {
       fields: [
         { key: "title", type: "text", required: true, label: "Title" },
         { key: "done", type: "boolean", required: true, label: "Done" },
+        {
+          key: "icon",
+          type: "text",
+          required: false,
+          label: "Icon",
+          format: "icon",
+          icon: { valueMode: "iconIdWithSvgFallback" },
+        },
       ],
     },
   ],
@@ -135,6 +146,35 @@ describe("workspace record state contracts", () => {
         },
       }),
     ).toEqual(state);
+  });
+
+  it("formats source-backed and id-backed icons as unchanged flat strings", () => {
+    const formatted = formatWorkspaceRecordStateFile(
+      {
+        ...workspaceProgramRecordState(),
+        records: [
+          workspaceRecord("task-1", "task", "2026-06-18T00:00:01.000Z", {
+            title: "Source",
+            done: false,
+            icon: iconSource,
+          }),
+          workspaceRecord("task-2", "task", "2026-06-18T00:00:02.000Z", {
+            title: "Id",
+            done: true,
+            icon: "missing-icon-id",
+          }),
+        ],
+      },
+      workspaceRecordStateSchema,
+    );
+    const parsed = parseWorkspaceRecordStateFileJson(formatted);
+
+    expect(parsed.records.map(({ values }) => values.icon)).toEqual([
+      iconSource,
+      "missing-icon-id",
+    ]);
+    expect(JSON.parse(formatted)).not.toHaveProperty("schema");
+    expect(formatted).not.toContain('"capabilities"');
   });
 
   it("rejects embedded schemas and invalid record state provenance", () => {

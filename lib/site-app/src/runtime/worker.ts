@@ -1,4 +1,4 @@
-import type { AppSchema } from "@dpeek/formless-schema";
+import type { AppSchema, IconDefinitionSchema, KeyedDefinition } from "@dpeek/formless-schema";
 
 import { normalizeSiteRoutePath } from "../route-resolver.ts";
 import { buildSitePageTree } from "../tree.ts";
@@ -16,6 +16,7 @@ export const SITE_PUBLIC_WORKER_READ_KEY = "site.public-tree";
 export const SITE_PUBLIC_WORKER_SURFACE_KEY = SITE_PUBLIC_SURFACE_KEY;
 
 export type SitePublicWorkerTreeInput = {
+  defaultIcons?: readonly KeyedDefinition<IconDefinitionSchema>[];
   records: StoredRecord[];
   schema: AppSchema;
   slug: string;
@@ -35,6 +36,7 @@ export const sitePublicWorkerReadDefinition = {
   entityIds: SITE_RUNTIME_ENTITY_IDS,
   read: (input: SitePublicWorkerTreeInput) =>
     buildSitePageTree(input.schema, input.records, input.slug, {
+      ...(input.defaultIcons === undefined ? {} : { defaultIcons: input.defaultIcons }),
       turnstileSiteKey: input.turnstileSiteKey,
     }),
 } as const;

@@ -191,6 +191,7 @@ export function createAppSchemaDefinitionIndex(schema: AppSchema): AppSchemaDefi
       roles: createDefinitionIndex(schema.authorization?.roles ?? [], "Schema authorization roles"),
       rolesById,
     },
+    icons: createDefinitionIndex(schema.icons ?? [], "Schema icons"),
     entities: createDefinitionIndex(schema.entities, "Schema entities"),
     entitiesById,
     relationships: createDefinitionIndex(schema.relationships ?? [], "Schema relationships"),

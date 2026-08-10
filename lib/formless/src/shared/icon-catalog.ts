@@ -1,3 +1,5 @@
+import { mergeSchemaIconDefinitionsWithDefaults, type AppSchema } from "@dpeek/formless-schema";
+
 const iconCatalogGroupDefinitions = [
   { key: "ui", label: "Interface" },
   { key: "social", label: "Social" },
@@ -18,6 +20,13 @@ export type IconCatalogGroup = {
   entries: readonly IconCatalogEntry[];
   key: IconCatalogGroupKey;
   label: string;
+};
+
+export type AppIconCatalogEntry = {
+  group?: string;
+  key: string;
+  label: string;
+  source: string;
 };
 
 const strokeSvgAttributes =
@@ -299,6 +308,33 @@ export function findIconCatalogEntry(key: string | undefined): IconCatalogEntry 
 
 export function resolveIconCatalogSvg(key: string | undefined): string | undefined {
   return findIconCatalogEntry(key)?.source;
+}
+
+export function listAppIconCatalogEntries(
+  schema: Pick<AppSchema, "icons"> | null | undefined,
+): readonly AppIconCatalogEntry[] {
+  return mergeSchemaIconDefinitionsWithDefaults<AppIconCatalogEntry>(
+    schema?.icons,
+    iconCatalogEntries,
+  );
+}
+
+export function findAppIconCatalogEntry(
+  schema: Pick<AppSchema, "icons"> | null | undefined,
+  key: string | undefined,
+): AppIconCatalogEntry | undefined {
+  if (!key) {
+    return undefined;
+  }
+
+  return listAppIconCatalogEntries(schema).find((entry) => entry.key === key);
+}
+
+export function resolveAppIconCatalogSvg(
+  schema: Pick<AppSchema, "icons"> | null | undefined,
+  key: string | undefined,
+): string | undefined {
+  return findAppIconCatalogEntry(schema, key)?.source;
 }
 
 function normalizeIconCatalogKey(key: string): string {

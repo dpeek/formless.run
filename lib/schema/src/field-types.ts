@@ -1,7 +1,7 @@
 import { isDateString } from "./date.ts";
 import {
   isValidStoredTextValue,
-  textFormatValidatesStoredValue,
+  textFieldValidatesStoredValue,
   validateTextValueForStorage,
 } from "./text-values.ts";
 import type { FieldValue, RecordValues } from "./types.ts";
@@ -299,7 +299,7 @@ export function shouldValidateExistingFieldValue(field: FieldSchema) {
   return (
     field.required ||
     getFieldTypeBehavior(field).validatesExistingStoredValues ||
-    (field.type === "text" && textFormatValidatesStoredValue(field.format))
+    (field.type === "text" && textFieldValidatesStoredValue(field))
   );
 }
 

@@ -22,8 +22,10 @@ import type { AppSchema } from "@dpeek/formless-schema";
 const now = "2026-05-23T00:00:00.000Z";
 const sourceSchemaHash =
   "sha256:1111111111111111111111111111111111111111111111111111111111111111" as const;
+const iconSource = '<svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z" /></svg>';
 const schema: AppSchema = {
   version: 1,
+  icons: [{ key: "square", label: "Square", source: iconSource }],
   entities: [
     {
       id: "entity_11111111-1111-4111-8111-111111111111",
@@ -32,6 +34,14 @@ const schema: AppSchema = {
       fields: [
         { key: "title", label: "Title", type: "text", required: true },
         { key: "done", label: "Done", type: "boolean", required: false },
+        {
+          key: "icon",
+          label: "Icon",
+          type: "text",
+          required: false,
+          format: "icon",
+          icon: { valueMode: "iconIdWithSvgFallback" },
+        },
       ],
     },
   ],
@@ -174,6 +184,26 @@ describe("portable Program archive protocol", () => {
     expect(reparsed.media.objects.map((object) => object.storageKey)).toEqual([
       "media/images/alpha.png",
       "media/images/zeta.png",
+    ]);
+  });
+
+  it("round-trips icon strings without adding an archive capability", () => {
+    const archive = instanceArchive();
+    archive.program.snapshot.records[0]!.values.icon = iconSource;
+    archive.program.snapshot.records[1]!.values.icon = "missing-icon-id";
+
+    const formatted = formatInstanceArchive(archive, { programSnapshotContract: contract });
+    const reparsed = parseInstanceArchive(JSON.parse(formatted), {
+      programSnapshotContract: contract,
+    });
+
+    expect(reparsed.capabilities).toEqual(["core-media-assets"]);
+    expect(reparsed.program.snapshot.records.map(({ values }) => values.icon)).toEqual([
+      "missing-icon-id",
+      iconSource,
+    ]);
+    expect(reparsed.program.snapshot.schema.icons).toEqual([
+      { key: "square", label: "Square", source: iconSource },
     ]);
   });
 });

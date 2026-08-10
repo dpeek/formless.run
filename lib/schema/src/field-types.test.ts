@@ -56,6 +56,18 @@ describe("field type behavior", () => {
         defaultEditor: "text",
         defaultCommit: "field-commit",
       },
+      iconFallback: {
+        filterOps: ["eq"],
+        editors: ["text", "textarea", "markdown", "href", "slug", "color", "icon", "media"],
+        defaultEditor: "text",
+        defaultCommit: "field-commit",
+      },
+      iconId: {
+        filterOps: ["eq"],
+        editors: ["text", "textarea", "markdown", "href", "slug", "color", "icon", "media"],
+        defaultEditor: "text",
+        defaultCommit: "field-commit",
+      },
       email: {
         filterOps: ["eq"],
         editors: ["text", "textarea", "markdown", "href", "slug", "color", "icon", "media"],
@@ -243,6 +255,22 @@ describe("field type behavior", () => {
       value: "<svg></svg>",
     });
     expect(
+      validateAuthorityFieldValue("iconFallback", fields.iconFallback, "catalog-key", true),
+    ).toEqual({
+      kind: "set",
+      value: "catalog-key",
+    });
+    expect(
+      validateAuthorityFieldValue("iconFallback", fields.iconFallback, "<svg></svg>", true),
+    ).toEqual({
+      kind: "set",
+      value: "<svg></svg>",
+    });
+    expect(validateAuthorityFieldValue("iconId", fields.iconId, "missing-key", true)).toEqual({
+      kind: "set",
+      value: "missing-key",
+    });
+    expect(
       validateAuthorityFieldValue("email", fields.email, "  name@example.com  ", true),
     ).toEqual({
       kind: "set",
@@ -283,6 +311,21 @@ describe("field type behavior", () => {
     expect(() => validateAuthorityFieldValue("phone", fields.phone, "555-abc", true)).toThrow(
       TEXT_PHONE_FORMAT_INVALID_MESSAGE,
     );
+    expect(validateAuthorityFieldValue("icon", fields.icon, "custom source", true)).toEqual({
+      kind: "set",
+      value: "custom source",
+    });
+    expect(() =>
+      validateAuthorityFieldValue(
+        "iconFallback",
+        fields.iconFallback,
+        "<svg><script>unsafe</script></svg>",
+        true,
+      ),
+    ).toThrow("Enter an icon id instead of SVG source.");
+    expect(() => validateAuthorityFieldValue("iconId", fields.iconId, "<svg></svg>", true)).toThrow(
+      "Enter an icon id instead of SVG source.",
+    );
   });
 
   it("validates stored values for schema compatibility checks", () => {
@@ -291,6 +334,9 @@ describe("field type behavior", () => {
     expect(shouldValidateExistingFieldValue(fields.resource)).toBe(true);
     expect(shouldValidateExistingFieldValue(fields.email)).toBe(true);
     expect(shouldValidateExistingFieldValue(fields.phone)).toBe(true);
+    expect(shouldValidateExistingFieldValue(fields.icon)).toBe(false);
+    expect(shouldValidateExistingFieldValue(fields.iconFallback)).toBe(true);
+    expect(shouldValidateExistingFieldValue(fields.iconId)).toBe(true);
     expect(shouldValidateExistingFieldValue(fields.inquiryType)).toBe(false);
     expect(isValidStoredFieldValue(undefined, fields.done)).toBe(true);
     expect(isValidStoredFieldValue(undefined, fields.title)).toBe(false);
@@ -305,6 +351,12 @@ describe("field type behavior", () => {
     expect(isValidStoredFieldValue("+1 (555) 123-4567", fields.phone)).toBe(true);
     expect(isValidStoredFieldValue("", fields.phone)).toBe(false);
     expect(isValidStoredFieldValue("anything custom", fields.inquiryType)).toBe(true);
+    expect(isValidStoredFieldValue("<svg></svg>", fields.icon)).toBe(true);
+    expect(isValidStoredFieldValue("custom source", fields.icon)).toBe(true);
+    expect(isValidStoredFieldValue("<svg></svg>", fields.iconFallback)).toBe(true);
+    expect(isValidStoredFieldValue("catalog-key", fields.iconFallback)).toBe(true);
+    expect(isValidStoredFieldValue("missing-key", fields.iconId)).toBe(true);
+    expect(isValidStoredFieldValue("<svg></svg>", fields.iconId)).toBe(false);
   });
 });
 
@@ -312,6 +364,18 @@ const fields = {
   title: { type: "text", required: true },
   body: { type: "text", required: false, format: "markdown" },
   icon: { type: "text", required: false, format: "icon" },
+  iconFallback: {
+    type: "text",
+    required: false,
+    format: "icon",
+    icon: { valueMode: "iconIdWithSvgFallback" },
+  },
+  iconId: {
+    type: "text",
+    required: false,
+    format: "icon",
+    icon: { valueMode: "iconId" },
+  },
   email: { type: "text", required: false, format: "email" },
   phone: { type: "text", required: false, format: "phone" },
   inquiryType: { type: "text", required: false, suggestions: ["Support", "Sales"] },

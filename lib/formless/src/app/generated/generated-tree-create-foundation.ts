@@ -5,7 +5,7 @@ import type {
   TreeParentIdentity,
 } from "@dpeek/formless-presentation/contract";
 import type { MediaAssetOption } from "@dpeek/formless-media/client";
-import type { QueryEvaluationContext } from "@dpeek/formless-schema";
+import type { AppSchema, QueryEvaluationContext } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type {
   CreateDefaultConfig,
@@ -46,6 +46,7 @@ export type GeneratedTreeChildCreationProjectionOptions = {
   >;
   queryContext?: QueryEvaluationContext;
   referenceOptionsByFieldName?: Readonly<Record<string, readonly GeneratedReferenceOption[]>>;
+  schema?: AppSchema | null;
 };
 
 export type GeneratedTreeCreateFieldProjectionState = {
@@ -228,6 +229,7 @@ function projectGeneratedTreeChildCreateRuntime(
       | Readonly<Record<string, boolean>>
       | undefined,
     referenceOptionsByFieldName: options.referenceOptionsByFieldName,
+    schema: options.schema,
     session,
     state,
     submitLabel: runtime.operation.label,

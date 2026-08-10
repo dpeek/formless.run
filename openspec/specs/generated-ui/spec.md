@@ -1425,7 +1425,9 @@ The system SHALL render generated field displays and editors from field behavior
 
 - GIVEN text fields use `icon` or `media` editor metadata
 - WHEN generated editors render
-- THEN icon fields use a catalog-first picker with custom SVG mode
+- THEN source-backed icon fields use a catalog-first picker with custom SVG mode
+- AND id-backed icon fields use the merged baked and schema-declared catalog,
+  commit icon keys, and do not author new inline SVG source
 - AND image media fields browse existing core image media assets, select by
   display-safe label, upload images, preview thumbnails, and remove optional
   selections without raw image URL authoring
@@ -1676,13 +1678,13 @@ operation execution.
 - GIVEN a generated record result renders icon, media, color, value-unit,
   quiet-date, Markdown, rich-enum, or state-machine fields
 - WHEN generated runtime prepares those fields for the Formless Renderer
-- THEN source-backed icon options and dialog state, media presentation and
+- THEN mode-aware icon options and dialog state, media presentation and
   upload facts, color drafts and fallbacks, formatted values and units, temporal
   display, enum presentation, label visibility, density, and state-machine
   lifecycle facts remain explicit field contract data
 - AND state-machine-owned values remain read-only while transition actions use
   projected operation controls outside the field editor
-- AND invalid or alpha colors, missing media ids, custom SVG drafts, undeclared
+- AND invalid or alpha colors, missing icon or media ids, legacy or custom SVG drafts, undeclared
   enum and state values, pending operations, and hidden accessible labels remain
   visible without renderer inference or coercion
 - AND generated runtime retains icon catalog resolution, SVG validation, media
@@ -1740,19 +1742,27 @@ operation execution.
   invalid, alpha, missing, or unknown stored text values remain visible as
   field draft or display text rather than being coerced by renderer primitives
 
-#### Scenario: Source-backed icon picker contract
+#### Scenario: Mode-aware icon picker contract
 
-- GIVEN a generated icon editor field stores an SVG source string
-- WHEN generated UI projects the field through the Presentation field contract
-- THEN it includes default runtime icon catalog options as `IconOption`
-  facts with ids, labels, groups, and SVG sources
-- AND catalog selection matches by option `source` while SVG-source storage
-  remains active
-- AND custom SVG drafts, parse errors, open state, cancel/save availability,
-  empty value state, and source-backed preview state are explicit contract facts
-- AND the renderer does not infer icon options by reading the runtime icon
-  catalog, parsing app schema, importing runtime icon components, or changing
-  stored icon values to ids
+- GIVEN generated icon editor fields use source, transitional, or id value mode
+- WHEN generated UI projects the fields through the Presentation field contract
+- THEN it merges baked runtime icons with schema-declared icon definitions into
+  `IconOption` facts with ids, labels, groups, and display-safe SVG sources
+- AND schema definitions replace same-key baked options while other baked
+  options remain available
+- AND source mode matches catalog selections by SVG source and commits SVG
+  source while retaining custom SVG drafts and validation
+- AND transitional mode resolves catalog keys by id, renders safe legacy SVG
+  values, and commits ids for new catalog selections without offering inline
+  SVG authoring
+- AND id mode resolves and commits catalog keys without accepting raw SVG input
+- AND an unresolved stored id remains explicit missing-icon state with its id
+  visible and removable rather than being coerced to an empty value
+- AND mode, selection, resolved preview source, legacy source state, missing id,
+  open state, and save availability are explicit contract facts
+- AND the renderer does not infer icon options by reading runtime or schema icon
+  catalogs, parsing app schema, importing runtime icon components, or deciding
+  how stored icon values are interpreted
 
 #### Scenario: Presentation generated-field contract vertical slice
 

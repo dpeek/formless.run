@@ -7,6 +7,8 @@ import {
 } from "../test/authority-write.ts";
 import { testSiteRecords } from "../test/site-records.ts";
 import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
+import { formlessProgramSchema } from "../program/runtime.ts";
+import { resolveIconCatalogSvg } from "../shared/icon-catalog.ts";
 import { createWorkerHarness } from "./miniflare-test.ts";
 import { PUBLIC_SITE_ICON_CACHE_CONTROL } from "@dpeek/formless-site-app/worker";
 
@@ -95,8 +97,26 @@ describe("published Site launch assets", () => {
     expect(after.etag).not.toBe(before.etag);
   });
 
-  it("falls back to the default icon when the authored Site icon is unsafe", async () => {
-    await patchSiteIcon('<svg viewBox="0 0 64 64"><script>alert(1)</script></svg>');
+  it("resolves declared and baked icon ids for generated favicon artifacts", async () => {
+    const declared = formlessProgramSchema.icons?.find(({ key }) => key === "formless")?.source;
+    const baked = resolveIconCatalogSvg("github");
+
+    if (!declared || !baked) {
+      throw new Error("Expected declared and baked icon fixtures.");
+    }
+
+    for (const [id, source] of [
+      ["formless", declared],
+      ["github", baked],
+    ] as const) {
+      await patchSiteIcon(id);
+
+      expect((await assetBytes("/favicon.svg")).bytesAsText()).toBe(whiteFaviconSvg(source));
+    }
+  });
+
+  it("falls back to the default icon when the stored icon id is missing", async () => {
+    await patchSiteIcon("missing-icon");
 
     const svg = await assetBytes("/favicon.svg");
     const png = await assetBytes("/apple-touch-icon.png");

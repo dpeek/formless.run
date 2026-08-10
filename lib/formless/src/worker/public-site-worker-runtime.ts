@@ -26,6 +26,7 @@ import {
 } from "@dpeek/formless-renderer/site/renderer";
 import { FORMLESS_SITE_RENDERER_DOCUMENT_THEME } from "@dpeek/formless-renderer/site/provider";
 import {
+  resolveSiteIconSvgSource,
   selectSoleActiveSite,
   type SitePageTree,
   type SitePageTreeProjection,
@@ -33,8 +34,8 @@ import {
 import type { Env } from "./index.ts";
 import type { InstanceRuntimeRouteResolution } from "./instance-runtime-routes.ts";
 import { getEquivalentRequestForHead, responseWithoutBodyForHead } from "./head-response.ts";
-import type { StoredRecord } from "@dpeek/formless-storage";
 import type { BootstrapResponse } from "../shared/protocol.ts";
+import { iconCatalogEntries, listAppIconCatalogEntries } from "../shared/icon-catalog.ts";
 import type {
   ProgramWorkerPublicReadDefinition,
   ProgramWorkerRuntimeDefinition,
@@ -119,7 +120,7 @@ export function readProgramPublicSiteTree(
     | SitePublicWorkerReadDefinition
     | undefined;
 
-  return definition?.read(input);
+  return definition?.read({ ...input, defaultIcons: iconCatalogEntries });
 }
 
 export function resolveSitePublicWorkerRuntimeSurface(
@@ -230,19 +231,23 @@ export async function handlePublicSiteIconRequest(
     return undefined;
   }
 
-  const records = await fetchSiteBootstrapRecords(getRequest, env);
-  const selection = records ? selectSoleActiveSite(records) : undefined;
+  const bootstrap = await fetchSiteBootstrap(getRequest, env);
+  const selection = bootstrap ? selectSoleActiveSite(bootstrap.records) : undefined;
 
-  if (!selection || selection.kind === "unavailable") {
+  if (!bootstrap || !selection || selection.kind === "unavailable") {
     return responseWithoutBodyForHead(request, publicSiteUnavailableResponse());
   }
 
   const icon = selection.site.values.icon;
+  const svg = resolveSiteIconSvgSource(
+    typeof icon === "string" ? icon : undefined,
+    listAppIconCatalogEntries(bootstrap.schema),
+  );
 
   const response = await adapter.renderIcon({
     request: getRequest,
     route,
-    svg: typeof icon === "string" ? icon : undefined,
+    svg,
   });
 
   return responseWithoutBodyForHead(request, response);
@@ -276,7 +281,7 @@ export async function handlePublicSiteIndexingRequest(
     return undefined;
   }
 
-  const records = await fetchSiteBootstrapRecords(getRequest, env);
+  const records = (await fetchSiteBootstrap(getRequest, env))?.records;
   const response = adapter.renderIndexing(
     resource === "robots"
       ? {
@@ -410,10 +415,10 @@ async function fetchSitePageTreeResult(
   }
 }
 
-async function fetchSiteBootstrapRecords(
+async function fetchSiteBootstrap(
   request: Request,
   env: Env,
-): Promise<StoredRecord[] | undefined> {
+): Promise<BootstrapResponse | undefined> {
   try {
     const authorityId = env.FORMLESS_AUTHORITY.idFromName(FORMLESS_PROGRAM_STORAGE_IDENTITY);
     const authority = env.FORMLESS_AUTHORITY.get(authorityId);
@@ -432,7 +437,7 @@ async function fetchSiteBootstrapRecords(
       return undefined;
     }
 
-    return ((await response.json()) as BootstrapResponse).records;
+    return (await response.json()) as BootstrapResponse;
   } catch {
     return undefined;
   }

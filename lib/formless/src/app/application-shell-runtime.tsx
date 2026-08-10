@@ -177,13 +177,14 @@ function ApplicationShellRuntime({
           projectInitialGeneratedCreateRuntimeSurface({
             operation: descriptor.operation,
             queryContext: descriptor.queryContext,
+            schema: routeSchema,
             snapshot,
             surfaceId: descriptor.surfaceId,
             trigger: ROOT_CREATE_TRIGGER,
           }),
         ]),
       ),
-    [createDescriptors, snapshot],
+    [createDescriptors, routeSchema, snapshot],
   );
   const createSurfacesByQueryName = useMemo(
     () =>
@@ -330,6 +331,7 @@ function ApplicationShellRuntime({
               ),
             );
           }}
+          schema={routeSchema}
           submitValues={
             dependencies.submitCreate
               ? (values) => dependencies.submitCreate!(descriptor.surfaceId, values)
@@ -362,11 +364,13 @@ function RegisteredRootCreateRuntime({
   descriptor,
   onRegister,
   onSuccess,
+  schema,
   submitValues,
 }: {
   descriptor: RootCreateDescriptor;
   onRegister: (sectionId: string, runtime: RegisteredGeneratedCreateRuntime | undefined) => void;
   onSuccess: (recordId: string) => void;
+  schema: AppSchema | null;
   submitValues?: (values: RecordValues) => Promise<{ recordId: string }>;
 }) {
   const [open, setOpen] = useState(false);
@@ -377,6 +381,7 @@ function RegisteredRootCreateRuntime({
     open,
     operation: descriptor.operation,
     queryContext: descriptor.queryContext,
+    schema,
     submitValues,
     surfaceId: descriptor.surfaceId,
     trigger: ROOT_CREATE_TRIGGER,

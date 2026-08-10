@@ -252,6 +252,12 @@ export type TextFieldDocumentAssetPolicySchema = {
 
 export type TextFieldAssetPolicySchema = TextFieldDocumentAssetPolicySchema;
 
+export type IconValueMode = "svgSource" | "iconIdWithSvgFallback" | "iconId";
+
+export type TextFieldIconBehaviorSchema = {
+  valueMode: IconValueMode;
+};
+
 export type TextFieldSchema = {
   type: "text";
   required: boolean;
@@ -259,6 +265,7 @@ export type TextFieldSchema = {
   format?: TextFieldFormat;
   suggestions?: string[];
   asset?: TextFieldAssetPolicySchema;
+  icon?: TextFieldIconBehaviorSchema;
 };
 
 export type ContactTextFieldFormat = "email" | "phone";
@@ -1544,9 +1551,15 @@ export type RuntimeSchemaMetadata = {
   owner: "runtime";
   controlPlane?: RuntimeSchemaControlPlaneSchema;
 };
+export type IconDefinitionSchema = {
+  label: string;
+  group?: string;
+  source: string;
+};
 export type AppSchema = {
   version: 1;
   authorization?: AppAuthorizationSchema;
+  icons?: KeyedDefinition<IconDefinitionSchema>[];
   entities: KeyedDefinition<EntitySchema>[];
   relationships?: KeyedDefinition<RelationshipSchema>[];
   queries: KeyedDefinition<CollectionQuerySchema>[];
@@ -1575,6 +1588,7 @@ export type AppSchemaDefinitionIndex = {
     roles: DefinitionIndex<KeyedDefinition<AuthorizationRoleSchema>>;
     rolesById: ReadonlyMap<AuthorizationRoleId, KeyedDefinition<AuthorizationRoleSchema>>;
   };
+  icons: DefinitionIndex<KeyedDefinition<IconDefinitionSchema>>;
   entities: DefinitionIndex<KeyedDefinition<EntitySchema>>;
   entitiesById: ReadonlyMap<EntityId, KeyedDefinition<EntitySchema>>;
   relationships: DefinitionIndex<KeyedDefinition<RelationshipSchema>>;
@@ -1678,6 +1692,7 @@ export type AppSchemaModuleSource = {
   key: string;
   requires?: readonly string[];
   runtimeRequirements?: AppSchemaModuleRuntimeRequirements;
+  icons?: NonNullable<AppSchemaSource["icons"]>;
   entities?: AppSchemaSource["entities"];
   relationships?: NonNullable<AppSchemaSource["relationships"]>;
   queries?: AppSchemaSource["queries"];

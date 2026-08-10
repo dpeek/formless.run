@@ -254,7 +254,7 @@ export function selectGeneratedTreeFoundation({
       : projectGeneratedTreeChildCreation({
           creationId: `${id}:children:root`,
           editing,
-          options: childCreation,
+          options: { ...childCreation, schema },
           parent: { kind: "root" },
           parentLabel: rootLabel,
           parentRecord: rootRecord,
@@ -269,7 +269,7 @@ export function selectGeneratedTreeFoundation({
         : projectGeneratedTreeChildCreation({
             creationId: `${item.id}:children`,
             editing,
-            options: childCreation,
+            options: { ...childCreation, schema },
             parent: { itemId: item.id, kind: "item" },
             parentLabel: item.label,
             parentRecord: childRecord,

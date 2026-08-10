@@ -44,12 +44,14 @@ import {
   projectGeneratedDisplayField,
   projectGeneratedFieldId,
   projectGeneratedOperationFields,
+  projectGeneratedOperationField,
   projectGeneratedOperationSession,
   projectGeneratedRecordField,
   projectGeneratedRecordFields,
   projectGeneratedRecordSession,
   selectValueUnitCommit,
 } from "./field-projection.ts";
+import type { GeneratedOperationInputFieldConfig } from "./operation-field-authoring.ts";
 
 function createOccurrence(placementId: string, surfaceId = "projection-test:create") {
   return { owner: { kind: "createSurface" as const, surfaceId }, placementId };
@@ -779,6 +781,119 @@ describe("generated field projection", () => {
       previewSource: addIconSource,
       selection: { kind: "option", optionId: "add", source: addIconSource },
       valueMode: "svgSource",
+    });
+  });
+
+  it("projects merged catalogs and mode-aware icon states across generated field surfaces", () => {
+    const overriddenAdd = '<svg viewBox="0 0 24 24"><path d="M2 2h20v20H2z" /></svg>';
+    const productSource = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" /></svg>';
+    const legacySource = '<svg viewBox="0 0 24 24"><path d="M4 12h16M12 4v16" /></svg>';
+    const schema = {
+      icons: [
+        { key: "product", label: "Product", group: "Brand", source: productSource },
+        { key: "add", label: "Product add", source: overriddenAdd },
+      ],
+    } as Pick<AppSchema, "icons"> as AppSchema;
+    const fallbackField = {
+      type: "text",
+      required: false,
+      format: "icon",
+      icon: { valueMode: "iconIdWithSvgFallback" },
+    } satisfies FieldSchema;
+    const strictField = {
+      type: "text",
+      required: false,
+      format: "icon",
+      icon: { valueMode: "iconId" },
+    } satisfies FieldSchema;
+    const create = projectGeneratedCreateField({
+      fieldConfig: createField("icon", strictField, "icon"),
+      occurrence: createOccurrence("icon", "mode-aware-create"),
+      schema,
+      value: "product",
+    });
+    const legacyRecord = asRecordField(
+      projectGeneratedRecordField({
+        canPatch: true,
+        fieldConfig: recordField("icon", fallbackField, "icon"),
+        occurrence: recordOccurrence("icon", "mode-aware-record"),
+        recordValue: legacySource,
+        schema,
+      }),
+    );
+    const missingTable = asRecordField(
+      projectGeneratedRecordField({
+        canPatch: true,
+        fieldConfig: recordField("icon", strictField, "icon"),
+        occurrence: {
+          owner: { cellId: "icon", kind: "tableCell", tableId: "mode-aware-table" },
+          placementId: "icon",
+        },
+        recordValue: "retired-icon",
+        schema,
+        surface: "table-cell",
+      }),
+    );
+    const display = projectGeneratedDisplayField({
+      fieldConfig: recordField("icon", strictField, "icon"),
+      occurrence: {
+        owner: { kind: "recordResult", recordId: "block-1", resultId: "mode-aware-tree" },
+        placementId: "icon",
+      },
+      recordValue: "add",
+      schema,
+      surface: "detail",
+    });
+    const operationConfig = {
+      control: "text",
+      editor: "icon",
+      field: strictField,
+      fieldName: "icon",
+      inputName: "icon",
+      label: "Icon",
+      name: "icon",
+      required: false,
+    } satisfies GeneratedOperationInputFieldConfig;
+    const operation = projectGeneratedOperationField({
+      fieldConfig: operationConfig,
+      occurrence: {
+        owner: { formId: "mode-aware-operation", kind: "operationForm" },
+        placementId: "icon",
+      },
+      schema,
+      value: "product",
+    });
+
+    expect(create.options?.iconOptions?.slice(0, 2)).toEqual([
+      { group: "Brand", id: "product", label: "Product", source: productSource },
+      { id: "add", label: "Product add", source: overriddenAdd },
+    ]);
+    expect(create.options?.iconOptions?.some((option) => option.id === "calendar")).toBe(true);
+    expect(create.icon).toMatchObject({
+      previewSource: productSource,
+      selection: { kind: "option", optionId: "product", source: productSource },
+      valueMode: "iconId",
+    });
+    expect(legacyRecord.icon).toMatchObject({
+      canSave: false,
+      previewSource: legacySource,
+      selection: { kind: "legacySource", source: legacySource },
+      valueMode: "iconIdWithSvgFallback",
+    });
+    expect(missingTable.icon).toMatchObject({
+      previewSource: "",
+      selection: { id: "retired-icon", kind: "missingId" },
+      valueMode: "iconId",
+    });
+    expect(display.icon).toMatchObject({
+      previewSource: overriddenAdd,
+      selection: { kind: "option", optionId: "add", source: overriddenAdd },
+      valueMode: "iconId",
+    });
+    expect(operation.icon).toMatchObject({
+      previewSource: productSource,
+      selection: { kind: "option", optionId: "product", source: productSource },
+      valueMode: "iconId",
     });
   });
 

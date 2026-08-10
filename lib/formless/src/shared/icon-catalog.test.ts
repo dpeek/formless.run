@@ -1,9 +1,13 @@
 import { parseSourceSvg } from "@dpeek/formless-source-svg";
+import type { AppSchema } from "@dpeek/formless-schema";
 import { describe, expect, it } from "vite-plus/test";
 import {
+  findAppIconCatalogEntry,
   findIconCatalogEntry,
   iconCatalogEntries,
+  listAppIconCatalogEntries,
   listIconCatalogGroups,
+  resolveAppIconCatalogSvg,
   resolveIconCatalogSvg,
 } from "./icon-catalog.ts";
 
@@ -52,6 +56,24 @@ describe("icon catalog", () => {
     );
     expect(resolveIconCatalogSvg("x")).toBe(findIconCatalogEntry("x")?.source);
     expect(findIconCatalogEntry("missing")).toBeUndefined();
+  });
+
+  it("merges ordered App schema icons ahead of baked defaults with schema precedence", () => {
+    const overriddenAdd = '<svg viewBox="0 0 24 24"><path d="M2 2h20v20H2z" /></svg>';
+    const product = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" /></svg>';
+    const schema = {
+      icons: [
+        { key: "product", label: "Product", group: "Brand", source: product },
+        { key: "add", label: "Product add", source: overriddenAdd },
+      ],
+    } satisfies Pick<AppSchema, "icons">;
+    const merged = listAppIconCatalogEntries(schema);
+
+    expect(merged.slice(0, 2)).toEqual(schema.icons);
+    expect(merged.filter((entry) => entry.key === "add")).toEqual([schema.icons[1]]);
+    expect(merged.some((entry) => entry.key === "calendar")).toBe(true);
+    expect(findAppIconCatalogEntry(schema, "product")).toEqual(schema.icons[0]);
+    expect(resolveAppIconCatalogSvg(schema, "add")).toBe(overriddenAdd);
   });
 
   it("keeps every catalog SVG source parseable by the renderer-neutral safe parser", () => {

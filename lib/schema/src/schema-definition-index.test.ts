@@ -7,6 +7,13 @@ describe("App schema definition indexes", () => {
   it("indexes top-level and nested registries in declaration order", () => {
     const schema = parseAppSchema(
       taskSchema({
+        icons: [
+          {
+            key: "priority",
+            label: "Priority",
+            source: '<svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z" /></svg>',
+          },
+        ],
         entities: [
           {
             key: "task",
@@ -75,6 +82,8 @@ describe("App schema definition indexes", () => {
       }),
     );
     const index = getAppSchemaDefinitionIndex(schema);
+    expect(index.icons.ordered.map(({ key }) => key)).toEqual(["priority"]);
+    expect(index.icons.byKey.get("priority")?.label).toBe("Priority");
     expect(index.entities.ordered.map(({ key }) => key)).toEqual(["task"]);
     expect(index.entities.byKey.get("task")).toMatchObject({
       key: "task",

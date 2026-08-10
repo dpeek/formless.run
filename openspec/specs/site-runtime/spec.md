@@ -18,7 +18,7 @@ identity.
 
 - GIVEN an active Site record exists
 - WHEN Site settings or public roots are selected
-- THEN that record provides editable key, label, description, SVG icon, and
+- THEN that record provides editable key, label, description, icon value, and
   theme values
 - AND optional `home`, `header`, and `footer` references select blocks owned by
   the same Site
@@ -1203,7 +1203,7 @@ references and external targets from absolute URLs.
 ### Requirement: Media And Icons
 
 The system SHALL render Site images from core media assets and derive public
-Site icons from the Site SVG icon.
+Site icons from resolved source-backed or catalog-backed Site icon values.
 
 #### Scenario: Core media image
 
@@ -1216,14 +1216,27 @@ Site icons from the Site SVG icon.
 
 #### Scenario: Root icon routes
 
-- GIVEN the selected Site contains an SVG icon
+- GIVEN the selected Site contains a safe legacy SVG icon or a resolvable icon id
 - WHEN a visitor requests `/favicon.svg`, `/favicon.ico`, or `/apple-touch-icon.png`
-- THEN the response is derived from the Site icon
+- THEN the response is derived from the resolved Site icon SVG source
 - AND generated PNG and ICO bytes are artifacts rather than stored record fields
+
+#### Scenario: Resolve Site icon ids
+
+- GIVEN Site settings or a Site block stores an icon catalog key
+- WHEN browser preview or Worker public tree projection renders the Site
+- THEN the runtime resolves the key from the complete Program schema icon
+  catalog plus baked defaults before projecting renderer input
+- AND the public Site renderer continues to receive display-safe SVG source
+  rather than schema data, catalog access, or unresolved ids
+- AND transitional Site icon fields continue rendering safe legacy SVG source
+  while new catalog selections store icon ids
+- AND an unresolved id produces an explicit tree warning and the existing
+  missing-icon presentation
 
 #### Scenario: Safe SVG icon rendering
 
-- GIVEN a stored SVG icon is missing, invalid, or unsafe
+- GIVEN a resolved or legacy SVG icon is missing, invalid, or unsafe
 - WHEN Site or generated UI renders the SVG icon
 - THEN rendering falls back to an empty outline
 - AND scripts, event handlers, `javascript:` URLs, `foreignObject`, and external

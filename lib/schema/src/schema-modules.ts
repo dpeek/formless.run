@@ -19,6 +19,7 @@ export function composeAppSchema<const Composition extends AppSchemaCompositionS
   const runtime = composeRuntimeMetadata(composition);
   const declarationOwners = new Map<string, string>();
   const entityIdOwners = new Map<string, { entityKey: string; moduleKey: string }>();
+  const icons: NonNullable<AppSchemaSource["icons"]> = [];
   const entities: AppSchemaSource["entities"] = [];
   const relationships: NonNullable<AppSchemaSource["relationships"]> = [];
   const queries: AppSchemaSource["queries"] = [];
@@ -31,6 +32,7 @@ export function composeAppSchema<const Composition extends AppSchemaCompositionS
   const views: AppSchemaSource["views"] = [];
   const screens: AppSchemaSource["screens"] = [];
   const surfaceMounts: NonNullable<AppSchemaSource["surfaceMounts"]> = [];
+  let hasIcons = false;
   let hasRelationships = false;
   let hasReadModels = false;
   let hasComputedValues = false;
@@ -39,6 +41,10 @@ export function composeAppSchema<const Composition extends AppSchemaCompositionS
   let hasSurfaceMounts = false;
 
   for (const module of composition.modules) {
+    if (module.icons !== undefined) {
+      hasIcons = true;
+      appendDeclarations(icons, module.icons, "icons", module.key, declarationOwners);
+    }
     appendEntityDeclarations(
       entities,
       module.entities,
@@ -110,6 +116,7 @@ export function composeAppSchema<const Composition extends AppSchemaCompositionS
     ...(composition.authorization === undefined
       ? {}
       : { authorization: composition.authorization }),
+    ...(hasIcons ? { icons } : {}),
     entities,
     ...(hasRelationships ? { relationships } : {}),
     queries,

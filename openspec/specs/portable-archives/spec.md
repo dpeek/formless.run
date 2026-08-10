@@ -136,6 +136,22 @@ irrelevant.
 - AND record ids, entity keys, lifecycle metadata, and flat value shape remain
   unchanged
 
+#### Scenario: Preserve icon values without an archive capability
+
+- GIVEN Program records contain source-backed, transitional, or id-backed icon
+  text values
+- WHEN workspace state or an instance archive is formatted, validated, or
+  restored
+- THEN each icon value remains an ordinary flat string under the active Program
+  schema
+- AND schema-declared icon definitions travel through the complete Program
+  artifact identified by schema provenance rather than through Program records,
+  the media manifest, or a separate archive payload
+- AND transitional mode accepts unchanged safe legacy SVG values or icon ids
+  without changing the archive envelope version
+- AND archive and workspace boundaries do not silently rewrite legacy SVG
+  values to ids
+
 #### Scenario: Ignore input value property order
 
 - GIVEN two record inputs contain equivalent flat values with different object

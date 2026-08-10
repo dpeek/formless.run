@@ -227,6 +227,102 @@ describe("schema fields", () => {
     expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
   });
 
+  it("parses icon value modes and defaults omitted behavior to source-backed values", () => {
+    const schema = parseAppSchema(
+      taskSchema({
+        entities: [
+          {
+            key: "task",
+            ...taskEntity({
+              fields: [
+                ...taskEntity().fields,
+                { key: "sourceIcon", type: "text", required: false, format: "icon" },
+                {
+                  key: "fallbackIcon",
+                  type: "text",
+                  required: false,
+                  format: "icon",
+                  icon: { valueMode: "iconIdWithSvgFallback" },
+                },
+                {
+                  key: "idIcon",
+                  type: "text",
+                  required: false,
+                  format: "icon",
+                  icon: { valueMode: "iconId" },
+                },
+              ],
+            }),
+          },
+        ],
+      }),
+    );
+
+    expect(schema.entities[0]!.fields.slice(-3)).toEqual([
+      {
+        key: "sourceIcon",
+        type: "text",
+        required: false,
+        format: "icon",
+        icon: { valueMode: "svgSource" },
+      },
+      {
+        key: "fallbackIcon",
+        type: "text",
+        required: false,
+        format: "icon",
+        icon: { valueMode: "iconIdWithSvgFallback" },
+      },
+      {
+        key: "idIcon",
+        type: "text",
+        required: false,
+        format: "icon",
+        icon: { valueMode: "iconId" },
+      },
+    ]);
+  });
+
+  it("rejects invalid or misplaced icon behavior", () => {
+    const parseIconField = (field: Record<string, unknown>) =>
+      parseAppSchema(
+        taskSchema({
+          entities: [
+            {
+              key: "task",
+              ...taskEntity({ fields: [{ key: "icon", ...field }] }),
+            },
+          ],
+        }),
+      );
+
+    expect(() =>
+      parseIconField({
+        type: "text",
+        required: false,
+        format: "icon",
+        icon: { valueMode: "unknown" },
+      }),
+    ).toThrow(
+      'Field "task.icon" icon behavior valueMode must be "svgSource", "iconIdWithSvgFallback", or "iconId".',
+    );
+    expect(() =>
+      parseIconField({
+        type: "text",
+        required: false,
+        format: "plain",
+        icon: { valueMode: "iconId" },
+      }),
+    ).toThrow('Field "task.icon" icon behavior is only supported when text format is "icon".');
+    expect(() =>
+      parseIconField({
+        type: "boolean",
+        required: false,
+        icon: { valueMode: "iconId" },
+      }),
+    ).toThrow('Field "task.icon" icon behavior is only supported on icon text fields.');
+  });
+
   it("parses document asset policy while preserving flat text asset ids", () => {
     const source = taskSchema();
     const schema = parseAppSchema({

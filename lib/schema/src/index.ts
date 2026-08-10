@@ -18,6 +18,7 @@ export * from "./schema-count-display.ts";
 export * from "./schema-authorization.ts";
 export * from "./schema-definition-index.ts";
 export * from "./schema-fields.ts";
+export * from "./schema-icons.ts";
 export * from "./schema-operation-execution.ts";
 export * from "./schema-operation-input-projection.ts";
 export * from "./schema-operations.ts";

@@ -3459,6 +3459,9 @@
         },
         {
           "format": "icon",
+          "icon": {
+            "valueMode": "iconIdWithSvgFallback"
+          },
           "key": "icon",
           "label": "Icon",
           "required": false,
@@ -3541,7 +3544,7 @@
                   },
                   "icon": {
                     "kind": "literal",
-                    "value": "<svg width=\"512\" height=\"512\" viewBox=\"0 0 512 512\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<path d=\"M0 134.118C0 60.0465 60.0465 0 134.118 0H480C497.673 0 512 14.3269 512 32C512 98.2742 458.274 152 392 152H17.8824C8.0062 152 0 143.994 0 134.118Z\" fill=\"currentColor\"/>\n<path d=\"M0 204C0 190.745 10.7452 180 24 180H347C364.673 180 379 194.327 379 212C379 278.274 325.274 332 259 332H24C10.7452 332 0 321.255 0 308V204Z\" fill=\"currentColor\"/>\n<path d=\"M0 384C0 370.745 10.7452 360 24 360H213C230.673 360 245 374.327 245 392C245 458.274 191.274 512 125 512H48C21.4903 512 0 490.51 0 464V384Z\" fill=\"currentColor\"/>\n</svg>"
+                    "value": "formless"
                   },
                   "key": {
                     "alphabet": "upperAlphaNumericNoConfusables",
@@ -4314,6 +4317,9 @@
         },
         {
           "format": "icon",
+          "icon": {
+            "valueMode": "iconIdWithSvgFallback"
+          },
           "key": "icon",
           "label": "Icon",
           "required": false,
@@ -4803,6 +4809,14 @@
           "scope": "record"
         }
       ]
+    }
+  ],
+  "icons": [
+    {
+      "group": "Brand",
+      "key": "formless",
+      "label": "Formless",
+      "source": "<svg width=\"512\" height=\"512\" viewBox=\"0 0 512 512\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<path d=\"M0 134.118C0 60.0465 60.0465 0 134.118 0H480C497.673 0 512 14.3269 512 32C512 98.2742 458.274 152 392 152H17.8824C8.0062 152 0 143.994 0 134.118Z\" fill=\"currentColor\"/>\n<path d=\"M0 204C0 190.745 10.7452 180 24 180H347C364.673 180 379 194.327 379 212C379 278.274 325.274 332 259 332H24C10.7452 332 0 321.255 0 308V204Z\" fill=\"currentColor\"/>\n<path d=\"M0 384C0 370.745 10.7452 360 24 360H213C230.673 360 245 374.327 245 392C245 458.274 191.274 512 125 512H48C21.4903 512 0 490.51 0 464V384Z\" fill=\"currentColor\"/>\n</svg>"
     }
   ],
   "itemViews": [

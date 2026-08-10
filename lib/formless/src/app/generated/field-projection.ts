@@ -4,12 +4,14 @@ import {
   IMAGE_UPLOAD_ACCEPT,
   type MediaAssetOption as ClientMediaAssetOption,
 } from "@dpeek/formless-media/client";
+import { parseSourceSvg } from "@dpeek/formless-source-svg";
 import type {
   AppSchema,
   FieldSchema,
   FieldValue,
   GeneratedFieldDraftError,
   GeneratedFieldDraftInput,
+  IconValueMode,
   QueryEvaluationContext,
 } from "@dpeek/formless-schema";
 import type {
@@ -65,9 +67,9 @@ import {
   type TransitionStateOperationConfig,
 } from "../../client/state-machine-model.ts";
 import {
-  listIconCatalogEntries,
+  listAppIconCatalogEntries,
   resolveIconCatalogSvg,
-  type IconCatalogEntry,
+  type AppIconCatalogEntry,
 } from "../../shared/icon-catalog.ts";
 import type {
   GeneratedCreateDraftSessionFacts,
@@ -181,6 +183,7 @@ export type ProjectGeneratedCreateFieldsOptions = ProjectGeneratedCreateSessionO
   pendingLabelByFieldName?: Readonly<Record<string, string | undefined>>;
   mediaAssetOptionsByFieldName?: Readonly<Record<string, readonly ClientMediaAssetOption[]>>;
   referenceOptionsByFieldName?: Readonly<Record<string, readonly GeneratedReferenceOption[]>>;
+  schema?: AppSchema | null;
   owner: GeneratedCreateFieldOwner;
 };
 
@@ -217,6 +220,7 @@ export type ProjectGeneratedCreateFieldOptions = {
   pendingLabel?: string;
   recordId?: string;
   referenceOptions?: readonly GeneratedReferenceOption[];
+  schema?: AppSchema | null;
   state?: GeneratedCreateDraftSessionState;
   value?: FieldValue;
 };
@@ -297,6 +301,7 @@ export type ProjectGeneratedDisplayFieldOptions = {
   recordId?: string;
   recordValue: FieldValue | undefined;
   referenceOptions?: readonly GeneratedReferenceOption[];
+  schema?: AppSchema | null;
   showLabel?: boolean;
   surface?: Exclude<FieldSurface, "create" | "operation">;
   transitionOperations?: readonly TransitionStateOperationConfig[];
@@ -312,19 +317,27 @@ export type ProjectGeneratedOperationSessionOptions = {
 
 export type ProjectGeneratedOperationFieldsOptions = ProjectGeneratedOperationSessionOptions & {
   errorsByFieldName?: Readonly<Record<string, GeneratedFieldErrorInput>>;
+  iconDialogDraftByFieldName?: Readonly<Record<string, string | undefined>>;
+  iconDialogOpenByFieldName?: Readonly<Record<string, boolean | undefined>>;
+  iconParseErrorByFieldName?: Readonly<Record<string, string | undefined>>;
   pendingByFieldName?: Readonly<Record<string, boolean>>;
   pendingLabelByFieldName?: Readonly<Record<string, string | undefined>>;
+  schema?: AppSchema | null;
   owner: GeneratedOperationFieldOwner;
 };
 
 export type ProjectGeneratedOperationFieldOptions = {
   error?: GeneratedFieldErrorInput;
   fieldConfig: GeneratedOperationInputFieldConfig;
+  iconDialogDraft?: string;
+  iconDialogOpen?: boolean;
+  iconParseError?: string;
   isPending?: boolean;
   occurrence: GeneratedFieldOccurrence & {
     owner: GeneratedOperationFieldOwner;
   };
   pendingLabel?: string;
+  schema?: AppSchema | null;
   state?: GeneratedOperationDraftSessionState;
   value?: FieldValue;
 };
@@ -391,6 +404,7 @@ export function projectGeneratedCreateFields({
   pendingByFieldName,
   pendingLabelByFieldName,
   referenceOptionsByFieldName,
+  schema = null,
   owner,
   session,
   state,
@@ -408,6 +422,7 @@ export function projectGeneratedCreateFields({
       occurrence: { owner, placementId: fieldConfig.fieldName },
       pendingLabel: pendingLabelByFieldName?.[fieldConfig.fieldName],
       referenceOptions: referenceOptionsByFieldName?.[fieldConfig.fieldName],
+      schema,
       state,
       value: session.values[fieldConfig.fieldName],
     }),
@@ -429,6 +444,7 @@ export function projectGeneratedCreateSurface({
   pendingByFieldName,
   pendingLabelByFieldName,
   referenceOptionsByFieldName,
+  schema = null,
   session,
   state,
   submitLabel,
@@ -458,6 +474,7 @@ export function projectGeneratedCreateSurface({
     pendingByFieldName,
     pendingLabelByFieldName,
     referenceOptionsByFieldName,
+    schema,
     session,
     state,
   });
@@ -538,6 +555,7 @@ export function projectGeneratedCreateField({
   pendingLabel,
   recordId,
   referenceOptions = [],
+  schema = null,
   state,
   value,
 }: ProjectGeneratedCreateFieldOptions): CreateFieldContract {
@@ -574,10 +592,12 @@ export function projectGeneratedCreateField({
     dialogDraft: iconDialogDraft,
     dialogOpen: iconDialogOpen,
     draft: typeof editorValue === "string" ? editorValue : "",
+    field,
     isIcon: control.controlKind === "icon",
     isPending,
     parseError: iconParseError,
     required: field.required,
+    schema,
   });
 
   return {
@@ -606,6 +626,7 @@ export function projectGeneratedCreateField({
         includeIconOptions: control.controlKind === "icon",
         mediaAssetOptions: control.controlKind === "media" ? mediaAssetOptions : undefined,
         referenceOptions,
+        schema,
       }),
       pending: projectPending(isPending, pendingLabel),
       recordId,
@@ -758,6 +779,7 @@ export function projectGeneratedRecordField({
     recordId,
     recordValue,
     referenceOptions,
+    schema,
     showLabel,
     surface,
     transitionOperations,
@@ -807,10 +829,12 @@ export function projectGeneratedRecordField({
     dialogDraft: iconDialogDraft,
     dialogOpen: iconDialogOpen,
     draft,
+    field,
     isIcon: rendererKind === "icon",
     isPending,
     parseError: iconParseError,
     required: field.required,
+    schema,
   });
 
   return {
@@ -828,6 +852,7 @@ export function projectGeneratedRecordField({
         includeIconOptions: control.controlKind === "icon",
         mediaAssetOptions,
         referenceOptions,
+        schema,
       }),
       pending: projectPending(isPending, pendingLabel),
       recordId,
@@ -878,6 +903,7 @@ export function projectGeneratedDisplayField({
   recordId,
   recordValue,
   referenceOptions = [],
+  schema = null,
   showLabel,
   surface = "detail",
   transitionOperations,
@@ -892,6 +918,14 @@ export function projectGeneratedDisplayField({
     control,
     mediaAssetOptions,
     value: recordValue,
+  });
+  const icon = selectProjectedIconAuthoring({
+    draft: typeof recordValue === "string" ? recordValue : "",
+    field: fieldConfig.field,
+    isIcon: control.controlKind === "icon",
+    isPending: false,
+    required: fieldConfig.field.required,
+    schema,
   });
 
   return {
@@ -908,8 +942,10 @@ export function projectGeneratedDisplayField({
           : "visible",
       options: projectFieldOptions({
         field: fieldConfig.field,
+        includeIconOptions: control.controlKind === "icon",
         mediaAssetOptions: control.controlKind === "media" ? mediaAssetOptions : undefined,
         referenceOptions,
+        schema,
       }),
       recordId,
       stateMachineFacts: projectStateMachineFacts({
@@ -928,6 +964,7 @@ export function projectGeneratedDisplayField({
       value: recordValue,
     }),
     formatting: projectDisplayFormatting({ fieldConfig, recordValue, referenceOptions }),
+    ...(icon === undefined ? {} : { icon }),
     ...(media === undefined ? {} : { media }),
     mode: "display",
     reference: projectReferenceDisplayFacts(fieldConfig.field, recordValue, referenceOptions),
@@ -951,8 +988,12 @@ export function projectGeneratedOperationSession({
 
 export function projectGeneratedOperationFields({
   errorsByFieldName,
+  iconDialogDraftByFieldName,
+  iconDialogOpenByFieldName,
+  iconParseErrorByFieldName,
   pendingByFieldName,
   pendingLabelByFieldName,
+  schema = null,
   owner,
   session,
   state,
@@ -962,9 +1003,13 @@ export function projectGeneratedOperationFields({
       error:
         errorsByFieldName?.[fieldConfig.inputName] ?? session.fieldErrors[fieldConfig.inputName],
       fieldConfig,
+      iconDialogDraft: iconDialogDraftByFieldName?.[fieldConfig.inputName],
+      iconDialogOpen: iconDialogOpenByFieldName?.[fieldConfig.inputName],
+      iconParseError: iconParseErrorByFieldName?.[fieldConfig.inputName],
       isPending: pendingByFieldName?.[fieldConfig.inputName],
       occurrence: { owner, placementId: fieldConfig.inputName },
       pendingLabel: pendingLabelByFieldName?.[fieldConfig.inputName],
+      schema,
       state,
       value: session.input[fieldConfig.inputName],
     }),
@@ -974,15 +1019,31 @@ export function projectGeneratedOperationFields({
 export function projectGeneratedOperationField({
   error,
   fieldConfig,
+  iconDialogDraft,
+  iconDialogOpen,
+  iconParseError,
   isPending = false,
   occurrence,
   pendingLabel,
+  schema = null,
   state,
   value,
 }: ProjectGeneratedOperationFieldOptions): OperationInputFieldContract {
   const { editor, field, inputName, label } = fieldConfig;
   const control = selectGeneratedFieldControl({ editor, field, label });
   const draftInput = state?.draft.values[inputName];
+  const editorValue = draftInput?.value ?? value;
+  const icon = selectProjectedIconAuthoring({
+    dialogDraft: iconDialogDraft,
+    dialogOpen: iconDialogOpen,
+    draft: typeof editorValue === "string" ? editorValue : "",
+    field,
+    isIcon: control.controlKind === "icon",
+    isPending,
+    parseError: iconParseError,
+    required: field.required,
+    schema,
+  });
 
   return {
     ...projectBaseField({
@@ -998,6 +1059,7 @@ export function projectGeneratedOperationField({
       options: projectFieldOptions({
         field,
         includeIconOptions: control.controlKind === "icon",
+        schema,
       }),
       pending: projectPending(isPending, pendingLabel),
       surface: "operation",
@@ -1012,6 +1074,7 @@ export function projectGeneratedOperationField({
       surface: "operation",
       value: draftInput?.value ?? value,
     }),
+    ...(icon === undefined ? {} : { icon }),
     input: fieldConfig,
     inputName,
     mode: "editor",
@@ -1154,11 +1217,13 @@ function projectFieldOptions({
   includeIconOptions = false,
   mediaAssetOptions,
   referenceOptions = [],
+  schema = null,
 }: {
   field: FieldSchema;
   includeIconOptions?: boolean;
   mediaAssetOptions?: readonly ClientMediaAssetOption[];
   referenceOptions?: readonly GeneratedReferenceOption[];
+  schema?: AppSchema | null;
 }): FieldOptions | undefined {
   if (field.type === "enum") {
     return {
@@ -1174,7 +1239,7 @@ function projectFieldOptions({
 
   if (includeIconOptions) {
     return {
-      iconOptions: projectIconOptions(),
+      iconOptions: projectIconOptions(schema),
     };
   }
 
@@ -1473,42 +1538,59 @@ function selectProjectedIconAuthoring({
   dialogDraft,
   dialogOpen = false,
   draft,
+  field,
   isIcon,
   isPending,
   parseError,
   required,
+  schema,
 }: {
   dialogDraft?: string;
   dialogOpen?: boolean;
   draft: string;
+  field: FieldSchema;
   isIcon: boolean;
   isPending: boolean;
   parseError?: string;
   required: boolean;
+  schema: AppSchema | null;
 }): IconPickerFacts | undefined {
-  if (!isIcon) {
+  const valueMode = iconValueMode(field);
+
+  if (!isIcon || valueMode === undefined) {
     return undefined;
   }
 
   const projectedDialogDraft = dialogDraft ?? draft;
-  const previewSource = dialogOpen ? projectedDialogDraft : draft;
+  const iconOptions = projectIconOptions(schema);
+  const selection = selectIconPickerSelection(projectedDialogDraft, valueMode, iconOptions);
+  const savedSelection = selectIconPickerSelection(draft, valueMode, iconOptions);
+  const effectiveParseError = valueMode === "svgSource" ? parseError : undefined;
+  const previewSelection = effectiveParseError === undefined ? selection : savedSelection;
+  const emptyValue = projectedDialogDraft.trim() === "";
+  const validSelection =
+    valueMode === "svgSource"
+      ? effectiveParseError === undefined && (!required || !emptyValue)
+      : selection.kind === "option" || (!required && selection.kind === "empty");
 
   return {
     canCancel: dialogOpen,
-    canSave:
-      dialogOpen &&
-      !isPending &&
-      parseError === undefined &&
-      (!required || projectedDialogDraft.trim() !== ""),
-    ...(parseError === undefined ? {} : { customParseError: parseError }),
+    canSave: dialogOpen && !isPending && validSelection,
+    ...(effectiveParseError === undefined ? {} : { customParseError: effectiveParseError }),
     dialogDraft: projectedDialogDraft,
     dialogOpen,
-    emptyValue: projectedDialogDraft.trim() === "",
-    previewSource: parseError === undefined ? previewSource : draft,
+    emptyValue,
+    previewSource: iconPickerSelectionSource(previewSelection),
     savePending: isPending,
-    selection: selectIconPickerSelection(projectedDialogDraft),
-    valueMode: "svgSource",
+    selection,
+    valueMode,
   };
+}
+
+function iconValueMode(field: FieldSchema): IconValueMode | undefined {
+  return field.type === "text" && field.format === "icon"
+    ? (field.icon?.valueMode ?? "svgSource")
+    : undefined;
 }
 
 function selectRecordAccess(
@@ -1683,25 +1765,35 @@ function projectMediaAssetOption(option: ClientMediaAssetOption): MediaAssetOpti
   };
 }
 
-function projectIconOptions(): readonly IconOption[] {
-  return listIconCatalogEntries().map(projectIconOption);
+function projectIconOptions(schema: AppSchema | null): readonly IconOption[] {
+  return listAppIconCatalogEntries(schema).map(projectIconOption);
 }
 
-function projectIconOption(entry: IconCatalogEntry): IconOption {
+function projectIconOption(entry: AppIconCatalogEntry): IconOption {
   return {
-    group: entry.group,
+    ...(entry.group === undefined ? {} : { group: entry.group }),
     id: entry.key,
     label: entry.label,
     source: entry.source,
   };
 }
 
-function selectIconPickerSelection(source: string): IconPickerSelection {
-  if (source.trim() === "") {
+function selectIconPickerSelection(
+  value: string,
+  valueMode: IconValueMode,
+  options: readonly IconOption[],
+): IconPickerSelection {
+  if (value.trim() === "") {
     return { kind: "empty" };
   }
 
-  const option = projectIconOptions().find((entry) => entry.source === source);
+  if (valueMode === "iconIdWithSvgFallback" && parseSourceSvg(value) !== null) {
+    return { kind: "legacySource", source: value };
+  }
+
+  const option = options.find((entry) =>
+    valueMode === "svgSource" ? entry.source === value : entry.id === value,
+  );
 
   if (option !== undefined) {
     return {
@@ -1711,10 +1803,17 @@ function selectIconPickerSelection(source: string): IconPickerSelection {
     };
   }
 
-  return {
-    kind: "customSource",
-    source,
-  };
+  return valueMode === "svgSource"
+    ? { kind: "customSource", source: value }
+    : { id: value, kind: "missingId" };
+}
+
+function iconPickerSelectionSource(selection: IconPickerSelection): string {
+  return selection.kind === "option" ||
+    selection.kind === "customSource" ||
+    selection.kind === "legacySource"
+    ? selection.source
+    : "";
 }
 function projectEnumOptions(
   field: Extract<

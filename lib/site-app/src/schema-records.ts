@@ -16,6 +16,13 @@ function starterReference(entity: string, step: string) {
   return { kind: "reference", entity, id: starterStepId(step) } as const;
 }
 
+const SITE_PRODUCT_ICON_KEY = "formless";
+const SITE_PRODUCT_ICON_SVG = `<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M0 134.118C0 60.0465 60.0465 0 134.118 0H480C497.673 0 512 14.3269 512 32C512 98.2742 458.274 152 392 152H17.8824C8.0062 152 0 143.994 0 134.118Z" fill="currentColor"/>
+<path d="M0 204C0 190.745 10.7452 180 24 180H347C364.673 180 379 194.327 379 212C379 278.274 325.274 332 259 332H24C10.7452 332 0 321.255 0 308V204Z" fill="currentColor"/>
+<path d="M0 384C0 370.745 10.7452 360 24 360H213C230.673 360 245 374.327 245 392C245 458.274 191.274 512 125 512H48C21.4903 512 0 490.51 0 464V384Z" fill="currentColor"/>
+</svg>`;
+
 const siteScopePredicate: QueryExpression = {
   kind: "where",
   ref: { kind: "value", name: "site" },
@@ -45,11 +52,7 @@ const siteStarterRecordPlan: RecordPlanStepSchema[] = [
       description: starterLiteral(
         "Formless is a schema-as-data runtime for building custom software on Cloudflare",
       ),
-      icon: starterLiteral(`<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M0 134.118C0 60.0465 60.0465 0 134.118 0H480C497.673 0 512 14.3269 512 32C512 98.2742 458.274 152 392 152H17.8824C8.0062 152 0 143.994 0 134.118Z" fill="currentColor"/>
-<path d="M0 204C0 190.745 10.7452 180 24 180H347C364.673 180 379 194.327 379 212C379 278.274 325.274 332 259 332H24C10.7452 332 0 321.255 0 308V204Z" fill="currentColor"/>
-<path d="M0 384C0 370.745 10.7452 360 24 360H213C230.673 360 245 374.327 245 392C245 458.274 191.274 512 125 512H48C21.4903 512 0 490.51 0 464V384Z" fill="currentColor"/>
-</svg>`),
+      icon: starterLiteral(SITE_PRODUCT_ICON_KEY),
     },
   },
   {
@@ -234,6 +237,14 @@ Formless does very little out of the box. It's a set of powerful building blocks
 
 export const siteRecordSchemaModule = defineAppSchemaModule({
   key: "site-records",
+  icons: [
+    {
+      key: SITE_PRODUCT_ICON_KEY,
+      label: "Formless",
+      group: "Brand",
+      source: SITE_PRODUCT_ICON_SVG,
+    },
+  ],
   runtimeRequirements: {
     shared: {
       recordAdapters: ["site.records"],
@@ -278,6 +289,7 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
           required: false,
           label: "Icon",
           format: "icon",
+          icon: { valueMode: "iconIdWithSvgFallback" },
         },
         {
           key: "initialThemeMode",
@@ -666,6 +678,7 @@ export const siteRecordSchemaModule = defineAppSchemaModule({
           required: false,
           label: "Icon",
           format: "icon",
+          icon: { valueMode: "iconIdWithSvgFallback" },
         },
         {
           key: "color",

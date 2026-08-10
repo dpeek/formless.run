@@ -12,6 +12,7 @@ import type {
   GeneratedFieldDraft,
   GeneratedFieldDraftError,
   GeneratedFieldDraftInput,
+  IconValueMode,
   PublicSafeOperationInputField,
   QueryEvaluationContext,
   RecordValues,
@@ -306,6 +307,14 @@ export type IconPickerSelection =
   | {
       kind: "customSource";
       source: string;
+    }
+  | {
+      kind: "legacySource";
+      source: string;
+    }
+  | {
+      id: string;
+      kind: "missingId";
     };
 
 export type IconPickerFacts = {
@@ -318,7 +327,7 @@ export type IconPickerFacts = {
   previewSource: string;
   savePending?: boolean;
   selection: IconPickerSelection;
-  valueMode: "svgSource";
+  valueMode: IconValueMode;
 };
 
 export type FieldPresentationColorIntent = "neutral" | "success" | "warning" | "danger";

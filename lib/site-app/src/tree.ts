@@ -9,7 +9,12 @@ import type {
   SiteTreeWarning,
   StoredRecord,
 } from "./types.ts";
-import type { AppSchema } from "@dpeek/formless-schema";
+import {
+  mergeSchemaIconDefinitionsWithDefaults,
+  type AppSchema,
+  type IconDefinitionSchema,
+  type KeyedDefinition,
+} from "@dpeek/formless-schema";
 import { coreImageMediaDeliveryFactsForAssetId } from "@dpeek/formless-media";
 import {
   normalizeSiteRoutePath,
@@ -20,6 +25,7 @@ import {
 import { resolveSiteLinkHref } from "./link-targets.ts";
 import { projectSitePublicOperationBlock } from "./public-operation-block-projection.ts";
 import { selectSiteOwnedPublicRecords, selectSoleActiveSite } from "./site-selection.ts";
+import { resolveSiteIconValue } from "./site-icon-source.ts";
 
 export type {
   SiteBlockNode,
@@ -32,6 +38,7 @@ export type {
 } from "./types.ts";
 
 export type BuildSitePageTreeOptions = {
+  defaultIcons?: readonly KeyedDefinition<IconDefinitionSchema>[];
   generatedAt?: string;
   maxDepth?: number;
   turnstileSiteKey?: string;
@@ -43,6 +50,7 @@ type SiteTreeIndexes = {
 };
 
 type SiteTreeBuildContext = {
+  iconCatalog: readonly KeyedDefinition<IconDefinitionSchema>[];
   schema: AppSchema;
   indexes: SiteTreeIndexes;
   site: StoredRecord;
@@ -91,7 +99,11 @@ export function buildSitePageTree(
   }
 
   const indexes = indexSiteRecords(selectSiteOwnedPublicRecords(records, selection.site));
-  const site = projectSiteSettings(selection.site, warnings);
+  const iconCatalog = mergeSchemaIconDefinitionsWithDefaults(
+    schema.icons,
+    options.defaultIcons ?? [],
+  );
+  const site = projectSiteSettings(selection.site, iconCatalog, warnings);
   const route = resolveSelectedSiteRoute(selection.site, indexes.blocks, slug, warnings);
 
   if (!route) {
@@ -105,6 +117,7 @@ export function buildSitePageTree(
   }
 
   const context = {
+    iconCatalog,
     schema,
     indexes,
     site: selection.site,
@@ -170,6 +183,7 @@ function indexSiteRecords(records: StoredRecord[]): SiteTreeIndexes {
 
 function projectSiteSettings(
   settings: StoredRecord,
+  iconCatalog: readonly KeyedDefinition<IconDefinitionSchema>[],
   warnings: SiteTreeWarning[],
 ): SiteSettingsNode | undefined {
   const label = stringValue(settings.values.label);
@@ -187,7 +201,7 @@ function projectSiteSettings(
     id: settings.id,
     label,
     ...optionalStringField("description", settings.values.description),
-    ...optionalStringField("icon", settings.values.icon),
+    ...projectIcon(settings.id, settings.values.icon, iconCatalog, warnings),
     ...optionalThemeMode(settings.values.initialThemeMode),
     ...optionalBooleanField("themeSwitchable", settings.values.themeSwitchable),
   };
@@ -383,6 +397,7 @@ function projectBlock(record: StoredRecord, context: SiteTreeBuildContext): Site
   const publicFormBlock = type === "subscribeForm" || type === "contactForm";
   const publicOperationFormBlock = type === "publicOperationForm";
   const operationFormBlock = publicFormBlock || publicOperationFormBlock;
+  const iconValue = linkProjection === null ? record.values.icon : linkProjection.icon;
 
   return {
     id: record.id,
@@ -409,10 +424,7 @@ function projectBlock(record: StoredRecord, context: SiteTreeBuildContext): Site
           linkProjection === null ? record.values.href : linkProjection.href,
         )),
     ...optionalStringField("date", record.values.date),
-    ...optionalStringField(
-      "icon",
-      linkProjection === null ? record.values.icon : linkProjection.icon,
-    ),
+    ...projectIcon(record.id, iconValue, context.iconCatalog, context.warnings),
     ...optionalStringField("color", record.values.color),
     ...optionalStringField("alignment", record.values.alignment),
     ...(mediaProjection ? { media: mediaProjection } : {}),
@@ -489,6 +501,32 @@ function projectedLinkFields(
     ...optionalStringField("href", resolution.href),
     ...optionalStringField("icon", resolution.icon),
   };
+}
+
+function projectIcon(
+  recordId: string,
+  value: FieldValue | undefined,
+  iconCatalog: readonly KeyedDefinition<IconDefinitionSchema>[],
+  warnings: SiteTreeWarning[],
+): Pick<SiteBlockNode, "icon"> {
+  const resolution = resolveSiteIconValue(stringValue(value), iconCatalog);
+
+  if (resolution.kind === "resolved") {
+    return { icon: resolution.source };
+  }
+
+  if (resolution.kind === "missing" || resolution.kind === "unsafe") {
+    warnings.push({
+      code: resolution.kind === "missing" ? "missing-icon" : "unsafe-icon",
+      recordId,
+      message:
+        resolution.kind === "missing"
+          ? `Icon id "${resolution.value}" on record "${recordId}" is not available.`
+          : `Icon value on record "${recordId}" is not display-safe SVG.`,
+    });
+  }
+
+  return {};
 }
 
 function projectPlacement(placement: StoredRecord, childBlock: SiteBlockNode): SitePlacementNode {

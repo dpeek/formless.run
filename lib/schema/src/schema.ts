@@ -1,5 +1,6 @@
 import { parseAppAuthorization } from "./schema-authorization.ts";
 import { parseEntities } from "./schema-fields.ts";
+import { parseIconDefinitions } from "./schema-icons.ts";
 import { parseEntityOperationsForEntities } from "./schema-operations.ts";
 import { assertExactKeys, definitionsToRecord, isRecord } from "./schema-parse-helpers.ts";
 import { parseReadModels } from "./schema-read-models.ts";
@@ -29,6 +30,7 @@ export function parseAppSchema(value: unknown): AppSchema {
     ["version", "entities", "queries", "itemViews", "tableViews", "views"],
     [
       "authorization",
+      "icons",
       "navigation",
       "relationships",
       "readModels",
@@ -43,6 +45,7 @@ export function parseAppSchema(value: unknown): AppSchema {
     throw new Error("Schema version must be 1.");
   }
   const authorization = parseAppAuthorization(value.authorization);
+  const icons = parseIconDefinitions(value.icons);
   const parsedEntities = parseEntities(value.entities);
   if (parsedEntities.entities.length === 0) {
     throw new Error("Schema must define at least one entity.");
@@ -89,6 +92,7 @@ export function parseAppSchema(value: unknown): AppSchema {
   const schema: AppSchema = {
     version,
     ...(authorization === undefined ? {} : { authorization }),
+    ...(icons === undefined ? {} : { icons }),
     entities: entitiesWithOperations,
     ...(relationships === undefined ? {} : { relationships }),
     queries,

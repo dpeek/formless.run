@@ -877,6 +877,7 @@ function projectTableRecordField({
           recordId: record.id,
           recordValue,
           referenceOptions,
+          schema,
           surface: "table-cell",
           transitionOperations,
         })

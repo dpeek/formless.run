@@ -53,6 +53,28 @@ pull synchronization.
 - AND it does not invoke a migration registry, record transform, migration
   approval, or migration evidence policy
 
+#### Scenario: Add an icon catalog and transitional value mode compatibly
+
+- GIVEN the desired Program adds schema-declared icon definitions
+- AND an existing icon text field changes from omitted or `svgSource` behavior
+  to `iconIdWithSvgFallback`
+- AND every current record retains its existing safe SVG source or icon id
+- WHEN ordinary push evaluates the desired Program
+- THEN the icon catalog and transitional behavior do not change the stored field
+  contract or materialize records
+- AND the Program refresh is storage-compatible even though its source schema
+  hash changes
+
+#### Scenario: Require icon data conversion before strict id mode
+
+- GIVEN a desired icon text field uses `iconId`
+- AND one or more current records still store raw SVG source
+- WHEN ordinary push validates current records under the desired Program
+- THEN push reports that record materialization is required and changes nothing
+- AND after an explicit workflow rewrites every raw source to an icon id, the
+  same strict-mode schema refresh can be storage-compatible without changing
+  the archive envelope
+
 #### Scenario: Record-materializing evolution requires an explicit operation
 
 - GIVEN a Program schema change removes or rebinds stored entities or fields,

@@ -172,6 +172,9 @@
     "lib/schema": {
       "name": "@dpeek/formless-schema",
       "version": "0.1.13",
+      "dependencies": {
+        "@dpeek/formless-source-svg": "workspace:*"
+      },
     },
     "lib/site-app": {
       "name": "@dpeek/formless-site-app",

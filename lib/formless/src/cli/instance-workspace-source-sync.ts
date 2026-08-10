@@ -1888,7 +1888,7 @@ export async function restoreWorkspacePushSourceArchive(
   return result;
 }
 
-function requireWorkspacePushSchemaCompatibility(input: {
+export function requireWorkspacePushSchemaCompatibility(input: {
   currentArchive: InstanceArchive;
   currentSchema: AppSchema;
   currentSchemaProvenance: FormlessProgramArtifact["schemaProvenance"];

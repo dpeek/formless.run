@@ -80,7 +80,7 @@ parsed runtime contracts.
 #### Scenario: Compose declaration modules
 
 - GIVEN package-local schema modules contribute whole declarations to the
-  existing entity, relationship, query, read-model, union, item-view,
+  existing icon, entity, relationship, query, read-model, union, item-view,
   table-view, view, screen, or surface-mount namespaces
 - AND a composition root explicitly lists the modules in source order
 - WHEN the modules are composed
@@ -481,7 +481,7 @@ an ordered array whose definitions carry their existing portable `key`.
 
 #### Scenario: Parse ordered definition registries
 
-- GIVEN App schema source declares top-level authorization roles, entities,
+- GIVEN App schema source declares top-level authorization roles, icons, entities,
   relationships, queries, computed values, aggregates, unions, item views,
   table views, views, screens, or surface mounts
 - OR it declares nested entity fields, enum values, constraints, state
@@ -540,7 +540,7 @@ their own arrays.
 
 #### Scenario: Use declaration order by default
 
-- GIVEN a runtime needs a default field catalog, enum option list, union variant
+- GIVEN a runtime needs a default icon catalog, field catalog, enum option list, union variant
   list, transition action list, operation list, screen catalog, or another
   keyed registry sequence
 - WHEN no surface-specific selection array applies
@@ -628,7 +628,7 @@ entity, field, media, route, or authorization identity.
 
 #### Scenario: Hash complete schema source
 
-- GIVEN a complete App schema changes entities, fields, relationships, queries,
+- GIVEN a complete App schema changes icons, entities, fields, relationships, queries,
   read models, views, table views, item views, screens, surface mounts,
   operations, state machines, labels, or runtime metadata
 - WHEN the deterministic source schema hash is computed
@@ -1239,6 +1239,37 @@ The system SHALL compute read-model values for display and SHALL NOT persist rea
 ### Requirement: Field Behavior And Presentation
 
 The system SHALL use field behavior to define validation, defaults, conversion, display, and editor metadata for scalar and reference fields.
+
+#### Scenario: Declare a portable icon catalog
+
+- GIVEN package or product schema modules contribute keyed icon definitions
+- WHEN the complete App schema is composed and parsed
+- THEN each icon definition has a stable key, display label, optional group,
+  and display-safe SVG source
+- AND module icon declarations flatten into one ordered top-level `icons`
+  registry through ordinary declaration ownership and collision rules
+- AND the complete schema rejects duplicate icon keys and invalid or unsafe SVG
+  sources before runtime projection
+- AND a schema icon definition takes precedence over the baked runtime icon
+  with the same key while undeclared baked icons remain available as defaults
+- AND icon definitions remain schema data rather than Program records, media
+  objects, executable runtime extensions, or renderer components
+
+#### Scenario: Declare icon value interpretation
+
+- GIVEN a text field declares `format` `icon`
+- WHEN its optional icon behavior is parsed
+- THEN `valueMode` accepts `svgSource`, `iconIdWithSvgFallback`, or `iconId`
+- AND omission defaults to `svgSource` so existing schemas retain source-backed
+  behavior
+- AND `iconIdWithSvgFallback` accepts an icon catalog key or a safe legacy SVG
+  source while authoring new catalog selections as keys
+- AND `iconId` accepts catalog-key-shaped stored text without requiring the key
+  to remain resolvable in the current catalog
+- AND raw SVG source is invalid under `iconId`
+- AND icon behavior is rejected on non-icon fields
+- AND all three modes retain one optional or required flat text field rather
+  than introducing a reference field or changing record shape
 
 #### Scenario: Preserve typed scalar values
 

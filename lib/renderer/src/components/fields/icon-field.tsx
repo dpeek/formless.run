@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import * as stylex from "@stylexjs/stylex";
+import { Button } from "@astryxdesign/core/Button";
 import { Grid } from "@astryxdesign/core/Grid";
 import { HStack } from "@astryxdesign/core/HStack";
 import { Popover } from "@astryxdesign/core/Popover";
@@ -38,7 +39,7 @@ export function IconFieldEditor({
   onIntent: FieldIntentHandler | undefined;
 }) {
   const icon = field.icon;
-  const savedSource = formatInputValue(editorFieldValue(field));
+  const savedValue = formatInputValue(editorFieldValue(field));
   const disabled = fieldInteractionIsDisabled(field);
   const [isOpen, setIsOpen] = useState(false);
 
@@ -46,17 +47,18 @@ export function IconFieldEditor({
     return (
       <FieldChrome field={field} inputId={inputId}>
         <HStack>
-          <IconPreview id={inputId} isDisabled label={`Edit ${field.label}`} source={savedSource} />
+          <IconPreview id={inputId} isDisabled label={`Edit ${field.label}`} source={savedValue} />
         </HStack>
       </FieldChrome>
     );
   }
 
   const triggerLabel = `${icon.emptyValue ? "Choose" : "Edit"} ${field.label}`;
+  const missingId = icon.selection.kind === "missingId" ? icon.selection.id : undefined;
 
   return (
     <FieldChrome field={field} inputId={inputId}>
-      <HStack>
+      <HStack gap={2} vAlign="center">
         <Popover
           alignment="start"
           hasCloseButton={false}
@@ -67,9 +69,9 @@ export function IconFieldEditor({
             setIsOpen(open);
 
             if (open) {
-              emitIconDraftChange(field, savedSource, onIntent);
+              emitIconDraftChange(field, savedValue, onIntent);
             } else {
-              void closeIconPopover(field, icon, savedSource, onIntent);
+              void closeIconPopover(field, icon, savedValue, onIntent);
             }
           }}
           placement="below"
@@ -90,10 +92,24 @@ export function IconFieldEditor({
             isLoading={Boolean(field.pending?.isPending)}
             label={triggerLabel}
             onClick={() => undefined}
-            source={savedSource}
+            source={icon.previewSource}
             tooltip={fieldDescription(field) ?? triggerLabel}
           />
         </Popover>
+        {missingId === undefined ? null : (
+          <VStack gap={1}>
+            <Text type="supporting">Missing icon: {missingId}</Text>
+            {field.required ? null : (
+              <Button
+                isDisabled={disabled}
+                label={`Remove ${field.label}`}
+                onClick={() => void selectIconValue(field, "", () => setIsOpen(false), onIntent)}
+                size="sm"
+                variant="ghost"
+              />
+            )}
+          </VStack>
+        )}
       </HStack>
     </FieldChrome>
   );
@@ -115,7 +131,9 @@ function IconPickerPopover({
   const selectionMode = iconPickerMode(icon.selection.kind);
   const [mode, setMode] = useState<IconPickerMode>(selectionMode);
   const wasOpen = useRef(false);
-  const catalogOptions = field.options?.iconOptions?.filter((option) => !option.custom) ?? [];
+  const catalogOptions =
+    field.options?.iconOptions?.filter((option) => !option.custom && !option.missing) ?? [];
+  const customSourceEnabled = icon.valueMode === "svgSource";
 
   useEffect(() => {
     if (isOpen && !wasOpen.current) {
@@ -127,16 +145,18 @@ function IconPickerPopover({
 
   return (
     <VStack gap={3} width="100%">
-      <SegmentedControl
-        label={`${field.label} source`}
-        layout="fill"
-        onChange={(value) => setMode(value as IconPickerMode)}
-        value={mode}
-      >
-        <SegmentedControlItem label="Catalog" value="catalog" />
-        <SegmentedControlItem label="Custom" value="custom" />
-      </SegmentedControl>
-      {mode === "catalog" ? (
+      {customSourceEnabled ? (
+        <SegmentedControl
+          label={`${field.label} source`}
+          layout="fill"
+          onChange={(value) => setMode(value as IconPickerMode)}
+          value={mode}
+        >
+          <SegmentedControlItem label="Catalog" value="catalog" />
+          <SegmentedControlItem label="Custom" value="custom" />
+        </SegmentedControl>
+      ) : null}
+      {!customSourceEnabled || mode === "catalog" ? (
         <Grid
           columns={{ minWidth: 88, max: 5, repeat: "fit" }}
           gap={2}
@@ -144,7 +164,8 @@ function IconPickerPopover({
           xstyle={styles.catalogGrid}
         >
           {catalogOptions.map((option) => {
-            const isSelected = option.source === icon.dialogDraft;
+            const isSelected =
+              icon.selection.kind === "option" && icon.selection.optionId === option.id;
 
             return (
               <SelectableCard
@@ -153,7 +174,12 @@ function IconPickerPopover({
                 label={option.label}
                 onChange={(nextSelected) => {
                   if (nextSelected) {
-                    void selectIconValue(field, option.source, onSelect, onIntent);
+                    void selectIconValue(
+                      field,
+                      icon.valueMode === "svgSource" ? option.source : option.id,
+                      onSelect,
+                      onIntent,
+                    );
                   } else if (!field.required) {
                     void selectIconValue(field, "", onSelect, onIntent);
                   }
@@ -204,12 +230,18 @@ function IconPickerPopover({
 }
 
 export function IconFieldDisplay({ field }: { field: DisplayFieldContract }) {
+  const missingId =
+    field.icon?.selection.kind === "missingId" ? field.icon.selection.id : undefined;
+
   return (
-    <IconPreview
-      label={field.label}
-      size={astryxDensity(field) === "compact" ? "compact" : "default"}
-      source={formatInputValue(field.value)}
-    />
+    <HStack gap={2} vAlign="center">
+      <IconPreview
+        label={field.label}
+        size={astryxDensity(field) === "compact" ? "compact" : "default"}
+        source={field.icon?.previewSource ?? formatInputValue(field.value)}
+      />
+      {missingId === undefined ? null : <Text type="supporting">Missing icon: {missingId}</Text>}
+    </HStack>
   );
 }
 
@@ -223,17 +255,17 @@ async function closeIconPopover(
   savedSource: string,
   onIntent: FieldIntentHandler | undefined,
 ) {
+  if (icon.valueMode !== "svgSource") {
+    return;
+  }
+
   const draftIsValid =
     icon.customParseError === undefined && (!field.required || icon.dialogDraft.trim() !== "");
 
   if (draftIsValid && icon.dialogDraft !== savedSource) {
     await commitIconValue(field, icon.dialogDraft, onIntent);
   } else if (!draftIsValid) {
-    await onIntent?.({
-      type: "iconDialogDraftChange",
-      fieldName: field.fieldName,
-      value: savedSource,
-    });
+    emitIconDraftChange(field, savedSource, onIntent);
   }
 }
 
@@ -242,6 +274,24 @@ function emitIconDraftChange(
   value: string,
   onIntent: FieldIntentHandler | undefined,
 ) {
+  if (field.surface === "create") {
+    void onIntent?.({
+      type: "createDraftChange",
+      fieldName: field.fieldName,
+      fieldValue: { kind: "input", value },
+    });
+    return;
+  }
+
+  if (field.surface === "operation") {
+    void onIntent?.({
+      type: "operationDraftChange",
+      inputName: field.inputName,
+      inputValue: { kind: "input", value },
+    });
+    return;
+  }
+
   void onIntent?.({ type: "iconDialogDraftChange", fieldName: field.fieldName, value });
 }
 

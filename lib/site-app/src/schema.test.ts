@@ -171,11 +171,19 @@ describe("Site schema authoring", () => {
       expect.objectContaining({ key: "header", required: false, to: "block", type: "reference" }),
       expect.objectContaining({ key: "footer", required: false, to: "block", type: "reference" }),
     ]);
+    expect(site.fields.find(({ key }) => key === "icon")).toMatchObject({
+      format: "icon",
+      icon: { valueMode: "iconIdWithSvgFallback" },
+    });
     expect(block.fields.find(({ key }) => key === "site")).toMatchObject({
       key: "site",
       required: true,
       to: "site",
       type: "reference",
+    });
+    expect(block.fields.find(({ key }) => key === "icon")).toMatchObject({
+      format: "icon",
+      icon: { valueMode: "iconIdWithSvgFallback" },
     });
     expect(siteUpdate.input?.fields.map(({ key }) => key)).toEqual([
       "key",
@@ -234,6 +242,22 @@ describe("Site schema authoring", () => {
     });
     expect(operation.input).toBeUndefined();
     expect(operation.access).toBeUndefined();
+    expect(operation.effect.steps.find(({ name }) => name === "createSite")).toMatchObject({
+      values: { icon: { kind: "literal", value: "formless" } },
+    });
+  });
+
+  it("declares the default Site product icon in the portable catalog", () => {
+    const schema = parseAppSchema(siteSchemaSource);
+
+    expect(schema.icons).toEqual([
+      {
+        key: "formless",
+        label: "Formless",
+        group: "Brand",
+        source: expect.stringContaining('<svg width="512" height="512"'),
+      },
+    ]);
   });
 
   it("declares singleton-scoped Site authoring and its explicit starter empty state", () => {

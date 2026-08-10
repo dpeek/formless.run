@@ -426,6 +426,7 @@ const declarationCollisionCases: Array<{
   path: string;
   declarations: ModuleDeclarations;
 }> = [
+  { path: "icons.shared", declarations: { icons: [{ key: "shared" } as never] } },
   { path: "entities.shared", declarations: { entities: [{ key: "shared" } as never] } },
   {
     path: "relationships.shared",
