@@ -48,6 +48,10 @@ import type {
   StateMachineFieldConfig,
   TransitionStateOperationConfig,
 } from "./state-machine-model.ts";
+import {
+  selectHomeSelectedRecordDetail,
+  type HomeSelectedRecordDetailConfig,
+} from "./selected-record-detail-model.ts";
 
 export { selectRelatedCollectionModels } from "./collection-shell-model.ts";
 export {
@@ -75,6 +79,7 @@ export {
   projectOrderingMoveOperationControlBinding,
   projectPublicOperationFormControlBinding,
   projectRecordDeleteOperationControlBinding,
+  projectRecordOperationControlBinding,
   projectStateTransitionOperationControlBinding,
   projectTableOperationControlBinding,
   projectTableOperationControlBindings,
@@ -131,6 +136,13 @@ export type {
   GeneratedWorkspaceOperationControlFacts,
 } from "./operation-control-model.ts";
 export type { StateMachineFieldConfig, TransitionStateOperationConfig };
+export type {
+  HomeSelectedRecordDetailConfig,
+  HomeSelectedRecordDetailOperationConfig,
+  HomeSelectedRecordDetailRecordSectionConfig,
+  HomeSelectedRecordDetailRelationshipSectionConfig,
+  HomeSelectedRecordDetailSectionConfig,
+} from "./selected-record-detail-model.ts";
 export { fieldLabel } from "./view-labels.ts";
 
 export function recordFieldRef(fieldConfig: { fieldName: string; fieldRef?: FieldRef }): FieldRef {
@@ -481,6 +493,7 @@ export type HomeResultConfig =
 
 export type HomeCollectionConfig = HomeCollectionShellConfig & {
   result: HomeResultConfig;
+  detail?: HomeSelectedRecordDetailConfig;
 };
 
 export type HomeViewModel = {
@@ -555,6 +568,7 @@ export function selectScreenModels(schema: AppSchema): HomeScreenModel[] {
       screen.type === "workspace"
         ? [
             selectScreenModel(
+              schema,
               screen.key,
               screen,
               primaryScreenNames.has(screen.key),
@@ -609,6 +623,7 @@ export function selectCollectionModels(schema: AppSchema): HomeViewModel[] {
 }
 
 function selectScreenModel(
+  schema: AppSchema,
   screenName: string,
   screen: WorkspaceScreenSchema,
   primary: boolean,
@@ -633,7 +648,20 @@ function selectScreenModel(
           throw new Error(`Missing collection view model "${section.view}".`);
         }
 
-        const collection = selectScreenSectionCollection(collectionModel.collection, section.query);
+        const detail =
+          section.detail === undefined
+            ? undefined
+            : selectHomeSelectedRecordDetail(
+                schema,
+                section.detail,
+                collectionModel.entityName,
+                collectionModel.entity,
+              );
+        const collection = selectScreenSectionCollection(
+          collectionModel.collection,
+          section.query,
+          detail,
+        );
 
         return {
           id: section.id,
@@ -650,18 +678,31 @@ function selectScreenModel(
 function selectScreenSectionCollection(
   collection: HomeCollectionConfig,
   queryName: string | undefined,
+  detail: HomeSelectedRecordDetailConfig | undefined,
 ): HomeCollectionConfig {
-  if (queryName === undefined) {
+  if (queryName === undefined && detail === undefined) {
     return collection;
   }
 
-  const query = collection.queries.tabs.find((tab) => tab.queryName === queryName);
+  const selectedCollection =
+    detail === undefined
+      ? collection
+      : {
+          ...collection,
+          detail,
+        };
+
+  if (queryName === undefined) {
+    return selectedCollection;
+  }
+
+  const query = selectedCollection.queries.tabs.find((tab) => tab.queryName === queryName);
   if (!query) {
     throw new Error(`Missing screen section query "${queryName}".`);
   }
 
   return {
-    ...collection,
+    ...selectedCollection,
     queries: {
       tabs: [query],
       defaultQueryName: queryName,

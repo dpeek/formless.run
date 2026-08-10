@@ -1189,6 +1189,48 @@ contain one level of destination-less labelled sections.
 - AND an undeclared query or query outside the referenced collection view is
   rejected
 
+#### Scenario: Compose selected-record detail from a collection section
+
+- GIVEN a workspace collection section presents one selected record from its
+  referenced collection
+- WHEN the section declares `detail` with type `selectedRecord`
+- THEN the referenced collection result is a list whose entity is the selected
+  record entity
+- AND the detail declares a non-empty context name plus non-empty ordered
+  record and relationship sections with unique stable ids
+- AND a record section references an item view for the selected record entity
+  so ordered editable and read-only field projection remains owned by the item
+  view
+- AND a relationship section references a to-many relationship that starts at
+  the selected record entity, a query for the relationship target entity, and a
+  table result whose table view uses that target entity
+- AND the selected-record detail composes projections without nesting or
+  changing stored records
+
+#### Scenario: Bind a selected-record relationship action
+
+- GIVEN a selected-record relationship section places an operation beside its
+  heading
+- WHEN the complete schema is parsed
+- THEN the binding references a browser-visible record-scoped source operation
+  on the selected record entity
+- AND placement may select the visible label and heading location without
+  redefining operation access, input, output, effect, audit, idempotency,
+  transition validity, confirmation, or execution semantics
+- AND an operation for another entity, a collection-scoped operation, an
+  unknown operation, or an unsupported placement is rejected
+
+#### Scenario: Keep selected-record detail distinct from collection context
+
+- GIVEN a collection section declares selected-record detail or its referenced
+  collection declares context presentation
+- WHEN the complete schema is parsed
+- THEN selected-record detail selects from that collection's own result while
+  collection context continues to select a separate context record for query
+  evaluation and related-result presentation
+- AND `context.presentation: "listDetail"` is not inferred from selected-record
+  detail and selected-record detail does not synthesize a collection context
+
 #### Scenario: Declare runtime-owned screen presentation
 
 - GIVEN a screen declares `type: "runtime"`

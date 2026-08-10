@@ -5,6 +5,7 @@ import type {
   CreateIntent,
   FieldIntent,
   ListIntent,
+  OperationControlContract,
   OperationPresentationIntent,
   RecordResultContract,
   RecordResultIntent,
@@ -27,6 +28,9 @@ import type {
   WorkspaceOperationIntent,
   WorkspaceRecordResultIntent,
   WorkspaceResultContract,
+  WorkspaceSelectedRecordBackIntent,
+  WorkspaceSelectedRecordSectionContract,
+  WorkspaceSelectedRecordSelectionIntent,
   WorkspaceSectionContract,
   WorkspaceSummaryContract,
   WorkspaceTableIntent,
@@ -47,6 +51,8 @@ export type GeneratedWorkspaceScopedIdentityKind =
   | "query"
   | "queryNavigation"
   | "result"
+  | "selectedRecord"
+  | "selectedRecordSection"
   | "summary"
   | "surface";
 
@@ -112,6 +118,27 @@ export type GeneratedWorkspacePlacedCollectionAction = {
   placement: "primary" | "secondary";
 };
 
+export type GeneratedWorkspaceSelectedRecordSectionProjectionFacts =
+  | {
+      id: string;
+      label?: string;
+      result: RecordResultContract;
+      type: "record";
+    }
+  | {
+      headingOperations: readonly OperationControlContract[];
+      id: string;
+      label?: string;
+      result: Extract<WorkspaceResultContract, { kind: "table" }>;
+      type: "relationship";
+    };
+
+export type GeneratedWorkspaceSelectedRecordProjectionFacts = {
+  recordIds: readonly string[];
+  sections: readonly GeneratedWorkspaceSelectedRecordSectionProjectionFacts[];
+  selectedRecordId: string | null;
+};
+
 export type GeneratedWorkspaceExternalActionProjectionFacts = {
   action: ActionTriggerContract;
   id: string;
@@ -130,6 +157,7 @@ export type GeneratedWorkspaceCollectionProjectionFacts = {
   queryNavigationAccessibilityLabel?: string;
   result: WorkspaceResultContract;
   secondaryActionsAccessibilityLabel?: string;
+  selectedRecord?: GeneratedWorkspaceSelectedRecordProjectionFacts;
   selectedQueryId?: string;
   summaries?: readonly GeneratedWorkspaceSummaryProjectionFacts[];
 };
@@ -267,7 +295,49 @@ export function projectGeneratedWorkspaceCollection({
   const layout = collection.layout ?? "ordinary";
   let presentation: WorkspaceCollectionPresentationContract;
 
-  if (layout === "listDetail") {
+  if (collection.selectedRecord !== undefined) {
+    if (collection.result.kind !== "list") {
+      throw new Error("Selected-record workspace collections require a main list result.");
+    }
+    const selectedRecord = collection.selectedRecord;
+    const selectedRecordId = selectedRecord.selectedRecordId;
+    const sections = projectGeneratedWorkspaceSelectedRecordSections({
+      scope,
+      sections: selectedRecord.sections,
+    });
+
+    if (
+      (selectedRecordId === null && sections.length !== 0) ||
+      (selectedRecordId !== null &&
+        (!selectedRecord.recordIds.includes(selectedRecordId) || sections.length === 0))
+    ) {
+      throw new Error("Selected-record workspace facts have an invalid selection state.");
+    }
+
+    presentation = {
+      accessibilityLabel: `${collection.label} selected record`,
+      ...commonPresentation,
+      activePresentation: selectedRecordId === null ? "list" : "detail",
+      ...(selectedRecordId === null
+        ? {}
+        : {
+            backIntent: projectGeneratedWorkspaceSelectedRecordBackIntent(scope, selectedRecordId),
+          }),
+      compactPresentation: "drillIn",
+      ...(context === undefined ? {} : { context }),
+      ...(collection.context?.detail === undefined
+        ? {}
+        : { contextDetail: collection.context.detail }),
+      id: generatedWorkspaceScopedId(scope, "selectedRecord", "detail"),
+      kind: "selectedRecord",
+      result: collection.result,
+      sections,
+      selectedRecordId,
+      selectionIntents: selectedRecord.recordIds.map((recordId) =>
+        projectGeneratedWorkspaceSelectedRecordSelectionIntent(scope, recordId),
+      ),
+    };
+  } else if (layout === "listDetail") {
     if (context?.presentation !== "localListDetail" || collection.context === undefined) {
       throw new Error("List-detail workspace collections require a local list-detail context.");
     }
@@ -565,6 +635,20 @@ export function projectGeneratedWorkspaceTableIntent(
   return { ...scope, intent, resultId, type: "workspaceTable" };
 }
 
+export function projectGeneratedWorkspaceSelectedRecordSelectionIntent(
+  scope: WorkspaceIntentScope,
+  recordId: string,
+): WorkspaceSelectedRecordSelectionIntent {
+  return { ...scope, recordId, type: "workspaceSelectedRecordSelection" };
+}
+
+export function projectGeneratedWorkspaceSelectedRecordBackIntent(
+  scope: WorkspaceIntentScope,
+  recordId: string,
+): WorkspaceSelectedRecordBackIntent {
+  return { ...scope, recordId, type: "workspaceSelectedRecordBack" };
+}
+
 export function projectGeneratedWorkspaceRecordResultIntent(
   scope: WorkspaceIntentScope,
   resultId: string,
@@ -612,6 +696,39 @@ function generatedWorkspaceContextOptionId(
   optionId: string,
 ): string {
   return generatedWorkspaceScopedId(scope, "contextOption", `${contextId}:${optionId}`);
+}
+
+function projectGeneratedWorkspaceSelectedRecordSections({
+  scope,
+  sections,
+}: {
+  scope: GeneratedWorkspaceIdentityScope;
+  sections: readonly GeneratedWorkspaceSelectedRecordSectionProjectionFacts[];
+}): WorkspaceSelectedRecordSectionContract[] {
+  const sectionIds = new Set<string>();
+
+  return sections.map((section) => {
+    if (sectionIds.has(section.id)) {
+      throw new Error("Selected-record workspace detail section ids must be unique.");
+    }
+    sectionIds.add(section.id);
+    const id = generatedWorkspaceScopedId(scope, "selectedRecordSection", section.id);
+
+    return section.type === "record"
+      ? {
+          id,
+          kind: "selectedRecordRecordSection",
+          ...(section.label === undefined ? {} : { label: section.label }),
+          result: section.result,
+        }
+      : {
+          headingOperations: section.headingOperations,
+          id,
+          kind: "selectedRecordRelationshipSection",
+          ...(section.label === undefined ? {} : { label: section.label }),
+          result: section.result,
+        };
+  });
 }
 
 function projectGeneratedWorkspaceItemAvailability(

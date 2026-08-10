@@ -1,6 +1,11 @@
 import { parseBrowserAccessRequirement } from "./schema-authorization.ts";
 import { collectQueryContextNames } from "./query.ts";
 import {
+  formatEntityOperationKey,
+  isEntityOperationVisibleToBrowser,
+  parseEntityOperationKey,
+} from "./schema-operations.ts";
+import {
   assertExactKeys,
   definitionsToRecord,
   isRecord,
@@ -19,6 +24,9 @@ import type {
   AppNavigationSectionSchema,
   CollectionQuerySchema,
   CollectionScreenSectionSchema,
+  EntitySchema,
+  ItemViewSchema,
+  RelationshipSchema,
   RuntimeScreenSchema,
   ScreenAccessRequirement,
   ScreenLayoutSchema,
@@ -26,6 +34,12 @@ import type {
   ScreenSchema,
   ScreenSectionSchema,
   SemanticIconId,
+  SelectedRecordDetailOperationBindingSchema,
+  SelectedRecordDetailRelationshipResultSchema,
+  SelectedRecordDetailRelationshipSectionSchema,
+  SelectedRecordDetailSchema,
+  SelectedRecordDetailSectionSchema,
+  TableViewSchema,
   ViewSchema,
   WorkspaceScreenSchema,
   KeyedDefinition,
@@ -35,12 +49,26 @@ export function parseScreens(
   views: Record<string, ViewSchema>,
   queries: Record<string, CollectionQuerySchema>,
   authorization: AppAuthorizationSchema | undefined,
+  entities: Record<string, EntitySchema> = {},
+  itemViews: Record<string, ItemViewSchema> = {},
+  tableViews: Record<string, TableViewSchema> = {},
+  relationships: Record<string, RelationshipSchema> = {},
 ): KeyedDefinition<ScreenSchema>[] {
   if (value === undefined) {
     throw new Error('Schema must include "screens".');
   }
   const screens = parseKeyedDefinitionArray("Schema screens", value, (screenName, screen) =>
-    parseScreen(screenName, screen, views, queries, authorization),
+    parseScreen(
+      screenName,
+      screen,
+      views,
+      queries,
+      authorization,
+      entities,
+      itemViews,
+      tableViews,
+      relationships,
+    ),
   );
   if (screens.length === 0) {
     throw new Error("Schema screens must not be empty.");
@@ -334,6 +362,10 @@ function parseScreen(
   views: Record<string, ViewSchema>,
   queries: Record<string, CollectionQuerySchema>,
   authorization: AppAuthorizationSchema | undefined,
+  entities: Record<string, EntitySchema>,
+  itemViews: Record<string, ItemViewSchema>,
+  tableViews: Record<string, TableViewSchema>,
+  relationships: Record<string, RelationshipSchema>,
 ): ScreenSchema {
   if (screenName.trim() === "") {
     throw new Error("Screen names must be non-empty.");
@@ -351,7 +383,17 @@ function parseScreen(
     throw new Error(`Screen "${screenName}" type must be "workspace" or "runtime".`);
   }
 
-  return parseWorkspaceScreen(screenName, value, views, queries, authorization);
+  return parseWorkspaceScreen(
+    screenName,
+    value,
+    views,
+    queries,
+    authorization,
+    entities,
+    itemViews,
+    tableViews,
+    relationships,
+  );
 }
 
 function parseRuntimeScreen(
@@ -378,6 +420,10 @@ function parseWorkspaceScreen(
   views: Record<string, ViewSchema>,
   queries: Record<string, CollectionQuerySchema>,
   authorization: AppAuthorizationSchema | undefined,
+  entities: Record<string, EntitySchema>,
+  itemViews: Record<string, ItemViewSchema>,
+  tableViews: Record<string, TableViewSchema>,
+  relationships: Record<string, RelationshipSchema>,
 ): WorkspaceScreenSchema {
   assertExactKeys(
     `Screen "${screenName}"`,
@@ -388,7 +434,16 @@ function parseWorkspaceScreen(
   const label = parseRequiredNonEmptyString(`Screen "${screenName}" label`, value.label);
   const path = parseScreenPath(screenName, value.path);
   const access = parseScreenAccess(screenName, value.access, authorization);
-  const layout = parseScreenLayout(screenName, value.layout, views, queries);
+  const layout = parseScreenLayout(
+    screenName,
+    value.layout,
+    views,
+    queries,
+    entities,
+    itemViews,
+    tableViews,
+    relationships,
+  );
   return {
     type: "workspace",
     label,
@@ -463,6 +518,10 @@ function parseScreenLayout(
   value: unknown,
   views: Record<string, ViewSchema>,
   queries: Record<string, CollectionQuerySchema>,
+  entities: Record<string, EntitySchema>,
+  itemViews: Record<string, ItemViewSchema>,
+  tableViews: Record<string, TableViewSchema>,
+  relationships: Record<string, RelationshipSchema>,
 ): ScreenLayoutSchema {
   const context = `Screen "${screenName}" layout`;
 
@@ -479,7 +538,16 @@ function parseScreenLayout(
   return {
     type: "stack",
     width: parseScreenLayoutWidth(screenName, value.width),
-    sections: parseScreenSections(screenName, value.sections, views, queries),
+    sections: parseScreenSections(
+      screenName,
+      value.sections,
+      views,
+      queries,
+      entities,
+      itemViews,
+      tableViews,
+      relationships,
+    ),
   };
 }
 
@@ -500,6 +568,10 @@ function parseScreenSections(
   value: unknown,
   views: Record<string, ViewSchema>,
   queries: Record<string, CollectionQuerySchema>,
+  entities: Record<string, EntitySchema>,
+  itemViews: Record<string, ItemViewSchema>,
+  tableViews: Record<string, TableViewSchema>,
+  relationships: Record<string, RelationshipSchema>,
 ): ScreenSectionSchema[] {
   if (!Array.isArray(value) || value.length === 0) {
     throw new Error(`Screen "${screenName}" layout sections must be a non-empty array.`);
@@ -508,7 +580,17 @@ function parseScreenSections(
   const sectionIds = new Set<string>();
 
   return value.map((section, index) => {
-    const parsedSection = parseScreenSection(screenName, index, section, views, queries);
+    const parsedSection = parseScreenSection(
+      screenName,
+      index,
+      section,
+      views,
+      queries,
+      entities,
+      itemViews,
+      tableViews,
+      relationships,
+    );
 
     if (sectionIds.has(parsedSection.id)) {
       throw new Error(
@@ -527,6 +609,10 @@ function parseScreenSection(
   value: unknown,
   views: Record<string, ViewSchema>,
   queries: Record<string, CollectionQuerySchema>,
+  entities: Record<string, EntitySchema>,
+  itemViews: Record<string, ItemViewSchema>,
+  tableViews: Record<string, TableViewSchema>,
+  relationships: Record<string, RelationshipSchema>,
 ): ScreenSectionSchema {
   const context = `Screen "${screenName}" layout section ${index}`;
 
@@ -538,7 +624,16 @@ function parseScreenSection(
     throw new Error(`${context} type must be "collection".`);
   }
 
-  return parseCollectionScreenSection(context, value, views, queries);
+  return parseCollectionScreenSection(
+    context,
+    value,
+    views,
+    queries,
+    entities,
+    itemViews,
+    tableViews,
+    relationships,
+  );
 }
 
 function parseCollectionScreenSection(
@@ -546,8 +641,12 @@ function parseCollectionScreenSection(
   value: Record<string, unknown>,
   views: Record<string, ViewSchema>,
   queries: Record<string, CollectionQuerySchema>,
+  entities: Record<string, EntitySchema>,
+  itemViews: Record<string, ItemViewSchema>,
+  tableViews: Record<string, TableViewSchema>,
+  relationships: Record<string, RelationshipSchema>,
 ): CollectionScreenSectionSchema {
-  assertExactKeys(context, value, ["id", "type", "view"], ["label", "query"]);
+  assertExactKeys(context, value, ["id", "type", "view"], ["detail", "label", "query"]);
 
   const id = parseRequiredNonEmptyString(`${context} id`, value.id);
   const viewName = parseRequiredNonEmptyString(`${context} view`, value.view);
@@ -571,6 +670,16 @@ function parseCollectionScreenSection(
       `${context} query "${queryName}" must reference one of collection view "${viewName}" query slots.`,
     );
   }
+  const detail = parseSelectedRecordDetail(
+    `${context} detail`,
+    value.detail,
+    view,
+    entities,
+    itemViews,
+    tableViews,
+    queries,
+    relationships,
+  );
 
   return {
     id,
@@ -578,5 +687,254 @@ function parseCollectionScreenSection(
     view: viewName,
     ...(label === undefined ? {} : { label }),
     ...(queryName === undefined ? {} : { query: queryName }),
+    ...(detail === undefined ? {} : { detail }),
   };
+}
+
+function parseSelectedRecordDetail(
+  context: string,
+  value: unknown,
+  view: Extract<ViewSchema, { type: "collection" }>,
+  entities: Record<string, EntitySchema>,
+  itemViews: Record<string, ItemViewSchema>,
+  tableViews: Record<string, TableViewSchema>,
+  queries: Record<string, CollectionQuerySchema>,
+  relationships: Record<string, RelationshipSchema>,
+): SelectedRecordDetailSchema | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!isRecord(value)) {
+    throw new Error(`${context} must be an object.`);
+  }
+
+  assertExactKeys(context, value, ["type", "context", "sections"]);
+  if (value.type !== "selectedRecord") {
+    throw new Error(`${context} type must be "selectedRecord".`);
+  }
+  if (view.result.type !== "list") {
+    throw new Error(`${context} requires its collection view to use a list result.`);
+  }
+
+  const contextName = parseRequiredNonEmptyString(`${context} context`, value.context);
+  if (!Array.isArray(value.sections) || value.sections.length === 0) {
+    throw new Error(`${context} sections must be a non-empty array.`);
+  }
+
+  const sectionIds = new Set<string>();
+  const sections = value.sections.map((section, index) => {
+    const parsedSection = parseSelectedRecordDetailSection(
+      `${context} section ${index}`,
+      section,
+      view.entity,
+      entities,
+      itemViews,
+      tableViews,
+      queries,
+      relationships,
+    );
+    if (sectionIds.has(parsedSection.id)) {
+      throw new Error(`${context} section id "${parsedSection.id}" must be unique.`);
+    }
+    sectionIds.add(parsedSection.id);
+    return parsedSection;
+  });
+
+  return { type: "selectedRecord", context: contextName, sections };
+}
+
+function parseSelectedRecordDetailSection(
+  context: string,
+  value: unknown,
+  sourceEntityName: string,
+  entities: Record<string, EntitySchema>,
+  itemViews: Record<string, ItemViewSchema>,
+  tableViews: Record<string, TableViewSchema>,
+  queries: Record<string, CollectionQuerySchema>,
+  relationships: Record<string, RelationshipSchema>,
+): SelectedRecordDetailSectionSchema {
+  if (!isRecord(value)) {
+    throw new Error(`${context} must be an object.`);
+  }
+
+  if (value.type === "record") {
+    assertExactKeys(context, value, ["id", "type", "itemView"], ["label"]);
+    const id = parseRequiredNonEmptyString(`${context} id`, value.id);
+    const label = parseOptionalNonEmptyString(`${context} label`, value.label);
+    const itemViewName = parseRequiredNonEmptyString(`${context} itemView`, value.itemView);
+    const itemView = itemViews[itemViewName];
+    if (!itemView) {
+      throw new Error(`${context} references unknown item view "${itemViewName}".`);
+    }
+    if (itemView.entity !== sourceEntityName) {
+      throw new Error(
+        `${context} item view "${itemViewName}" must use entity "${sourceEntityName}".`,
+      );
+    }
+    return {
+      id,
+      type: "record",
+      ...(label === undefined ? {} : { label }),
+      itemView: itemViewName,
+    };
+  }
+
+  if (value.type === "relationship") {
+    return parseSelectedRecordRelationshipSection(
+      context,
+      value,
+      sourceEntityName,
+      entities,
+      tableViews,
+      queries,
+      relationships,
+    );
+  }
+
+  throw new Error(`${context} type must be "record" or "relationship".`);
+}
+
+function parseSelectedRecordRelationshipSection(
+  context: string,
+  value: Record<string, unknown>,
+  sourceEntityName: string,
+  entities: Record<string, EntitySchema>,
+  tableViews: Record<string, TableViewSchema>,
+  queries: Record<string, CollectionQuerySchema>,
+  relationships: Record<string, RelationshipSchema>,
+): SelectedRecordDetailRelationshipSectionSchema {
+  assertExactKeys(
+    context,
+    value,
+    ["id", "type", "relationship", "query", "result"],
+    ["label", "operations"],
+  );
+  const id = parseRequiredNonEmptyString(`${context} id`, value.id);
+  const label = parseOptionalNonEmptyString(`${context} label`, value.label);
+  const relationshipName = parseRequiredNonEmptyString(
+    `${context} relationship`,
+    value.relationship,
+  );
+  const relationship = relationships[relationshipName];
+  if (!relationship) {
+    throw new Error(`${context} references unknown relationship "${relationshipName}".`);
+  }
+  if (relationship.kind !== "toMany") {
+    throw new Error(`${context} relationship "${relationshipName}" must be a toMany relationship.`);
+  }
+  if (relationship.from.entity !== sourceEntityName) {
+    throw new Error(
+      `${context} relationship "${relationshipName}" must start from entity "${sourceEntityName}".`,
+    );
+  }
+
+  const queryName = parseRequiredNonEmptyString(`${context} query`, value.query);
+  const query = queries[queryName];
+  if (!query) {
+    throw new Error(`${context} references unknown query "${queryName}".`);
+  }
+  if (query.entity !== relationship.to.entity) {
+    throw new Error(
+      `${context} query "${queryName}" must use relationship target entity "${relationship.to.entity}".`,
+    );
+  }
+
+  const result = parseSelectedRecordRelationshipResult(
+    `${context} result`,
+    value.result,
+    relationship.to.entity,
+    tableViews,
+  );
+  const operations = parseSelectedRecordDetailOperationBindings(
+    `${context} operations`,
+    value.operations,
+    sourceEntityName,
+    entities,
+  );
+
+  return {
+    id,
+    type: "relationship",
+    ...(label === undefined ? {} : { label }),
+    relationship: relationshipName,
+    query: queryName,
+    result,
+    ...(operations === undefined ? {} : { operations }),
+  };
+}
+
+function parseSelectedRecordRelationshipResult(
+  context: string,
+  value: unknown,
+  targetEntityName: string,
+  tableViews: Record<string, TableViewSchema>,
+): SelectedRecordDetailRelationshipResultSchema {
+  if (!isRecord(value)) {
+    throw new Error(`${context} must be an object.`);
+  }
+  assertExactKeys(context, value, ["type", "tableView"]);
+  if (value.type !== "table") {
+    throw new Error(`${context} type must be "table".`);
+  }
+  const tableViewName = parseRequiredNonEmptyString(`${context} tableView`, value.tableView);
+  const tableView = tableViews[tableViewName];
+  if (!tableView) {
+    throw new Error(`${context} references unknown table view "${tableViewName}".`);
+  }
+  if (tableView.entity !== targetEntityName) {
+    throw new Error(
+      `${context} table view "${tableViewName}" must use entity "${targetEntityName}".`,
+    );
+  }
+  return { type: "table", tableView: tableViewName };
+}
+
+function parseSelectedRecordDetailOperationBindings(
+  context: string,
+  value: unknown,
+  sourceEntityName: string,
+  entities: Record<string, EntitySchema>,
+): SelectedRecordDetailOperationBindingSchema[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(value)) {
+    throw new Error(`${context} must be an array.`);
+  }
+
+  const operations = value.map((binding, index) => {
+    const bindingContext = `${context} binding ${index}`;
+    if (!isRecord(binding)) {
+      throw new Error(`${bindingContext} must be an object.`);
+    }
+    assertExactKeys(bindingContext, binding, ["operation", "placement"], ["label"]);
+    const operationKey = parseEntityOperationKey(`${bindingContext} operation`, binding.operation);
+    const operationEntity = entities[operationKey.entityKey];
+    const operation = definitionsToRecord(operationEntity?.operations)[operationKey.operationKey];
+    if (!operationEntity || !operation) {
+      throw new Error(
+        `${bindingContext} references unknown operation "${String(binding.operation)}".`,
+      );
+    }
+    if (operationKey.entityKey !== sourceEntityName) {
+      throw new Error(`${bindingContext} operation must use source entity "${sourceEntityName}".`);
+    }
+    if (operation.scope !== "record") {
+      throw new Error(`${bindingContext} operation must use record scope.`);
+    }
+    if (!isEntityOperationVisibleToBrowser(operation)) {
+      throw new Error(`${bindingContext} operation must be visible to browser actors.`);
+    }
+    if (binding.placement !== "heading") {
+      throw new Error(`${bindingContext} placement must be "heading".`);
+    }
+    const label = parseOptionalNonEmptyString(`${bindingContext} label`, binding.label);
+    return {
+      operation: formatEntityOperationKey(operationKey),
+      placement: "heading" as const,
+      ...(label === undefined ? {} : { label }),
+    };
+  });
+
+  return operations.length > 0 ? operations : undefined;
 }

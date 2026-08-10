@@ -17,12 +17,13 @@ import type {
   WorkspaceQueryNavigationContract,
   WorkspaceResultContract,
   WorkspaceSectionContract,
+  WorkspaceSelectedRecordSectionContract,
   WorkspaceWidth,
 } from "@dpeek/formless-presentation/contract";
 import { createField, textControl, withFixtureFieldOccurrence } from "./fields/fixture-helpers.ts";
 import { createListFixtures } from "./lists.fixtures.ts";
 import { operationControlFixtures } from "./operation-controls.fixtures.ts";
-import { createRecordResultFixtures } from "./record-results.fixtures.ts";
+import { createRecordResultFixtures, taskStatusField } from "./record-results.fixtures.ts";
 import { createTableFixtures } from "./tables.fixtures.ts";
 import { createTreeResultFixtures, type TreeResultFixtureId } from "./tree-results.fixtures.ts";
 
@@ -31,6 +32,8 @@ export type FormlessGeneratedWorkspaceFixtureId =
   | "empty-context"
   | "list-detail"
   | "multi-section"
+  | "selected-record"
+  | "selected-record-unselected"
   | "singleton-context"
   | "site-tree"
   | "site-tree-list-detail"
@@ -60,6 +63,16 @@ export function createFormlessGeneratedWorkspaceFixtures(): FormlessGeneratedWor
     { id: "tasks", label: "Tasks", workspace: tasksWorkspace() },
     { id: "multi-section", label: "Directory", workspace: multiSectionWorkspace() },
     { id: "list-detail", label: "List detail", workspace: listDetailWorkspace() },
+    {
+      id: "selected-record-unselected",
+      label: "Selected record — list",
+      workspace: selectedRecordWorkspace(null),
+    },
+    {
+      id: "selected-record",
+      label: "Selected record — detail",
+      workspace: selectedRecordWorkspace("task-1"),
+    },
     { id: "site-tree", label: "Site tree", workspace: siteTreeWorkspace("ordinary") },
     {
       id: "site-tree-list-detail",
@@ -200,6 +213,222 @@ function listDetailWorkspace(): WorkspaceContract {
       label: "Project work",
     }),
   ]);
+}
+
+function selectedRecordWorkspace(selectedRecordId: string | null): WorkspaceContract {
+  const scope = workspaceScope("orders", "orders", "orders");
+  const sourceResult = listResult(scope);
+  if (sourceResult.kind !== "list") {
+    throw new Error("Selected-record fixtures require a list result.");
+  }
+  const result = {
+    ...sourceResult,
+    accessibilityLabel: "Orders",
+    items: sourceResult.items.map((item) => ({
+      ...item,
+      actions: {
+        ...item.actions,
+        primary: [],
+        secondary: [],
+      },
+      ordering: undefined,
+    })),
+  };
+  const selectionIntents = result.items.map((item) => ({
+    ...scope,
+    recordId: item.id,
+    type: "workspaceSelectedRecordSelection" as const,
+  }));
+  const selectionIntent = selectionIntents.find(
+    (candidate) => candidate.recordId === selectedRecordId,
+  );
+  const selected = selectionIntent !== undefined ? selectedRecordId : null;
+
+  return workspace(
+    "orders",
+    "Orders",
+    [
+      section(scope, {
+        collection: {
+          accessibilityLabel: "Orders",
+          availability: { state: "ready" },
+          id: scope.collectionId,
+          kind: "workspaceCollection",
+          label: "Orders",
+          presentation: {
+            accessibilityLabel: "Orders selected record",
+            actions: emptyCollectionActions(scope),
+            activePresentation: selected === null ? "list" : "detail",
+            ...(selected === null
+              ? {}
+              : {
+                  backIntent: {
+                    ...scope,
+                    recordId: selected,
+                    type: "workspaceSelectedRecordBack" as const,
+                  },
+                }),
+            compactPresentation: "drillIn",
+            id: scopedId(scope, "selectedRecord", "detail"),
+            kind: "selectedRecord",
+            result,
+            sections:
+              selected === null ? [] : selectedRecordDetailSections(scope, result, selected),
+            selectedRecordId: selected,
+            selectionIntents,
+            summaries: [],
+          },
+          selectedQueryId: null,
+        },
+        headingVisibility: "hidden",
+        label: "Orders",
+      }),
+    ],
+    [],
+    "wide",
+  );
+}
+
+export function selectFormlessGeneratedWorkspaceRecord(
+  collection: WorkspaceCollectionContract,
+  recordId: string | null,
+): WorkspaceCollectionContract {
+  const presentation = collection.presentation;
+  if (presentation.kind !== "selectedRecord") {
+    return collection;
+  }
+
+  if (recordId === null) {
+    const { backIntent: _backIntent, ...unselectedPresentation } = presentation;
+    return {
+      ...collection,
+      presentation: {
+        ...unselectedPresentation,
+        activePresentation: "list",
+        sections: [],
+        selectedRecordId: null,
+      },
+    };
+  }
+
+  const selectionIntent = presentation.selectionIntents.find(
+    (candidate) => candidate.recordId === recordId,
+  );
+  if (!selectionIntent) {
+    return collection;
+  }
+
+  const scope = {
+    collectionId: selectionIntent.collectionId,
+    screenId: selectionIntent.screenId,
+    sectionId: selectionIntent.sectionId,
+  };
+
+  return {
+    ...collection,
+    presentation: {
+      ...presentation,
+      activePresentation: "detail",
+      backIntent: {
+        ...scope,
+        recordId,
+        type: "workspaceSelectedRecordBack",
+      },
+      sections: selectedRecordDetailSections(scope, presentation.result, recordId),
+      selectedRecordId: recordId,
+    },
+  };
+}
+
+function selectedRecordDetailSections(
+  scope: WorkspaceFixtureScope,
+  result: Extract<WorkspaceResultContract, { kind: "list" }>,
+  recordId: string,
+): WorkspaceSelectedRecordSectionContract[] {
+  const recordLabel =
+    result.items.find((item) => item.id === recordId)?.accessibilityLabel ?? "Selected order";
+  const detail = selectedRecordResult(scope, recordId, recordLabel);
+  const compounds = tableResult(scope, "compounds");
+  if (compounds.kind !== "table") {
+    throw new Error("Selected-record relationship fixtures require a table result.");
+  }
+
+  return [
+    {
+      id: scopedId(scope, "selectedRecordSection", "details"),
+      kind: "selectedRecordRecordSection",
+      label: "Order details",
+      result: detail,
+    },
+    {
+      headingOperations: [
+        headingOperationControl(scopedId(scope, "operation", "add-compound"), "Add compound"),
+      ],
+      id: scopedId(scope, "selectedRecordSection", "compounds"),
+      kind: "selectedRecordRelationshipSection",
+      label: "Compounds",
+      result: {
+        ...compounds,
+        accessibilityLabel: "Related compounds",
+        columns: compounds.columns.map((column) =>
+          column.id === "title"
+            ? { ...column, accessibilityLabel: "Compound", label: "Compound" }
+            : column,
+        ),
+        rows: compounds.rows.slice(0, 1),
+      },
+    },
+  ];
+}
+
+function selectedRecordResult(
+  scope: WorkspaceFixtureScope,
+  recordId: string,
+  recordLabel: string,
+): RecordResultContract {
+  const source = recordResult(scope, "order-detail", recordLabel);
+  const statusValue = recordId === "task-3" ? "done" : "open";
+
+  return {
+    ...source,
+    actions: {
+      ...source.actions,
+      primary: source.actions.primary.filter((action) => action.role !== "transition"),
+    },
+    fields: source.fields.map((field) => {
+      const selectedField =
+        field.fieldName === "status" ? taskStatusField(statusValue, "transitions") : field;
+      return withFixtureFieldOccurrence(
+        { ...selectedField, labelVisibility: "visible", recordId },
+        { ownerId: `${source.id}:${recordId}`, placementId: selectedField.fieldName },
+      );
+    }),
+    selectedRecord: {
+      accessibilityLabel: recordLabel,
+      id: recordId,
+      kind: "recordResultRecord",
+    },
+  };
+}
+
+function headingOperationControl(id: string, label: string): OperationControlContract {
+  return {
+    id,
+    kind: "operationControl",
+    status: {
+      accessibilityLabel: `${label} available`,
+      detail: "Ready",
+      id: `${id}:status`,
+      intent: "neutral",
+      kind: "compactStatus",
+      label: `${label} available`,
+      status: "idle",
+    },
+    trigger: {
+      ...button(`${id}:trigger`, label, "button", "primary"),
+      intent: { controlId: id, invocationSource: "button", type: "operationInvoke" },
+    },
+  };
 }
 
 function siteTreeWorkspace(presentation: "listDetail" | "ordinary"): WorkspaceContract {

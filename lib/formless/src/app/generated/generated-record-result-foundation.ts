@@ -200,6 +200,15 @@ export function selectGeneratedRecordResultFoundation({
   const fieldDisabledReasons = Object.fromEntries(
     session.visibleFields.map((field) => [field.fieldName, resolvedEditingDisabledReason]),
   );
+  const transitionRuntimes = selectGeneratedRecordResultTransitionRuntimes({
+    id,
+    record,
+    result,
+  });
+  const transitionOperationsByFieldName = groupGeneratedRecordResultTransitionOperations(
+    session.visibleFields,
+    transitionRuntimes,
+  );
   const fields = projectGeneratedRecordFields({
     canPatch: result.updateOperation !== undefined,
     density: fieldPresentation === "treePlacement" ? "compact" : density,
@@ -251,9 +260,18 @@ export function selectGeneratedRecordResultFoundation({
         : undefined,
     state: nextFieldState.session,
     surface: "record",
+    transitionOperationsByFieldName,
     unitDraftByFieldName: nextFieldState.unitDraftByFieldName,
     unitDraftInputByFieldName: nextFieldState.unitDraftInputByFieldName,
-  });
+  }).map((field) =>
+    withGeneratedRecordResultTransitionControls({
+      confirmationOpenByControlId,
+      density,
+      field,
+      operationStateByExecutionKey,
+      transitionRuntimes,
+    }),
+  );
   const recordLabel = selectRecordLabel(record, session.visibleFields, entity.label, recordId);
   const runtimePlan = selectGeneratedRecordResultRuntimePlan({
     entity,
@@ -262,12 +280,21 @@ export function selectGeneratedRecordResultFoundation({
     record,
     recordLabel,
     result,
+    transitionRuntimes,
     visibleFields: session.visibleFields,
   });
+  const pairedTransitionOperationNames = new Set(
+    transitionRuntimes.flatMap((runtime) =>
+      recordResultFieldOwnsTransition(session.visibleFields, runtime.operation)
+        ? [runtime.operation.operationName]
+        : [],
+    ),
+  );
   const actions = projectGeneratedRecordResultActions({
     confirmationOpenByControlId,
     density,
     operationStateByExecutionKey,
+    pairedTransitionOperationNames,
     runtimePlan,
   });
 
@@ -385,15 +412,35 @@ export function resolveGeneratedRecordResultFieldIntent(
   const runtime = runtimePlan.fieldById.get(fieldId);
   const fieldName = recordResultFieldIntentFieldName(intent);
   const intentRecordId = intent.type === "stateTransitionInvoke" ? intent.recordId : recordId;
+  const transitionRuntime =
+    intent.type === "stateTransitionInvoke"
+      ? selectGeneratedRecordResultTransitionRuntimeForFieldIntent(runtimePlan, intent)
+      : undefined;
 
   return runtime !== undefined &&
     runtime.recordId === recordId &&
     runtime.resultId === resultId &&
     runtime.field.recordId === recordId &&
     intentRecordId === recordId &&
-    runtime.fieldConfig.fieldName === fieldName
+    runtime.fieldConfig.fieldName === fieldName &&
+    (intent.type !== "stateTransitionInvoke" || transitionRuntime !== undefined)
     ? runtime
     : undefined;
+}
+
+export function selectGeneratedRecordResultTransitionRuntimeForFieldIntent(
+  runtimePlan: GeneratedRecordResultRuntimePlan,
+  intent: Extract<FieldIntent, { type: "stateTransitionInvoke" }>,
+): Extract<GeneratedRecordResultOperationRuntime, { kind: "transition" }> | undefined {
+  return runtimePlan.operations.find(
+    (runtime): runtime is Extract<GeneratedRecordResultOperationRuntime, { kind: "transition" }> =>
+      runtime.kind === "transition" &&
+      runtime.recordId === intent.recordId &&
+      runtime.operation.fieldName === intent.fieldName &&
+      runtime.operation.operationName === intent.operationName &&
+      runtime.operation.transitionName === intent.transitionName &&
+      runtime.binding.availability.state === "enabled",
+  );
 }
 
 function selectGeneratedRecordResultRuntimePlan({
@@ -403,6 +450,7 @@ function selectGeneratedRecordResultRuntimePlan({
   record,
   recordLabel,
   result,
+  transitionRuntimes,
   visibleFields,
 }: {
   entity: EntitySchema;
@@ -411,6 +459,10 @@ function selectGeneratedRecordResultRuntimePlan({
   record: StoredRecord;
   recordLabel: string;
   result: RecordResultModel;
+  transitionRuntimes: readonly Extract<
+    GeneratedRecordResultOperationRuntime,
+    { kind: "transition" }
+  >[];
   visibleFields: readonly RecordFieldConfig[];
 }): GeneratedRecordResultRuntimePlan {
   const fields: GeneratedRecordResultFieldRuntime[] = [];
@@ -440,22 +492,7 @@ function selectGeneratedRecordResultRuntimePlan({
     fieldById.set(field.fieldId, runtime);
     fields.push(runtime);
   }
-  const operations: GeneratedRecordResultOperationRuntime[] = [];
-
-  for (const operation of result.transitionOperations) {
-    const availability = selectTransitionStateOperationAvailability({
-      currentValue: record.values[operation.fieldName],
-      field: operation.field,
-      operation,
-    });
-    const binding = projectStateTransitionOperationControlBinding({
-      availability,
-      operation,
-      options: { executionTargetKey: record.id, idPrefix: `${id}:${record.id}` },
-    });
-
-    operations.push({ binding, kind: "transition", operation, recordId: record.id });
-  }
+  const operations: GeneratedRecordResultOperationRuntime[] = [...transitionRuntimes];
 
   if (result.deleteOperation) {
     const binding = projectDeleteRecordButtonBinding({
@@ -485,6 +522,7 @@ function projectGeneratedRecordResultActions({
   confirmationOpenByControlId,
   density,
   operationStateByExecutionKey,
+  pairedTransitionOperationNames,
   runtimePlan,
 }: {
   confirmationOpenByControlId: Readonly<Record<string, boolean | undefined>>;
@@ -492,9 +530,16 @@ function projectGeneratedRecordResultActions({
   operationStateByExecutionKey: Readonly<
     Record<string, GeneratedOperationExecutionState | undefined>
   >;
+  pairedTransitionOperationNames: ReadonlySet<string>;
   runtimePlan: GeneratedRecordResultRuntimePlan;
 }): readonly GeneratedRecordResultPlacedAction[] {
-  return runtimePlan.operations.map((operation): GeneratedRecordResultPlacedAction => {
+  return runtimePlan.operations.flatMap((operation): GeneratedRecordResultPlacedAction[] => {
+    if (
+      operation.kind === "transition" &&
+      pairedTransitionOperationNames.has(operation.operation.operationName)
+    ) {
+      return [];
+    }
     const binding = operation.binding;
     const deleting = operation.kind === "delete";
     const state =
@@ -513,14 +558,143 @@ function projectGeneratedRecordResultActions({
       state,
     });
 
-    return {
-      action: projectGeneratedRecordResultOperationAction(
-        control,
-        deleting ? "delete" : "transition",
-      ),
-      placement: deleting ? "secondary" : "primary",
-    };
+    return [
+      {
+        action: projectGeneratedRecordResultOperationAction(
+          control,
+          deleting ? "delete" : "transition",
+        ),
+        placement: deleting ? "secondary" : "primary",
+      },
+    ];
   });
+}
+
+function selectGeneratedRecordResultTransitionRuntimes({
+  id,
+  record,
+  result,
+}: {
+  id: string;
+  record: StoredRecord;
+  result: RecordResultModel;
+}): Extract<GeneratedRecordResultOperationRuntime, { kind: "transition" }>[] {
+  return result.transitionOperations.map((operation) => {
+    const availability = selectTransitionStateOperationAvailability({
+      currentValue: record.values[operation.fieldName],
+      field: operation.field,
+      operation,
+    });
+    const binding = projectStateTransitionOperationControlBinding({
+      availability,
+      operation,
+      options: { executionTargetKey: record.id, idPrefix: `${id}:${record.id}` },
+    });
+
+    return { binding, kind: "transition" as const, operation, recordId: record.id };
+  });
+}
+
+function groupGeneratedRecordResultTransitionOperations(
+  visibleFields: readonly RecordFieldConfig[],
+  runtimes: readonly Extract<GeneratedRecordResultOperationRuntime, { kind: "transition" }>[],
+): Readonly<Record<string, readonly TransitionStateOperationConfig[]>> {
+  const byFieldName: Record<string, TransitionStateOperationConfig[]> = {};
+
+  for (const field of visibleFields) {
+    const matching = runtimes
+      .filter(
+        (runtime) =>
+          runtime.binding.availability.state === "enabled" &&
+          recordResultFieldOwnsTransition([field], runtime.operation),
+      )
+      .map((runtime) => runtime.operation);
+    if (matching.length > 0) {
+      byFieldName[field.fieldName] = matching;
+    }
+  }
+
+  return byFieldName;
+}
+
+function recordResultFieldOwnsTransition(
+  visibleFields: readonly RecordFieldConfig[],
+  operation: TransitionStateOperationConfig,
+): boolean {
+  return visibleFields.some(
+    (field) =>
+      field.fieldName === operation.fieldName &&
+      field.stateMachine?.machineName === operation.machineName,
+  );
+}
+
+function withGeneratedRecordResultTransitionControls({
+  confirmationOpenByControlId,
+  density,
+  field,
+  operationStateByExecutionKey,
+  transitionRuntimes,
+}: {
+  confirmationOpenByControlId: Readonly<Record<string, boolean | undefined>>;
+  density: RecordResultContract["density"];
+  field: FieldContract;
+  operationStateByExecutionKey: Readonly<
+    Record<string, GeneratedOperationExecutionState | undefined>
+  >;
+  transitionRuntimes: readonly Extract<
+    GeneratedRecordResultOperationRuntime,
+    { kind: "transition" }
+  >[];
+}): FieldContract {
+  const facts = field.stateMachineFacts;
+  if (facts?.interaction.kind !== "transitions") {
+    return field;
+  }
+
+  const runtimeByOperationName = new Map(
+    transitionRuntimes
+      .filter((runtime) => runtime.operation.fieldName === field.fieldName)
+      .map((runtime) => [runtime.operation.operationName, runtime]),
+  );
+  const transitions = facts.interaction.transitions.flatMap((transition) => {
+    const runtime = runtimeByOperationName.get(transition.operationName);
+    if (runtime === undefined || runtime.binding.availability.state !== "enabled") {
+      return [];
+    }
+    const state =
+      operationStateByExecutionKey[runtime.binding.executionKey] ??
+      createIdleGeneratedOperationExecutionState(runtime.binding.executionKey);
+    const control = projectGeneratedOperationControl({
+      binding: runtime.binding,
+      confirmationOpen: confirmationOpenByControlId[runtime.binding.id] ?? false,
+      presentation: {
+        accessibilityLabel: runtime.binding.label,
+        content: { kind: "label", label: runtime.binding.label },
+        density,
+        pendingLabel: `${runtime.binding.label}...`,
+        prominence: "primary",
+      },
+      state,
+    });
+
+    return [
+      {
+        ...transition,
+        control,
+        ...(control.trigger.pending === undefined ? {} : { pending: control.trigger.pending }),
+      },
+    ];
+  });
+  const pending = transitions.find((transition) => transition.pending?.isPending)?.pending;
+
+  return {
+    ...field,
+    ...(pending === undefined ? {} : { pending }),
+    stateMachineFacts: {
+      ...facts,
+      interaction: { ...facts.interaction, transitions },
+    },
+  };
 }
 
 function emptyRuntimePlan(resultId: string): GeneratedRecordResultRuntimePlan {
@@ -582,10 +756,10 @@ function recordResultFieldIntentFieldName(intent: FieldIntent): string | undefin
     case "recordEditorDraftChange":
     case "recordValueCommit":
     case "recordValueUnitCommit":
+    case "stateTransitionInvoke":
       return intent.fieldName;
     case "createDraftChange":
     case "operationDraftChange":
-    case "stateTransitionInvoke":
       return undefined;
   }
 }

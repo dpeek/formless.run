@@ -37,6 +37,7 @@ import type {
 import {
   createIdleGeneratedOperationExecutionState,
   projectCollectionOperationControlBinding,
+  projectRecordOperationControlBinding,
 } from "../../client/views.ts";
 import {
   initialGeneratedCreateDraftSessionState,
@@ -66,6 +67,7 @@ import {
   type GeneratedRecordResultOperationRuntime,
   type GeneratedRecordResultRecordState,
   selectGeneratedRecordResultRuntimeForIntent,
+  selectGeneratedRecordResultTransitionRuntimeForFieldIntent,
 } from "./generated-record-result-foundation.ts";
 import {
   executeGeneratedTableRuntimeOperation,
@@ -76,6 +78,8 @@ import {
 } from "./generated-table-foundation.tsx";
 import { mergeGeneratedWorkspaceRecordFieldState } from "./generated-workspace-field-state.ts";
 import {
+  generatedWorkspaceSelectedRecordDetailHeadingOperationId,
+  generatedWorkspaceSelectedRecordDetailResultId,
   resolveGeneratedWorkspaceIntent,
   selectGeneratedWorkspaceFoundation,
   type GeneratedWorkspaceSectionFoundationInput,
@@ -141,6 +145,7 @@ export type GeneratedWorkspaceRuntimeProps = {
   ) => GeneratedWorkspaceSectionSelection;
   onSelectContext: (section: HomeScreenCollectionSectionModel, recordId: string | null) => void;
   onSelectQuery: (section: HomeScreenCollectionSectionModel, queryName: string) => void;
+  onSelectRecord?: (section: HomeScreenCollectionSectionModel, recordId: string | null) => void;
   screen: HomeScreenModel;
   sectionExternalActions?: Readonly<
     Record<string, readonly GeneratedWorkspaceSectionExternalAction[] | undefined>
@@ -180,6 +185,11 @@ type GeneratedWorkspaceTableRuntime = {
   runtimePlan: GeneratedTableRuntimePlan;
 };
 
+type GeneratedWorkspaceSelectedRecordHeadingOperationRuntime = {
+  binding: GeneratedOperationControlBinding;
+  kind: "selectedRecordHeadingOperation";
+};
+
 type GeneratedWorkspaceKnownControlRuntime =
   | GeneratedWorkspaceCommandRuntime
   | GeneratedWorkspaceCreateRuntime
@@ -216,6 +226,7 @@ export function useGeneratedWorkspaceRuntimeController({
   getSectionSelection,
   onSelectContext,
   onSelectQuery,
+  onSelectRecord,
   screen,
   sectionExternalActions = {},
   today,
@@ -405,6 +416,21 @@ export function useGeneratedWorkspaceRuntimeController({
   }, [onSelectContext, sectionSelection, selected.foundation]);
 
   useEffect(() => {
+    if (onSelectRecord === undefined) {
+      return;
+    }
+    for (const section of selected.foundation?.runtimePlan.sections ?? []) {
+      if (section.collection.detail === undefined) {
+        continue;
+      }
+      const requested = sectionSelection[section.section.id]?.selectedRecordId ?? null;
+      if (requested !== section.selectedRecordId) {
+        onSelectRecord(section.section, section.selectedRecordId);
+      }
+    }
+  }, [onSelectRecord, sectionSelection, selected.foundation]);
+
+  useEffect(() => {
     setTreeSelectedPlacementIdByResultId((current) => {
       let next = current;
 
@@ -433,6 +459,41 @@ export function useGeneratedWorkspaceRuntimeController({
     }
     const resolved = resolveGeneratedWorkspaceIntent(selected.foundation.runtimePlan, intent);
     if (!resolved) {
+      return;
+    }
+
+    if (resolved.kind === "selectedRecordSelection") {
+      onSelectRecord?.(resolved.section.section, resolved.recordId);
+      return;
+    }
+
+    if (resolved.kind === "selectedRecordHeadingOperation") {
+      if (intent.type !== "workspaceOperation") {
+        return;
+      }
+      const runtime = resolved.operation
+        .runtime as GeneratedWorkspaceSelectedRecordHeadingOperationRuntime;
+      await handleGeneratedOperationIntent({
+        binding: runtime.binding,
+        confirmationOpen: confirmationOpenByControlId[runtime.binding.id] ?? false,
+        controller,
+        intent: intent.intent,
+        invoke: (invokeIntent) =>
+          executeGeneratedOperationControl({
+            binding: runtime.binding,
+            callerInput: {
+              bindingId: runtime.binding.id,
+              recordId: resolved.relationship.selectedRecordId,
+              source: invokeIntent.invocationSource,
+            },
+            controller,
+          }),
+        onConfirmationOpenChange: (open) =>
+          setConfirmationOpenByControlId((current) => ({
+            ...current,
+            [runtime.binding.id]: open,
+          })),
+      });
       return;
     }
 
@@ -700,7 +761,7 @@ export function useGeneratedWorkspaceRuntimeController({
     }
 
     if (resolved.kind === "result") {
-      await handleResultIntent(resolved.result, resolved.section, intent);
+      await handleResultIntent(resolved.result, intent);
     }
   }
 
@@ -959,10 +1020,6 @@ export function useGeneratedWorkspaceRuntimeController({
       ReturnType<typeof resolveGeneratedWorkspaceIntent>,
       { kind: "result" }
     >["result"],
-    section: Extract<
-      ReturnType<typeof resolveGeneratedWorkspaceIntent>,
-      { kind: "result" }
-    >["section"],
     intent: WorkspaceIntent,
   ) {
     if (result.kind === "list") {
@@ -1000,7 +1057,27 @@ export function useGeneratedWorkspaceRuntimeController({
         intent.intent,
       );
       if (runtime?.kind === "field" && intent.intent.type === "recordResultFieldIntent") {
-        await handleRecordResultFieldIntent(result, section, intent.resultId, intent.intent.intent);
+        if (intent.intent.intent.type === "stateTransitionInvoke") {
+          const transitionRuntime = selectGeneratedRecordResultTransitionRuntimeForFieldIntent(
+            result.foundation.runtimePlan,
+            intent.intent.intent,
+          );
+          if (
+            transitionRuntime !== undefined &&
+            !controller.isPending(transitionRuntime.binding.id) &&
+            transitionRuntime.binding.availability.state === "enabled"
+          ) {
+            await executeTransitionStateOperation({
+              binding: transitionRuntime.binding,
+              controller,
+              operation: transitionRuntime.operation,
+              recordId: transitionRuntime.recordId,
+              source: intent.intent.intent.source,
+            });
+          }
+          return;
+        }
+        await handleRecordResultFieldIntent(result, intent.resultId, intent.intent.intent);
         return;
       }
       if (
@@ -1071,10 +1148,6 @@ export function useGeneratedWorkspaceRuntimeController({
       Extract<ReturnType<typeof resolveGeneratedWorkspaceIntent>, { kind: "result" }>["result"],
       { kind: "recordResult" }
     >,
-    section: Extract<
-      ReturnType<typeof resolveGeneratedWorkspaceIntent>,
-      { kind: "result" }
-    >["section"],
     resultId: string,
     fieldIntent: FieldIntent,
   ) {
@@ -1083,15 +1156,7 @@ export function useGeneratedWorkspaceRuntimeController({
     if (!record) {
       return;
     }
-    const contextResult = section.contextResult?.contract.id === resultId;
-    const model = contextResult
-      ? section.collection.context
-      : section.collection.result.type === "record"
-        ? section.collection.result
-        : undefined;
-    if (!model) {
-      return;
-    }
+    const model = result.model;
     const fields = model.recordFields ?? [];
     const current =
       result.recordState ??
@@ -2058,6 +2123,9 @@ function selectWorkspaceRuntimeFoundation({
         ...section.contextResult.foundation.runtimePlan.operations.map((item) => item.binding),
       );
     }
+    for (const detail of section.selectedRecordDetailRecordResults) {
+      bindings.push(...detail.result.foundation.runtimePlan.operations.map((item) => item.binding));
+    }
   }
 
   return {
@@ -2305,6 +2373,115 @@ function selectWorkspaceSectionRuntimeInput({
       selectedPlacementId: treeSelectedPlacementIdByResultId[facts.resultId],
     },
   };
+  const selectedRecordDetail = facts.section.collection.detail;
+  if (selectedRecordDetail !== undefined) {
+    input.selectedRecordDetailRecords = Object.fromEntries(
+      selectedRecordDetail.sections.flatMap((section) => {
+        if (section.type !== "record") {
+          return [];
+        }
+        const resultId = generatedWorkspaceSelectedRecordDetailResultId(facts.scope, section.id);
+        const fields = collectRecordPresentationFields(
+          section.result.recordFields,
+          section.result.recordUnion,
+        );
+
+        return [
+          [
+            section.id,
+            {
+              confirmationOpenByControlId,
+              mediaAssetOptionsByFieldName: selectWorkspaceRecordMediaOptions(
+                fields,
+                selectedRecordDetail.entityName,
+                mediaAssetOptionsByFieldKey,
+              ),
+              operationStateByExecutionKey,
+              recordState: recordStateByResultId[resultId],
+              referenceOptionsByFieldName: selectWorkspaceRecordReferenceOptions(fields, snapshot),
+              schema,
+            },
+          ] as const,
+        ];
+      }),
+    );
+  }
+  if (selectedRecordDetail !== undefined) {
+    input.selectedRecordDetailRelationships = Object.fromEntries(
+      facts.selectedRecordDetailRelationships.map((relationshipFacts) => {
+        const { queryContext, recordIds, resultId, section, selectedRecordId } = relationshipFacts;
+        const table = selectGeneratedWorkspaceTableFoundation({
+          confirmationOpenById: confirmationOpenByControlId,
+          controller,
+          dialogOpenById: tableDialogOpenById,
+          entity: section.entity,
+          entityName: section.entityName,
+          fieldStateByContextId: tableStateByResultId[resultId],
+          id: resultId,
+          mediaAssetOptionsForField: (entityName, fieldName) =>
+            generatedMediaAssetOptionsForField(mediaAssetOptionsByFieldKey, entityName, fieldName),
+          query: section.query,
+          queryContext,
+          queryName: section.queryName,
+          recordIds,
+          recordsById: facts.snapshot.recordsById,
+          result: section.result,
+          schema,
+        });
+        const headingOperations = section.operations.map((operation) => {
+          const binding = projectRecordOperationControlBinding({
+            entityLabel: selectedRecordDetail.entity.label,
+            label: operation.label,
+            operation: operation.operation,
+            options: {
+              executionTargetKey: selectedRecordId,
+              id: generatedWorkspaceSelectedRecordDetailHeadingOperationId(
+                facts.scope,
+                section.id,
+                selectedRecordId,
+                operation.bindingName,
+              ),
+            },
+          });
+          const state = controller.getStateByExecutionKey(binding.executionKey);
+
+          return {
+            control: projectGeneratedOperationControl({
+              binding,
+              confirmationOpen: confirmationOpenByControlId[binding.id] ?? false,
+              presentation: {
+                accessibilityLabel: operation.label,
+                content: { kind: "label", label: operation.label },
+                density: "default",
+                pendingLabel: `${operation.label}...`,
+                prominence: "secondary",
+              },
+              state,
+            }),
+            runtime: {
+              binding,
+              kind: "selectedRecordHeadingOperation",
+            } satisfies GeneratedWorkspaceSelectedRecordHeadingOperationRuntime,
+          };
+        });
+
+        return [
+          section.id,
+          {
+            headingOperations,
+            table: {
+              fieldsById: table.fieldsById,
+              runtime: {
+                kind: "table",
+                runtimePlan: table.runtimePlan,
+              } satisfies GeneratedWorkspaceTableRuntime,
+              table: table.table,
+            },
+          },
+        ] as const;
+      }),
+    );
+  }
   const scopeState = facts.scopeSelection?.state;
   const availableOperations = facts.section.collection.operations.filter(
     (operation) =>
@@ -2688,6 +2865,19 @@ function collectWorkspaceBindings(
   const tableRuntime = input.table?.runtime as GeneratedWorkspaceTableRuntime | undefined;
   if (tableRuntime) {
     bindings.push(...tableRuntime.runtimePlan.operations.map((operation) => operation.binding));
+  }
+  for (const relationship of Object.values(input.selectedRecordDetailRelationships ?? {})) {
+    if (relationship === undefined) {
+      continue;
+    }
+    const relationshipTableRuntime = relationship.table.runtime as GeneratedWorkspaceTableRuntime;
+    bindings.push(
+      ...relationshipTableRuntime.runtimePlan.operations.map((operation) => operation.binding),
+    );
+    for (const operation of relationship.headingOperations ?? []) {
+      const runtime = operation.runtime as GeneratedWorkspaceSelectedRecordHeadingOperationRuntime;
+      bindings.push(runtime.binding);
+    }
   }
 }
 

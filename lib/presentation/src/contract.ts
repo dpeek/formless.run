@@ -428,6 +428,7 @@ export type StateTransitionOperation = {
   fieldName: string;
   field: Extract<FieldSchema, { type: "enum" }>;
   availability?: StateTransitionAvailability;
+  control?: OperationControlContract;
   pending?: FieldPending;
 };
 
@@ -1688,12 +1689,6 @@ export type TreeResultContract = {
   warnings: readonly TreeWarningContract[];
 };
 
-export type ItemDetailContract = {
-  kind: "itemDetail";
-  fields: readonly FieldContract[];
-  operationControls?: readonly OperationControlContract[];
-};
-
 export type WorkspaceItemAvailability =
   | {
       available: true;
@@ -1756,6 +1751,22 @@ export type WorkspaceContextSelectionIntent = {
   screenId: string;
   sectionId: string;
   type: "workspaceContextSelection";
+};
+
+export type WorkspaceSelectedRecordSelectionIntent = {
+  collectionId: string;
+  recordId: string;
+  screenId: string;
+  sectionId: string;
+  type: "workspaceSelectedRecordSelection";
+};
+
+export type WorkspaceSelectedRecordBackIntent = {
+  collectionId: string;
+  recordId: string;
+  screenId: string;
+  sectionId: string;
+  type: "workspaceSelectedRecordBack";
 };
 
 export type WorkspaceContextOptionContract = {
@@ -1847,9 +1858,47 @@ export type WorkspaceListDetailContract = {
   summaries: readonly WorkspaceSummaryContract[];
 };
 
+export type WorkspaceSelectedRecordRecordSectionContract = {
+  id: string;
+  kind: "selectedRecordRecordSection";
+  label?: string;
+  result: RecordResultContract;
+};
+
+export type WorkspaceSelectedRecordRelationshipSectionContract = {
+  headingOperations: readonly OperationControlContract[];
+  id: string;
+  kind: "selectedRecordRelationshipSection";
+  label?: string;
+  result: TableContract;
+};
+
+export type WorkspaceSelectedRecordSectionContract =
+  | WorkspaceSelectedRecordRecordSectionContract
+  | WorkspaceSelectedRecordRelationshipSectionContract;
+
+export type WorkspaceSelectedRecordContract = {
+  accessibilityLabel: string;
+  actions: WorkspaceCollectionActionGroupContract;
+  activePresentation: "detail" | "list";
+  backIntent?: WorkspaceSelectedRecordBackIntent;
+  compactPresentation: "drillIn";
+  context?: WorkspaceContextContract;
+  contextDetail?: RecordResultContract;
+  id: string;
+  kind: "selectedRecord";
+  queryNavigation?: WorkspaceQueryNavigationContract;
+  result: ListContract;
+  sections: readonly WorkspaceSelectedRecordSectionContract[];
+  selectedRecordId: string | null;
+  selectionIntents: readonly WorkspaceSelectedRecordSelectionIntent[];
+  summaries: readonly WorkspaceSummaryContract[];
+};
+
 export type WorkspaceCollectionPresentationContract =
   | WorkspaceListDetailContract
-  | WorkspaceOrdinaryCollectionContract;
+  | WorkspaceOrdinaryCollectionContract
+  | WorkspaceSelectedRecordContract;
 
 export type WorkspaceCollectionContract = {
   accessibilityLabel: string;
@@ -3059,7 +3108,7 @@ export type ShellNavigationSectionReference = {
   shellId: string;
 };
 
-export type ResultReferenceRole = "contextResult" | "mainResult";
+export type ResultReferenceRole = "contextResult" | "mainResult" | "selectedDetailResult";
 
 export type ListResultReference = {
   kind: "listResultReference";
@@ -3069,10 +3118,15 @@ export type ListResultReference = {
   workspaceId: string;
 };
 
-export type TableResultReference = {
+export type TableResultReference<
+  Role extends Extract<ResultReferenceRole, "mainResult" | "selectedDetailResult"> = Extract<
+    ResultReferenceRole,
+    "mainResult" | "selectedDetailResult"
+  >,
+> = {
   kind: "tableResultReference";
   resultId: string;
-  role: "mainResult";
+  role: Role;
   sectionId: string;
   workspaceId: string;
 };
@@ -3096,12 +3150,19 @@ export type RecordResultReference<Role extends ResultReferenceRole = ResultRefer
 export type MainResultReference =
   | ListResultReference
   | RecordResultReference<"mainResult">
-  | TableResultReference
+  | TableResultReference<"mainResult">
   | TreeResultReference;
 
 export type ContextResultReference = RecordResultReference<"contextResult">;
 
-export type ResultReference = MainResultReference | ContextResultReference;
+export type SelectedDetailResultReference =
+  | RecordResultReference<"selectedDetailResult">
+  | TableResultReference<"selectedDetailResult">;
+
+export type ResultReference =
+  | ContextResultReference
+  | MainResultReference
+  | SelectedDetailResultReference;
 
 export type WorkspaceManifestContract = Omit<WorkspaceContract, "kind" | "sections"> & {
   kind: "workspaceManifest";
@@ -3124,8 +3185,38 @@ export type WorkspaceListDetailShellContract = Omit<
   result: MainResultReference;
 };
 
+export type WorkspaceSelectedRecordRecordSectionShellContract = Omit<
+  WorkspaceSelectedRecordRecordSectionContract,
+  "result"
+> & {
+  result: RecordResultReference<"selectedDetailResult">;
+};
+
+export type WorkspaceSelectedRecordRelationshipSectionShellContract = Omit<
+  WorkspaceSelectedRecordRelationshipSectionContract,
+  "result"
+> & {
+  result: TableResultReference<"selectedDetailResult">;
+};
+
+export type WorkspaceSelectedRecordSectionShellContract =
+  | WorkspaceSelectedRecordRecordSectionShellContract
+  | WorkspaceSelectedRecordRelationshipSectionShellContract;
+
+export type WorkspaceSelectedRecordShellContract = Omit<
+  WorkspaceSelectedRecordContract,
+  "contextDetail" | "result" | "sections"
+> & {
+  contextDetail?: ContextResultReference;
+  result: ListResultReference;
+  sections: readonly WorkspaceSelectedRecordSectionShellContract[];
+};
+
 export type WorkspaceCollectionShellContract = Omit<WorkspaceCollectionContract, "presentation"> & {
-  presentation: WorkspaceListDetailShellContract | WorkspaceOrdinaryCollectionShellContract;
+  presentation:
+    | WorkspaceListDetailShellContract
+    | WorkspaceOrdinaryCollectionShellContract
+    | WorkspaceSelectedRecordShellContract;
 };
 
 export type WorkspaceSectionShellContract = Omit<
@@ -3260,6 +3351,8 @@ export type WorkspaceIntent =
   | WorkspaceOperationIntent
   | WorkspaceQuerySelectionIntent
   | WorkspaceRecordResultIntent
+  | WorkspaceSelectedRecordBackIntent
+  | WorkspaceSelectedRecordSelectionIntent
   | WorkspaceTableIntent
   | WorkspaceTreeIntent;
 

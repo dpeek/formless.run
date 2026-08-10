@@ -288,6 +288,21 @@ The system SHALL render generated screens from screen models and collection sect
 - AND revisiting or directly opening the screen path reconstructs the same
   query result without retained browser selection state
 
+#### Scenario: Select one collection record for composed detail
+
+- GIVEN a workspace collection section declares selected-record detail
+- WHEN the screen is opened or the user selects an item from that collection's
+  list result
+- THEN runtime owns nullable selected-record identity keyed by screen and
+  section separately from shell navigation, query, and collection-context state
+- AND the initial unselected state renders the list without automatically
+  selecting the first record
+- AND selection is retained only while the selected record remains in the
+  current collection result and is cleared when the result or selected screen
+  no longer contains it
+- AND the renderer receives semantic select-record and clear-selection intents
+  rather than owning selected-record state
+
 #### Scenario: Generated app navigation
 
 - GIVEN primary screen models are available
@@ -520,6 +535,22 @@ summary slots, operation controls, and schema-declared result types.
 - AND related context counts derive from local records and cross the renderer
   boundary as display text
 
+#### Scenario: Selected-record detail composition
+
+- GIVEN a collection screen section declares selected-record detail
+- WHEN one record from the collection list result is selected
+- THEN the detail composes its ordered record and relationship sections for
+  that selected record
+- AND a record section projects its item view through the canonical
+  record-result foundation and contract
+- AND a relationship section evaluates its declared target query with the
+  selected record id under the detail's declared context name and projects its
+  table view through the canonical table foundation and contract
+- AND a relationship heading operation uses the canonical record-scoped
+  operation controller with the selected source record id
+- AND selected-record detail does not select a separate context entity or use
+  collection `listDetail` fallback semantics
+
 #### Scenario: Ordered list result
 
 - GIVEN a list result declares ordering
@@ -542,7 +573,8 @@ selection, reads, evaluation, operation execution, and effects.
 - WHEN its collection sections use list, table, record, or tree results
 - THEN the complete screen and all ordered sections are eligible for the
   renderer-neutral workspace boundary
-- AND each section composes exactly one complete canonical result before the
+- AND each section composes one complete canonical main result plus any
+  explicitly declared selected-record or context detail results before the
   active renderer is selected
 - AND generated UI does not split one screen between contract and direct
   runtime renderers or add an opaque slot, React-node escape hatch,
@@ -559,7 +591,8 @@ selection, reads, evaluation, operation execution, and effects.
 - AND each collection carries stable identity, an accessible label, selected
   query identity, optional query navigation, optional context presentation,
   summaries, collection actions, explicit empty or unavailable presentation,
-  and exactly one canonical list, table, record-result, or tree-result contract
+  one canonical main list, table, record-result, or tree-result contract, and
+  any explicitly declared selected-record detail composition
 - AND nested create surfaces, operation controls, fields, lists, tables, and
   record and tree results retain their canonical contract shapes and receive
   screen-and-section-scoped identities when composed into a workspace
@@ -599,6 +632,26 @@ selection, reads, evaluation, operation execution, and effects.
   optional suffixes, and availability without exposing raw aggregate or
   computed-value inputs
 
+#### Scenario: Project selected-record workspace presentation
+
+- GIVEN a collection section declares selected-record detail and its main list
+  result is available
+- WHEN generated runtime prepares workspace presentation
+- THEN the collection contract carries an explicit selected-record composition
+  with nullable selected record identity, list or detail presentation state,
+  ordered record and relationship section references, and semantic selection
+  and back intents
+- AND record sections reference canonical record-result contracts while
+  relationship sections reference canonical table contracts and may carry
+  ordered canonical operation controls for heading placement
+- AND the contract declares compact presentation as `drillIn`, so compact
+  rendering starts at the list, selection enters detail, and back clears the
+  selection
+- AND desktop column proportions, compact breakpoints, scrolling, and visual
+  hierarchy remain renderer-owned
+- AND selected-record contracts do not expose query contexts, relationships,
+  raw records, operation authorization rules, or renderer-specific layout props
+
 #### Scenario: Project workspace actions and nested intents
 
 - GIVEN a workspace exposes section actions, context create controls,
@@ -630,6 +683,11 @@ selection, reads, evaluation, operation execution, and effects.
   outside the renderer
 - AND changing selected context does not project draft, error, pending, icon
   dialog, or confirmation state from the previously selected record
+- AND changing or clearing selected-record identity does not project draft,
+  error, pending, icon dialog, or confirmation state from the previous record
+- AND runtime verifies selected-record, detail-section, relationship-result,
+  and heading-operation identity against the latest screen projection before
+  applying a nested intent
 - AND nested result and control ids remain unique when one screen repeats the
   same view, item view, entity, or query in multiple sections
 - AND renderers do not evaluate queries or aggregates, select context fallback,
@@ -671,6 +729,9 @@ selection, reads, evaluation, operation execution, and effects.
   the renderer emits canonical intents without changing runtime state locally
 - AND ordinary context and list-detail layouts follow the renderer's hierarchy
   and action placement
+- AND selected-record layouts render the list and composed detail side by side
+  at wide widths and as list-to-detail drill-in with a back control at compact
+  widths
 - AND the workspace renderer does not read storage, evaluate queries or
   aggregates, execute operations, use media clients, run sync effects, or import
   runtime data
@@ -684,6 +745,7 @@ selection, reads, evaluation, operation execution, and effects.
 - WHEN workspace UX is evaluated with package-local renderer fixtures
 - THEN data-only fixtures use the same contract shapes for an unscoped
   collection, query navigation, ordinary context, list-detail context,
+  selected-record detail with unselected and selected states,
   singleton and empty context, summaries, workspace link actions, section and
   collection actions,
   single- and multi-section screens, unavailable collections, and list, table,
@@ -886,16 +948,17 @@ entrypoints.
 #### Scenario: Subscribe at workspace, section, and result boundaries
 
 - GIVEN a workspace contains ordered collection sections and each section
-  contains one main list, table, record, or tree result plus optional context
-  detail
+  contains one main list, table, record, or tree result plus optional context or
+  selected-record detail results
 - WHEN generated runtime publishes its projected contracts
 - THEN the workspace subscription exposes screen presentation and ordered
   section references
-- AND each section subscription exposes collection chrome, actions, query and
-  context selection, counts, summaries, availability, and main and context
-  result references
-- AND each main or context result subscription exposes its existing complete
-  canonical list, table, record-result, or tree-result snapshot
+- AND each section subscription exposes collection chrome, actions, query,
+  context and selected-record selection, counts, summaries, availability, and
+  main, context, and ordered selected-record detail result references
+- AND each main, context, or selected-record detail result subscription exposes
+  its existing complete canonical list, table, record-result, or tree-result
+  snapshot
 - AND a field draft or nested operation-state change can notify only its result
   subtree, a count, summary, query, context, or availability change can notify
   only its section subtree, and screen structure or section ordering can notify
@@ -1176,9 +1239,12 @@ code owns record selection, authoring state, operation execution, and effects.
 - AND ordinary, read-only, icon, media, color, value-unit, quiet-date, Markdown,
   rich-enum, and state-machine fields cross their applicable Presentation field
   contract boundaries before entering the result renderer
-- AND state-machine fields carry display-safe lifecycle presentation while valid
-  transition and delete actions compose operation-control contracts with
-  availability, pending, confirmation, and feedback facts
+- AND visible state-machine fields carry display-safe lifecycle presentation and
+  valid transition operation controls with availability, pending, confirmation,
+  and feedback facts while delete and other actions retain the record action
+  hierarchy
+- AND a transition paired with a visible state-machine field is not duplicated
+  as a separate record action
 - AND generated runtime retains query evaluation, first-record selection, record
   and system-field reads, active union and `visibleWhen` selection, draft
   sessions, reference and media option loading, icon dialog state, media upload
@@ -1728,8 +1794,10 @@ operation execution.
   upload facts, color drafts and fallbacks, formatted values and units, temporal
   display, enum presentation, label visibility, density, and state-machine
   lifecycle facts remain explicit field contract data
-- AND state-machine-owned values remain read-only while transition actions use
-  projected operation controls outside the field editor
+- AND state-machine-owned values remain read-only while a visible
+  state-machine field may compose its valid projected transition operation
+  controls as the field interaction
+- AND the same transition is not also projected as a separate record action
 - AND invalid or alpha colors, missing icon or media ids, legacy or custom SVG drafts, undeclared
   enum and state values, pending operations, and hidden accessible labels remain
   visible without renderer inference or coercion
@@ -2022,6 +2090,18 @@ entity operations and view operation bindings.
   or `task.clearCompletedTasks`
 - AND the binding can provide placement and ordering hints without redefining
   the operation input, effect, policy, or audit behavior
+
+#### Scenario: Place a selected-record operation at a detail heading
+
+- GIVEN a selected-record relationship section binds a record-scoped source
+  operation at its heading
+- WHEN generated runtime projects and invokes the control
+- THEN the control uses the selected source record id and the same canonical
+  operation binding, controller, execution key, authorization, availability,
+  pending, confirmation, result, and effect behavior as any other placement
+- AND heading placement changes only ordered presentation and visible labeling
+- AND the renderer cannot weaken operation authorization, transition validity,
+  confirmation, input construction, or execution semantics
 
 #### Scenario: Bind a collection operation to empty state
 
@@ -2377,6 +2457,25 @@ status fields.
   for transition operations paired with a visible state-machine field column
 - AND generated UI may keep separate lifecycle transition controls when the
   matching state-machine field is hidden or absent from the table
+
+#### Scenario: Render record-detail state transition menu
+
+- GIVEN a generated record-result detail includes a visible enum field owned by
+  a state machine
+- AND the record entity has record-scoped transition-state operations targeting
+  that machine
+- WHEN generated UI renders the state-machine field for the selected record
+- THEN the current state is rendered as one field control using the enum label
+  and presentation metadata
+- AND opening the control shows only transition operations valid for the
+  record's current state
+- AND selecting a transition invokes the matching operation through the normal
+  Authority operation boundary with its existing pending, confirmation, result,
+  and effect behavior
+- AND generated UI does not add a duplicate lifecycle action when the matching
+  state-machine field is visible
+- AND it may keep a separate lifecycle action when that field is hidden or
+  absent from the record detail
 
 #### Scenario: Protect machine-owned field editors
 

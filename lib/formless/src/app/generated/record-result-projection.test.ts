@@ -93,15 +93,7 @@ describe("generated Formless UI record-result projection", () => {
       accessibilityLabel: "Block record",
       actions: {
         kind: "actionGroup",
-        primary: [
-          {
-            control: {
-              status: { status: "pending" },
-              trigger: { pending: { isPending: true }, prominence: "primary" },
-            },
-            role: "transition",
-          },
-        ],
+        primary: [],
         secondary: [
           {
             control: {
@@ -188,8 +180,21 @@ describe("generated Formless UI record-result projection", () => {
     expect(fields.status).toMatchObject({
       access: { kind: "stateMachine" },
       mode: "display",
+      pending: { isPending: true, label: "Publish..." },
       stateMachineFacts: {
-        interaction: { kind: "display" },
+        interaction: {
+          kind: "transitions",
+          transitions: [
+            {
+              availability: { valid: true },
+              control: {
+                status: { status: "pending" },
+                trigger: { pending: { isPending: true }, prominence: "primary" },
+              },
+              operationName: "publish",
+            },
+          ],
+        },
         valueStatus: { kind: "declared", value: "draft" },
       },
     });
@@ -355,6 +360,98 @@ describe("generated Formless UI record-result projection", () => {
     expect(fields.status).toMatchObject({ access: { kind: "stateMachine" }, mode: "display" });
   });
 
+  it("keeps invalid visible transitions out of fields and hidden transitions as record actions", () => {
+    const record = blockRecord("block-1", {
+      status: "published",
+      title: "Published",
+      type: "page",
+    });
+    const visible = selectGeneratedRecordResultFoundation({
+      entity: blockEntity,
+      entityName: "block",
+      id: "blocks:visible-status",
+      recordIds: [record.id],
+      recordsById: { [record.id]: record },
+      result: completeRecordResult(),
+    });
+    const visibleStatus = requiredProjectedField(visible, "status");
+
+    expect(visibleStatus.stateMachineFacts?.interaction).toEqual({ kind: "display" });
+    expect(visible.recordResult.actions.primary).toEqual([]);
+    expect(requiredOperation(visible, "transition").binding.availability).toEqual({
+      reason: "Requires Draft.",
+      state: "disabled",
+    });
+
+    const hidden = selectGeneratedRecordResultFoundation({
+      entity: blockEntity,
+      entityName: "block",
+      id: "blocks:hidden-status",
+      recordIds: [record.id],
+      recordsById: { [record.id]: record },
+      result: {
+        ...completeRecordResult(),
+        recordFields: completeFields.filter((field) => field.fieldName !== "status"),
+      },
+    });
+
+    expect(hidden.recordResult.fields.some((field) => field.fieldName === "status")).toBe(false);
+    expect(hidden.recordResult.actions.primary).toMatchObject([
+      {
+        control: {
+          trigger: { disabled: true, disabledReason: "Requires Draft." },
+        },
+        role: "transition",
+      },
+    ]);
+  });
+
+  it("projects visible transition result feedback on the owning state-machine field", () => {
+    const result = completeRecordResult();
+    const record = blockRecord("block-1", {
+      status: "draft",
+      title: "Draft",
+      type: "page",
+    });
+    const base = selectGeneratedRecordResultFoundation({
+      entity: blockEntity,
+      entityName: "block",
+      id: "blocks:transition-feedback",
+      recordIds: [record.id],
+      recordsById: { [record.id]: record },
+      result,
+    });
+    const transition = requiredOperation(base, "transition");
+    const projected = selectGeneratedRecordResultFoundation({
+      entity: blockEntity,
+      entityName: "block",
+      id: "blocks:transition-feedback",
+      operationStateByExecutionKey: {
+        [transition.binding.executionKey]: {
+          completedAt: 12,
+          executionKey: transition.binding.executionKey,
+          result: { affectedCount: 2, createdRecordIds: ["audit-1"], type: "committed" },
+          status: "committed",
+        },
+      },
+      recordIds: [record.id],
+      recordsById: { [record.id]: record },
+      result,
+    });
+    const status = requiredProjectedField(projected, "status");
+    const interaction = status.stateMachineFacts?.interaction;
+
+    expect(interaction?.kind).toBe("transitions");
+    if (interaction?.kind !== "transitions") {
+      throw new Error("Missing record-result transition controls.");
+    }
+    expect(interaction.transitions[0]?.control).toMatchObject({
+      feedback: { status: "committed" },
+      status: { status: "committed" },
+    });
+    expect(projected.recordResult.actions.primary).toEqual([]);
+  });
+
   it("resolves only matching record field, operation, and confirmation intents", () => {
     const result = completeRecordResult();
     const record = blockRecord("block-1", {
@@ -372,6 +469,7 @@ describe("generated Formless UI record-result projection", () => {
       result,
     });
     const body = requiredProjectedField(projected, "body");
+    const status = requiredProjectedField(projected, "status");
     const deletion = requiredOperation(projected, "delete");
 
     expect(
@@ -406,9 +504,29 @@ describe("generated Formless UI record-result projection", () => {
     }
     expect(
       selectGeneratedRecordResultRuntimeForIntent(projected.runtimePlan, {
-        fieldId: body.fieldId,
+        fieldId: status.fieldId,
         intent: {
-          fieldName: "body",
+          fieldName: "status",
+          operationName: "publish",
+          recordId: record.id,
+          source: "menuItem",
+          transitionName: "publish",
+          type: "stateTransitionInvoke",
+        },
+        recordId: record.id,
+        resultId: "blocks:featured",
+        type: "recordResultFieldIntent",
+      }),
+    ).toMatchObject({
+      field: { fieldId: status.fieldId },
+      fieldConfig: { fieldName: "status" },
+      kind: "field",
+    });
+    expect(
+      selectGeneratedRecordResultRuntimeForIntent(projected.runtimePlan, {
+        fieldId: status.fieldId,
+        intent: {
+          fieldName: "status",
           operationName: "archive",
           recordId: record.id,
           source: "menuItem",

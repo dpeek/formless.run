@@ -68,6 +68,9 @@ export type GeneratedOperationInputAdapter =
       recordLabel?: string;
     }
   | {
+      kind: "recordStatic";
+    }
+  | {
       kind: "tableStatic";
     }
   | {
@@ -359,6 +362,43 @@ export function projectRecordDeleteOperationControlBinding(input: {
       entityLabel: input.entityLabel,
       ...(input.recordLabel === undefined ? {} : { recordLabel: input.recordLabel }),
     },
+  });
+}
+
+export function projectRecordOperationControlBinding(input: {
+  entityLabel: string;
+  operation: EntityOperationPresentationConfig;
+  label?: string;
+  recordLabel?: string;
+  options?: GeneratedOperationProjectionOptions;
+}): GeneratedOperationControlBinding {
+  const label = input.label ?? input.operation.label;
+  const options = input.options ?? {};
+
+  if (input.operation.operation.kind === "delete") {
+    return projectRecordDeleteOperationControlBinding({
+      entityLabel: input.entityLabel,
+      label,
+      operation: input.operation,
+      ...(input.recordLabel === undefined ? {} : { recordLabel: input.recordLabel }),
+      options,
+    })!;
+  }
+
+  return baseGeneratedOperationControlBinding({
+    operation: input.operation,
+    id: bindingId(options, "record", input.operation.canonicalKey),
+    executionKey: executionKey(options, input.operation.canonicalKey),
+    label,
+    kind: input.operation.operation.kind,
+    visualIntent: "default",
+    feedback: {
+      progressLabel: `${label}...`,
+      successLabel: `${label} synced.`,
+      replayLabel: `${label} replayed.`,
+      failureLabel: `${label} failed.`,
+    },
+    input: { kind: "recordStatic" },
   });
 }
 

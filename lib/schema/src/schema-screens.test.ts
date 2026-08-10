@@ -13,6 +13,8 @@ import {
   type KeyedDefinition,
   type ScreenAccessRequirementSource,
   type ScreenSchemaSource,
+  type SelectedRecordDetailSchema,
+  type SelectedRecordDetailSchemaSource,
   type WorkspaceScreenSchema,
 } from "./index.ts";
 import { taskCollectionView, taskSchema, taskScreen } from "./schema-test-fixtures.ts";
@@ -449,6 +451,206 @@ describe("schema screens", () => {
     ).toThrow(
       'Screen "home" layout section 0 query "taskDone" must reference one of collection view "taskHome" query slots.',
     );
+  });
+
+  it("parses and serializes ordered selected-record detail sections", () => {
+    const detail = selectedRecordDetail() satisfies SelectedRecordDetailSchemaSource;
+    const schema = parseAppSchema(selectedRecordDetailSchema(detail));
+    const screen = schema.screens[0];
+    if (screen.type !== "workspace") {
+      throw new Error("Expected a workspace screen.");
+    }
+    const parsedDetail: SelectedRecordDetailSchema = screen.layout.sections[0].detail!;
+
+    expect(parsedDetail).toEqual(detail);
+    expect(parsedDetail.sections.map(({ id, type }) => ({ id, type }))).toEqual([
+      { id: "record", type: "record" },
+      { id: "notes", type: "relationship" },
+    ]);
+    expect(
+      schema.entities
+        .find((entity) => entity.key === "task")
+        ?.operations?.find((operation) => operation.key === "update"),
+    ).toMatchObject({
+      kind: "update",
+      scope: "record",
+      effect: { type: "patchRecord" },
+      output: { type: "update" },
+      idempotency: { required: true },
+      audit: { input: "summary" },
+    });
+    expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
+  });
+
+  it("validates selected-record detail identity and compatible schema references", () => {
+    const invalidDetails: { detail: unknown; message: string }[] = [
+      {
+        detail: "record",
+        message: 'Screen "home" layout section 0 detail must be an object.',
+      },
+      {
+        detail: selectedRecordDetail({ type: "record" }),
+        message: 'Screen "home" layout section 0 detail type must be "selectedRecord".',
+      },
+      {
+        detail: selectedRecordDetail({ context: " " }),
+        message: 'Screen "home" layout section 0 detail context must be a non-empty string.',
+      },
+      {
+        detail: selectedRecordDetail({ sections: [] }),
+        message: 'Screen "home" layout section 0 detail sections must be a non-empty array.',
+      },
+      {
+        detail: selectedRecordDetail({
+          sections: [selectedRecordSection(), selectedRecordRelationshipSection({ id: "record" })],
+        }),
+        message: 'Screen "home" layout section 0 detail section id "record" must be unique.',
+      },
+      {
+        detail: selectedRecordDetail({ sections: [selectedRecordSection({ id: " " })] }),
+        message: 'Screen "home" layout section 0 detail section 0 id must be a non-empty string.',
+      },
+      {
+        detail: selectedRecordDetail({
+          sections: [selectedRecordSection({ itemView: "missing" })],
+        }),
+        message:
+          'Screen "home" layout section 0 detail section 0 references unknown item view "missing".',
+      },
+      {
+        detail: selectedRecordDetail({
+          sections: [selectedRecordSection({ itemView: "noteItem" })],
+        }),
+        message:
+          'Screen "home" layout section 0 detail section 0 item view "noteItem" must use entity "task".',
+      },
+      {
+        detail: selectedRecordDetail({
+          sections: [selectedRecordRelationshipSection({ relationship: "missing" })],
+        }),
+        message:
+          'Screen "home" layout section 0 detail section 0 references unknown relationship "missing".',
+      },
+      {
+        detail: selectedRecordDetail({
+          sections: [selectedRecordRelationshipSection({ relationship: "noteTask" })],
+        }),
+        message:
+          'Screen "home" layout section 0 detail section 0 relationship "noteTask" must be a toMany relationship.',
+      },
+      {
+        detail: selectedRecordDetail({
+          sections: [selectedRecordRelationshipSection({ relationship: "noteComments" })],
+        }),
+        message:
+          'Screen "home" layout section 0 detail section 0 relationship "noteComments" must start from entity "task".',
+      },
+      {
+        detail: selectedRecordDetail({
+          sections: [selectedRecordRelationshipSection({ query: "missing" })],
+        }),
+        message:
+          'Screen "home" layout section 0 detail section 0 references unknown query "missing".',
+      },
+      {
+        detail: selectedRecordDetail({
+          sections: [selectedRecordRelationshipSection({ query: "taskAll" })],
+        }),
+        message:
+          'Screen "home" layout section 0 detail section 0 query "taskAll" must use relationship target entity "note".',
+      },
+      {
+        detail: selectedRecordDetail({
+          sections: [
+            selectedRecordRelationshipSection({ result: { type: "list", tableView: "noteTable" } }),
+          ],
+        }),
+        message: 'Screen "home" layout section 0 detail section 0 result type must be "table".',
+      },
+      {
+        detail: selectedRecordDetail({
+          sections: [
+            selectedRecordRelationshipSection({
+              result: { type: "table", tableView: "missing" },
+            }),
+          ],
+        }),
+        message:
+          'Screen "home" layout section 0 detail section 0 result references unknown table view "missing".',
+      },
+      {
+        detail: selectedRecordDetail({
+          sections: [
+            selectedRecordRelationshipSection({
+              result: { type: "table", tableView: "taskTable" },
+            }),
+          ],
+        }),
+        message:
+          'Screen "home" layout section 0 detail section 0 result table view "taskTable" must use entity "note".',
+      },
+    ];
+
+    for (const { detail, message } of invalidDetails) {
+      expect(() => parseAppSchema(selectedRecordDetailSchema(detail))).toThrow(message);
+    }
+
+    expect(() =>
+      parseAppSchema(
+        selectedRecordDetailSchema(selectedRecordDetail(), {
+          taskResult: { type: "table", tableView: "taskTable" },
+        }),
+      ),
+    ).toThrow(
+      'Screen "home" layout section 0 detail requires its collection view to use a list result.',
+    );
+  });
+
+  it("validates selected-record relationship heading operation bindings", () => {
+    const invalidOperations: { operation: unknown; message: string }[] = [
+      {
+        operation: { operation: "task.missing", placement: "heading" },
+        message:
+          'Screen "home" layout section 0 detail section 0 operations binding 0 references unknown operation "task.missing".',
+      },
+      {
+        operation: { operation: "note.update", placement: "heading" },
+        message:
+          'Screen "home" layout section 0 detail section 0 operations binding 0 operation must use source entity "task".',
+      },
+      {
+        operation: { operation: "task.create", placement: "heading" },
+        message:
+          'Screen "home" layout section 0 detail section 0 operations binding 0 operation must use record scope.',
+      },
+      {
+        operation: { operation: "task.hiddenUpdate", placement: "heading" },
+        message:
+          'Screen "home" layout section 0 detail section 0 operations binding 0 operation must be visible to browser actors.',
+      },
+      {
+        operation: { operation: "task.runnerUpdate", placement: "heading" },
+        message:
+          'Screen "home" layout section 0 detail section 0 operations binding 0 operation must be visible to browser actors.',
+      },
+      {
+        operation: { operation: "task.update", placement: "toolbar" },
+        message:
+          'Screen "home" layout section 0 detail section 0 operations binding 0 placement must be "heading".',
+      },
+    ];
+
+    for (const { operation, message } of invalidOperations) {
+      expect(() =>
+        parseAppSchema(
+          selectedRecordDetailSchema(
+            selectedRecordDetail({
+              sections: [selectedRecordRelationshipSection({ operations: [operation] })],
+            }),
+          ),
+        ),
+      ).toThrow(message);
+    }
   });
 
   it("rejects invalid query-count badge targets", () => {
@@ -927,6 +1129,197 @@ function screenAccessSchema(): AppSchemaSource {
           type: "stack",
           sections: [{ id: "inherited-tasks", type: "collection", view: "taskList" }],
         },
+      },
+    ],
+  };
+}
+
+function selectedRecordDetail(
+  overrides: Record<string, unknown> = {},
+): SelectedRecordDetailSchemaSource {
+  return {
+    type: "selectedRecord",
+    context: "selectedTask",
+    sections: [selectedRecordSection(), selectedRecordRelationshipSection()],
+    ...overrides,
+  } as SelectedRecordDetailSchemaSource;
+}
+
+function selectedRecordSection(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "record",
+    type: "record",
+    label: "Task",
+    itemView: "taskItem",
+    ...overrides,
+  };
+}
+
+function selectedRecordRelationshipSection(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "notes",
+    type: "relationship",
+    label: "Notes",
+    relationship: "taskNotes",
+    query: "notesForTask",
+    result: { type: "table", tableView: "noteTable" },
+    operations: [{ operation: "task.update", placement: "heading", label: "Edit task" }],
+    ...overrides,
+  };
+}
+
+function selectedRecordDetailSchema(
+  detail: unknown = selectedRecordDetail(),
+  options: { taskResult?: unknown } = {},
+) {
+  const source = taskSchema();
+  return {
+    ...source,
+    entities: [
+      taskEntityWithDetailOperations(),
+      {
+        key: "note",
+        id: "entity_0cc3b7ab-e84c-439b-8ccd-1889bb9af978",
+        label: "Note",
+        fields: [
+          { key: "title", type: "text", required: true, label: "Title" },
+          {
+            key: "task",
+            type: "reference",
+            required: true,
+            label: "Task",
+            to: "task",
+          },
+        ],
+        operations: [
+          {
+            key: "update",
+            label: "Update note",
+            kind: "update",
+            scope: "record",
+            effect: { type: "patchRecord" },
+          },
+        ],
+      },
+      {
+        key: "comment",
+        id: "entity_d3768843-ce08-490d-81bd-e41513ac741e",
+        label: "Comment",
+        fields: [
+          { key: "body", type: "text", required: true, label: "Body" },
+          {
+            key: "note",
+            type: "reference",
+            required: true,
+            label: "Note",
+            to: "note",
+          },
+        ],
+      },
+    ],
+    relationships: [
+      {
+        key: "taskNotes",
+        kind: "toMany",
+        from: { entity: "task" },
+        to: { entity: "note", field: "task" },
+      },
+      {
+        key: "noteTask",
+        kind: "toOne",
+        from: { entity: "note", field: "task" },
+        to: { entity: "task" },
+      },
+      {
+        key: "noteComments",
+        kind: "toMany",
+        from: { entity: "note" },
+        to: { entity: "comment", field: "note" },
+      },
+    ],
+    queries: [
+      ...source.queries,
+      {
+        key: "notesForTask",
+        label: "Notes for task",
+        entity: "note",
+        expression: {
+          kind: "where",
+          ref: { kind: "value", name: "task" },
+          op: "eq",
+          value: { kind: "context", name: "selectedTask" },
+        },
+      },
+      {
+        key: "commentsAll",
+        label: "All comments",
+        entity: "comment",
+        expression: { kind: "all" },
+      },
+    ],
+    itemViews: [
+      ...source.itemViews,
+      {
+        key: "noteItem",
+        entity: "note",
+        fields: [{ field: "title", editor: "text", commit: "field-commit" }],
+      },
+    ],
+    tableViews: [
+      {
+        key: "noteTable",
+        entity: "note",
+        columns: [{ type: "field", field: "title" }],
+      },
+      {
+        key: "taskTable",
+        entity: "task",
+        columns: [{ type: "field", field: "title" }],
+      },
+    ],
+    views: source.views.map((view) =>
+      view.key === "taskHome" && "result" in view
+        ? {
+            ...view,
+            result: options.taskResult ?? view.result,
+          }
+        : view,
+    ),
+    screens: [
+      {
+        key: "home",
+        type: "workspace",
+        label: "Tasks",
+        layout: {
+          type: "stack",
+          sections: [{ id: "tasks", type: "collection", view: "taskHome", detail }],
+        },
+      },
+    ],
+  };
+}
+
+function taskEntityWithDetailOperations() {
+  const task = taskSchema().entities[0];
+  return {
+    ...task,
+    operations: [
+      ...task.operations,
+      {
+        key: "hiddenUpdate",
+        label: "Hidden update",
+        kind: "update",
+        scope: "record",
+        effect: { type: "patchRecord" },
+        policy: { actors: ["owner"], visible: false },
+      },
+      {
+        key: "runnerUpdate",
+        label: "Runner update",
+        kind: "update",
+        scope: "record",
+        effect: { type: "patchRecord" },
+        policy: { actors: ["runner"] },
       },
     ],
   };

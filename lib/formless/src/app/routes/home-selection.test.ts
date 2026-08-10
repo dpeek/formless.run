@@ -4,9 +4,11 @@ import {
   homeRouteSectionSelectionKey,
   selectHomeRouteSectionContextRecordId,
   selectHomeRouteSectionQueryName,
+  selectHomeRouteSectionRecordId,
   withHomeRouteSelectedScreenName,
   withHomeRouteSelectedSectionContextRecordId,
   withHomeRouteSelectedSectionQueryName,
+  withHomeRouteSelectedSectionRecordId,
 } from "./home-selection.tsx";
 
 describe("home route selection", () => {
@@ -28,11 +30,13 @@ describe("home route selection", () => {
       selectedScreenName: "taskHome",
       selectedQueryNamesBySection: { [sectionKey]: "taskCompleted" },
       selectedContextIdsBySection: { [sectionKey]: "record-1" },
+      selectedRecordIdsBySection: {},
     });
     expect(createHomeRouteSelectionState()).toEqual({
       selectedScreenName: null,
       selectedQueryNamesBySection: {},
       selectedContextIdsBySection: {},
+      selectedRecordIdsBySection: {},
     });
   });
 
@@ -53,5 +57,38 @@ describe("home route selection", () => {
     expect(selectHomeRouteSectionContextRecordId(state, "rateSetup", "rates")).toBe("card-2");
     expect(selectHomeRouteSectionContextRecordId(state, "rateSetup", "resources")).toBeNull();
     expect(selectHomeRouteSectionQueryName(state, "rateHome", "rates")).toBeNull();
+  });
+
+  it("keeps repeated collection view sections independently selectable", () => {
+    const state = withHomeRouteSelectedSectionRecordId(
+      withHomeRouteSelectedSectionRecordId(
+        withHomeRouteSelectedScreenName(createHomeRouteSelectionState(), "cards"),
+        "cards",
+        "primary",
+        "card-1",
+      ),
+      "cards",
+      "secondary",
+      "card-2",
+    );
+    const cleared = withHomeRouteSelectedSectionRecordId(state, "cards", "primary", null);
+
+    expect(selectHomeRouteSectionRecordId(state, "cards", "primary")).toBe("card-1");
+    expect(selectHomeRouteSectionRecordId(state, "cards", "secondary")).toBe("card-2");
+    expect(selectHomeRouteSectionRecordId(cleared, "cards", "primary")).toBeNull();
+    expect(selectHomeRouteSectionRecordId(cleared, "cards", "secondary")).toBe("card-2");
+  });
+
+  it("clears selected records when the active screen changes", () => {
+    const selected = withHomeRouteSelectedSectionRecordId(
+      withHomeRouteSelectedScreenName(createHomeRouteSelectionState(), "cards"),
+      "cards",
+      "primary",
+      "card-1",
+    );
+    const changedScreen = withHomeRouteSelectedScreenName(selected, "resources");
+
+    expect(selectHomeRouteSectionRecordId(changedScreen, "cards", "primary")).toBeNull();
+    expect(changedScreen.selectedRecordIdsBySection).toEqual({});
   });
 });

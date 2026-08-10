@@ -7,6 +7,7 @@ import type {
   OperationControlContract,
   TableContract,
 } from "@dpeek/formless-presentation/contract";
+import type { AppSchema } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type {
   GeneratedOperationControlBinding,
@@ -14,7 +15,11 @@ import type {
   RecordFieldConfig,
 } from "../../client/views.ts";
 import type { EntityOperationPresentationConfig } from "../../client/operation-presentation-model.ts";
-import { selectScreenModelByPath, selectScreenModels } from "../../client/views.ts";
+import {
+  createGeneratedOperationController,
+  selectScreenModelByPath,
+  selectScreenModels,
+} from "../../client/views.ts";
 import type { RecordResultModel } from "../../client/list-result-model.ts";
 import {
   rateCardTestRecords,
@@ -39,9 +44,13 @@ import {
 } from "./workspace-projection.ts";
 import {
   createGeneratedRecordResultFieldAuthoringState,
+  selectGeneratedRecordResultFoundation,
   type GeneratedRecordResultRecordState,
 } from "./generated-record-result-foundation.ts";
-import { indexGeneratedTableFieldOccurrences } from "./generated-table-foundation.tsx";
+import {
+  indexGeneratedTableFieldOccurrences,
+  selectGeneratedWorkspaceTableFoundation,
+} from "./generated-table-foundation.tsx";
 import {
   resolveGeneratedWorkspaceIntent,
   selectGeneratedWorkspaceFoundation,
@@ -97,6 +106,309 @@ describe("generated workspace foundation", () => {
       expect(plan.recordIds).toEqual(["rec_task_completed"]);
       expect(section.collection.presentation.queryNavigation).toBeUndefined();
     }
+  });
+
+  it("keeps selected-record state nullable and clears it when a query removes the record", () => {
+    const screen = selectedRecordDetailRateScreen();
+    const snapshot = projectionSnapshot(rateCardTestRecords);
+    const select = (selectedQueryName?: string, selectedRecordId?: string) =>
+      required(
+        selectGeneratedWorkspaceFoundation({
+          screen,
+          sectionSelection: {
+            cards: {
+              ...(selectedQueryName === undefined ? {} : { selectedQueryName }),
+              ...(selectedRecordId === undefined ? {} : { selectedRecordId }),
+            },
+          },
+          selectSectionFoundation: selectSelectedRecordDetailSectionFoundation,
+          snapshot,
+          today: "2026-08-10",
+        }),
+      ).runtimePlan.sections[0];
+
+    expect(required(select()).selectedRecordId).toBeNull();
+    expect(required(select(undefined, "rec_card_premium")).selectedRecordId).toBe(
+      "rec_card_premium",
+    );
+    expect(required(select("cardDefault", "rec_card_premium")).selectedRecordId).toBeNull();
+  });
+
+  it("projects selected-record composition and validates current selection and back intents", () => {
+    const screen = selectedRecordDetailRateScreen();
+    const snapshot = projectionSnapshot(rateCardTestRecords);
+    const select = (selectedRecordId: string | null) =>
+      required(
+        selectGeneratedWorkspaceFoundation({
+          screen,
+          sectionSelection: { cards: { selectedRecordId } },
+          selectSectionFoundation: selectSelectedRecordDetailSectionFoundation,
+          snapshot,
+          today: "2026-08-10",
+        }),
+      );
+    const unselected = select(null);
+    const unselectedPresentation = required(unselected.workspace.sections[0]).collection
+      .presentation;
+    if (unselectedPresentation.kind !== "selectedRecord") {
+      throw new Error("Missing selected-record presentation.");
+    }
+
+    expect(unselectedPresentation).toMatchObject({
+      activePresentation: "list",
+      compactPresentation: "drillIn",
+      sections: [],
+      selectedRecordId: null,
+    });
+    expect(unselectedPresentation.backIntent).toBeUndefined();
+    expect(unselectedPresentation.selectionIntents.map(({ recordId }) => recordId)).toEqual([
+      "rec_card_default",
+      "rec_card_premium",
+    ]);
+    const selectionIntent = required(
+      unselectedPresentation.selectionIntents.find(
+        ({ recordId }) => recordId === "rec_card_premium",
+      ),
+    );
+    expect(resolveGeneratedWorkspaceIntent(unselected.runtimePlan, selectionIntent)).toMatchObject({
+      kind: "selectedRecordSelection",
+      recordId: "rec_card_premium",
+    });
+
+    const selected = select("rec_card_premium");
+    const selectedPresentation = required(selected.workspace.sections[0]).collection.presentation;
+    if (selectedPresentation.kind !== "selectedRecord") {
+      throw new Error("Missing selected-record presentation.");
+    }
+    expect(selectedPresentation).toMatchObject({
+      activePresentation: "detail",
+      backIntent: { recordId: "rec_card_premium", type: "workspaceSelectedRecordBack" },
+      sections: [
+        { kind: "selectedRecordRecordSection", result: { kind: "recordResult" } },
+        { kind: "selectedRecordRelationshipSection", result: { kind: "table" } },
+      ],
+      selectedRecordId: "rec_card_premium",
+    });
+    const backIntent = required(selectedPresentation.backIntent);
+    expect(resolveGeneratedWorkspaceIntent(selected.runtimePlan, backIntent)).toMatchObject({
+      kind: "selectedRecordSelection",
+      recordId: null,
+    });
+    expect(
+      resolveGeneratedWorkspaceIntent(selected.runtimePlan, {
+        ...backIntent,
+        recordId: "rec_card_default",
+      }),
+    ).toBeUndefined();
+    expect(
+      resolveGeneratedWorkspaceIntent(selected.runtimePlan, {
+        ...selectionIntent,
+        recordId: "rec_card_missing",
+      }),
+    ).toBeUndefined();
+  });
+
+  it("composes selected-record item views through section-scoped record-result foundations", () => {
+    const base = selectedRecordDetailRateScreen();
+    const section = required(base.layout.sections[0]);
+    const screen: HomeScreenModel = {
+      ...base,
+      layout: {
+        ...base.layout,
+        sections: [
+          { ...section, id: "primaryCards" },
+          { ...section, id: "secondaryCards" },
+        ],
+      },
+    };
+    const snapshot = projectionSnapshot(rateCardTestRecords);
+    const selectedRecordId = "rec_card_premium";
+    const foundation = required(
+      selectGeneratedWorkspaceFoundation({
+        screen,
+        sectionSelection: {
+          primaryCards: { selectedRecordId },
+          secondaryCards: { selectedRecordId },
+        },
+        selectSectionFoundation: selectSelectedRecordDetailSectionFoundation,
+        snapshot,
+        today: "2026-08-10",
+      }),
+    );
+    const resultIds = new Set<string>();
+
+    for (const plan of foundation.runtimePlan.sections) {
+      const detail = required(plan.collection.detail);
+      const projected = required(plan.selectedRecordDetailRecordResults[0]);
+      const recordSection = required(
+        detail.sections.find((candidate) => candidate.type === "record"),
+      );
+      const expectedId = generatedWorkspaceScopedId(
+        plan.scope,
+        "result",
+        `selectedRecord:${recordSection.id}`,
+      );
+      const direct = selectGeneratedRecordResultFoundation({
+        accessibilityLabel: recordSection.label ?? `${detail.entity.label} detail`,
+        entity: detail.entity,
+        entityName: detail.entityName,
+        id: expectedId,
+        recordIds: [selectedRecordId],
+        recordsById: snapshot.recordsById,
+        result: recordSection.result,
+        selectedRecordId,
+      });
+
+      expect(projected.id).toBe(recordSection.id);
+      expect(projected.result.contract).toEqual(direct.recordResult);
+      expect(projected.result.model).toBe(recordSection.result);
+      expect(projected.result.recordState).toMatchObject({ baselineRecordId: selectedRecordId });
+      expect(resultIds.has(projected.result.contract.id)).toBe(false);
+      resultIds.add(projected.result.contract.id);
+
+      const field = required(projected.result.contract.fields[0]);
+      const intent = projectGeneratedWorkspaceRecordResultIntent(plan.scope, expectedId, {
+        fieldId: field.fieldId,
+        intent: { fieldName: field.fieldName, type: "recordDraftRevert" },
+        recordId: selectedRecordId,
+        resultId: expectedId,
+        type: "recordResultFieldIntent",
+      });
+      expect(resolveGeneratedWorkspaceIntent(foundation.runtimePlan, intent)).toMatchObject({
+        kind: "result",
+        result: { contract: { id: expectedId }, kind: "recordResult" },
+      });
+    }
+
+    expect(resultIds.size).toBe(2);
+  });
+
+  it("evaluates selected-record relationship queries into scoped canonical tables", () => {
+    const screen = selectedRecordDetailRateScreen();
+    const snapshot = projectionSnapshot(rateCardTestRecords);
+    const select = (
+      selectedRecordId: string | null,
+      options: {
+        screen?: HomeScreenModel;
+        selectedQueryName?: string;
+        snapshot?: ReturnType<typeof projectionSnapshot>;
+      } = {},
+    ) =>
+      required(
+        selectGeneratedWorkspaceFoundation({
+          screen: options.screen ?? screen,
+          sectionSelection: {
+            cards: {
+              ...(options.selectedQueryName === undefined
+                ? {}
+                : { selectedQueryName: options.selectedQueryName }),
+              selectedRecordId,
+            },
+          },
+          selectSectionFoundation: selectSelectedRecordDetailSectionFoundation,
+          snapshot: options.snapshot ?? snapshot,
+          today: "2026-08-10",
+        }),
+      ).runtimePlan.sections[0];
+
+    expect(required(select(null)).selectedRecordDetailRelationshipResults).toEqual([]);
+
+    const premium = required(select("rec_card_premium"));
+    const premiumRelationship = required(premium.selectedRecordDetailRelationshipResults[0]);
+    expect(premiumRelationship.queryContext).toEqual({
+      today: "2026-08-10",
+      values: { card: "rec_card_premium" },
+    });
+    expect(premiumRelationship.recordIds).toEqual([
+      "rec_rate_premium_designer",
+      "rec_rate_premium_developer",
+      "rec_rate_premium_producer",
+      "rec_rate_premium_product_lead",
+      "rec_rate_premium_qa",
+    ]);
+    expect(premiumRelationship.result.contract.rows.map(({ id }) => id)).toEqual(
+      premiumRelationship.recordIds,
+    );
+
+    const defaultRelationship = required(
+      required(select("rec_card_default")).selectedRecordDetailRelationshipResults[0],
+    );
+    expect(defaultRelationship.result.contract.id).toBe(premiumRelationship.result.contract.id);
+    expect(defaultRelationship.recordIds).toEqual([
+      "rec_rate_default_designer",
+      "rec_rate_default_developer",
+      "rec_rate_default_producer",
+      "rec_rate_default_product_lead",
+      "rec_rate_default_qa",
+    ]);
+
+    const emptySnapshot = projectionSnapshot(
+      rateCardTestRecords.filter(
+        (record) => record.entity !== "rate" || record.values.card !== "rec_card_premium",
+      ),
+    );
+    const emptyRelationship = required(
+      required(select("rec_card_premium", { snapshot: emptySnapshot }))
+        .selectedRecordDetailRelationshipResults[0],
+    );
+    expect(emptyRelationship.recordIds).toEqual([]);
+    expect(emptyRelationship.result.contract).toMatchObject({
+      emptyState: { kind: "tableEmptyState" },
+      rows: [],
+    });
+
+    const stale = required(select("rec_card_premium", { selectedQueryName: "cardDefault" }));
+    expect(stale.selectedRecordId).toBeNull();
+    expect(stale.selectedRecordDetailRelationshipResults).toEqual([]);
+
+    const relationship = required(
+      required(screen.layout.sections[0]).collection.detail?.sections.find(
+        (section) => section.type === "relationship",
+      ),
+    );
+    if (relationship.type !== "relationship") {
+      throw new Error("Missing relationship section.");
+    }
+    const unavailableScreen: HomeScreenModel = {
+      ...screen,
+      layout: {
+        ...screen.layout,
+        sections: screen.layout.sections.map((section) => ({
+          ...section,
+          collection: {
+            ...section.collection,
+            detail: section.collection.detail
+              ? {
+                  ...section.collection.detail,
+                  sections: section.collection.detail.sections.map((detailSection) =>
+                    detailSection.id === relationship.id
+                      ? { ...relationship, query: { kind: "all" }, queryName: "rateAll" }
+                      : detailSection,
+                  ),
+                }
+              : undefined,
+          },
+        })),
+      },
+    };
+    const unavailableSnapshot = projectionSnapshot(rateCardTestRecords);
+    unavailableSnapshot.recordIdsByEntity.rate = ["rec_rate_unavailable"];
+    const unavailable = required(
+      required(
+        select("rec_card_premium", {
+          screen: unavailableScreen,
+          snapshot: unavailableSnapshot,
+        }),
+      ).selectedRecordDetailRelationshipResults[0],
+    );
+    expect(unavailable.recordIds).toEqual(["rec_rate_unavailable"]);
+    expect(unavailable.result.contract.rows[0]?.cells).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          contents: [expect.objectContaining({ kind: "unavailable" })],
+        }),
+      ]),
+    );
   });
 
   it("projects zero, sole, and ambiguous Site authoring scope without a Site selector", () => {
@@ -853,6 +1165,43 @@ function selectRateSectionFoundation(
   };
 }
 
+function selectSelectedRecordDetailSectionFoundation(
+  facts: GeneratedWorkspaceSectionSelectionFacts,
+): GeneratedWorkspaceSectionFoundationInput {
+  const controller = createGeneratedOperationController({ bindings: [] });
+
+  return {
+    selectedRecordDetailRelationships: Object.fromEntries(
+      facts.selectedRecordDetailRelationships.map((relationship) => {
+        const table = selectGeneratedWorkspaceTableFoundation({
+          controller,
+          entity: relationship.section.entity,
+          entityName: relationship.section.entityName,
+          id: relationship.resultId,
+          query: relationship.section.query,
+          queryContext: relationship.queryContext,
+          queryName: relationship.section.queryName,
+          recordIds: relationship.recordIds,
+          recordsById: facts.snapshot.recordsById,
+          result: relationship.section.result,
+          schema: rateSourceSchema,
+        });
+
+        return [
+          relationship.section.id,
+          {
+            table: {
+              fieldsById: table.fieldsById,
+              runtime: { kind: "table", runtimePlan: table.runtimePlan },
+              table: table.table,
+            },
+          },
+        ] as const;
+      }),
+    ),
+  };
+}
+
 function tableFoundation(id: string, recordIds: readonly string[]) {
   const rowId = recordIds[0] ?? "empty";
   const record = required(rateCardTestRecords.find((candidate) => candidate.id === rowId));
@@ -994,6 +1343,75 @@ function projectionSnapshot(records: readonly StoredRecord[]) {
       return byEntity;
     }, {}),
   };
+}
+
+function selectedRecordDetailRateScreen(): HomeScreenModel {
+  const setup = rateSourceSchema.screens.find((screen) => screen.key === "rateSetup");
+  const cardHome = rateSourceSchema.views.find((view) => view.key === "cardHome");
+  if (setup?.type !== "workspace" || cardHome?.type !== "collection") {
+    throw new Error("Missing rate-card selected-record fixtures.");
+  }
+  const cards = setup.layout.sections.find((section) => section.id === "cards")!;
+  const schema = {
+    ...rateSourceSchema,
+    queries: [
+      ...rateSourceSchema.queries,
+      {
+        key: "cardDefault",
+        label: "Default",
+        entity: "card",
+        expression: {
+          kind: "where" as const,
+          ref: { kind: "value" as const, name: "isDefault" },
+          op: "eq" as const,
+          value: true,
+        },
+      },
+    ],
+    views: rateSourceSchema.views.map((view) =>
+      view.key === cardHome.key
+        ? {
+            ...cardHome,
+            queries: [...cardHome.queries, { query: "cardDefault" }],
+          }
+        : view,
+    ),
+    screens: rateSourceSchema.screens.map((screen) =>
+      screen.key === setup.key
+        ? {
+            ...setup,
+            layout: {
+              ...setup.layout,
+              sections: [
+                {
+                  ...cards,
+                  detail: {
+                    type: "selectedRecord" as const,
+                    context: "card",
+                    sections: [
+                      {
+                        id: "overview",
+                        type: "record" as const,
+                        itemView: "cardListItem",
+                      },
+                      {
+                        id: "rates",
+                        type: "relationship" as const,
+                        relationship: "cardRates",
+                        query: "ratesForSelectedCard",
+                        result: { type: "table" as const, tableView: "rateTable" },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          }
+        : screen,
+    ),
+  } satisfies AppSchema;
+
+  return required(selectScreenModels(schema).find((screen) => screen.screenName === "rateSetup"));
 }
 
 function requiredScreen(screenName: string): HomeScreenModel {

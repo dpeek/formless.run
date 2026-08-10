@@ -263,6 +263,11 @@ export function buildGeneratedOperationInvocationRequest(
         ...base,
         recordId: requiredRecordId(binding, callerInput),
       };
+    case "recordStatic":
+      return {
+        ...withOptionalOperationInput(base, callerInput),
+        recordId: requiredRecordId(binding, callerInput),
+      };
     case "tableEditRecord":
       return {
         ...withOptionalOperationInput(base, callerInput),

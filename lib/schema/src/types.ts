@@ -1018,15 +1018,69 @@ export type AppNavigationSchemaSource =
       primaryScreens?: never;
       groups: KeyedDefinition<AppNavigationGroupSchemaSource>[];
     };
+export type SelectedRecordDetailOperationBindingSchema = {
+  operation: string;
+  placement: "heading";
+  label?: string;
+};
+
+export type SelectedRecordDetailRecordSectionSchema = {
+  id: string;
+  type: "record";
+  label?: string;
+  itemView: string;
+};
+
+export type SelectedRecordDetailRelationshipResultSchema = {
+  type: "table";
+  tableView: string;
+};
+
+export type SelectedRecordDetailRelationshipSectionSchema = {
+  id: string;
+  type: "relationship";
+  label?: string;
+  relationship: string;
+  query: string;
+  result: SelectedRecordDetailRelationshipResultSchema;
+  operations?: SelectedRecordDetailOperationBindingSchema[];
+};
+
+export type SelectedRecordDetailSectionSchema =
+  | SelectedRecordDetailRecordSectionSchema
+  | SelectedRecordDetailRelationshipSectionSchema;
+
+export type SelectedRecordDetailSchema = {
+  type: "selectedRecord";
+  context: string;
+  sections: SelectedRecordDetailSectionSchema[];
+};
+
+export type SelectedRecordDetailOperationBindingSchemaSource =
+  SelectedRecordDetailOperationBindingSchema;
+export type SelectedRecordDetailRecordSectionSchemaSource = SelectedRecordDetailRecordSectionSchema;
+export type SelectedRecordDetailRelationshipResultSchemaSource =
+  SelectedRecordDetailRelationshipResultSchema;
+export type SelectedRecordDetailRelationshipSectionSchemaSource =
+  SelectedRecordDetailRelationshipSectionSchema;
+export type SelectedRecordDetailSectionSchemaSource = SelectedRecordDetailSectionSchema;
+export type SelectedRecordDetailSchemaSource = SelectedRecordDetailSchema;
+
 export type CollectionScreenSectionSchema = {
   id: string;
   type: "collection";
   view: string;
   label?: string;
   query?: string;
+  detail?: SelectedRecordDetailSchema;
 };
 
 export type ScreenSectionSchema = CollectionScreenSectionSchema;
+
+export type CollectionScreenSectionSchemaSource = Omit<CollectionScreenSectionSchema, "detail"> & {
+  detail?: SelectedRecordDetailSchemaSource;
+};
+export type ScreenSectionSchemaSource = CollectionScreenSectionSchemaSource;
 
 export type ScreenLayoutWidthSchema = "narrow" | "standard" | "wide";
 
@@ -1037,6 +1091,10 @@ export type StackScreenLayoutSchema = {
 };
 
 export type ScreenLayoutSchema = StackScreenLayoutSchema;
+export type StackScreenLayoutSchemaSource = Omit<StackScreenLayoutSchema, "sections"> & {
+  sections: ScreenSectionSchemaSource[];
+};
+export type ScreenLayoutSchemaSource = StackScreenLayoutSchemaSource;
 
 export type WorkspaceScreenSchema = {
   type: "workspace";
@@ -1052,8 +1110,9 @@ export type RuntimeScreenSchema = {
   access?: ScreenAccessRequirement;
 };
 export type ScreenSchema = WorkspaceScreenSchema | RuntimeScreenSchema;
-export type WorkspaceScreenSchemaSource = Omit<WorkspaceScreenSchema, "access"> & {
+export type WorkspaceScreenSchemaSource = Omit<WorkspaceScreenSchema, "access" | "layout"> & {
   access?: ScreenAccessRequirementSource;
+  layout: ScreenLayoutSchemaSource;
 };
 export type RuntimeScreenSchemaSource = Omit<RuntimeScreenSchema, "access"> & {
   access?: ScreenAccessRequirementSource;

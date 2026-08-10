@@ -6,7 +6,10 @@ import type {
   TreeResultContract,
   WorkspaceContract,
 } from "@dpeek/formless-presentation/contract";
-import { createMemoryPresentationHost } from "@dpeek/formless-presentation/host";
+import {
+  createMemoryPresentationHost,
+  type PresentationNodeSet,
+} from "@dpeek/formless-presentation/host";
 import type { GeneratedOperationControlBinding } from "../../client/views.ts";
 import { projectGeneratedListOperationAction } from "./list-projection.ts";
 import { projectGeneratedOperationControl } from "./operation-projection.ts";
@@ -249,6 +252,90 @@ describe("generated workspace contract host adapter", () => {
     expect(host.read(treeSectionReference)).toBeUndefined();
     expect(host.read(treeReference)).toBeUndefined();
   });
+
+  it("publishes ordered selected-detail nodes with scoped updates and validated intents", () => {
+    const initial = projectGeneratedWorkspaceContractHostPublication(
+      selectedRecordWorkspaceFixture(),
+    );
+    const host = createMemoryPresentationHost({ nodes: initial.nodes });
+    const manifest = required(host.read(initial.workspaceReference));
+    const sectionReference = required(manifest.sections[0]);
+    const section = required(host.read(sectionReference));
+    const presentation = section.collection.presentation;
+    if (presentation.kind !== "selectedRecord") {
+      throw new Error("Missing selected-record shell fixture.");
+    }
+    const [recordSection, relationshipSection] = presentation.sections;
+    const recordReference = required(recordSection).result;
+    const relationshipReference = required(relationshipSection).result;
+
+    expect(presentation).toMatchObject({
+      activePresentation: "detail",
+      backIntent: { recordId: "task-1", type: "workspaceSelectedRecordBack" },
+      compactPresentation: "drillIn",
+      result: { kind: "listResultReference", role: "mainResult" },
+      sections: [
+        {
+          kind: "selectedRecordRecordSection",
+          result: { kind: "recordResultReference", role: "selectedDetailResult" },
+        },
+        {
+          kind: "selectedRecordRelationshipSection",
+          result: { kind: "tableResultReference", role: "selectedDetailResult" },
+        },
+      ],
+      selectedRecordId: "task-1",
+    });
+    expect(host.read(recordReference)).toMatchObject({
+      kind: "recordResult",
+      selectedRecord: { id: "task-1" },
+    });
+    expect(host.read(relationshipReference)).toMatchObject({
+      accessibilityLabel: "Task compounds",
+      kind: "table",
+    });
+
+    const notifications = { record: 0, relationship: 0, section: 0 };
+    host.subscribe(sectionReference, () => notifications.section++);
+    host.subscribe(recordReference, () => notifications.record++);
+    host.subscribe(relationshipReference, () => notifications.relationship++);
+    host.publish(
+      projectGeneratedWorkspaceContractHostPublication(
+        selectedRecordWorkspaceFixture("Updated task compounds"),
+      ).nodes,
+    );
+    expect(notifications).toEqual({ record: 0, relationship: 1, section: 0 });
+
+    const invalidNodes = initial.nodes.map((node) => {
+      if (
+        node.reference.kind !== "workspaceSectionShellReference" ||
+        node.snapshot.kind !== "workspaceSectionShell"
+      ) {
+        return node;
+      }
+      const selectedPresentation = node.snapshot.collection.presentation;
+      if (selectedPresentation.kind !== "selectedRecord") {
+        return node;
+      }
+      return {
+        ...node,
+        snapshot: {
+          ...node.snapshot,
+          collection: {
+            ...node.snapshot.collection,
+            presentation: {
+              ...selectedPresentation,
+              selectionIntents: selectedPresentation.selectionIntents.map((intent, index) =>
+                index === 0 ? { ...intent, sectionId: "section:other" } : intent,
+              ),
+            },
+          },
+        },
+      };
+    }) as PresentationNodeSet;
+    expect(() => host.publish(invalidNodes)).toThrow("invalid selection intent");
+    expect(host.read(sectionReference)).toBe(section);
+  });
 });
 
 type WorkspaceFixtureOptions = {
@@ -296,6 +383,102 @@ function workspaceFixture(options: WorkspaceFixtureOptions = {}): WorkspaceContr
 function mixedWorkspaceFixture(itemLabel = "Hero"): WorkspaceContract {
   const workspace = workspaceFixture();
   return { ...workspace, sections: [...workspace.sections, treeSection(itemLabel)] };
+}
+
+function selectedRecordWorkspaceFixture(relationshipLabel = "Task compounds"): WorkspaceContract {
+  const screenId = "workspace:selected-tasks";
+  const sectionId = "section:selected-tasks";
+  const collectionId = "collection:selected-tasks";
+  const mainResult = listResult({});
+  const selectionIntents = mainResult.items.map(({ id: recordId }) => ({
+    collectionId,
+    recordId,
+    screenId,
+    sectionId,
+    type: "workspaceSelectedRecordSelection" as const,
+  }));
+
+  return {
+    accessibilityLabel: "Selected tasks workspace",
+    actions: [],
+    id: screenId,
+    kind: "workspace",
+    label: "Selected tasks",
+    sections: [
+      {
+        accessibilityLabel: "Selected tasks section",
+        actions: [],
+        collection: {
+          accessibilityLabel: "Selected tasks collection",
+          availability: { state: "ready" },
+          id: collectionId,
+          kind: "workspaceCollection",
+          label: "Tasks",
+          presentation: {
+            accessibilityLabel: "Tasks selected record",
+            actions: workspaceActions(collectionId),
+            activePresentation: "detail",
+            backIntent: {
+              collectionId,
+              recordId: "task-1",
+              screenId,
+              sectionId,
+              type: "workspaceSelectedRecordBack",
+            },
+            compactPresentation: "drillIn",
+            id: "selected-record:tasks",
+            kind: "selectedRecord",
+            result: mainResult,
+            sections: [
+              {
+                id: "selected-record-section:details",
+                kind: "selectedRecordRecordSection",
+                label: "Details",
+                result: selectedRecordResult(),
+              },
+              {
+                headingOperations: [],
+                id: "selected-record-section:compounds",
+                kind: "selectedRecordRelationshipSection",
+                label: "Compounds",
+                result: selectedRecordTable(relationshipLabel),
+              },
+            ],
+            selectedRecordId: "task-1",
+            selectionIntents,
+            summaries: [],
+          },
+          selectedQueryId: null,
+        },
+        headingVisibility: "hidden",
+        id: sectionId,
+        kind: "workspaceSection",
+        label: "Tasks",
+      },
+    ],
+    width: "wide",
+  };
+}
+
+function selectedRecordResult(): RecordResultContract {
+  return {
+    ...contextResult(),
+    accessibilityLabel: "Selected task detail",
+    id: "record:selected-task",
+    selectedRecord: {
+      accessibilityLabel: "Task one",
+      id: "task-1",
+      kind: "recordResultRecord",
+    },
+  };
+}
+
+function selectedRecordTable(accessibilityLabel: string): TableContract {
+  return {
+    ...tableResult(),
+    accessibilityLabel,
+    id: "table:selected-task-compounds",
+  };
 }
 
 function treeSection(itemLabel: string) {

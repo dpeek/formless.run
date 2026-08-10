@@ -120,16 +120,17 @@ describe("generated transition side-effect controls", () => {
       kind: "transition",
       recordId: "intake-pending",
     });
-    expect(detail.recordResult.actions.primary).toMatchObject([
-      {
-        control: {
-          trigger: { disabled: false },
+    const detailStatus = detail.recordResult.fields.find((field) => field.fieldName === "status");
+    expect(detailStatus?.stateMachineFacts?.interaction).toMatchObject({
+      kind: "transitions",
+      transitions: [
+        {
+          control: { trigger: { disabled: false } },
+          operationName: "convert",
         },
-        kind: "operationAction",
-        role: "transition",
-      },
-    ]);
-    expect(detail.recordResult.actions.primary).toHaveLength(1);
+      ],
+    });
+    expect(detail.recordResult.actions.primary).toEqual([]);
   });
 
   it("returns side-effect create ids for committed row and replayed detail invocations", async () => {

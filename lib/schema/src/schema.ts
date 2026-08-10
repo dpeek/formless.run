@@ -90,6 +90,10 @@ export function parseAppSchema(value: unknown): AppSchema {
     definitionsToRecord(views),
     queriesByKey,
     authorization,
+    entitiesWithOperationsByKey,
+    itemViewsByKey,
+    tableViewsByKey,
+    relationshipsByKey,
   );
   const navigation = parseAppNavigation(value.navigation, screens, queriesByKey);
   const surfaceMounts = parseSurfaceMounts(value.surfaceMounts, screens, authorization);

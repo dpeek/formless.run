@@ -4,11 +4,15 @@ import type {
   ContextResultReference,
   MainResultReference,
   RecordResultContract,
+  SelectedDetailResultReference,
   WorkspaceContract,
+  WorkspaceCollectionShellContract,
   WorkspaceIntentHandler,
   WorkspaceManifestReference,
   WorkspaceSectionContract,
   WorkspaceSectionShellReference,
+  WorkspaceSelectedRecordSectionContract,
+  WorkspaceSelectedRecordSectionShellContract,
 } from "@dpeek/formless-presentation/contract";
 import {
   createMemoryPresentationHost,
@@ -123,11 +127,52 @@ function projectSection(
   reference: WorkspaceSectionShellReference;
 } {
   const reference = workspaceSectionShellReference(workspaceId, section.id);
-  const { contextDetail, result, ...presentation } = section.collection.presentation;
+  const collectionPresentation = section.collection.presentation;
+  const { contextDetail, result } = collectionPresentation;
   const mainResult = projectMainResult(workspaceId, section.id, result);
   const projectedContext = contextDetail
     ? projectContextResult(workspaceId, section.id, contextDetail)
     : undefined;
+  const projectedSelectedDetail =
+    collectionPresentation.kind === "selectedRecord"
+      ? collectionPresentation.sections.map((detailSection) =>
+          projectSelectedDetailResult(workspaceId, section.id, detailSection),
+        )
+      : [];
+  let presentation: WorkspaceCollectionShellContract["presentation"];
+  if (collectionPresentation.kind === "selectedRecord") {
+    if (mainResult.reference.kind !== "listResultReference") {
+      throw new Error("Selected-record workspaces require a main list result reference.");
+    }
+    const {
+      contextDetail: sourceContextDetail,
+      result: sourceResult,
+      sections: sourceSections,
+      ...selectedRecordPresentation
+    } = collectionPresentation;
+    void sourceContextDetail;
+    void sourceResult;
+    void sourceSections;
+    presentation = {
+      ...selectedRecordPresentation,
+      ...(projectedContext === undefined ? {} : { contextDetail: projectedContext.reference }),
+      result: mainResult.reference,
+      sections: projectedSelectedDetail.map(({ section: detailSection }) => detailSection),
+    };
+  } else {
+    const {
+      contextDetail: sourceContextDetail,
+      result: sourceResult,
+      ...ordinaryPresentation
+    } = collectionPresentation;
+    void sourceContextDetail;
+    void sourceResult;
+    presentation = {
+      ...ordinaryPresentation,
+      ...(projectedContext === undefined ? {} : { contextDetail: projectedContext.reference }),
+      result: mainResult.reference,
+    };
+  }
 
   return {
     nodes: [
@@ -138,13 +183,7 @@ function projectSection(
           actions: section.actions,
           collection: {
             ...section.collection,
-            presentation: {
-              ...presentation,
-              ...(projectedContext === undefined
-                ? {}
-                : { contextDetail: projectedContext.reference }),
-              result: mainResult.reference,
-            },
+            presentation,
           },
           headingVisibility: section.headingVisibility,
           id: section.id,
@@ -154,8 +193,45 @@ function projectSection(
       },
       mainResult.node,
       ...(projectedContext === undefined ? [] : [projectedContext.node]),
+      ...projectedSelectedDetail.map(({ node }) => node),
     ],
     reference,
+  };
+}
+
+function projectSelectedDetailResult(
+  workspaceId: string,
+  sectionId: string,
+  detailSection: WorkspaceSelectedRecordSectionContract,
+): {
+  node: PresentationNode;
+  reference: SelectedDetailResultReference;
+  section: WorkspaceSelectedRecordSectionShellContract;
+} {
+  if (detailSection.kind === "selectedRecordRecordSection") {
+    const reference = recordResultReference({
+      resultId: detailSection.result.id,
+      role: "selectedDetailResult",
+      sectionId,
+      workspaceId,
+    });
+    return {
+      node: { reference, snapshot: detailSection.result },
+      reference,
+      section: { ...detailSection, result: reference },
+    };
+  }
+
+  const reference = tableResultReference({
+    resultId: detailSection.result.id,
+    role: "selectedDetailResult",
+    sectionId,
+    workspaceId,
+  });
+  return {
+    node: { reference, snapshot: detailSection.result },
+    reference,
+    section: { ...detailSection, result: reference },
   };
 }
 

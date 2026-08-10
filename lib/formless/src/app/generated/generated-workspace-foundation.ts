@@ -30,6 +30,8 @@ import {
 import type { RecordResultModel } from "../../client/list-result-model.ts";
 import type {
   HomeQueryTabConfig,
+  HomeSelectedRecordDetailRecordSectionConfig,
+  HomeSelectedRecordDetailRelationshipSectionConfig,
   HomeScreenCollectionSectionModel,
   HomeScreenModel,
 } from "../../client/views.ts";
@@ -48,6 +50,7 @@ import {
   type GeneratedWorkspaceAvailabilityProjection,
   type GeneratedWorkspaceContextProjectionFacts,
   type GeneratedWorkspaceIdentityScope,
+  type GeneratedWorkspaceSelectedRecordProjectionFacts,
   type GeneratedWorkspaceSectionProjectionFacts,
 } from "./workspace-projection.ts";
 import {
@@ -98,6 +101,7 @@ import type {
 export type GeneratedWorkspaceSectionSelection = {
   selectedContextRecordId?: string | null;
   selectedQueryName?: string | null;
+  selectedRecordId?: string | null;
 };
 
 export type GeneratedWorkspaceExternalActionFoundation = {
@@ -126,6 +130,24 @@ export type GeneratedWorkspaceTableFoundation = {
   fieldsById: GeneratedTableFieldIndex;
   runtime: unknown;
   table: TableContract;
+};
+
+export type GeneratedWorkspaceSelectedRecordDetailHeadingOperationFoundation = {
+  control: OperationControlContract;
+  runtime: unknown;
+};
+
+export type GeneratedWorkspaceSelectedRecordDetailRelationshipFoundation = {
+  headingOperations?: readonly GeneratedWorkspaceSelectedRecordDetailHeadingOperationFoundation[];
+  table: GeneratedWorkspaceTableFoundation;
+};
+
+export type GeneratedWorkspaceSelectedRecordDetailRelationshipFacts = {
+  queryContext: QueryEvaluationContext;
+  recordIds: readonly string[];
+  resultId: string;
+  section: HomeSelectedRecordDetailRelationshipSectionConfig;
+  selectedRecordId: string;
 };
 
 type GeneratedWorkspaceListFoundationOptions = Partial<
@@ -176,6 +198,18 @@ export type GeneratedWorkspaceSectionFoundationInput = {
   recordResult?: GeneratedWorkspaceRecordResultFoundationOptions & {
     recordState?: GeneratedRecordResultRecordState;
   };
+  selectedRecordDetailRecords?: Readonly<
+    Record<
+      string,
+      | (GeneratedWorkspaceRecordResultFoundationOptions & {
+          recordState?: GeneratedRecordResultRecordState;
+        })
+      | undefined
+    >
+  >;
+  selectedRecordDetailRelationships?: Readonly<
+    Record<string, GeneratedWorkspaceSelectedRecordDetailRelationshipFoundation | undefined>
+  >;
   table?: GeneratedWorkspaceTableFoundation;
   tree?: GeneratedWorkspaceTreeFoundationOptions;
 };
@@ -192,6 +226,8 @@ export type GeneratedWorkspaceSectionSelectionFacts = {
   screen: HomeScreenModel;
   section: HomeScreenCollectionSectionModel;
   selectedQuery: HomeQueryTabConfig;
+  selectedRecordId: string | null;
+  selectedRecordDetailRelationships: readonly GeneratedWorkspaceSelectedRecordDetailRelationshipFacts[];
   snapshot: BrowserReplicaProjectionSnapshot;
   today: string;
 };
@@ -217,6 +253,7 @@ type GeneratedWorkspaceNestedResultRuntime =
       contract: GeneratedRecordResultFoundation["recordResult"];
       foundation: GeneratedRecordResultFoundation;
       kind: "recordResult";
+      model: RecordResultModel;
       recordState?: GeneratedRecordResultRecordState;
     }
   | {
@@ -268,8 +305,34 @@ export type GeneratedWorkspaceSectionRuntimePlan = {
   scope: GeneratedWorkspaceIdentityScope;
   scopeSelection?: GeneratedSingletonScopeSelectionFacts;
   section: HomeScreenCollectionSectionModel;
+  selectedRecordDetailRecordResults: readonly GeneratedWorkspaceSelectedRecordDetailRecordRuntime[];
+  selectedRecordDetailRelationshipResults: readonly GeneratedWorkspaceSelectedRecordDetailRelationshipRuntime[];
   selectedContextRecordId: string | null;
   selectedQuery: HomeQueryTabConfig;
+  selectedRecordId: string | null;
+};
+
+export type GeneratedWorkspaceSelectedRecordDetailRecordRuntime = {
+  id: string;
+  label?: string;
+  result: GeneratedWorkspaceNestedResultRuntime & { kind: "recordResult" };
+  section: HomeSelectedRecordDetailRecordSectionConfig;
+};
+
+export type GeneratedWorkspaceSelectedRecordDetailHeadingOperationRuntime = {
+  control: OperationControlContract;
+  runtime: unknown;
+};
+
+export type GeneratedWorkspaceSelectedRecordDetailRelationshipRuntime = {
+  headingOperations: readonly GeneratedWorkspaceSelectedRecordDetailHeadingOperationRuntime[];
+  id: string;
+  label?: string;
+  queryContext: QueryEvaluationContext;
+  recordIds: readonly string[];
+  result: GeneratedWorkspaceNestedResultRuntime & { kind: "table" };
+  section: HomeSelectedRecordDetailRelationshipSectionConfig;
+  selectedRecordId: string;
 };
 
 export type GeneratedWorkspaceRuntimePlan = {
@@ -310,6 +373,17 @@ export type GeneratedWorkspaceResolvedIntent =
   | {
       kind: "result";
       result: GeneratedWorkspaceNestedResultRuntime;
+      section: GeneratedWorkspaceSectionRuntimePlan;
+    }
+  | {
+      kind: "selectedRecordHeadingOperation";
+      operation: GeneratedWorkspaceSelectedRecordDetailHeadingOperationRuntime;
+      relationship: GeneratedWorkspaceSelectedRecordDetailRelationshipRuntime;
+      section: GeneratedWorkspaceSectionRuntimePlan;
+    }
+  | {
+      kind: "selectedRecordSelection";
+      recordId: string | null;
       section: GeneratedWorkspaceSectionRuntimePlan;
     }
   | {
@@ -422,6 +496,19 @@ export function selectGeneratedWorkspaceFoundation(
       section.collection.entityName === section.collection.scope?.entityName
         ? matchingRecordIds.filter((recordId) => recordId === scopeSelection.activeRecordId)
         : matchingRecordIds;
+    const selectedRecordId = selectGeneratedWorkspaceSelectedRecordId(
+      section,
+      recordIds,
+      selection.selectedRecordId ?? null,
+    );
+    const selectedRecordDetailRelationships =
+      selectGeneratedWorkspaceSelectedRecordDetailRelationshipFacts({
+        baseQueryContext: actionQueryContext,
+        section,
+        selectedRecordId,
+        snapshot,
+        scope,
+      });
     const resultId = generatedWorkspaceScopedId(
       scope,
       "result",
@@ -439,6 +526,8 @@ export function selectGeneratedWorkspaceFoundation(
       screen,
       section,
       selectedQuery,
+      selectedRecordId,
+      selectedRecordDetailRelationships,
       snapshot,
       today,
     };
@@ -449,6 +538,17 @@ export function selectGeneratedWorkspaceFoundation(
     const result = selectGeneratedWorkspaceResult(facts, sectionFoundation);
     const context = projectGeneratedWorkspaceContextFacts(facts, sectionFoundation);
     const contextResult = selectGeneratedWorkspaceContextResult(facts, sectionFoundation);
+    const selectedRecordDetailRecordResults =
+      selectGeneratedWorkspaceSelectedRecordDetailRecordResults(facts, sectionFoundation);
+    const selectedRecordDetailRelationshipResults =
+      selectGeneratedWorkspaceSelectedRecordDetailRelationshipResults(facts, sectionFoundation);
+    const selectedRecord = projectGeneratedWorkspaceSelectedRecordFacts({
+      recordResults: selectedRecordDetailRecordResults,
+      relationshipResults: selectedRecordDetailRelationshipResults,
+      section,
+      selectedRecordId,
+      recordIds,
+    });
     const projectedContextId =
       context === undefined ? undefined : generatedWorkspaceScopedId(scope, "context", context.id);
     const controlsById = selectGeneratedWorkspaceControlRuntimePlan(
@@ -490,8 +590,11 @@ export function selectGeneratedWorkspaceFoundation(
       scope,
       ...(scopeSelection === undefined ? {} : { scopeSelection }),
       section,
+      selectedRecordDetailRecordResults,
+      selectedRecordDetailRelationshipResults,
       selectedContextRecordId,
       selectedQuery,
+      selectedRecordId,
     };
 
     sectionPlans.push(sectionPlan);
@@ -522,6 +625,7 @@ export function selectGeneratedWorkspaceFoundation(
             : ("ordinary" as const),
         queries: projectGeneratedWorkspaceQueries(facts),
         result: result.contract,
+        ...(selectedRecord === undefined ? {} : { selectedRecord }),
         selectedQueryId: selectedQuery.queryName,
         summaries: projectGeneratedWorkspaceSummaries(facts),
       },
@@ -597,6 +701,20 @@ export function resolveGeneratedWorkspaceIntent(
     return option === undefined ? undefined : { kind: "contextSelection", option, section };
   }
 
+  if (intent.type === "workspaceSelectedRecordSelection") {
+    return section.collection.detail !== undefined && section.recordIds.includes(intent.recordId)
+      ? { kind: "selectedRecordSelection", recordId: intent.recordId, section }
+      : undefined;
+  }
+
+  if (intent.type === "workspaceSelectedRecordBack") {
+    return section.collection.detail !== undefined &&
+      section.selectedRecordId !== null &&
+      intent.recordId === section.selectedRecordId
+      ? { kind: "selectedRecordSelection", recordId: null, section }
+      : undefined;
+  }
+
   if (intent.type === "workspaceExternalAction") {
     const runtime = section.controlsById.get(intent.actionId);
     return runtime?.kind === "externalAction" &&
@@ -625,6 +743,24 @@ export function resolveGeneratedWorkspaceIntent(
       intent.recordId === undefined
     ) {
       return { kind: "control", runtime, section };
+    }
+
+    const headingOperation = section.selectedRecordDetailRelationshipResults
+      .flatMap((relationship) =>
+        relationship.headingOperations.map((operation) => ({ operation, relationship })),
+      )
+      .find(
+        ({ operation, relationship }) =>
+          operation.control.id === intent.controlId &&
+          relationship.result.contract.id === intent.resultId &&
+          relationship.selectedRecordId === intent.recordId,
+      );
+    if (
+      headingOperation !== undefined &&
+      intent.contextId === undefined &&
+      intent.intent.controlId === headingOperation.operation.control.id
+    ) {
+      return { kind: "selectedRecordHeadingOperation", section, ...headingOperation };
     }
 
     const result = selectGeneratedWorkspaceIntentResult(section, intent.resultId, intent.contextId);
@@ -824,6 +960,63 @@ function selectGeneratedWorkspaceQuery(
   return selected ?? section.collection.queries.defaultTab;
 }
 
+export function selectGeneratedWorkspaceSelectedRecordId(
+  section: HomeScreenCollectionSectionModel,
+  recordIds: readonly string[],
+  selectedRecordId: string | null,
+): string | null {
+  return section.collection.detail !== undefined &&
+    selectedRecordId !== null &&
+    recordIds.includes(selectedRecordId)
+    ? selectedRecordId
+    : null;
+}
+
+function selectGeneratedWorkspaceSelectedRecordDetailRelationshipFacts({
+  baseQueryContext,
+  section,
+  selectedRecordId,
+  snapshot,
+  scope,
+}: {
+  baseQueryContext: QueryEvaluationContext;
+  section: HomeScreenCollectionSectionModel;
+  selectedRecordId: string | null;
+  snapshot: BrowserReplicaProjectionSnapshot;
+  scope: GeneratedWorkspaceIdentityScope;
+}): GeneratedWorkspaceSelectedRecordDetailRelationshipFacts[] {
+  const detail = section.collection.detail;
+  if (detail === undefined || selectedRecordId === null) {
+    return [];
+  }
+
+  const queryContext: QueryEvaluationContext = {
+    today: baseQueryContext.today,
+    values: {
+      ...baseQueryContext.values,
+      [detail.contextName]: selectedRecordId,
+    },
+  };
+
+  return detail.sections.flatMap((detailSection) =>
+    detailSection.type === "record"
+      ? []
+      : [
+          {
+            queryContext,
+            recordIds: createEntityRecordIdsMatchingQuerySelector(
+              detailSection.entityName,
+              detailSection.query,
+              queryContext,
+            )(snapshot),
+            resultId: generatedWorkspaceSelectedRecordDetailResultId(scope, detailSection.id),
+            section: detailSection,
+            selectedRecordId,
+          },
+        ],
+  );
+}
+
 function selectGeneratedWorkspaceContextOptions(
   section: HomeScreenCollectionSectionModel,
   snapshot: BrowserReplicaProjectionSnapshot,
@@ -944,6 +1137,7 @@ function selectGeneratedWorkspaceResult(
       contract: foundation.recordResult,
       foundation,
       kind: "recordResult",
+      model: result,
       ...(recordState === undefined ? {} : { recordState }),
     };
   }
@@ -1079,8 +1273,174 @@ function selectGeneratedWorkspaceContextResult(
     contract: foundation.recordResult,
     foundation,
     kind: "recordResult",
+    model: result,
     ...(recordState === undefined ? {} : { recordState }),
   };
+}
+
+function selectGeneratedWorkspaceSelectedRecordDetailRecordResults(
+  facts: GeneratedWorkspaceSectionSelectionFacts,
+  input: GeneratedWorkspaceSectionFoundationInput,
+): GeneratedWorkspaceSelectedRecordDetailRecordRuntime[] {
+  const detail = facts.section.collection.detail;
+  const recordId = facts.selectedRecordId;
+  if (detail === undefined || recordId === null) {
+    return [];
+  }
+
+  return detail.sections.flatMap((section) => {
+    if (section.type !== "record") {
+      return [];
+    }
+    const id = generatedWorkspaceSelectedRecordDetailResultId(facts.scope, section.id);
+    const record = facts.snapshot.recordsById[recordId];
+    const sectionInput = input.selectedRecordDetailRecords?.[section.id] ?? {};
+    const { recordState: currentRecordState, ...foundationInput } = sectionInput;
+    const recordState = rebaseGeneratedRecordResultRecordState({
+      current: currentRecordState,
+      record,
+      result: section.result,
+    });
+    const foundation = selectGeneratedRecordResultFoundation({
+      accessibilityLabel: section.label ?? `${detail.entity.label} detail`,
+      confirmationOpenByControlId: recordState?.confirmationOpenByControlId,
+      entity: detail.entity,
+      entityName: detail.entityName,
+      fieldState: recordState,
+      id,
+      recordIds: [recordId],
+      recordsById: facts.snapshot.recordsById,
+      result: section.result,
+      selectedRecordId: recordId,
+      ...foundationInput,
+    });
+    const result: GeneratedWorkspaceNestedResultRuntime & { kind: "recordResult" } = {
+      contract: foundation.recordResult,
+      foundation,
+      kind: "recordResult",
+      model: section.result,
+      ...(recordState === undefined ? {} : { recordState }),
+    };
+
+    return [
+      {
+        id: section.id,
+        ...(section.label === undefined ? {} : { label: section.label }),
+        result,
+        section,
+      },
+    ];
+  });
+}
+
+function selectGeneratedWorkspaceSelectedRecordDetailRelationshipResults(
+  facts: GeneratedWorkspaceSectionSelectionFacts,
+  input: GeneratedWorkspaceSectionFoundationInput,
+): GeneratedWorkspaceSelectedRecordDetailRelationshipRuntime[] {
+  return facts.selectedRecordDetailRelationships.map((relationshipFacts) => {
+    const sectionInput = input.selectedRecordDetailRelationships?.[relationshipFacts.section.id];
+    if (sectionInput === undefined) {
+      throw new Error(
+        `Missing selected-record relationship foundation for section "${relationshipFacts.section.id}".`,
+      );
+    }
+    if (sectionInput.table.table.id !== relationshipFacts.resultId) {
+      throw new Error("Selected-record relationship tables must use the scoped result id.");
+    }
+
+    return {
+      headingOperations: sectionInput.headingOperations ?? [],
+      id: relationshipFacts.section.id,
+      ...(relationshipFacts.section.label === undefined
+        ? {}
+        : { label: relationshipFacts.section.label }),
+      queryContext: relationshipFacts.queryContext,
+      recordIds: relationshipFacts.recordIds,
+      result: {
+        contract: sectionInput.table.table,
+        fieldsById: sectionInput.table.fieldsById,
+        kind: "table" as const,
+        runtime: sectionInput.table.runtime,
+      },
+      section: relationshipFacts.section,
+      selectedRecordId: relationshipFacts.selectedRecordId,
+    };
+  });
+}
+
+function projectGeneratedWorkspaceSelectedRecordFacts({
+  recordIds,
+  recordResults,
+  relationshipResults,
+  section,
+  selectedRecordId,
+}: {
+  recordIds: readonly string[];
+  recordResults: readonly GeneratedWorkspaceSelectedRecordDetailRecordRuntime[];
+  relationshipResults: readonly GeneratedWorkspaceSelectedRecordDetailRelationshipRuntime[];
+  section: HomeScreenCollectionSectionModel;
+  selectedRecordId: string | null;
+}): GeneratedWorkspaceSelectedRecordProjectionFacts | undefined {
+  const detail = section.collection.detail;
+  if (detail === undefined) {
+    return undefined;
+  }
+
+  const sections =
+    selectedRecordId === null
+      ? []
+      : detail.sections.map((detailSection) => {
+          if (detailSection.type === "record") {
+            const projected = recordResults.find(({ id }) => id === detailSection.id);
+            if (projected === undefined) {
+              throw new Error(
+                `Missing selected-record detail result for section "${detailSection.id}".`,
+              );
+            }
+            return {
+              id: projected.id,
+              ...(projected.label === undefined ? {} : { label: projected.label }),
+              result: projected.result.contract,
+              type: "record" as const,
+            };
+          }
+
+          const projected = relationshipResults.find(({ id }) => id === detailSection.id);
+          if (projected === undefined) {
+            throw new Error(
+              `Missing selected-record detail result for section "${detailSection.id}".`,
+            );
+          }
+          return {
+            headingOperations: projected.headingOperations.map(({ control }) => control),
+            id: projected.id,
+            ...(projected.label === undefined ? {} : { label: projected.label }),
+            result: projected.result.contract,
+            type: "relationship" as const,
+          };
+        });
+
+  return { recordIds, sections, selectedRecordId };
+}
+
+export function generatedWorkspaceSelectedRecordDetailResultId(
+  scope: GeneratedWorkspaceIdentityScope,
+  detailSectionId: string,
+): string {
+  return generatedWorkspaceScopedId(scope, "result", `selectedRecord:${detailSectionId}`);
+}
+
+export function generatedWorkspaceSelectedRecordDetailHeadingOperationId(
+  scope: GeneratedWorkspaceIdentityScope,
+  detailSectionId: string,
+  selectedRecordId: string,
+  operationKey: string,
+): string {
+  return generatedWorkspaceScopedId(
+    scope,
+    "control",
+    `selectedRecord:${detailSectionId}:${selectedRecordId}:heading:${operationKey}`,
+  );
 }
 
 function projectGeneratedWorkspaceQueries(facts: GeneratedWorkspaceSectionSelectionFacts) {
@@ -1202,6 +1562,21 @@ function selectGeneratedWorkspaceIntentResult(
 
   if (section.result.contract.id === resultId && contextId === undefined) {
     return section.result;
+  }
+
+  if (contextId === undefined) {
+    const selectedRecordResult = section.selectedRecordDetailRecordResults.find(
+      ({ result }) => result.contract.id === resultId,
+    );
+    if (selectedRecordResult !== undefined) {
+      return selectedRecordResult.result;
+    }
+    const selectedRelationshipResult = section.selectedRecordDetailRelationshipResults.find(
+      ({ result }) => result.contract.id === resultId,
+    );
+    if (selectedRelationshipResult !== undefined) {
+      return selectedRelationshipResult.result;
+    }
   }
 
   return section.contextResult?.contract.id === resultId && contextId === section.contextId

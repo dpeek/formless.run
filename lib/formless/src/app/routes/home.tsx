@@ -17,9 +17,12 @@ import {
   createHomeRouteSelectionState,
   selectHomeRouteSectionContextRecordId,
   selectHomeRouteSectionQueryName,
+  selectHomeRouteSectionRecordId,
   useHomeRouteSelectionStore,
+  withHomeRouteSelectedScreenName,
   withHomeRouteSelectedSectionContextRecordId,
   withHomeRouteSelectedSectionQueryName,
+  withHomeRouteSelectedSectionRecordId,
 } from "./home-selection.tsx";
 import { projectApplicationSystemState } from "./application-system-state-projection.ts";
 import { ApplicationSystemStateRuntime } from "./application-system-state-runtime.tsx";
@@ -29,9 +32,11 @@ export {
   homeRouteSectionSelectionKey,
   selectHomeRouteSectionContextRecordId,
   selectHomeRouteSectionQueryName,
+  selectHomeRouteSectionRecordId,
   withHomeRouteSelectedScreenName,
   withHomeRouteSelectedSectionContextRecordId,
   withHomeRouteSelectedSectionQueryName,
+  withHomeRouteSelectedSectionRecordId,
 } from "./home-selection.tsx";
 
 export type HomeRouteClientLoadState =
@@ -72,6 +77,12 @@ export function HomeRoute({
   useEffect(() => {
     setSelectionState(createHomeRouteSelectionState());
   }, [setSelectionState]);
+
+  useEffect(() => {
+    setSelectionState((current) =>
+      withHomeRouteSelectedScreenName(current, homeScreen?.screenName ?? null),
+    );
+  }, [homeScreen?.screenName, setSelectionState]);
 
   useEffect(() => {
     if (!onClientLoadStateChange) {
@@ -129,6 +140,11 @@ export function HomeRoute({
           homeScreen.screenName,
           section.id,
         ),
+        selectedRecordId: selectHomeRouteSectionRecordId(
+          selectionState,
+          homeScreen.screenName,
+          section.id,
+        ),
       })}
       onSelectContext={(section, recordId) =>
         setSelectionState((current) =>
@@ -147,6 +163,16 @@ export function HomeRoute({
             homeScreen.screenName,
             section.id,
             queryName,
+          ),
+        )
+      }
+      onSelectRecord={(section, recordId) =>
+        setSelectionState((current) =>
+          withHomeRouteSelectedSectionRecordId(
+            current,
+            homeScreen.screenName,
+            section.id,
+            recordId,
           ),
         )
       }

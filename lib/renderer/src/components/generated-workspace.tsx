@@ -10,16 +10,20 @@ import type {
   OperationControlContract,
   OperationPresentationIntent,
   RecordResultContract,
+  SelectedDetailResultReference,
   TableActionGroupContract,
   WorkspaceCollectionActionGroupContract,
   WorkspaceCollectionContract,
   WorkspaceCollectionPresentationContract,
+  WorkspaceCollectionShellContract,
   WorkspaceContextContract,
   WorkspaceIntent,
   WorkspaceManifestReference,
   WorkspaceResultContract,
   WorkspaceSectionContract,
   WorkspaceSectionShellReference,
+  WorkspaceSelectedRecordSectionContract,
+  WorkspaceSelectedRecordSectionShellContract,
 } from "@dpeek/formless-presentation/contract";
 import {
   createMemoryPresentationHost,
@@ -41,6 +45,7 @@ import { FormlessFixtureFrame, FormlessFixtureSelector } from "./fixture-layout.
 import { AstryxSubscribedWorkspaceScreenRenderer } from "./workspace-screen-renderer.tsx";
 import {
   createFormlessGeneratedWorkspaceFixtures,
+  selectFormlessGeneratedWorkspaceRecord,
   type FormlessGeneratedWorkspaceFixture,
   type FormlessGeneratedWorkspaceFixtureId,
 } from "./generated-workspace.fixtures.ts";
@@ -170,11 +175,56 @@ function projectGeneratedWorkspaceFixtureSection(
   reference: WorkspaceSectionShellReference;
 } {
   const reference = workspaceSectionShellReference(workspaceId, section.id);
-  const { contextDetail, result, ...presentation } = section.collection.presentation;
+  const collectionPresentation = section.collection.presentation;
+  const { contextDetail, result } = collectionPresentation;
   const mainResult = projectGeneratedWorkspaceFixtureMainResult(workspaceId, section.id, result);
   const contextResult = contextDetail
     ? projectGeneratedWorkspaceFixtureContextResult(workspaceId, section.id, contextDetail)
     : undefined;
+  const selectedDetailResults =
+    collectionPresentation.kind === "selectedRecord"
+      ? collectionPresentation.sections.map((detailSection) =>
+          projectGeneratedWorkspaceFixtureSelectedDetailResult(
+            workspaceId,
+            section.id,
+            detailSection,
+          ),
+        )
+      : [];
+  let presentation: WorkspaceCollectionShellContract["presentation"];
+  if (collectionPresentation.kind === "selectedRecord") {
+    if (mainResult.reference.kind !== "listResultReference") {
+      throw new Error("Selected-record workspace fixtures require a main list result reference.");
+    }
+    const {
+      contextDetail: sourceContextDetail,
+      result: sourceResult,
+      sections: sourceSections,
+      ...selectedRecordPresentation
+    } = collectionPresentation;
+    void sourceContextDetail;
+    void sourceResult;
+    void sourceSections;
+    presentation = {
+      ...selectedRecordPresentation,
+      ...(contextResult === undefined ? {} : { contextDetail: contextResult.reference }),
+      result: mainResult.reference,
+      sections: selectedDetailResults.map(({ section: detailSection }) => detailSection),
+    };
+  } else {
+    const {
+      contextDetail: sourceContextDetail,
+      result: sourceResult,
+      ...ordinaryPresentation
+    } = collectionPresentation;
+    void sourceContextDetail;
+    void sourceResult;
+    presentation = {
+      ...ordinaryPresentation,
+      ...(contextResult === undefined ? {} : { contextDetail: contextResult.reference }),
+      result: mainResult.reference,
+    };
+  }
 
   return {
     nodes: [
@@ -185,11 +235,7 @@ function projectGeneratedWorkspaceFixtureSection(
           actions: section.actions,
           collection: {
             ...section.collection,
-            presentation: {
-              ...presentation,
-              ...(contextResult === undefined ? {} : { contextDetail: contextResult.reference }),
-              result: mainResult.reference,
-            },
+            presentation,
           },
           headingVisibility: section.headingVisibility,
           id: section.id,
@@ -199,8 +245,45 @@ function projectGeneratedWorkspaceFixtureSection(
       },
       mainResult.node,
       ...(contextResult === undefined ? [] : [contextResult.node]),
+      ...selectedDetailResults.map(({ node }) => node),
     ],
     reference,
+  };
+}
+
+function projectGeneratedWorkspaceFixtureSelectedDetailResult(
+  workspaceId: string,
+  sectionId: string,
+  detailSection: WorkspaceSelectedRecordSectionContract,
+): {
+  node: PresentationNode;
+  reference: SelectedDetailResultReference;
+  section: WorkspaceSelectedRecordSectionShellContract;
+} {
+  if (detailSection.kind === "selectedRecordRecordSection") {
+    const reference = recordResultReference({
+      resultId: detailSection.result.id,
+      role: "selectedDetailResult",
+      sectionId,
+      workspaceId,
+    });
+    return {
+      node: { reference, snapshot: detailSection.result },
+      reference,
+      section: { ...detailSection, result: reference },
+    };
+  }
+
+  const reference = tableResultReference({
+    resultId: detailSection.result.id,
+    role: "selectedDetailResult",
+    sectionId,
+    workspaceId,
+  });
+  return {
+    node: { reference, snapshot: detailSection.result },
+    reference,
+    section: { ...detailSection, result: reference },
   };
 }
 
@@ -324,6 +407,24 @@ function applyCollectionIntent(
     }
   >,
 ): WorkspaceCollectionContract {
+  if (intent.type === "workspaceSelectedRecordSelection") {
+    const presentation = collection.presentation;
+    return presentation.kind === "selectedRecord" &&
+      presentation.selectionIntents.some(
+        (selectionIntent) => selectionIntent.recordId === intent.recordId,
+      )
+      ? selectFormlessGeneratedWorkspaceRecord(collection, intent.recordId)
+      : collection;
+  }
+
+  if (intent.type === "workspaceSelectedRecordBack") {
+    const presentation = collection.presentation;
+    return presentation.kind === "selectedRecord" &&
+      presentation.backIntent?.recordId === intent.recordId
+      ? selectFormlessGeneratedWorkspaceRecord(collection, null)
+      : collection;
+  }
+
   if (intent.type === "workspaceQuerySelection") {
     const navigation = collection.presentation.queryNavigation;
     if (!navigation?.items.some((item) => item.id === intent.queryId)) {
@@ -406,14 +507,11 @@ function applyCollectionIntent(
   }
 
   if (intent.type === "workspaceOperation") {
-    const presentation = {
-      ...collection.presentation,
-      actions: mapCollectionOperation(
-        collection.presentation.actions,
-        intent.controlId,
-        intent.intent,
-      ),
-    } as WorkspaceCollectionPresentationContract;
+    const presentation = mapPresentationOperation(
+      collection.presentation,
+      intent.controlId,
+      intent.intent,
+    );
 
     return {
       ...collection,
@@ -582,6 +680,30 @@ function mapWorkspaceResults(
       ? (update(presentation.contextDetail) as RecordResultContract)
       : presentation.contextDetail;
 
+  if (presentation.kind === "selectedRecord") {
+    const mainResult = result.kind === "list" ? result : presentation.result;
+    const sections = presentation.sections.map((section) => {
+      if (section.result.id !== resultId) {
+        return section;
+      }
+      const nextResult = update(section.result);
+      if (
+        (section.kind === "selectedRecordRecordSection" && nextResult.kind === "recordResult") ||
+        (section.kind === "selectedRecordRelationshipSection" && nextResult.kind === "table")
+      ) {
+        return { ...section, result: nextResult } as typeof section;
+      }
+      return section;
+    });
+
+    return {
+      ...presentation,
+      ...(contextDetail === undefined ? {} : { contextDetail }),
+      result: mainResult,
+      sections,
+    };
+  }
+
   return {
     ...presentation,
     ...(contextDetail === undefined ? {} : { contextDetail }),
@@ -629,6 +751,32 @@ function mapCollectionOperation(
     ...actions,
     primary: actions.primary.map(mapAction),
     secondary: actions.secondary.map(mapAction),
+  };
+}
+
+function mapPresentationOperation(
+  presentation: WorkspaceCollectionPresentationContract,
+  controlId: string,
+  intent: OperationPresentationIntent,
+): WorkspaceCollectionPresentationContract {
+  const actions = mapCollectionOperation(presentation.actions, controlId, intent);
+  if (presentation.kind !== "selectedRecord") {
+    return { ...presentation, actions };
+  }
+
+  return {
+    ...presentation,
+    actions,
+    sections: presentation.sections.map((section) =>
+      section.kind === "selectedRecordRelationshipSection"
+        ? {
+            ...section,
+            headingOperations: section.headingOperations.map((control) =>
+              control.id === controlId ? applyFixtureOperationIntent(control, intent) : control,
+            ),
+          }
+        : section,
+    ),
   };
 }
 

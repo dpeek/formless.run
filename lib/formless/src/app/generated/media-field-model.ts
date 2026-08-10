@@ -94,6 +94,20 @@ export function collectGeneratedWorkspaceMediaFields(
         collectRecordPresentationFields(context.recordFields, context.recordUnion),
       );
     }
+    const selectedRecordDetail = collection.detail;
+    if (selectedRecordDetail !== undefined) {
+      for (const section of selectedRecordDetail.sections) {
+        if (section.type === "record") {
+          addFields(
+            selectedRecordDetail.entityName,
+            collectRecordPresentationFields(
+              section.result.recordFields,
+              section.result.recordUnion,
+            ),
+          );
+        }
+      }
+    }
 
     const result = collection.result;
     if (result.type === "list" || result.type === "record") {

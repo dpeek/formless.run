@@ -2844,6 +2844,60 @@ describe("home view model collections", () => {
     });
   });
 
+  it("projects selected-record detail through repeated collection sections without context translation", () => {
+    const schema = rateCardSchemaWithSelectedRecordDetail();
+    const setupScreen = selectScreenModels(schema).find(
+      (model) => model.screenName === "rateSetup",
+    );
+    const [primary, secondary] = setupScreen?.layout.sections ?? [];
+
+    for (const section of [primary, secondary]) {
+      expect(section?.viewName).toBe("cardHome");
+      expect(section?.collection.context).toBeUndefined();
+      expect(section?.collection.result.type).toBe("list");
+      expect(section?.collection.detail).toMatchObject({
+        type: "selectedRecord",
+        contextName: "card",
+        entityName: "card",
+        sections: [
+          {
+            id: "overview",
+            type: "record",
+            label: "Overview",
+            result: {
+              type: "record",
+              itemViewName: "cardListItem",
+            },
+          },
+          {
+            id: "rates",
+            type: "relationship",
+            label: "Rates",
+            relationshipName: "cardRates",
+            entityName: "rate",
+            queryName: "ratesForSelectedCard",
+            result: {
+              type: "table",
+              tableViewName: "rateTable",
+            },
+            operations: [
+              {
+                bindingName: "card.update",
+                label: "Adjust rates",
+                placement: "heading",
+                operation: {
+                  canonicalKey: "card.update",
+                  entityName: "card",
+                  operationName: "update",
+                },
+              },
+            ],
+          },
+        ],
+      });
+    }
+  });
+
   it("binds each screen section to its declared query without changing unbound views", () => {
     const baseScreen = appSchema.screens[0];
     if (baseScreen?.type !== "workspace") {
@@ -3104,6 +3158,59 @@ describe("home view model collections", () => {
     ]);
   });
 });
+function rateCardSchemaWithSelectedRecordDetail(): AppSchema {
+  const setup = rateCardSchema.screens.find((screen) => screen.key === "rateSetup");
+  if (setup?.type !== "workspace") {
+    throw new Error("Missing rate setup screen.");
+  }
+  const cards = setup.layout.sections.find((section) => section.id === "cards")!;
+  const detail = {
+    type: "selectedRecord" as const,
+    context: "card",
+    sections: [
+      {
+        id: "overview",
+        type: "record" as const,
+        label: "Overview",
+        itemView: "cardListItem",
+      },
+      {
+        id: "rates",
+        type: "relationship" as const,
+        label: "Rates",
+        relationship: "cardRates",
+        query: "ratesForSelectedCard",
+        result: { type: "table" as const, tableView: "rateTable" },
+        operations: [
+          {
+            operation: "card.update",
+            placement: "heading" as const,
+            label: "Adjust rates",
+          },
+        ],
+      },
+    ],
+  };
+
+  return {
+    ...rateCardSchema,
+    screens: rateCardSchema.screens.map((screen) =>
+      screen.key === setup.key
+        ? {
+            ...setup,
+            layout: {
+              ...setup.layout,
+              sections: [
+                { ...cards, id: "primaryCards", detail },
+                { ...cards, id: "secondaryCards", detail },
+              ],
+            },
+          }
+        : screen,
+    ),
+  };
+}
+
 function rateCardSchemaWithComputedMarginColumn(): AppSchema {
   const rateTable = rateCardSchema.tableViews.find((definition) => definition.key === "rateTable")!;
   return {

@@ -32,6 +32,7 @@ export type HomeRouteSelectionState = {
   selectedScreenName: string | null;
   selectedQueryNamesBySection: Record<string, string | null>;
   selectedContextIdsBySection: Record<string, string | null>;
+  selectedRecordIdsBySection: Record<string, string | null>;
 };
 
 export function createHomeRouteSelectionState(): HomeRouteSelectionState {
@@ -39,6 +40,7 @@ export function createHomeRouteSelectionState(): HomeRouteSelectionState {
     selectedScreenName: null,
     selectedQueryNamesBySection: {},
     selectedContextIdsBySection: {},
+    selectedRecordIdsBySection: {},
   };
 }
 
@@ -48,7 +50,7 @@ export function withHomeRouteSelectedScreenName(
 ): HomeRouteSelectionState {
   return current.selectedScreenName === selectedScreenName
     ? current
-    : { ...current, selectedScreenName };
+    : { ...current, selectedScreenName, selectedRecordIdsBySection: {} };
 }
 
 export function withHomeRouteSelectedSectionQueryName(
@@ -89,6 +91,27 @@ export function withHomeRouteSelectedSectionContextRecordId(
       };
 }
 
+export function withHomeRouteSelectedSectionRecordId(
+  current: HomeRouteSelectionState,
+  screenName: string,
+  sectionId: string,
+  recordId: string | null,
+): HomeRouteSelectionState {
+  const sectionKey = homeRouteSectionSelectionKey(screenName, sectionId);
+
+  return current.selectedScreenName === screenName &&
+    current.selectedRecordIdsBySection[sectionKey] === recordId
+    ? current
+    : {
+        ...current,
+        selectedScreenName: screenName,
+        selectedRecordIdsBySection: {
+          ...(current.selectedScreenName === screenName ? current.selectedRecordIdsBySection : {}),
+          [sectionKey]: recordId,
+        },
+      };
+}
+
 export function selectHomeRouteSectionQueryName(
   current: HomeRouteSelectionState,
   screenName: string,
@@ -107,6 +130,19 @@ export function selectHomeRouteSectionContextRecordId(
   const sectionKey = homeRouteSectionSelectionKey(screenName, sectionId);
 
   return current.selectedContextIdsBySection[sectionKey] ?? null;
+}
+
+export function selectHomeRouteSectionRecordId(
+  current: HomeRouteSelectionState,
+  screenName: string,
+  sectionId: string,
+): string | null {
+  if (current.selectedScreenName !== screenName) {
+    return null;
+  }
+  const sectionKey = homeRouteSectionSelectionKey(screenName, sectionId);
+
+  return current.selectedRecordIdsBySection[sectionKey] ?? null;
 }
 
 export function homeRouteSectionSelectionKey(screenName: string, sectionId: string): string {

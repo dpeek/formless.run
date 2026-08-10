@@ -40,6 +40,7 @@ import type {
   WorkspaceIntent,
   WorkspaceManifestContract,
   WorkspaceManifestReference,
+  WorkspaceSelectedRecordShellContract,
   WorkspaceSectionShellContract,
   WorkspaceSectionShellReference,
 } from "./contract.ts";
@@ -387,12 +388,14 @@ export function listResultReference({
   };
 }
 
-export function tableResultReference({
+export function tableResultReference<
+  Role extends Extract<ResultReferenceRole, "mainResult" | "selectedDetailResult">,
+>({
   resultId,
   role,
   sectionId,
   workspaceId,
-}: Omit<TableResultReference, "kind">): TableResultReference {
+}: Omit<TableResultReference<Role>, "kind">): TableResultReference<Role> {
   return {
     kind: "tableResultReference",
     resultId,
@@ -1329,6 +1332,111 @@ function assertReferencesResolve(nodes: StoredPresentationNodes) {
         assertWorkspaceResultScope(sectionNode.reference, presentation.contextDetail);
         assertReferenceResolves(nodes, presentation.contextDetail);
       }
+      if (presentation.kind === "selectedRecord") {
+        assertWorkspaceSelectedRecordContract(nodes, sectionNode.reference, {
+          collectionId: node.snapshot.collection.id,
+          presentation,
+        });
+      }
+    }
+  }
+}
+
+function assertWorkspaceSelectedRecordContract(
+  nodes: StoredPresentationNodes,
+  sectionReference: WorkspaceSectionShellReference,
+  {
+    collectionId,
+    presentation,
+  }: {
+    collectionId: string;
+    presentation: WorkspaceSelectedRecordShellContract;
+  },
+) {
+  const mainResult = snapshotForReference(nodes, presentation.result);
+  if (presentation.result.role !== "mainResult" || mainResult?.kind !== "list") {
+    throw new Error(
+      `Formless UI selected-record workspace ${JSON.stringify(presentation.id)} requires one main list result.`,
+    );
+  }
+
+  const recordIds = new Set(mainResult.items.map(({ id }) => id));
+  const selectionRecordIds = new Set<string>();
+  for (const intent of presentation.selectionIntents) {
+    if (
+      intent.type !== "workspaceSelectedRecordSelection" ||
+      intent.screenId !== sectionReference.workspaceId ||
+      intent.sectionId !== sectionReference.sectionId ||
+      intent.collectionId !== collectionId ||
+      !recordIds.has(intent.recordId) ||
+      selectionRecordIds.has(intent.recordId)
+    ) {
+      throw new Error(
+        `Formless UI selected-record workspace ${JSON.stringify(presentation.id)} has an invalid selection intent.`,
+      );
+    }
+    selectionRecordIds.add(intent.recordId);
+  }
+  if (
+    selectionRecordIds.size !== recordIds.size ||
+    [...recordIds].some((recordId) => !selectionRecordIds.has(recordId))
+  ) {
+    throw new Error(
+      `Formless UI selected-record workspace ${JSON.stringify(presentation.id)} must expose one selection intent per list record.`,
+    );
+  }
+
+  const selectedRecordId = presentation.selectedRecordId;
+  if (selectedRecordId === null) {
+    if (
+      presentation.activePresentation !== "list" ||
+      presentation.backIntent !== undefined ||
+      presentation.sections.length !== 0
+    ) {
+      throw new Error(
+        `Formless UI selected-record workspace ${JSON.stringify(presentation.id)} has an invalid unselected state.`,
+      );
+    }
+    return;
+  }
+
+  const backIntent = presentation.backIntent;
+  if (
+    presentation.activePresentation !== "detail" ||
+    !recordIds.has(selectedRecordId) ||
+    backIntent?.type !== "workspaceSelectedRecordBack" ||
+    backIntent.screenId !== sectionReference.workspaceId ||
+    backIntent.sectionId !== sectionReference.sectionId ||
+    backIntent.collectionId !== collectionId ||
+    backIntent.recordId !== selectedRecordId ||
+    presentation.sections.length === 0
+  ) {
+    throw new Error(
+      `Formless UI selected-record workspace ${JSON.stringify(presentation.id)} has an invalid selected state.`,
+    );
+  }
+
+  const detailSectionIds = new Set<string>();
+  for (const detailSection of presentation.sections) {
+    if (detailSectionIds.has(detailSection.id)) {
+      throw new Error(
+        `Formless UI selected-record workspace ${JSON.stringify(presentation.id)} has duplicate detail section identities.`,
+      );
+    }
+    detailSectionIds.add(detailSection.id);
+    assertWorkspaceResultScope(sectionReference, detailSection.result);
+    assertReferenceResolves(nodes, detailSection.result);
+
+    const result = snapshotForReference(nodes, detailSection.result);
+    const resultMatchesSection =
+      detailSection.result.role === "selectedDetailResult" &&
+      (detailSection.kind === "selectedRecordRecordSection"
+        ? result?.kind === "recordResult" && result.selectedRecord?.id === selectedRecordId
+        : result?.kind === "table");
+    if (!resultMatchesSection) {
+      throw new Error(
+        `Formless UI selected-record workspace ${JSON.stringify(presentation.id)} has an invalid detail result.`,
+      );
     }
   }
 }

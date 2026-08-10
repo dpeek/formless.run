@@ -161,17 +161,20 @@ export function completedTaskControl(): OperationControlContract {
   };
 }
 
-export function taskStatusField(value: "done" | "open") {
+export function taskStatusField(
+  value: "done" | "open",
+  interaction: "display" | "transitions" = "display",
+) {
   const group = fieldScenarioGroups.find((candidate) => candidate.kind === "state-machine-enum");
   const variant = group?.variants.find(
     ({ field }) =>
       field.surface === "record" &&
       field.stateMachineFacts?.currentValue === value &&
-      field.stateMachineFacts.interaction.kind === "display",
+      field.stateMachineFacts.interaction.kind === interaction,
   );
 
   if (!variant) {
-    throw new Error(`Missing display-only ${value} state-machine record field scenario.`);
+    throw new Error(`Missing ${interaction} ${value} state-machine record field scenario.`);
   }
 
   return withRecordIdentity(variant.field);

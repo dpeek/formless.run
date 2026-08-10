@@ -1,4 +1,5 @@
 import { EmptyState } from "@astryxdesign/core/EmptyState";
+import { Button } from "@astryxdesign/core/Button";
 import { HStack } from "@astryxdesign/core/HStack";
 import { Icon } from "@astryxdesign/core/Icon";
 import { IconButton } from "@astryxdesign/core/IconButton";
@@ -50,13 +51,17 @@ export function AstryxListRenderer({
   onFieldIntent,
   onListIntent,
   onOperationIntent,
+  onItemSelect,
+  selectedItemId,
 }: {
   list: ListContract;
   onCreateFieldIntent?: CreateFieldIntentHandler;
   onCreateIntent?: CreateIntentHandler;
   onFieldIntent: AstryxListFieldIntentHandler;
+  onItemSelect?: (item: ListItemContract) => Promise<void> | void;
   onListIntent: ListIntentHandler;
   onOperationIntent: AstryxListOperationIntentHandler;
+  selectedItemId?: string | null;
 }) {
   return (
     <VStack as="section" aria-label={list.accessibilityLabel} gap={2} width="100%">
@@ -103,8 +108,10 @@ export function AstryxListRenderer({
                 item={item}
                 key={item.id}
                 onFieldIntent={onFieldIntent}
+                onItemSelect={onItemSelect}
                 onListIntent={onListIntent}
                 onOperationIntent={onOperationIntent}
+                selected={selectedItemId === item.id}
               />
             ))}
           </List>
@@ -148,19 +155,35 @@ function AstryxListEmptyStatePrimaryAction({
 function AstryxListItem({
   item,
   onFieldIntent,
+  onItemSelect,
   onListIntent,
   onOperationIntent,
+  selected,
 }: {
   item: ListItemContract;
   onFieldIntent: AstryxListFieldIntentHandler;
+  onItemSelect?: (item: ListItemContract) => Promise<void> | void;
   onListIntent: ListIntentHandler;
   onOperationIntent: AstryxListOperationIntentHandler;
+  selected: boolean;
 }) {
   return (
     <ListItem
       aria-label={item.accessibilityLabel}
       endContent={
         <HStack align="center" gap={1} wrap="wrap">
+          {onItemSelect && item.availability.available ? (
+            <Button
+              label={`Select ${item.accessibilityLabel}`}
+              onClick={() => {
+                void onItemSelect(item);
+              }}
+              size="sm"
+              variant="ghost"
+            >
+              View
+            </Button>
+          ) : null}
           {item.actions.primary.map((action) => (
             <AstryxListPrimaryAction
               action={action}
@@ -176,6 +199,7 @@ function AstryxListItem({
           <AstryxListWarningIndicator item={item} />
         </HStack>
       }
+      isSelected={selected}
       label={
         item.availability.available ? (
           <HStack align="start" gap={2} width="100%" wrap="wrap">

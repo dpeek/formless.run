@@ -1,6 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Banner } from "@astryxdesign/core/Banner";
+import { Button } from "@astryxdesign/core/Button";
 import { Card } from "@astryxdesign/core/Card";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { Grid } from "@astryxdesign/core/Grid";
@@ -17,6 +18,7 @@ import type {
   ListIntent,
   ListOperationActionContract,
   OperationPresentationIntent,
+  OperationControlContract,
   RecordResultIntent,
   ContextResultReference,
   MainResultReference,
@@ -33,6 +35,10 @@ import type {
   WorkspaceQueryContract,
   WorkspaceQueryNavigationContract,
   WorkspaceResultContract,
+  WorkspaceSelectedRecordContract,
+  WorkspaceSelectedRecordSectionContract,
+  WorkspaceSelectedRecordSectionShellContract,
+  WorkspaceSelectedRecordShellContract,
   WorkspaceSummaryContract,
 } from "@dpeek/formless-presentation/contract";
 import { presentationReferenceKey } from "@dpeek/formless-presentation/host";
@@ -86,9 +92,23 @@ export function AstryxWorkspaceCollectionRenderer({
         ) : undefined
       }
       mainResult={
-        <AstryxWorkspaceResult onIntent={onIntent} result={presentation.result} scope={scope} />
+        <AstryxWorkspaceResult
+          listSelection={selectedRecordListSelection(presentation, onIntent)}
+          onIntent={onIntent}
+          result={presentation.result}
+          scope={scope}
+        />
       }
       onIntent={onIntent}
+      selectedRecordDetail={
+        presentation.kind === "selectedRecord" ? (
+          <AstryxWorkspaceSelectedRecordDetail
+            onIntent={onIntent}
+            presentation={presentation}
+            scope={scope}
+          />
+        ) : undefined
+      }
       scope={scope}
     />
   );
@@ -124,9 +144,21 @@ export function AstryxSubscribedWorkspaceCollectionRenderer({
         ) : undefined
       }
       mainResult={
-        <AstryxSubscribedWorkspaceMainResult reference={presentation.result} scope={scope} />
+        <AstryxSubscribedWorkspaceMainResult
+          listSelection={selectedRecordListSelection(presentation, onIntent)}
+          reference={presentation.result}
+          scope={scope}
+        />
       }
       onIntent={onIntent}
+      selectedRecordDetail={
+        presentation.kind === "selectedRecord" ? (
+          <AstryxSubscribedWorkspaceSelectedRecordDetail
+            presentation={presentation}
+            scope={scope}
+          />
+        ) : undefined
+      }
       scope={scope}
     />
   );
@@ -137,12 +169,14 @@ function AstryxWorkspaceCollectionFrame({
   contextResult,
   mainResult,
   onIntent,
+  selectedRecordDetail,
   scope,
 }: {
   collection: WorkspaceCollectionContract | WorkspaceCollectionShellContract;
   contextResult?: ReactNode;
   mainResult: ReactNode;
   onIntent: WorkspaceIntentHandler;
+  selectedRecordDetail?: ReactNode;
   scope: WorkspaceIntentScope;
 }) {
   if (collection.availability.state === "empty") {
@@ -186,7 +220,73 @@ function AstryxWorkspaceCollectionFrame({
       gap={6}
       width="100%"
     >
-      {presentation.kind === "listDetail" ? (
+      {presentation.kind === "selectedRecord" ? (
+        <>
+          {presentation.context ? (
+            <AstryxWorkspaceOrdinaryContext
+              context={presentation.context}
+              detail={contextResult}
+              onIntent={onIntent}
+              scope={scope}
+            />
+          ) : null}
+          <Grid
+            aria-label={presentation.accessibilityLabel}
+            columns={1}
+            gap={6}
+            role="group"
+            width="100%"
+            xstyle={styles.selectedRecordGrid}
+          >
+            <VStack
+              gap={6}
+              width="100%"
+              xstyle={[
+                styles.selectedRecordPane,
+                presentation.activePresentation === "detail" && styles.compactHiddenPane,
+              ]}
+            >
+              <AstryxWorkspaceQueryNavigation
+                navigation={presentation.queryNavigation}
+                onIntent={onIntent}
+              />
+              <AstryxWorkspaceSummaries summaries={presentation.summaries} />
+              {mainResult}
+              <AstryxWorkspaceCollectionActions
+                actions={presentation.actions}
+                onIntent={onIntent}
+                scope={scope}
+              />
+            </VStack>
+            <VStack
+              aria-label={presentation.accessibilityLabel}
+              gap={4}
+              role="region"
+              width="100%"
+              xstyle={[
+                styles.selectedRecordPane,
+                presentation.activePresentation === "list" && styles.compactHiddenPane,
+              ]}
+            >
+              {presentation.backIntent ? (
+                <HStack xstyle={styles.compactOnly}>
+                  <Button
+                    label={`Back to ${collection.label}`}
+                    onClick={() => {
+                      void onIntent(presentation.backIntent!);
+                    }}
+                    size="sm"
+                    variant="ghost"
+                  >
+                    Back
+                  </Button>
+                </HStack>
+              ) : null}
+              {selectedRecordDetail}
+            </VStack>
+          </Grid>
+        </>
+      ) : presentation.kind === "listDetail" ? (
         <Grid
           aria-label={presentation.accessibilityLabel}
           columns={1}
@@ -356,6 +456,18 @@ function AstryxWorkspaceContextTabs({
 }
 
 const styles = stylex.create({
+  compactHiddenPane: {
+    display: {
+      default: "none",
+      "@media (min-width: 768px)": "flex",
+    },
+  },
+  compactOnly: {
+    display: {
+      default: "flex",
+      "@media (min-width: 768px)": "none",
+    },
+  },
   listDetailGrid: {
     gridTemplateColumns: {
       default: "minmax(0, 1fr)",
@@ -364,6 +476,24 @@ const styles = stylex.create({
   },
   listDetailMain: {
     minWidth: 0,
+  },
+  selectedRecordGrid: {
+    alignItems: "start",
+    gridTemplateColumns: {
+      default: "minmax(0, 1fr)",
+      "@media (min-width: 768px)": "minmax(280px, 1fr) minmax(0, 2fr)",
+    },
+  },
+  selectedRecordPane: {
+    maxHeight: {
+      default: "none",
+      "@media (min-width: 768px)": "calc(100vh - 12rem)",
+    },
+    minWidth: 0,
+    overflowY: {
+      default: "visible",
+      "@media (min-width: 768px)": "auto",
+    },
   },
 });
 
@@ -554,35 +684,212 @@ function AstryxWorkspaceCollectionAction({
   const dispatch = (intent: OperationPresentationIntent) =>
     dispatchAstryxWorkspaceOperationIntent(onIntent, scope, action.control.id, intent);
 
+  return <AstryxWorkspaceOperationControl control={action.control} onIntent={dispatch} />;
+}
+
+function AstryxWorkspaceOperationControl({
+  control,
+  onIntent,
+}: {
+  control: OperationControlContract;
+  onIntent: (intent: OperationPresentationIntent) => Promise<void> | void;
+}) {
   return (
     <VStack gap={2}>
-      {action.control.progress ? (
+      {control.progress ? (
         <AstryxOperationButtonWithProgress
-          button={action.control.trigger}
-          onIntent={dispatch}
-          progress={action.control.progress}
+          button={control.trigger}
+          onIntent={onIntent}
+          progress={control.progress}
         />
       ) : (
-        <AstryxOperationButton button={action.control.trigger} onIntent={dispatch} />
+        <AstryxOperationButton button={control.trigger} onIntent={onIntent} />
       )}
-      {action.control.confirmation ? (
+      {control.confirmation ? (
         <AstryxOperationDestructiveConfirmation
-          confirmation={action.control.confirmation}
-          onIntent={dispatch}
+          confirmation={control.confirmation}
+          onIntent={onIntent}
         />
       ) : null}
-      {action.control.status.status === "idle" ? null : (
-        <AstryxOperationCompactStatus status={action.control.status} />
+      {control.status.status === "idle" ? null : (
+        <AstryxOperationCompactStatus status={control.status} />
       )}
-      <AstryxOperationFeedback feedback={action.control.feedback} />
+      <AstryxOperationFeedback feedback={control.feedback} />
+    </VStack>
+  );
+}
+
+type WorkspaceListSelection = {
+  onSelectItem: (item: { id: string }) => Promise<void> | void;
+  selectedItemId: string | null;
+};
+
+function selectedRecordListSelection(
+  presentation:
+    | WorkspaceCollectionContract["presentation"]
+    | WorkspaceCollectionShellContract["presentation"],
+  onIntent: WorkspaceIntentHandler,
+): WorkspaceListSelection | undefined {
+  if (presentation.kind !== "selectedRecord") {
+    return undefined;
+  }
+
+  return {
+    onSelectItem: (item) => {
+      const intent = presentation.selectionIntents.find(
+        (selectionIntent) => selectionIntent.recordId === item.id,
+      );
+      return intent ? onIntent(intent) : undefined;
+    },
+    selectedItemId: presentation.selectedRecordId,
+  };
+}
+
+function AstryxWorkspaceSelectedRecordDetail({
+  onIntent,
+  presentation,
+  scope,
+}: {
+  onIntent: WorkspaceIntentHandler;
+  presentation: WorkspaceSelectedRecordContract;
+  scope: WorkspaceIntentScope;
+}) {
+  if (presentation.selectedRecordId === null) {
+    return null;
+  }
+
+  return (
+    <VStack gap={6} width="100%">
+      {presentation.sections.map((section) => (
+        <AstryxWorkspaceSelectedRecordSection
+          key={section.id}
+          onIntent={onIntent}
+          scope={scope}
+          section={section}
+          selectedRecordId={presentation.selectedRecordId!}
+        />
+      ))}
+    </VStack>
+  );
+}
+
+function AstryxSubscribedWorkspaceSelectedRecordDetail({
+  presentation,
+  scope,
+}: {
+  presentation: WorkspaceSelectedRecordShellContract;
+  scope: WorkspaceIntentScope;
+}) {
+  if (presentation.selectedRecordId === null) {
+    return null;
+  }
+
+  return (
+    <VStack gap={6} width="100%">
+      {presentation.sections.map((section) => (
+        <AstryxSubscribedWorkspaceSelectedRecordSection
+          key={section.id}
+          scope={scope}
+          section={section}
+          selectedRecordId={presentation.selectedRecordId!}
+        />
+      ))}
+    </VStack>
+  );
+}
+
+function AstryxSubscribedWorkspaceSelectedRecordSection({
+  scope,
+  section,
+  selectedRecordId,
+}: {
+  scope: WorkspaceIntentScope;
+  section: WorkspaceSelectedRecordSectionShellContract;
+  selectedRecordId: string;
+}) {
+  const onIntent = useWorkspaceIntentHandler();
+  const result = useResult(section.result);
+
+  if (
+    !result ||
+    (section.kind === "selectedRecordRecordSection" && result.kind !== "recordResult") ||
+    (section.kind === "selectedRecordRelationshipSection" && result.kind !== "table")
+  ) {
+    return null;
+  }
+
+  return section.kind === "selectedRecordRecordSection" && result.kind === "recordResult" ? (
+    <AstryxWorkspaceSelectedRecordSection
+      onIntent={onIntent}
+      scope={scope}
+      section={{ ...section, result }}
+      selectedRecordId={selectedRecordId}
+    />
+  ) : section.kind === "selectedRecordRelationshipSection" && result.kind === "table" ? (
+    <AstryxWorkspaceSelectedRecordSection
+      onIntent={onIntent}
+      scope={scope}
+      section={{ ...section, result }}
+      selectedRecordId={selectedRecordId}
+    />
+  ) : null;
+}
+
+function AstryxWorkspaceSelectedRecordSection({
+  onIntent,
+  scope,
+  section,
+  selectedRecordId,
+}: {
+  onIntent: WorkspaceIntentHandler;
+  scope: WorkspaceIntentScope;
+  section: WorkspaceSelectedRecordSectionContract;
+  selectedRecordId: string;
+}) {
+  const headingOperations =
+    section.kind === "selectedRecordRelationshipSection" ? section.headingOperations : [];
+  const heading =
+    section.label === undefined && headingOperations.length === 0 ? null : (
+      <HStack align="center" gap={3} justify="between" width="100%" wrap="wrap">
+        {section.label ? <Heading level={3}>{section.label}</Heading> : <span aria-hidden="true" />}
+        {headingOperations.length > 0 ? (
+          <HStack gap={2} wrap="wrap">
+            {headingOperations.map((control) => (
+              <AstryxWorkspaceOperationControl
+                control={control}
+                key={control.id}
+                onIntent={(intent) =>
+                  dispatchAstryxWorkspaceOperationIntent(onIntent, scope, control.id, intent, {
+                    recordId: selectedRecordId,
+                    resultId: section.result.id,
+                  })
+                }
+              />
+            ))}
+          </HStack>
+        ) : null}
+      </HStack>
+    );
+
+  return (
+    <VStack
+      as="section"
+      aria-label={section.label ?? section.result.accessibilityLabel}
+      gap={4}
+      width="100%"
+    >
+      {heading}
+      <AstryxWorkspaceResult onIntent={onIntent} result={section.result} scope={scope} />
     </VStack>
   );
 }
 
 const AstryxSubscribedWorkspaceMainResult = memo(function AstryxSubscribedWorkspaceMainResult({
+  listSelection,
   reference,
   scope,
 }: {
+  listSelection?: WorkspaceListSelection;
   reference: MainResultReference;
   scope: WorkspaceIntentScope;
 }) {
@@ -590,13 +897,21 @@ const AstryxSubscribedWorkspaceMainResult = memo(function AstryxSubscribedWorksp
     return <AstryxSubscribedTreeResultRenderer reference={reference} scope={scope} />;
   }
 
-  return <AstryxSubscribedWorkspaceNonTreeMainResult reference={reference} scope={scope} />;
+  return (
+    <AstryxSubscribedWorkspaceNonTreeMainResult
+      listSelection={listSelection}
+      reference={reference}
+      scope={scope}
+    />
+  );
 }, subscribedMainResultPropsEqual);
 
 function AstryxSubscribedWorkspaceNonTreeMainResult({
+  listSelection,
   reference,
   scope,
 }: {
+  listSelection?: WorkspaceListSelection;
   reference: Exclude<
     MainResultReference,
     {
@@ -609,7 +924,12 @@ function AstryxSubscribedWorkspaceNonTreeMainResult({
   const result = useResult(reference);
 
   return result ? (
-    <AstryxWorkspaceResult onIntent={onIntent} result={result} scope={scope} />
+    <AstryxWorkspaceResult
+      listSelection={listSelection}
+      onIntent={onIntent}
+      result={result}
+      scope={scope}
+    />
   ) : null;
 }
 
@@ -640,15 +960,18 @@ const AstryxSubscribedWorkspaceContextResult = memo(
 
 function subscribedMainResultPropsEqual(
   previous: {
+    listSelection?: WorkspaceListSelection;
     reference: MainResultReference;
     scope: WorkspaceIntentScope;
   },
   next: {
+    listSelection?: WorkspaceListSelection;
     reference: MainResultReference;
     scope: WorkspaceIntentScope;
   },
 ) {
   return (
+    previous.listSelection === next.listSelection &&
     presentationReferenceKey(previous.reference) === presentationReferenceKey(next.reference) &&
     workspaceScopesEqual(previous.scope, next.scope)
   );
@@ -682,10 +1005,12 @@ function workspaceScopesEqual(previous: WorkspaceIntentScope, next: WorkspaceInt
 }
 
 function AstryxWorkspaceResult({
+  listSelection,
   onIntent,
   result,
   scope,
 }: {
+  listSelection?: WorkspaceListSelection;
   onIntent: WorkspaceIntentHandler;
   result: WorkspaceResultContract;
   scope: WorkspaceIntentScope;
@@ -719,6 +1044,7 @@ function AstryxWorkspaceResult({
         onListIntent={(intent) =>
           dispatchAstryxWorkspaceListIntent(onIntent, scope, result.id, intent)
         }
+        onItemSelect={listSelection?.onSelectItem}
         onOperationIntent={(action, intent) => {
           const recordId = workspaceListActionRecordId(result, action);
           return dispatchAstryxWorkspaceOperationIntent(
@@ -729,6 +1055,7 @@ function AstryxWorkspaceResult({
             recordId === undefined ? {} : { recordId, resultId: result.id },
           );
         }}
+        selectedItemId={listSelection?.selectedItemId}
       />
     );
   }
