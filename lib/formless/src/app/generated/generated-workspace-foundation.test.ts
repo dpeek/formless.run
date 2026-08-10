@@ -14,9 +14,15 @@ import type {
   RecordFieldConfig,
 } from "../../client/views.ts";
 import type { EntityOperationPresentationConfig } from "../../client/operation-presentation-model.ts";
-import { selectScreenModels } from "../../client/views.ts";
+import { selectScreenModelByPath, selectScreenModels } from "../../client/views.ts";
 import type { RecordResultModel } from "../../client/list-result-model.ts";
-import { rateCardTestRecords, rateSourceSchema, siteSourceSchema } from "../../test/schema-apps.ts";
+import {
+  rateCardTestRecords,
+  rateSourceSchema,
+  siteSourceSchema,
+  taskSourceSchema,
+  taskTestRecords,
+} from "../../test/schema-apps.ts";
 import { testSiteRecords } from "../../test/site-records.ts";
 import { projectGeneratedOperationControl } from "./operation-projection.ts";
 import { projectGeneratedRecordField } from "./field-projection.ts";
@@ -44,6 +50,55 @@ import {
 } from "./generated-workspace-foundation.ts";
 
 describe("generated workspace foundation", () => {
+  it("reconstructs a query-bound route without query navigation or retained selection", () => {
+    const baseScreen = taskSourceSchema.screens[0];
+    if (baseScreen?.type !== "workspace") {
+      throw new Error("Missing task workspace screen.");
+    }
+    const baseSection = baseScreen.layout.sections[0]!;
+    const schema = {
+      ...taskSourceSchema,
+      navigation: { primaryScreens: ["completedTasks"] },
+      screens: [
+        {
+          ...baseScreen,
+          key: "completedTasks",
+          label: "Completed tasks",
+          path: "/completed",
+          layout: {
+            ...baseScreen.layout,
+            sections: [{ ...baseSection, query: "taskCompleted" }],
+          },
+        },
+      ],
+    };
+    const selectRoute = (selectedQueryName?: string) => {
+      const screen = required(selectScreenModelByPath(schema, "/completed"));
+      return required(
+        selectGeneratedWorkspaceFoundation({
+          screen,
+          ...(selectedQueryName === undefined
+            ? {}
+            : { sectionSelection: { tasks: { selectedQueryName } } }),
+          snapshot: projectionSnapshot(taskTestRecords),
+          today: "2026-05-02",
+        }),
+      );
+    };
+
+    const direct = selectRoute();
+    const revisited = selectRoute("taskActive");
+
+    for (const foundation of [direct, revisited]) {
+      const plan = required(foundation.runtimePlan.sections[0]);
+      const section = required(foundation.workspace.sections[0]);
+
+      expect(plan.selectedQuery.queryName).toBe("taskCompleted");
+      expect(plan.recordIds).toEqual(["rec_task_completed"]);
+      expect(section.collection.presentation.queryNavigation).toBeUndefined();
+    }
+  });
+
   it("projects zero, sole, and ambiguous Site authoring scope without a Site selector", () => {
     const editor = required(
       selectScreenModels(siteSourceSchema).find(({ screenName }) => screenName === "siteEditor"),

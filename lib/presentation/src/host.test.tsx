@@ -115,6 +115,8 @@ describe("memory Presentation Host", () => {
     expect(record?.kind).toBe("recordResult");
     expect(shell?.title).toBe("Formless Program");
     expect(shellSection?.destinations[0]?.label).toBe("Tasks");
+    expect(shellSection).toMatchObject({ icon: "archive", label: "Workflow" });
+    expect(shellSection?.destinations[0]?.countText).toBe("0");
     expect(statusSection?.status?.workspaceSave?.id).toBe("workspace-save:tasks");
   });
 
@@ -504,6 +506,7 @@ function shellNodes({
           {
             accessibilityLabel: `${destinationLabel} screen`,
             availability: { available: true },
+            countText: "0",
             href: "/tasks",
             id: "destination:tasks",
             kind: "shellLinkDestination",
@@ -511,7 +514,9 @@ function shellNodes({
             selected: true,
           },
         ],
+        icon: "archive",
         id: programSectionReference.sectionId,
+        label: "Workflow",
         shellId: shellReference.shellId,
       }),
     },
@@ -568,14 +573,18 @@ function shellNodes({
 
 function shellSection({
   destinations = [],
+  icon,
   id,
+  label,
   role = "program",
   session,
   status,
   shellId,
 }: {
   destinations?: ShellNavigationSectionContract["destinations"];
+  icon?: ShellNavigationSectionContract["icon"];
   id: string;
+  label?: string;
   role?: ShellNavigationSectionContract["role"];
   session?: ShellNavigationSectionContract["session"];
   status?: ShellNavigationSectionContract["status"];
@@ -584,8 +593,10 @@ function shellSection({
   return {
     accessibilityLabel: `${id} navigation`,
     destinations,
+    ...(icon === undefined ? {} : { icon }),
     id,
     kind: "shellNavigationSection",
+    ...(label === undefined ? {} : { label }),
     role,
     ...(session === undefined ? {} : { session }),
     ...(status === undefined ? {} : { status }),

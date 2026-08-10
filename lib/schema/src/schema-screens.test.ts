@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   evaluateAccessRequirement,
+  flattenAppNavigationScreenKeys,
   parseAppSchema,
   stringifySchema,
   type AccessCallerFacts,
@@ -14,7 +15,7 @@ import {
   type ScreenSchemaSource,
   type WorkspaceScreenSchema,
 } from "./index.ts";
-import { taskSchema, taskScreen } from "./schema-test-fixtures.ts";
+import { taskCollectionView, taskSchema, taskScreen } from "./schema-test-fixtures.ts";
 
 const roleDefinitions = [
   {
@@ -38,7 +39,14 @@ describe("schema screens", () => {
   it("parses ordered grouped navigation and preserves omitted direct screens", () => {
     const navigation = {
       groups: [
-        { key: "operations", label: "Operations", screens: ["reports", "home"] },
+        {
+          key: "operations",
+          label: "Operations",
+          screens: [
+            "reports",
+            { key: "daily", label: "Daily", icon: "calendar", screens: ["home"] },
+          ],
+        },
         { key: "settings", label: "Settings", screens: ["settings"] },
       ],
     } satisfies AppNavigationSchemaSource;
@@ -55,7 +63,60 @@ describe("schema screens", () => {
     const parsedNavigation: AppNavigationSchema = schema.navigation!;
 
     expect(parsedNavigation).toEqual(navigation);
+    expect(
+      parsedNavigation.groups?.flatMap((group) => flattenAppNavigationScreenKeys(group.screens)),
+    ).toEqual(["reports", "home", "settings"]);
     expect(schema.screens.find((screen) => screen.key === "direct")?.path).toBe("/direct");
+    expect(JSON.parse(stringifySchema(schema)).navigation).toEqual(navigation);
+  });
+
+  it("parses interleaved flat navigation sections and object screen references", () => {
+    const navigation = {
+      primaryScreens: [
+        "reports",
+        {
+          key: "workflow",
+          label: "Workflow",
+          icon: "archive",
+          screens: [
+            "home",
+            {
+              screen: "settings",
+              badge: { type: "queryCount", section: "tasks" },
+            },
+          ],
+        },
+        "direct",
+      ],
+    } satisfies AppNavigationSchemaSource;
+    const schema = parseAppSchema({
+      ...taskSchema(),
+      navigation,
+      screens: [
+        { key: "home", ...taskScreen() },
+        { key: "reports", ...taskScreen({ label: "Reports", path: "/reports" }) },
+        {
+          key: "settings",
+          ...taskScreen({
+            label: "Settings",
+            path: "/settings",
+            layout: {
+              type: "stack",
+              sections: [{ id: "tasks", type: "collection", view: "taskHome", query: "taskAll" }],
+            },
+          }),
+        },
+        { key: "direct", ...taskScreen({ label: "Direct", path: "/direct" }) },
+      ],
+    });
+
+    expect(schema.navigation).toEqual(navigation);
+    expect(flattenAppNavigationScreenKeys(schema.navigation!.primaryScreens!)).toEqual([
+      "reports",
+      "home",
+      "settings",
+      "direct",
+    ]);
     expect(JSON.parse(stringifySchema(schema)).navigation).toEqual(navigation);
   });
 
@@ -120,6 +181,72 @@ describe("schema screens", () => {
         navigation: { groups: [validGroup], primaryScreens: ["home"] },
         message: "Schema navigation must declare at most one of groups or primaryScreens.",
       },
+      {
+        navigation: {
+          groups: [
+            {
+              ...validGroup,
+              screens: [{ key: "empty", label: "Empty", screens: [] }],
+            },
+          ],
+        },
+        message: 'Schema navigation group "work" screens[0] screens must be a non-empty array.',
+      },
+      {
+        navigation: {
+          groups: [
+            {
+              ...validGroup,
+              screens: [
+                { key: "daily", label: "Daily", screens: ["home"] },
+                { key: "daily", label: "Again", screens: ["settings"] },
+              ],
+            },
+          ],
+        },
+        message:
+          'Schema navigation group "work" screens contains duplicate navigation section key "daily".',
+      },
+      {
+        navigation: {
+          groups: [
+            {
+              ...validGroup,
+              screens: [
+                {
+                  key: "daily",
+                  label: "Daily",
+                  screens: [{ key: "nested", label: "Nested", screens: ["home"] }],
+                },
+              ],
+            },
+          ],
+        },
+        message: 'Schema navigation group "work" screens[0] screens[0] has unsupported key "key".',
+      },
+      {
+        navigation: {
+          groups: [
+            {
+              ...validGroup,
+              screens: [{ key: "daily", label: "Daily", icon: "unknown", screens: ["home"] }],
+            },
+          ],
+        },
+        message:
+          'Schema navigation group "work" screens[0] icon must be a supported semantic icon id.',
+      },
+      {
+        navigation: {
+          groups: [
+            {
+              ...validGroup,
+              screens: ["home", { key: "daily", label: "Daily", screens: ["home"] }],
+            },
+          ],
+        },
+        message: 'Schema navigation groups must not reference screen "home" more than once.',
+      },
     ];
 
     for (const { navigation, message } of invalidNavigations) {
@@ -141,7 +268,13 @@ describe("schema screens", () => {
       parseAppSchema({
         ...taskSchema(),
         navigation: {
-          groups: [{ key: "work", label: "Work", screens: ["grouped"] }],
+          groups: [
+            {
+              key: "work",
+              label: "Work",
+              screens: [{ key: "daily", label: "Daily", screens: ["grouped"] }],
+            },
+          ],
         },
         screens: [
           { key: "directRoot", ...taskScreen({ label: "Direct root", path: "/" }) },
@@ -230,6 +363,238 @@ describe("schema screens", () => {
         ],
       }),
     ).toThrow('Screen "home" layout section 0 must reference a collection view.');
+  });
+
+  it("binds collection screen sections to declared view queries", () => {
+    const source = taskSchema();
+    const schema = parseAppSchema({
+      ...source,
+      queries: [
+        ...source.queries,
+        {
+          key: "taskDone",
+          label: "Done tasks",
+          entity: "task",
+          expression: {
+            kind: "where",
+            ref: { kind: "value", name: "done" },
+            op: "eq",
+            value: true,
+          },
+        },
+      ],
+      views: source.views.map((view) =>
+        view.key === "taskHome"
+          ? {
+              key: "taskHome",
+              ...taskCollectionView({
+                queries: [{ query: "taskAll" }, { query: "taskDone" }],
+              }),
+            }
+          : view,
+      ),
+      screens: [
+        {
+          key: "home",
+          ...taskScreen({
+            layout: {
+              type: "stack",
+              sections: [{ id: "tasks", type: "collection", view: "taskHome", query: "taskDone" }],
+            },
+          }),
+        },
+      ],
+    });
+
+    expect(schema.screens[0]).toMatchObject({
+      layout: {
+        sections: [{ id: "tasks", type: "collection", view: "taskHome", query: "taskDone" }],
+      },
+    });
+    expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
+  });
+
+  it("rejects screen-section queries outside their collection view", () => {
+    const source = taskSchema();
+    const screenWithQuery = (query: string) => ({
+      key: "home",
+      ...taskScreen({
+        layout: {
+          type: "stack",
+          sections: [{ id: "tasks", type: "collection", view: "taskHome", query }],
+        },
+      }),
+    });
+    const taskDone = {
+      key: "taskDone",
+      label: "Done tasks",
+      entity: "task",
+      expression: {
+        kind: "where",
+        ref: { kind: "value", name: "done" },
+        op: "eq",
+        value: true,
+      },
+    };
+
+    expect(() => parseAppSchema({ ...source, screens: [screenWithQuery("missing")] })).toThrow(
+      'Screen "home" layout section 0 references unknown query "missing".',
+    );
+    expect(() =>
+      parseAppSchema({
+        ...source,
+        queries: [...source.queries, taskDone],
+        screens: [screenWithQuery("taskDone")],
+      }),
+    ).toThrow(
+      'Screen "home" layout section 0 query "taskDone" must reference one of collection view "taskHome" query slots.',
+    );
+  });
+
+  it("rejects invalid query-count badge targets", () => {
+    const source = taskSchema();
+    const navigation = (screen: string, section: string) => ({
+      primaryScreens: [{ screen, badge: { type: "queryCount", section } }],
+    });
+    const boundHome = {
+      key: "home",
+      ...taskScreen({
+        layout: {
+          type: "stack",
+          sections: [{ id: "tasks", type: "collection", view: "taskHome", query: "taskAll" }],
+        },
+      }),
+    };
+
+    expect(() =>
+      parseAppSchema({
+        ...source,
+        navigation: navigation("access", "tasks"),
+        screens: [boundHome, { key: "access", type: "runtime", label: "Access", path: "/access" }],
+      }),
+    ).toThrow(
+      'Schema navigation primaryScreens[0] badge cannot reference runtime screen "access".',
+    );
+    expect(() =>
+      parseAppSchema({
+        ...source,
+        navigation: navigation("home", "missing"),
+        screens: [boundHome],
+      }),
+    ).toThrow(
+      'Schema navigation primaryScreens[0] badge references unknown screen section "missing".',
+    );
+    expect(() =>
+      parseAppSchema({
+        ...source,
+        navigation: navigation("home", "tasks"),
+      }),
+    ).toThrow(
+      'Schema navigation primaryScreens[0] badge screen section "tasks" must bind a query.',
+    );
+    expect(() =>
+      parseAppSchema({
+        ...source,
+        navigation: { primaryScreens: [{ screen: "home" }] },
+        screens: [boundHome],
+      }),
+    ).toThrow('Schema navigation primaryScreens[0] must include "badge".');
+    expect(() =>
+      parseAppSchema({
+        ...source,
+        navigation: {
+          primaryScreens: [{ screen: "home", badge: { type: "storedCount", section: "tasks" } }],
+        },
+        screens: [boundHome],
+      }),
+    ).toThrow('Schema navigation primaryScreens[0] badge type must be "queryCount".');
+  });
+
+  it("rejects query-count badges whose bound query requires context", () => {
+    const source = taskSchema();
+    const taskEntity = source.entities[0];
+    const schema = {
+      ...source,
+      entities: [
+        {
+          ...taskEntity,
+          fields: [
+            ...taskEntity.fields,
+            {
+              key: "project",
+              type: "reference",
+              required: false,
+              label: "Project",
+              to: "project",
+              displayField: "name",
+            },
+          ],
+        },
+        {
+          key: "project",
+          id: "entity_b81e058e-ae5e-42a2-8aaf-504a90a6133e",
+          label: "Project",
+          fields: [{ key: "name", type: "text", required: true, label: "Name" }],
+        },
+      ],
+      queries: [
+        ...source.queries,
+        { key: "projectAll", label: "Projects", entity: "project", expression: { kind: "all" } },
+        {
+          key: "tasksForProject",
+          label: "Tasks for project",
+          entity: "task",
+          expression: {
+            kind: "where",
+            ref: { kind: "value", name: "project" },
+            op: "eq",
+            value: { kind: "context", name: "project" },
+          },
+        },
+      ],
+      views: source.views.map((view) =>
+        view.key === "taskHome"
+          ? {
+              key: "taskHome",
+              ...taskCollectionView({
+                scope: {
+                  name: "project",
+                  entity: "project",
+                  query: "projectAll",
+                  selection: "singleton",
+                },
+                queries: [{ query: "tasksForProject" }],
+                defaultQuery: "tasksForProject",
+              }),
+            }
+          : view,
+      ),
+      screens: [
+        {
+          key: "home",
+          ...taskScreen({
+            layout: {
+              type: "stack",
+              sections: [
+                {
+                  id: "tasks",
+                  type: "collection",
+                  view: "taskHome",
+                  query: "tasksForProject",
+                },
+              ],
+            },
+          }),
+        },
+      ],
+      navigation: {
+        primaryScreens: [{ screen: "home", badge: { type: "queryCount", section: "tasks" } }],
+      },
+    };
+
+    expect(() => parseAppSchema(schema)).toThrow(
+      'Schema navigation primaryScreens[0] badge query "tasksForProject" must not require context.',
+    );
   });
 
   it("parses runtime-owned screens without projecting workspace data", () => {

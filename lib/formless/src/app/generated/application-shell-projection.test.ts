@@ -24,6 +24,8 @@ import {
   resolveGeneratedApplicationShellIntent,
 } from "./generated-application-shell-contract-host.ts";
 
+const EMPTY_REPLICA_SNAPSHOT = { recordIdsByEntity: {}, recordsById: {} };
+
 describe("generated application shell projection", () => {
   it("selects the Program shell from profile and current route", () => {
     const instance = createInstanceRuntimeProfile();
@@ -95,6 +97,7 @@ describe("generated application shell projection", () => {
         currentPath: "/people/access",
         programSchema,
         runtimeProfile,
+        snapshot: EMPTY_REPLICA_SNAPSHOT,
       }),
     );
     const destinations = required(
@@ -238,6 +241,7 @@ describe("generated application shell projection", () => {
           authorizedProgramScreenPaths: ["/settings/routes"],
           currentPath: "/settings/routes",
           runtimeProfile: createInstanceRuntimeProfile(),
+          snapshot: EMPTY_REPLICA_SNAPSHOT,
           sync: {
             cursor: 27,
             lastSyncedAt: "2026-07-16T01:00:00.000Z",
@@ -267,6 +271,7 @@ describe("generated application shell projection", () => {
         authorizedProgramScreenPaths: FORMLESS_PROGRAM_SCREEN_PATHS,
         currentPath: "/settings/routes",
         runtimeProfile,
+        snapshot: EMPTY_REPLICA_SNAPSHOT,
       }),
     );
     const accessProjection = required(
@@ -274,6 +279,7 @@ describe("generated application shell projection", () => {
         authorizedProgramScreenPaths: FORMLESS_PROGRAM_SCREEN_PATHS,
         currentPath: "/settings/access",
         runtimeProfile,
+        snapshot: EMPTY_REPLICA_SNAPSHOT,
       }),
     );
 
@@ -341,6 +347,7 @@ describe("generated application shell projection", () => {
         authorizedProgramScreenPaths: ["/settings/access"],
         currentPath: "/settings/access",
         runtimeProfile,
+        snapshot: EMPTY_REPLICA_SNAPSHOT,
       }),
     );
     const programSection = required(
@@ -354,6 +361,94 @@ describe("generated application shell projection", () => {
         selected: destination.selected,
       })),
     ).toEqual([{ href: "/settings/access", label: "Access", selected: true }]);
+  });
+
+  it("projects ordered direct and labelled sections while omitting unauthorized sections", () => {
+    const runtimeProfile = createInstanceRuntimeProfile();
+    const authorizedProgramScreenPaths = [
+      "/tasks",
+      "/site/settings",
+      "/site/contacts",
+      "/settings/access",
+    ];
+    const flat = required(
+      projectGeneratedApplicationShell({
+        authorizedProgramScreenPaths,
+        currentPath: "/site/settings",
+        programSchema: sectionedProgramScreenSchema(false),
+        runtimeProfile,
+        snapshot: EMPTY_REPLICA_SNAPSHOT,
+      }),
+    );
+    const flatProgramSections = flat.sections.filter((section) => section.role === "program");
+
+    expect(
+      flatProgramSections.map((section) => ({
+        destinations: section.destinations.map((destination) => ({
+          href: destination.kind === "shellLinkDestination" ? destination.href : undefined,
+          selected: destination.selected,
+        })),
+        id: section.id,
+        label: section.label,
+      })),
+    ).toEqual([
+      {
+        destinations: [{ href: "/tasks", selected: false }],
+        id: "application-shell:program:direct:taskHome",
+        label: undefined,
+      },
+      {
+        destinations: [{ href: "/site/settings", selected: true }],
+        id: "application-shell:program:section:siteOperations",
+        label: "Site operations",
+      },
+      {
+        destinations: [{ href: "/site/contacts", selected: false }],
+        id: "application-shell:program:direct:siteContacts",
+        label: undefined,
+      },
+      {
+        destinations: [{ href: "/settings/access", selected: false }],
+        id: "application-shell:program:direct:access",
+        label: undefined,
+      },
+    ]);
+    expect(flat.manifest.activeDestination).toEqual({
+      destinationId: "program:siteSettings",
+      sectionId: "application-shell:program:section:siteOperations",
+    });
+    expect(
+      flatProgramSections.find(
+        (section) => section.id === "application-shell:program:section:siteOperations",
+      ),
+    ).toMatchObject({ icon: "archive", label: "Site operations" });
+    expect(JSON.stringify(flatProgramSections)).not.toContain("Unavailable administration");
+
+    const grouped = required(
+      projectGeneratedApplicationShell({
+        authorizedProgramScreenPaths,
+        currentPath: "/site/settings",
+        programSchema: sectionedProgramScreenSchema(true),
+        runtimeProfile,
+        snapshot: EMPTY_REPLICA_SNAPSHOT,
+      }),
+    );
+    const groupedProgramSections = grouped.sections.filter((section) => section.role === "program");
+    const groupedWorkspaceSwitcher = required(
+      grouped.sections.find((section) => section.role === "workspaceSwitcher"),
+    );
+
+    expect(grouped.manifest.title).toBe("Content");
+    expect(groupedProgramSections.map((section) => section.id)).toEqual([
+      "application-shell:program:direct:taskHome",
+      "application-shell:program:section:siteOperations",
+      "application-shell:program:direct:siteContacts",
+    ]);
+    expect(groupedWorkspaceSwitcher.destinations).toEqual([
+      expect.objectContaining({ href: "/tasks", label: "Content", selected: true }),
+      expect.objectContaining({ href: "/settings/access", label: "Instance", selected: false }),
+    ]);
+    expect(JSON.stringify(groupedWorkspaceSwitcher)).not.toContain("Unavailable workspace");
   });
 
   it("projects ordered authorized workspaces from the resolved stable screen key", () => {
@@ -372,6 +467,7 @@ describe("generated application shell projection", () => {
         currentPath: "/tasks/settings",
         programSchema,
         runtimeProfile,
+        snapshot: EMPTY_REPLICA_SNAPSHOT,
       }),
     );
     const workspaceSwitcher = required(
@@ -409,6 +505,7 @@ describe("generated application shell projection", () => {
         currentPath: "/site/settings",
         programSchema,
         runtimeProfile,
+        snapshot: EMPTY_REPLICA_SNAPSHOT,
       }),
     );
     const ungroupedSwitcher = required(
@@ -436,6 +533,7 @@ describe("generated application shell projection", () => {
         currentPath: "/tasks",
         accountSession: { authenticated: false, setupComplete: true },
         runtimeProfile: createInstanceRuntimeProfile(),
+        snapshot: EMPTY_REPLICA_SNAPSHOT,
       }),
     );
     const session = required(
@@ -610,6 +708,7 @@ function completeProjection(): GeneratedApplicationShellProjection {
         today: "2026-07-16",
       },
       runtimeProfile: createInstanceRuntimeProfile(),
+      snapshot,
       sync: {
         cursor: 27,
         lastSyncedAt: "2026-07-16T01:00:00.000Z",
@@ -677,6 +776,41 @@ function groupedProgramScreenSchema(): AppSchema {
     screens: formlessProgramSchema.screens.map((screen) =>
       screen.key === "access" ? { ...screen, path: "/tasks/settings" } : screen,
     ),
+  };
+}
+
+function sectionedProgramScreenSchema(grouped: boolean): AppSchema {
+  const contentScreens = [
+    "taskHome",
+    {
+      key: "siteOperations",
+      label: "Site operations",
+      icon: "archive" as const,
+      screens: ["siteEditor", "siteSettings"],
+    },
+    "siteContacts",
+    {
+      key: "unavailableAdministration",
+      label: "Unavailable administration",
+      screens: ["routes"],
+    },
+  ];
+
+  return {
+    ...formlessProgramSchema,
+    navigation: grouped
+      ? {
+          groups: [
+            { key: "content", label: "Content", screens: contentScreens },
+            { key: "instance", label: "Instance", screens: ["access"] },
+            {
+              key: "unavailable",
+              label: "Unavailable workspace",
+              screens: ["siteSubscribers"],
+            },
+          ],
+        }
+      : { primaryScreens: [...contentScreens, "access"] },
   };
 }
 

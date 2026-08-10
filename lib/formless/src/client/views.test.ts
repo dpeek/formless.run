@@ -2844,6 +2844,69 @@ describe("home view model collections", () => {
     });
   });
 
+  it("binds each screen section to its declared query without changing unbound views", () => {
+    const baseScreen = appSchema.screens[0];
+    if (baseScreen?.type !== "workspace") {
+      throw new Error("Missing task workspace screen.");
+    }
+    const baseSection = baseScreen.layout.sections[0]!;
+    const schema: AppSchema = {
+      ...appSchema,
+      navigation: { primaryScreens: ["activeTasks", "completedTasks", "allTasks"] },
+      screens: [
+        {
+          ...baseScreen,
+          key: "activeTasks",
+          label: "Active tasks",
+          path: "/active",
+          layout: {
+            ...baseScreen.layout,
+            sections: [{ ...baseSection, query: "taskActive" }],
+          },
+        },
+        {
+          ...baseScreen,
+          key: "completedTasks",
+          label: "Completed tasks",
+          path: "/completed",
+          layout: {
+            ...baseScreen.layout,
+            sections: [{ ...baseSection, query: "taskCompleted" }],
+          },
+        },
+        {
+          ...baseScreen,
+          key: "allTasks",
+          label: "All tasks",
+          path: "/",
+        },
+      ],
+    };
+
+    const [active, completed, unbound] = selectPrimaryScreenModels(schema);
+
+    expect(active?.layout.sections[0]?.collection.queries).toMatchObject({
+      defaultQueryName: "taskActive",
+      defaultTab: { queryName: "taskActive" },
+      tabs: [{ queryName: "taskActive" }],
+    });
+    expect(completed?.layout.sections[0]?.collection.queries).toMatchObject({
+      defaultQueryName: "taskCompleted",
+      defaultTab: { queryName: "taskCompleted" },
+      tabs: [{ queryName: "taskCompleted" }],
+    });
+    expect(unbound?.layout.sections[0]?.collection.queries).toMatchObject({
+      defaultQueryName: "taskAll",
+      tabs: [
+        { queryName: "taskAll" },
+        { queryName: "taskActive" },
+        { queryName: "taskCompleted" },
+        { queryName: "taskOverdue" },
+      ],
+    });
+    expect(selectCollectionModels(schema)[0]?.queryTabs).toHaveLength(4);
+  });
+
   it("selects the unified route control-plane surface without route filter tabs", () => {
     const schema = parseAppSchema(instanceControlPlaneSchema);
     const routes = selectScreenModelByPath(schema, "/routes");

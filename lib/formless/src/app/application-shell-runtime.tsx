@@ -214,6 +214,7 @@ function ApplicationShellRuntime({
             today: todayDateString(),
           },
     runtimeProfile,
+    snapshot,
     sync: programRoute
       ? {
           cursor: snapshot.cursor,

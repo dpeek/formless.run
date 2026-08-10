@@ -1,4 +1,5 @@
 import {
+  flattenAppNavigationScreenKeys,
   isValidStoredFieldValue,
   stringifySchema,
   type AccessRequirement,
@@ -233,9 +234,10 @@ function resolveFormlessProgramScreenPath(
   }
 
   const primaryScreenKeys =
-    schema.navigation?.groups?.flatMap((group) => group.screens) ??
-    schema.navigation?.primaryScreens ??
-    schema.screens.map((candidate) => candidate.key);
+    schema.navigation?.groups?.flatMap((group) => flattenAppNavigationScreenKeys(group.screens)) ??
+    (schema.navigation?.primaryScreens === undefined
+      ? schema.screens.map((candidate) => candidate.key)
+      : flattenAppNavigationScreenKeys(schema.navigation.primaryScreens));
   const firstPathlessScreenKey = primaryScreenKeys.find(
     (candidateKey) =>
       schema.screens.find((candidate) => candidate.key === candidateKey)?.path === undefined,

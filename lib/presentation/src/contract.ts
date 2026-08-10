@@ -16,6 +16,7 @@ import type {
   PublicSafeOperationInputField,
   QueryEvaluationContext,
   RecordValues,
+  SemanticIconId as SchemaSemanticIconId,
   StateMachineSchema,
   StateMachineTransitionSchema,
   TableColumnFormat,
@@ -576,31 +577,7 @@ export type OperationInvocationSource =
   | "menuItem"
   | "submitButton";
 
-export type SemanticIconId =
-  | "add"
-  | "archive"
-  | "calendar"
-  | "close"
-  | "confirm"
-  | "copy"
-  | "delete"
-  | "disclosure"
-  | "disclosureDown"
-  | "dragHandle"
-  | "edit"
-  | "indeterminate"
-  | "loading"
-  | "menu"
-  | "next"
-  | "previous"
-  | "publish"
-  | "remove"
-  | "select"
-  | "selectDown"
-  | "sort"
-  | "sync"
-  | "treeDisclosure"
-  | "upload";
+export type SemanticIconId = SchemaSemanticIconId;
 
 export type ActionIntent = "neutral" | "primary" | "success" | "warning" | "danger";
 
@@ -2025,6 +2002,7 @@ export type ShellNavigationSectionContract = {
   accessibilityLabel: string;
   createSurface?: CreateSurfaceContract;
   destinations: readonly ShellDestinationContract[];
+  icon?: SemanticIconId;
   id: string;
   kind: "shellNavigationSection";
   label?: string;

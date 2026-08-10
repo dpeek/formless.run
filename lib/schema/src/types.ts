@@ -948,13 +948,60 @@ export type CollectionViewSchemaSource = Omit<CollectionViewSchema, "context" | 
   operations?: CollectionOperationBindingSchemaSource[];
 };
 export type ViewSchemaSource = CollectionViewSchemaSource | CreateViewSchema | EditViewSchema;
+/** Stable renderer-neutral icon identities accepted by portable navigation. */
+export const semanticIconIds = [
+  "add",
+  "archive",
+  "calendar",
+  "close",
+  "confirm",
+  "copy",
+  "delete",
+  "disclosure",
+  "disclosureDown",
+  "dragHandle",
+  "edit",
+  "indeterminate",
+  "loading",
+  "menu",
+  "next",
+  "previous",
+  "publish",
+  "remove",
+  "select",
+  "selectDown",
+  "sort",
+  "sync",
+  "treeDisclosure",
+  "upload",
+] as const;
+export type SemanticIconId = (typeof semanticIconIds)[number];
+export type AppNavigationQueryCountBadgeSchema = {
+  type: "queryCount";
+  section: string;
+};
+export type AppNavigationScreenReferenceSchema =
+  | string
+  | {
+      screen: string;
+      badge: AppNavigationQueryCountBadgeSchema;
+    };
+export type AppNavigationSectionSchema = {
+  key: string;
+  label: string;
+  icon?: SemanticIconId;
+  screens: AppNavigationScreenReferenceSchema[];
+};
+export type AppNavigationEntrySchema =
+  | AppNavigationScreenReferenceSchema
+  | AppNavigationSectionSchema;
 export type AppNavigationGroupSchema = {
   label: string;
-  screens: string[];
+  screens: AppNavigationEntrySchema[];
 };
 export type AppNavigationSchema =
   | {
-      primaryScreens?: string[];
+      primaryScreens?: AppNavigationEntrySchema[];
       groups?: never;
     }
   | {
@@ -964,7 +1011,7 @@ export type AppNavigationSchema =
 export type AppNavigationGroupSchemaSource = AppNavigationGroupSchema;
 export type AppNavigationSchemaSource =
   | {
-      primaryScreens?: string[];
+      primaryScreens?: AppNavigationEntrySchema[];
       groups?: never;
     }
   | {
@@ -976,6 +1023,7 @@ export type CollectionScreenSectionSchema = {
   type: "collection";
   view: string;
   label?: string;
+  query?: string;
 };
 
 export type ScreenSectionSchema = CollectionScreenSectionSchema;

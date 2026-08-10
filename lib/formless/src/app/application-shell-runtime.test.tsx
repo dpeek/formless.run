@@ -3,6 +3,7 @@
 import { act, render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { useState, type ReactNode } from "react";
+import type { AppSchema } from "@dpeek/formless-schema";
 import type {
   DocumentThemeContract,
   ShellNavigationSectionReference,
@@ -11,7 +12,7 @@ import type { PresentationHost } from "@dpeek/formless-presentation/host";
 import { documentThemeReference, shellManifestReference } from "@dpeek/formless-presentation/host";
 import { usePresentationHost } from "@dpeek/formless-presentation/host/react";
 import type { StoredRecord } from "@dpeek/formless-storage";
-import { applyBootstrapResponse, resetClientStore } from "../client/store.ts";
+import { applyBootstrapResponse, applyChanges, resetClientStore } from "../client/store.ts";
 import { resetSyncStatus } from "../client/sync-status.ts";
 import type { HomeScreenModel } from "../client/views.ts";
 import { bootstrapResponse } from "../test/protocol-builders.ts";
@@ -23,6 +24,7 @@ import {
   useHomeRouteSelectionStore,
 } from "./routes/home-selection.tsx";
 import { createInstanceRuntimeProfile } from "./runtime-profile.ts";
+import type { ApplicationRuntimeContractContribution } from "./generated/application-runtime-contract-host.tsx";
 import type {
   AccountSessionStatusResponse,
   ProgramSessionResponse,
@@ -323,6 +325,78 @@ describe("application shell runtime boundary", () => {
     renderer.unmount();
   });
 
+  it("refreshes Program query-count badges from replica changes without query selection", () => {
+    const programSchema = queryBadgeProgramSchema();
+    applyBootstrapResponse(bootstrapResponse(programSchema, [taskRecord("task-active", false)]));
+    const querySelectionDispatches: string[] = [];
+    const initialRouteContractContributions: ApplicationRuntimeContractContribution[] = [
+      [
+        "query-selection-probe",
+        {
+          intentHandlers: [
+            {
+              dispatch: (intent) => {
+                querySelectionDispatches.push(intent.type);
+              },
+              matches: (intent) => intent.type === "workspaceQuerySelection",
+            },
+          ],
+          nodes: [],
+        },
+      ],
+    ];
+    let host: PresentationHost | undefined;
+
+    function HostProbe() {
+      host = usePresentationHost();
+      return null;
+    }
+
+    const renderer = render(
+      <ApplicationShellRuntimeBoundary
+        accountSession={{ authenticated: false, setupComplete: true }}
+        currentPath="/tasks"
+        initialRouteContractContributions={initialRouteContractContributions}
+        programSchema={programSchema}
+        programSession={readyProgramSession("member", "authenticated")}
+        runtimeProfile={createInstanceRuntimeProfile()}
+        screenModels={[]}
+      >
+        <HostProbe />
+      </ApplicationShellRuntimeBoundary>,
+    );
+
+    const initialHost = required(host);
+    const initialDestination = programLinkDestination(initialHost, "/tasks");
+    expect(initialDestination.countText).toBe("0");
+    expect(initialDestination).not.toHaveProperty("selectionIntent");
+    expect(JSON.stringify(initialDestination)).not.toContain("taskCompleted");
+
+    const completed = taskRecord("task-completed", true);
+    act(() => {
+      applyChanges(
+        [
+          {
+            createdAt: completed.createdAt,
+            entity: completed.entity,
+            operationKind: "create",
+            payload: completed,
+            recordId: completed.id,
+            seq: 2,
+            writeId: "write:task-completed",
+          },
+        ],
+        2,
+      );
+    });
+
+    expect(host).toBe(initialHost);
+    expect(programLinkDestination(initialHost, "/tasks").countText).toBe("1");
+    expect(querySelectionDispatches).toEqual([]);
+
+    renderer.unmount();
+  });
+
   it("projects Program navigation from ready caller facts and the bound route floor", () => {
     const runtimeProfile = createInstanceRuntimeProfile();
     let host: PresentationHost | undefined;
@@ -416,6 +490,69 @@ function programDestinationPaths(host: PresentationHost): string[] {
 
     return destination.href;
   });
+}
+
+function programLinkDestination(host: PresentationHost, href: string) {
+  const destination = readSections(host)
+    .filter((section) => section.role === "program")
+    .flatMap((section) => section.destinations)
+    .find((candidate) => candidate.kind === "shellLinkDestination" && candidate.href === href);
+
+  if (destination?.kind !== "shellLinkDestination") {
+    throw new Error(`Expected Program destination "${href}".`);
+  }
+
+  return destination;
+}
+
+function queryBadgeProgramSchema(): AppSchema {
+  return {
+    ...formlessProgramSchema,
+    navigation: {
+      groups: required(formlessProgramSchema.navigation?.groups).map((group) =>
+        group.key === "tasks"
+          ? {
+              ...group,
+              screens: [
+                {
+                  key: "taskStatuses",
+                  label: "Task statuses",
+                  screens: [
+                    {
+                      badge: { section: "tasks", type: "queryCount" },
+                      screen: "taskHome",
+                    },
+                  ],
+                },
+              ],
+            }
+          : group,
+      ),
+    },
+    screens: formlessProgramSchema.screens.map((screen) =>
+      screen.key === "taskHome" && screen.type === "workspace"
+        ? {
+            ...screen,
+            layout: {
+              ...screen.layout,
+              sections: screen.layout.sections.map((section) =>
+                section.id === "tasks" ? { ...section, query: "taskCompleted" } : section,
+              ),
+            },
+          }
+        : screen,
+    ),
+  };
+}
+
+function taskRecord(id: string, done: boolean): StoredRecord {
+  return {
+    createdAt: "2026-08-10T04:00:00.000Z",
+    entity: "task",
+    id,
+    updatedAt: "2026-08-10T04:00:00.000Z",
+    values: { done, title: id },
+  };
 }
 
 function rootScreenFixture(): HomeScreenModel {

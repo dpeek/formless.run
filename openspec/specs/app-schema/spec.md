@@ -1072,7 +1072,8 @@ The system SHALL require app schemas to define one or more screens that own
 app-relative navigation, SHALL let generated workspace screens compose
 collection views, SHALL let runtime-owned screens bind custom presentation by
 stable screen key, and SHALL let a composition root present selected screens
-through either flat or grouped navigation.
+through either flat or grouped navigation whose ordered screen lists may
+contain one level of destination-less labelled sections.
 
 #### Scenario: Root screen fallback
 
@@ -1081,9 +1082,9 @@ through either flat or grouped navigation.
 - THEN omitted `navigation.primaryScreens` selects every screen in declaration
   order
 - AND a declared `navigation.primaryScreens` array selects and orders its
-  referenced screen subset
+  referenced screen subset, including screens nested in navigation sections
 - AND declared `navigation.groups` selects screens in group order and nested
-  screen order
+  navigation-entry order
 - AND the first selected pathless screen receives the app-relative `/` path
 - AND every navigation reference resolves to a declared screen
 
@@ -1092,7 +1093,7 @@ through either flat or grouped navigation.
 - GIVEN an app schema declares `navigation.groups`
 - WHEN the complete schema is parsed
 - THEN every group has a unique non-empty key, a non-empty label, and a
-  non-empty ordered array of declared screen keys
+  non-empty ordered array of screen or navigation-section entries
 - AND a screen may appear in at most one navigation group
 - AND screens omitted from every group remain outside primary navigation
 - AND an omitted screen with an explicit path remains directly routeable under
@@ -1102,11 +1103,43 @@ through either flat or grouped navigation.
 - AND `navigation.groups` and `navigation.primaryScreens` are mutually
   exclusive so membership and order have one source
 
+#### Scenario: Parse one-level screen navigation sections
+
+- GIVEN a flat primary-screen list or grouped workspace screen list contains a
+  navigation section
+- WHEN the complete schema is parsed
+- THEN the section has a stable non-empty key, non-empty label, optional
+  renderer-neutral semantic icon id, and a non-empty ordered screen list
+- AND the section is presentation-only and has no path, destination, route
+  admission, selection state, storage identity, or Program boundary
+- AND ordinary screen entries before and after the section retain their exact
+  order with the section's child screens
+- AND a child screen may use its string key shorthand or an object reference
+  carrying navigation presentation
+- AND section children are only screen references, so another section cannot
+  be nested below them
+- AND section keys are unique within their containing screen list and screen
+  keys remain unique across the complete primary navigation selection
+
+#### Scenario: Declare a screen query-count badge
+
+- GIVEN a navigation screen reference requests a `queryCount` badge for one
+  named collection section on that workspace screen
+- WHEN the complete schema is parsed
+- THEN the named screen section exists and binds one declared query from its
+  referenced collection view
+- AND the bound query can be evaluated without interactive context values
+- AND the badge declaration remains portable navigation presentation rather
+  than a stored count, read-model record, query expression, or route parameter
+- AND a badge on a runtime-owned screen, missing section, unbound section,
+  context-dependent query, or undeclared query is rejected
+
 #### Scenario: Reject invalid grouped navigation
 
 - GIVEN grouped navigation contains a duplicate group key, empty label, empty
-  screen array, undeclared screen key, duplicate screen within or across
-  groups, or a simultaneous `primaryScreens` declaration
+  screen array, invalid navigation section, undeclared screen key, duplicate
+  screen within or across groups or sections, or a simultaneous
+  `primaryScreens` declaration
 - WHEN the schema is parsed
 - THEN parsing fails
 - AND invalid grouped navigation is not materialized, hashed, or exposed to
@@ -1122,7 +1155,7 @@ through either flat or grouped navigation.
 #### Scenario: Reject invalid primary screen selection
 
 - GIVEN `navigation.primaryScreens` contains a duplicate or undeclared screen
-  key
+  key directly or within a navigation section
 - WHEN the schema is parsed
 - THEN parsing fails
 - AND invalid navigation is not exposed to generated UI
@@ -1140,6 +1173,21 @@ through either flat or grouped navigation.
 - WHEN the schema is parsed
 - THEN each section references an existing collection view
 - AND valid sections are available in schema order
+
+#### Scenario: Bind a screen section to one collection query
+
+- GIVEN a workspace screen collection section declares a query binding
+- WHEN the schema is parsed
+- THEN the query is one of the referenced collection view's declared query
+  slots
+- AND the screen section is bound to that one query rather than inheriting the
+  collection view's default query and query navigation
+- AND another screen may reuse the same collection view with a different bound
+  query without duplicating the view, result, fields, or query expression
+- AND omission retains the collection view's existing default-query and query-
+  navigation behavior
+- AND an undeclared query or query outside the referenced collection view is
+  rejected
 
 #### Scenario: Declare runtime-owned screen presentation
 

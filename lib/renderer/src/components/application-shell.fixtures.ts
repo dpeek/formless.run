@@ -169,9 +169,11 @@ function programWorkspacesShell(): FormlessApplicationShellFixtureState {
     section("program", "program", {
       accessibilityLabel: "Tasks screens",
       destinations: [
-        shellLink("program:tasks", "Tasks", "/tasks", true),
+        { ...shellLink("program:tasks", "Tasks", "/tasks", true), countText: "0" },
         shellLink("program:overdue", "Overdue", "/tasks/overdue"),
       ],
+      icon: "archive",
+      label: "Task workflow",
     }),
     sessionSection(),
   ];
@@ -386,7 +388,13 @@ function section(
   options: Partial<
     Pick<
       ShellNavigationSectionContract,
-      "accessibilityLabel" | "createSurface" | "destinations" | "label" | "session" | "status"
+      | "accessibilityLabel"
+      | "createSurface"
+      | "destinations"
+      | "icon"
+      | "label"
+      | "session"
+      | "status"
     >
   > = {},
 ): ShellNavigationSectionContract {
@@ -400,6 +408,7 @@ function section(
     role,
     shellId,
     ...(options.createSurface ? { createSurface: options.createSurface } : {}),
+    ...(options.icon ? { icon: options.icon } : {}),
     ...(options.label ? { label: options.label } : {}),
     ...(options.session ? { session: options.session } : {}),
     ...(options.status ? { status: options.status } : {}),

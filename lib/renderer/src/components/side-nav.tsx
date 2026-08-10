@@ -31,6 +31,7 @@ import {
   useShellNavigationSection,
 } from "@dpeek/formless-presentation/host/react";
 import { AstryxCreateSurfaceRenderer } from "./create-renderer.tsx";
+import { semanticIcon } from "./semantic-icon.tsx";
 
 type AstryxShellSectionSlot = "navigation" | "session" | "status" | "workspaceSwitcher";
 
@@ -286,7 +287,7 @@ function AstryxWorkspaceSwitcherSection({ section }: { section: ShellNavigationS
               {destination.label}
             </span>
           </Text>
-          {destination.countText ? (
+          {destination.countText !== undefined ? (
             <Badge
               aria-label={`${destination.accessibilityLabel} count`}
               label={destination.countText}
@@ -309,14 +310,19 @@ function AstryxShellNavigationSection({
   return (
     <SideNavSection
       endContent={
-        section.createSurface ? (
-          <AstryxCreateSurfaceRenderer
-            onFieldIntent={(fieldId, intent) =>
-              onIntent(astryxApplicationShellCreateIntent(section, intent, fieldId))
-            }
-            onIntent={(intent) => onIntent(astryxApplicationShellCreateIntent(section, intent))}
-            surface={section.createSurface}
-          />
+        section.icon !== undefined || section.createSurface !== undefined ? (
+          <HStack align="center" gap={1}>
+            {section.icon === undefined ? null : semanticIcon(section.icon)}
+            {section.createSurface ? (
+              <AstryxCreateSurfaceRenderer
+                onFieldIntent={(fieldId, intent) =>
+                  onIntent(astryxApplicationShellCreateIntent(section, intent, fieldId))
+                }
+                onIntent={(intent) => onIntent(astryxApplicationShellCreateIntent(section, intent))}
+                surface={section.createSurface}
+              />
+            ) : null}
+          </HStack>
         ) : undefined
       }
       isHeaderHidden={section.label === undefined}
@@ -346,7 +352,7 @@ function AstryxShellDestination({
     <VStack gap={supportingText ? 0.5 : 0} width="100%">
       <SideNavItem
         endContent={
-          destination.countText ? (
+          destination.countText !== undefined ? (
             <Badge
               aria-label={`${destination.accessibilityLabel} count`}
               label={destination.countText}

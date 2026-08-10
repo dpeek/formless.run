@@ -7,9 +7,17 @@ import type {
   ShellSyncStatusContract,
   ShellWorkspaceSaveStatusContract,
 } from "@dpeek/formless-presentation/contract";
-import type { AppSchema } from "@dpeek/formless-schema";
+import {
+  appNavigationScreenReferenceKey,
+  flattenAppNavigationScreenKeys,
+  getAppSchemaDefinitionIndex,
+  type AppNavigationEntrySchema,
+  type AppNavigationScreenReferenceSchema,
+  type AppSchema,
+} from "@dpeek/formless-schema";
 import { shellNavigationSectionReference } from "@dpeek/formless-presentation/host";
 import {
+  createEntityRecordCountMatchingQuerySelector,
   createEntityRecordIdsMatchingQuerySelector,
   createEntityRecordCountReferencingFieldSelector,
   createEntityRecordOptionsMatchingQuerySelector,
@@ -69,6 +77,7 @@ export type ProjectGeneratedApplicationShellOptions = {
   programSchema?: AppSchema | undefined;
   root?: GeneratedShellRootProjectionInput | undefined;
   runtimeProfile: RuntimeProfile;
+  snapshot: BrowserReplicaProjectionSnapshot;
   sync?: GeneratedShellSyncFacts | undefined;
   workspaceSave?: ShellWorkspaceSaveStatusContract | undefined;
 };
@@ -356,6 +365,7 @@ export function projectGeneratedApplicationShell({
   programSchema = formlessProgramSchema,
   root,
   runtimeProfile,
+  snapshot,
   sync,
   workspaceSave,
 }: ProjectGeneratedApplicationShellOptions): GeneratedApplicationShellProjection | undefined {
@@ -375,6 +385,7 @@ export function projectGeneratedApplicationShell({
       selectedProgramScreen.key,
       authorizedProgramScreenPaths,
       programSchema,
+      snapshot,
     );
     sections.push(...programNavigation.sections);
     title = programNavigation.title;
@@ -442,6 +453,7 @@ function programNavigationSections(
   selectedScreenKey: string,
   authorizedProgramScreenPaths: readonly string[],
   programSchema: AppSchema,
+  snapshot: BrowserReplicaProjectionSnapshot,
 ): {
   sections: ShellNavigationSectionContract[];
   title: string;
@@ -450,38 +462,40 @@ function programNavigationSections(
 
   if (groups === undefined) {
     return {
-      sections: [
-        programSection(
-          programSchema.navigation?.primaryScreens ??
-            programSchema.screens.map((screen) => screen.key),
-          selectedScreenKey,
-          authorizedProgramScreenPaths,
-          programSchema,
-        ),
-      ],
+      sections: programSections(
+        programSchema.navigation?.primaryScreens ??
+          programSchema.screens.map((screen) => screen.key),
+        selectedScreenKey,
+        authorizedProgramScreenPaths,
+        programSchema,
+        snapshot,
+      ),
       title: "Formless Program",
     };
   }
 
-  const activeGroup = groups.find((group) => group.screens.includes(selectedScreenKey));
+  const activeGroup = groups.find((group) =>
+    flattenAppNavigationScreenKeys(group.screens).includes(selectedScreenKey),
+  );
   const sections = [
     workspaceSwitcherSection(
       groups.map((group) => ({
         key: group.key,
         label: group.label,
         screens: authorizedProgramScreens(
-          group.screens,
+          flattenAppNavigationScreenKeys(group.screens),
           authorizedProgramScreenPaths,
           programSchema,
         ),
         selected: group.key === activeGroup?.key,
       })),
     ),
-    programSection(
+    ...programSections(
       activeGroup?.screens ?? [selectedScreenKey],
       selectedScreenKey,
       authorizedProgramScreenPaths,
       programSchema,
+      snapshot,
     ),
   ];
 
@@ -526,39 +540,175 @@ function workspaceSwitcherSection(
   };
 }
 
-function programSection(
-  screenKeys: readonly string[],
+function programSections(
+  entries: readonly AppNavigationEntrySchema[],
   selectedScreenKey: string,
   authorizedProgramScreenPaths: readonly string[],
   programSchema: AppSchema,
+  snapshot: BrowserReplicaProjectionSnapshot,
+): ShellNavigationSectionContract[] {
+  const hasDeclaredSections = entries.some(isAppNavigationSection);
+  const descriptors: {
+    icon?: ShellNavigationSectionContract["icon"];
+    id: string;
+    label?: string;
+    screens: readonly AppNavigationScreenReferenceSchema[];
+  }[] = [];
+  let directScreens: AppNavigationScreenReferenceSchema[] = [];
+
+  const flushDirectScreens = () => {
+    const firstScreen = directScreens[0];
+    if (firstScreen === undefined) {
+      return;
+    }
+
+    descriptors.push({
+      id: hasDeclaredSections
+        ? `${GENERATED_APPLICATION_SHELL_ID}:program:direct:${appNavigationScreenReferenceKey(firstScreen)}`
+        : `${GENERATED_APPLICATION_SHELL_ID}:program`,
+      screens: directScreens,
+    });
+    directScreens = [];
+  };
+
+  for (const entry of entries) {
+    if (isAppNavigationSection(entry)) {
+      flushDirectScreens();
+      descriptors.push({
+        ...(entry.icon === undefined ? {} : { icon: entry.icon }),
+        id: `${GENERATED_APPLICATION_SHELL_ID}:program:section:${entry.key}`,
+        label: entry.label,
+        screens: entry.screens,
+      });
+    } else {
+      directScreens.push(entry);
+    }
+  }
+  flushDirectScreens();
+
+  const sections = descriptors.flatMap((descriptor) => {
+    const section = programSection(
+      descriptor,
+      selectedScreenKey,
+      authorizedProgramScreenPaths,
+      programSchema,
+      snapshot,
+    );
+
+    return section.destinations.length === 0 ? [] : [section];
+  });
+
+  return sections.length > 0
+    ? sections
+    : [
+        programSection(
+          { id: `${GENERATED_APPLICATION_SHELL_ID}:program`, screens: [] },
+          selectedScreenKey,
+          authorizedProgramScreenPaths,
+          programSchema,
+          snapshot,
+        ),
+      ];
+}
+
+function isAppNavigationSection(
+  entry: AppNavigationEntrySchema,
+): entry is Extract<AppNavigationEntrySchema, { screens: AppNavigationScreenReferenceSchema[] }> {
+  return typeof entry === "object" && "screens" in entry;
+}
+
+function programSection(
+  descriptor: {
+    icon?: ShellNavigationSectionContract["icon"];
+    id: string;
+    label?: string;
+    screens: readonly AppNavigationScreenReferenceSchema[];
+  },
+  selectedScreenKey: string,
+  authorizedProgramScreenPaths: readonly string[],
+  programSchema: AppSchema,
+  snapshot: BrowserReplicaProjectionSnapshot,
 ): ShellNavigationSectionContract {
-  const destinations = authorizedProgramScreens(
-    screenKeys,
-    authorizedProgramScreenPaths,
-    programSchema,
-  ).map((screen) => ({
-    href: screen.path,
-    id: `program:${screen.key}`,
-    label: screen.label,
-    selected: screen.key === selectedScreenKey,
-  }));
+  const authorizedPaths = new Set(authorizedProgramScreenPaths);
+  const screens = new Map(programSchema.screens.map((screen) => [screen.key, screen]));
+  const destinations = descriptor.screens.flatMap((reference) => {
+    const screen = screens.get(appNavigationScreenReferenceKey(reference));
+
+    if (screen?.path === undefined || !authorizedPaths.has(screen.path)) {
+      return [];
+    }
+
+    return [
+      {
+        ...(typeof reference === "string"
+          ? {}
+          : {
+              countText: selectProgramNavigationBadgeCountText(reference, programSchema, snapshot),
+            }),
+        href: screen.path as `/${string}`,
+        id: `program:${screen.key}`,
+        label: screen.label,
+        selected: screen.key === selectedScreenKey,
+      },
+    ];
+  });
 
   return {
-    accessibilityLabel: "Program navigation",
-    destinations: destinations.map(({ href, id, label, selected }) => ({
+    accessibilityLabel: descriptor.label ?? "Program navigation",
+    destinations: destinations.map(({ countText, href, id, label, selected }) => ({
       accessibilityLabel: label,
       availability: { available: true },
+      ...(countText === undefined ? {} : { countText }),
       href,
       id,
       kind: "shellLinkDestination",
       label,
       selected,
     })),
-    id: `${GENERATED_APPLICATION_SHELL_ID}:program`,
+    ...(descriptor.icon === undefined ? {} : { icon: descriptor.icon }),
+    id: descriptor.id,
     kind: "shellNavigationSection",
+    ...(descriptor.label === undefined ? {} : { label: descriptor.label }),
     role: "program",
     shellId: GENERATED_APPLICATION_SHELL_ID,
   };
+}
+
+function selectProgramNavigationBadgeCountText(
+  reference: Exclude<AppNavigationScreenReferenceSchema, string>,
+  programSchema: AppSchema,
+  snapshot: BrowserReplicaProjectionSnapshot,
+): string {
+  const definitions = getAppSchemaDefinitionIndex(programSchema);
+  const screen = definitions.screens.byKey.get(reference.screen);
+  if (screen?.type !== "workspace") {
+    throw new Error(`Query-count navigation screen "${reference.screen}" must be a workspace.`);
+  }
+
+  const section = screen.layout.sections.find(
+    (candidate) => candidate.id === reference.badge.section,
+  );
+  if (section?.query === undefined) {
+    throw new Error(
+      `Query-count navigation screen "${reference.screen}" section "${reference.badge.section}" must bind a query.`,
+    );
+  }
+
+  const view = definitions.views.byKey.get(section.view);
+  if (view?.type !== "collection") {
+    throw new Error(
+      `Query-count navigation screen "${reference.screen}" section "${reference.badge.section}" must reference a collection view.`,
+    );
+  }
+
+  const query = definitions.queries.byKey.get(section.query);
+  if (query === undefined) {
+    throw new Error(`Query-count navigation query "${section.query}" must exist.`);
+  }
+
+  return formatGeneratedWorkspaceCount(
+    createEntityRecordCountMatchingQuerySelector(view.entity, query.expression)(snapshot),
+  );
 }
 
 function authorizedProgramScreens(

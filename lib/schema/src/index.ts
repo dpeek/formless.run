@@ -46,5 +46,6 @@ export {
   DOCUMENT_ASSET_POLICY_MAX_BYTES,
   documentAssetMimeTypes,
   SCHEMA_PUBLIC_CONTRACT_VERSION,
+  semanticIconIds,
 } from "./types.ts";
 export type * from "./types.ts";

@@ -61,6 +61,19 @@ describe("Astryx application shell renderer", () => {
     );
     const { container } = mountedRenderer;
     expect(new Set(sideNavSectionLabels(container))).toEqual(new Set(["Tasks screens", "Pages"]));
+    const taskSectionLabels = mountedRenderer.getAllByText("Tasks screens");
+    expect(taskSectionLabels.length).toBeGreaterThan(0);
+    expect(taskSectionLabels.every((label) => label.closest("a,button") === null)).toBe(true);
+    expect(
+      taskSectionLabels.every((label) =>
+        label
+          .closest('[role="group"]')
+          ?.querySelector('[data-astryx-source-icon="svg"][aria-hidden="true"]'),
+      ),
+    ).toBe(true);
+    expect(
+      mountedRenderer.getAllByLabelText("Tasks count").map((badge) => badge.textContent),
+    ).toEqual(expect.arrayContaining(["0"]));
     const pages = required(
       container.querySelector<HTMLButtonElement>('button[aria-current="page"]'),
     );
@@ -343,10 +356,15 @@ function shellSections(
     shellSection(sectionReferences.program.sectionId, "program", {
       accessibilityLabel: "Program navigation",
       destinations: [
-        { ...shellLink("program:tasks", "Tasks", "/tasks"), selected: true },
+        {
+          ...shellLink("program:tasks", "Tasks", "/tasks"),
+          countText: "0",
+          selected: true,
+        },
         shellLink("program:overdue", "Overdue", "/tasks/overdue"),
         shellLink("program:settings", "Settings", "/settings"),
       ],
+      icon: "archive",
       label: "Tasks screens",
     }),
     shellSection(sectionReferences.roots.sectionId, "rootRecords", {
@@ -411,7 +429,13 @@ function shellSection(
   options: Partial<
     Pick<
       ShellNavigationSectionContract,
-      "accessibilityLabel" | "createSurface" | "destinations" | "label" | "session" | "status"
+      | "accessibilityLabel"
+      | "createSurface"
+      | "destinations"
+      | "icon"
+      | "label"
+      | "session"
+      | "status"
     >
   > = {},
 ): ShellNavigationSectionContract {
@@ -423,6 +447,7 @@ function shellSection(
     role,
     shellId: shellReference.shellId,
     ...(options.createSurface ? { createSurface: options.createSurface } : {}),
+    ...(options.icon ? { icon: options.icon } : {}),
     ...(options.label ? { label: options.label } : {}),
     ...(options.session ? { session: options.session } : {}),
     ...(options.status ? { status: options.status } : {}),

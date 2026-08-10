@@ -234,7 +234,15 @@ describe("Formless Program runtime contracts", () => {
 
     const runtimeRootSchema: AppSchema = {
       ...formlessProgramSchema,
-      navigation: { primaryScreens: ["access"] },
+      navigation: {
+        primaryScreens: [
+          {
+            key: "administration",
+            label: "Administration",
+            screens: ["access"],
+          },
+        ],
+      },
       screens: formlessProgramSchema.screens
         .filter((screen) => screen.key !== "instanceHome")
         .map((screen) =>

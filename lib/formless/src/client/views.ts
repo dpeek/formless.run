@@ -1,3 +1,4 @@
+import { flattenAppNavigationScreenKeys } from "@dpeek/formless-schema";
 import type {
   AppSchema,
   CollectionNavigationSchema,
@@ -568,9 +569,13 @@ export function selectScreenModels(schema: AppSchema): HomeScreenModel[] {
 
 function selectPrimaryScreenNames(schema: AppSchema): string[] {
   if (schema.navigation?.groups !== undefined) {
-    return schema.navigation.groups.flatMap((group) => group.screens);
+    return schema.navigation.groups.flatMap((group) =>
+      flattenAppNavigationScreenKeys(group.screens),
+    );
   }
-  return schema.navigation?.primaryScreens ?? schema.screens.map(({ key }) => key);
+  return schema.navigation?.primaryScreens === undefined
+    ? schema.screens.map(({ key }) => key)
+    : flattenAppNavigationScreenKeys(schema.navigation.primaryScreens);
 }
 export function selectCollectionModels(schema: AppSchema): HomeViewModel[] {
   const viewEntries: Array<[string, ViewSchema]> = schema.views.map((view) => [view.key, view]);
@@ -628,14 +633,39 @@ function selectScreenModel(
           throw new Error(`Missing collection view model "${section.view}".`);
         }
 
+        const collection = selectScreenSectionCollection(collectionModel.collection, section.query);
+
         return {
           id: section.id,
           type: section.type,
           label: section.label ?? collectionModel.label,
           viewName: section.view,
-          collection: collectionModel.collection,
+          collection,
         };
       }),
+    },
+  };
+}
+
+function selectScreenSectionCollection(
+  collection: HomeCollectionConfig,
+  queryName: string | undefined,
+): HomeCollectionConfig {
+  if (queryName === undefined) {
+    return collection;
+  }
+
+  const query = collection.queries.tabs.find((tab) => tab.queryName === queryName);
+  if (!query) {
+    throw new Error(`Missing screen section query "${queryName}".`);
+  }
+
+  return {
+    ...collection,
+    queries: {
+      tabs: [query],
+      defaultQueryName: queryName,
+      defaultTab: query,
     },
   };
 }

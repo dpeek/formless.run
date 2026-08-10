@@ -278,6 +278,16 @@ The system SHALL render generated screens from screen models and collection sect
 - AND query and context state is keyed by screen and section
 - AND the screen body does not repeat the active screen heading
 
+#### Scenario: Query-bound screen section
+
+- GIVEN a workspace screen collection section binds one declared view query
+- WHEN the screen is opened
+- THEN the section selects that query from the route-owned screen model
+- AND it renders only the bound query without collection query tabs or a
+  navigation-supplied query selection side effect
+- AND revisiting or directly opening the screen path reconstructs the same
+  query result without retained browser selection state
+
 #### Scenario: Generated app navigation
 
 - GIVEN primary screen models are available
@@ -288,8 +298,27 @@ The system SHALL render generated screens from screen models and collection sect
   sidebar screen subset
 - AND declared `navigation.groups` selects ordered workspace and nested screen
   navigation without also consulting `primaryScreens`
+- AND either ordered screen list may interleave ordinary screen destinations
+  with one-level labelled navigation sections containing screen destinations
+- AND a navigation section renders its optional semantic icon and label without
+  becoming a link or destination
 - AND flat navigation uses the app label as the sidebar title while grouped
   navigation uses the selected group's label
+
+#### Scenario: Program navigation query-count badge
+
+- GIVEN an authorized Program navigation screen reference requests a query-
+  count badge from a query-bound collection section
+- WHEN generated runtime projects Program navigation from the current browser
+  replica snapshot
+- THEN it evaluates that section's bound query through the local query-count
+  selector and projects the formatted count onto the screen destination
+- AND zero renders as `0`, committed replica changes update the count through
+  the existing shell subscription, and no count is stored as a Program record
+- AND navigation does not pass, persist, or mutate screen query selection when
+  the destination is opened
+- AND the Presentation contract carries only display-safe count text rather
+  than query identity, expression, context, raw records, or selector behavior
 
 #### Scenario: Authorized Program navigation
 
@@ -306,6 +335,8 @@ The system SHALL render generated screens from screen models and collection sect
   remain owned by the materialized Program schema
 - AND a navigation group with no authorized screen is omitted without exposing
   the labels or paths of its unavailable screens
+- AND a navigation section with no authorized child screen is omitted without
+  exposing its label or semantic icon
 - AND omitted destinations remain unavailable through client-side navigation
   while direct navigation returns the same forbidden outcome
 - AND local client route admission uses the same evaluation as navigation
@@ -975,9 +1006,11 @@ data reads, session behavior, operations, and effects.
   `lib/renderer`
 - **THEN** pure and subscribed renderer entrypoints render the active workspace
   title, an accessible heading-menu workspace switcher when grouped navigation
-  is present, active-group Program screen navigation, root records and create
-  controls, Program Settings destinations, footer sync state, session identity,
-  logout, and the route child without importing generated runtime
+  is present, active-group Program screen navigation with destination-less
+  labelled sections and optional semantic icons, screen query-count badges,
+  root records and create controls, Program Settings destinations, footer sync
+  state, session identity, logout, and the route child without importing
+  generated runtime
 - **AND** the workspace-switcher section renders only in the heading menu while
   ordinary screen sections remain in the navigation body
 - **AND** shell status renders as a compact ghost icon-button utility in the
@@ -1006,10 +1039,11 @@ data reads, session behavior, operations, and effects.
 - **GIVEN** runtime publishes complete production shell contracts
 - **WHEN** shell UX is evaluated with package-local renderer fixtures
 - **THEN** data-only memory-host fixtures cover flat Program destinations,
-  grouped workspace destinations, active-group screens, authorization-filtered
-  and ungrouped screen selection, Site authoring, root records and counts,
-  controlled create, synced, syncing, and error status, authenticated session
-  state, and no-shell selection
+  grouped workspace destinations, one-level labelled screen sections, semantic
+  section icons, screen query-count badges including zero, active-group screens,
+  authorization-filtered and ungrouped screen selection, Site authoring, root
+  records and counts, controlled create, synced, syncing, and error status,
+  authenticated session state, and no-shell selection
 - **AND** fixture reducers may simulate root selection, create, and logout
   intents without importing generated runtime, schemas, routing, browser
   replica, storage, operation controllers, or session clients
