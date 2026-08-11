@@ -404,6 +404,55 @@ describe("schema public operation facts", () => {
     });
   });
 
+  it("projects affirmative constraints from inline boolean input", () => {
+    const schema = publicOperationSchema({
+      submitRequest: {
+        ...publicRecordPlanOperation(),
+        input: {
+          fields: [
+            {
+              key: "ordinaryBoolean",
+              type: "boolean",
+              required: true,
+              label: "Ordinary boolean",
+            },
+            {
+              key: "consent",
+              type: "boolean",
+              required: true,
+              label: "Consent",
+              mustBeTrue: true,
+            },
+          ],
+        },
+      },
+    });
+    const entity = schema.entities.find((definition) => definition.key === "request")!;
+    const operation = entity.operations?.find((definition) => definition.key === "submitRequest");
+    if (!operation) {
+      throw new Error("Expected submitRequest operation.");
+    }
+
+    expect(projectPublicSafeOperationInputFields({ entity, operation })).toEqual({
+      unsupportedRequiredFields: [],
+      fields: [
+        {
+          name: "ordinaryBoolean",
+          label: "Ordinary boolean",
+          required: true,
+          control: "boolean",
+        },
+        {
+          name: "consent",
+          label: "Consent",
+          required: true,
+          mustBeTrue: true,
+          control: "boolean",
+        },
+      ],
+    });
+  });
+
   it("reports unsupported required inputs and omits optional unsupported inputs", () => {
     const schema = publicOperationSchema({
       createRequest: {

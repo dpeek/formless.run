@@ -294,7 +294,13 @@ export function projectPublicSafeOperationInputField(
     );
   }
 
-  return projectScalarPublicSafeOperationInputField(inputName, field.label, field.required, field);
+  return projectScalarPublicSafeOperationInputField(
+    inputName,
+    field.label,
+    field.required,
+    field,
+    field.type === "boolean" ? field.mustBeTrue : undefined,
+  );
 }
 
 function projectScalarPublicSafeOperationInputField(

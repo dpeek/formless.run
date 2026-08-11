@@ -407,7 +407,49 @@ describe("schema entity operations", () => {
     expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
   });
 
-  it("rejects affirmative operation input constraints outside required boolean entity fields", () => {
+  it("parses affirmative inline boolean operation input constraints", () => {
+    const schema = parseAppSchema(
+      schemaWithTaskOperations({
+        submitConsent: {
+          kind: "command",
+          scope: "collection",
+          input: {
+            fields: [
+              {
+                key: "consent",
+                type: "boolean",
+                required: true,
+                mustBeTrue: true,
+              },
+            ],
+          },
+          effect: {
+            type: "operationHandler",
+            handler: "tombstone-query-results",
+            config: { query: "taskCompleted" },
+          },
+        },
+      }),
+    );
+    expect(
+      operation(
+        schema.entities.find((definition) => definition.key === "task")!.operations,
+        "submitConsent",
+      ).input,
+    ).toEqual({
+      fields: [
+        {
+          key: "consent",
+          type: "boolean",
+          required: true,
+          mustBeTrue: true,
+        },
+      ],
+    });
+    expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
+  });
+
+  it("rejects affirmative operation input constraints outside required booleans", () => {
     const invalidCases = [
       {
         field: { field: "title", required: true, mustBeTrue: true },
@@ -422,8 +464,16 @@ describe("schema entity operations", () => {
         message: "mustBeTrue must be true when declared",
       },
       {
-        field: { type: "boolean", required: true, mustBeTrue: true },
+        field: { type: "text", required: true, mustBeTrue: true },
         message: 'has unsupported key "mustBeTrue"',
+      },
+      {
+        field: { type: "boolean", required: false, mustBeTrue: true },
+        message: "mustBeTrue requires required to be true",
+      },
+      {
+        field: { type: "boolean", required: true, mustBeTrue: false },
+        message: "mustBeTrue must be true when declared",
       },
     ];
 

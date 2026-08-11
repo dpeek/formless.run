@@ -372,6 +372,7 @@ export type PublicOperationBooleanInputFieldSchema = {
   type: "boolean";
   required: boolean;
   label?: string;
+  mustBeTrue?: true;
 };
 
 export type PublicOperationDateInputFieldSchema = {

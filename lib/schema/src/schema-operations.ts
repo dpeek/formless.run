@@ -792,11 +792,19 @@ function parseInlineInputField(
     };
   }
   if (value.type === "boolean") {
-    assertExactKeys(context, value, ["key", "type", "required"], ["label"]);
+    assertExactKeys(context, value, ["key", "type", "required"], ["label", "mustBeTrue"]);
+    const mustBeTrue = parseOptionalAffirmativeConstraint(
+      `${context} mustBeTrue`,
+      value.mustBeTrue,
+    );
+    if (mustBeTrue && value.required !== true) {
+      throw new Error(`${context} mustBeTrue requires required to be true.`);
+    }
     return {
       type: "boolean",
       required: value.required,
       ...(label === undefined ? {} : { label }),
+      ...(mustBeTrue === undefined ? {} : { mustBeTrue }),
     };
   }
   if (value.type === "date") {

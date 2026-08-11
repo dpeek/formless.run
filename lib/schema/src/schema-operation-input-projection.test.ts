@@ -163,6 +163,46 @@ describe("schema operation input projection", () => {
       ).toThrow(testCase.error);
     }
   });
+  it("requires affirmative inline booleans without changing required boolean semantics", () => {
+    const ordinaryRequiredBoolean = recordPlanTaskOperation({
+      fields: [{ key: "approved", type: "boolean", required: true }],
+    });
+    const affirmativeBoolean = recordPlanTaskOperation({
+      fields: [{ key: "consent", type: "boolean", required: true, mustBeTrue: true }],
+    });
+    expect(
+      projectOperationInputValues({
+        canonicalOperationKey: "task.plan",
+        entity: taskEntity,
+        operation: ordinaryRequiredBoolean,
+        rawInput: { approved: false },
+      }),
+    ).toEqual({
+      operationInputValues: { approved: false },
+      recordWriteValues: {},
+      recordWritePatchValues: {},
+    });
+    expect(() =>
+      projectOperationInputValues({
+        canonicalOperationKey: "task.plan",
+        entity: taskEntity,
+        operation: affirmativeBoolean,
+        rawInput: { consent: false },
+      }),
+    ).toThrow('Operation input field "consent" must be accepted.');
+    expect(
+      projectOperationInputValues({
+        canonicalOperationKey: "task.plan",
+        entity: taskEntity,
+        operation: affirmativeBoolean,
+        rawInput: { consent: true },
+      }),
+    ).toEqual({
+      operationInputValues: { consent: true },
+      recordWriteValues: {},
+      recordWritePatchValues: {},
+    });
+  });
   it("validates inline text formats and keeps suggested text unrestricted", () => {
     const operation = recordPlanTaskOperation({
       fields: [

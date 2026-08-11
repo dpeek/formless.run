@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
+  projectPublicSafeOperationInputFields,
   TEXT_EMAIL_FORMAT_INVALID_MESSAGE,
   TEXT_PHONE_FORMAT_INVALID_MESSAGE,
+  type EntityOperationSchema,
+  type EntitySchema,
 } from "@dpeek/formless-schema";
 
 import {
@@ -601,26 +604,44 @@ describe("public Site form sessions", () => {
     expect(field(controller, "category").error).toBe('Field "category" cannot be empty.');
   });
 
-  it("requires affirmative boolean acceptance while ordinary required booleans accept false", async () => {
+  it("blocks false for projected inline affirmative input while ordinary booleans accept false", async () => {
     const requestBodies: unknown[] = [];
+    const operation = {
+      kind: "command",
+      scope: "collection",
+      input: {
+        fields: [
+          {
+            key: "ordinaryBoolean",
+            type: "boolean",
+            required: true,
+            label: "Ordinary boolean",
+          },
+          {
+            key: "contactConsent",
+            type: "boolean",
+            required: true,
+            label: "I agree to be contacted",
+            mustBeTrue: true,
+          },
+        ],
+      },
+      effect: { type: "recordPlan", steps: [] },
+      output: { type: "command" },
+      idempotency: { required: true },
+      audit: { input: "summary" },
+    } satisfies EntityOperationSchema;
+    const entity = {
+      id: "entity_e35d47cc-1cc2-43f0-9d94-742f51d8fbbd",
+      label: "Example",
+      fields: [],
+    } satisfies EntitySchema;
+    const projection = projectPublicSafeOperationInputFields({ entity, operation });
     const controller = createSitePublicFormSessionController({
       block: formBlock("affirmative-consent", "publicOperationForm", {
         publicOperation: publicOperation({
-          fields: [
-            {
-              name: "ordinaryBoolean",
-              label: "Ordinary boolean",
-              required: true,
-              control: "boolean",
-            },
-            {
-              name: "contactConsent",
-              label: "I agree to be contacted",
-              required: true,
-              mustBeTrue: true,
-              control: "boolean",
-            },
-          ],
+          fields: projection.fields,
+          kind: "command",
         }),
       }),
       fetcher: async (_input, init) => {
@@ -628,11 +649,12 @@ describe("public Site form sessions", () => {
           throw new Error("Expected a JSON request body.");
         }
         requestBodies.push(JSON.parse(init.body));
-        return Response.json(publicCreateResponse({ record: { id: "request-1" } }));
+        return Response.json(publicCommandResponse());
       },
       idempotencyKeyFactory: () => "affirmative-consent-key",
     });
 
+    expect(projection.unsupportedRequiredFields).toEqual([]);
     await challengeToken(controller, "turnstile-token");
 
     expect(field(controller, "ordinaryBoolean")).toMatchObject({

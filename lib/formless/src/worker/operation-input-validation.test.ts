@@ -468,6 +468,49 @@ describe("operation input validation", () => {
       consent: true,
     });
   });
+  it("enforces inline affirmative input at public and Authority record-plan boundaries", () => {
+    const operation = recordPlanTaskOperation({
+      fields: [
+        { key: "ordinaryBoolean", type: "boolean", required: true, label: "Ordinary boolean" },
+        {
+          key: "consent",
+          type: "boolean",
+          required: true,
+          label: "Consent",
+          mustBeTrue: true,
+        },
+      ],
+    });
+    const rejectedInput = {
+      ordinaryBoolean: false,
+      consent: false,
+    };
+    const acceptedInput = {
+      ordinaryBoolean: false,
+      consent: true,
+    };
+
+    expect(() =>
+      validatePublicOperationInputValues(
+        publicOperationInputRequest({ operation, rawInput: rejectedInput }),
+      ),
+    ).toThrow('Operation input field "consent" must be accepted.');
+    expect(() =>
+      validateOperationInvocationRecordPlanInputValues(
+        operationInputRequest({ operation, rawInput: rejectedInput }),
+      ),
+    ).toThrow('Operation input field "consent" must be accepted.');
+    expect(
+      validatePublicOperationInputValues(
+        publicOperationInputRequest({ operation, rawInput: acceptedInput }),
+      ),
+    ).toEqual(acceptedInput);
+    expect(
+      validateOperationInvocationRecordPlanInputValues(
+        operationInputRequest({ operation, rawInput: acceptedInput }),
+      ),
+    ).toEqual(acceptedInput);
+  });
   it("maps entity-backed create and update input to stored entity field names", () => {
     const createOperation = createTaskOperation({
       fields: [

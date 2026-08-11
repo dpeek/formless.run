@@ -229,6 +229,10 @@ function projectInlineOperationInputField(
       throw new Error(`${context} field "${inputName}" must be a boolean.`);
     }
 
+    if (field.mustBeTrue && value !== true) {
+      throw new Error(`${context} field "${inputName}" must be accepted.`);
+    }
+
     return { kind: "set", inputName, value };
   }
 

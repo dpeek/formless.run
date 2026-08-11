@@ -1669,15 +1669,15 @@ public forms, automation, audit, and authorization.
 - AND field behavior, validation, labels, defaults, and generated editor facts
   can be reused for that operation input
 - AND inline scalar input fields can be declared for command or list input that
-  is not stored directly on the target record
+  is not automatically materialized as a record value
 
 #### Scenario: Declare affirmative boolean operation input
 
-- GIVEN an entity-backed operation input references a boolean entity field
+- GIVEN an operation declares an entity-backed or inline boolean input
 - WHEN the input declares `required: true` and `mustBeTrue: true`
 - THEN parsing preserves the affirmative acceptance constraint
-- AND the constraint is rejected for non-boolean entity fields, inline scalar
-  inputs, non-required inputs, or values other than literal `true`
+- AND the constraint is rejected for non-boolean inputs, non-required inputs,
+  or declaration values other than literal `true`
 - AND ordinary required boolean fields without `mustBeTrue` continue to accept
   explicit `false`
 
@@ -1700,14 +1700,16 @@ public forms, automation, audit, and authorization.
   contract
 - AND projection derives required flags, inline scalar validation, entity-backed
   field targets, and storage-free scalar field behavior from the parsed schema
-- AND entity-backed input with `mustBeTrue: true` rejects any submitted value
-  other than `true`
+- AND boolean input with `mustBeTrue: true` rejects any submitted value other
+  than boolean `true`
 - AND inline scalar operation input validation uses the same field behavior
   validators as entity-backed operation input validation
 - AND projection can return operation-input keyed values for command handlers
   and record plans
 - AND projection can return entity-field keyed values for create and update
   record-write materialization
+- AND inline input remains operation-input keyed and is absent from entity-field
+  record-write projections
 - AND projection remains storage-free and does not own caller-specific
   validation entrypoints, target app storage identity, public challenge policy,
   operation execution routing, or operation invocation audit state
@@ -1742,6 +1744,8 @@ public forms, automation, audit, and authorization.
   generated ids, generated human-readable codes, generated timestamps,
   generated dates, actor/source context, outputs from earlier steps, and the
   invocation target when the containing operation is record-scoped
+- AND operation input that is not referenced by a record-plan step is not
+  materialized as a record value
 - AND generated human-readable code expressions declare a named alphabet, either
   one length or grouped segment lengths, an optional group separator, and an
   optional literal prefix
@@ -2016,10 +2020,11 @@ anonymous public bindings.
 - AND entity-backed operation input fields reuse public-safe entity field
   labels, required flags, scalar types, enum values, text formats, and text
   suggestions
-- AND affirmative boolean entity-backed inputs also expose `mustBeTrue: true`
+- AND affirmative boolean entity-backed and inline inputs also expose
+  `mustBeTrue: true`
 - AND inline operation input fields expose only their declared labels, required
-  flags, scalar types, enum values, public text formats, and public text
-  suggestions
+  flags, affirmative boolean constraints, scalar types, enum values, public text
+  formats, and public text suggestions
 - AND submitted input display can use the same public-safe projection to select
   fields, resolve entity-backed input names or stored field names, and format
   scalar display values without exposing private schema facts

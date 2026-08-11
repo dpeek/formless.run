@@ -464,6 +464,7 @@ input contract before challenge verification commits records.
   entity field names only for create materialization
 - AND public record-plan and operation-handler commands keep validated input
   keyed by declared operation input field name
+- AND an affirmative boolean input accepts only boolean `true`
 - AND the public operation executor does not duplicate schema-owned projection
   or effect-specific operation input validation branch logic
 - AND public request envelope parsing, source facts, proof parsing,
@@ -473,6 +474,8 @@ input contract before challenge verification commits records.
   input validation boundary
 - AND invalid public input is rejected before challenge verification or
   successful outcome reservation
+- AND Authority record-plan execution validates the command input again before
+  materializing record writes
 
 #### Scenario: Unknown public input field
 
@@ -501,6 +504,8 @@ input contract before challenge verification commits records.
 - AND optional empty drafts are omitted, boolean `false` remains explicit,
   invalid number drafts remain visible as raw draft text with a display-safe
   error, and required or unsupported inputs block client submission
+- AND boolean `false` for an input with `mustBeTrue: true` blocks client
+  submission
 - AND native browser validation and raw `FormData` extraction are not the source
   of truth for generated public operation input
 - AND server-side public operation input validation still validates the request
