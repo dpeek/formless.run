@@ -3,7 +3,6 @@ import type {
   CollectionEmptyStatePrimaryActionContract,
   DisplayFieldContract,
   FieldContract,
-  NativeLinkActionContract,
   OperationControlContract,
   SemanticIconId,
   TableActionContract,
@@ -49,23 +48,6 @@ export type ProjectGeneratedTableContractOptions = {
   id: string;
   presentation: GeneratedTablePresentation;
   rowsByRecordId: Readonly<Record<string, GeneratedTableRowProjectionFacts | undefined>>;
-};
-
-export type ProjectGeneratedNativeLinkActionOptions = {
-  accessibilityLabel: string;
-  id: string;
-  label: string;
-  prominence?: NativeLinkActionContract["prominence"];
-  resolution:
-    | {
-        href: string;
-        kind: "available";
-      }
-    | {
-        kind: "unavailable";
-        reason: string;
-      };
-  target: NativeLinkActionContract["target"];
 };
 
 export type ProjectGeneratedTableEditActionOptions = {
@@ -294,32 +276,6 @@ export function projectGeneratedTableOperationAction(
     kind: "operationAction",
     role,
   };
-}
-
-export function projectGeneratedNativeLinkAction({
-  accessibilityLabel,
-  id,
-  label,
-  prominence = "primary",
-  resolution,
-  target,
-}: ProjectGeneratedNativeLinkActionOptions): NativeLinkActionContract {
-  const base = {
-    accessibilityLabel,
-    id,
-    kind: "nativeLinkAction" as const,
-    label,
-    prominence,
-    target,
-  };
-
-  return resolution.kind === "available"
-    ? { ...base, availability: "available", href: resolution.href }
-    : {
-        ...base,
-        availability: "unavailable",
-        unavailableReason: resolution.reason,
-      };
 }
 
 export function projectGeneratedTableEditAction({

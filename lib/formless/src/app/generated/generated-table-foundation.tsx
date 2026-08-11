@@ -53,10 +53,10 @@ import {
   projectGeneratedTableEditAction,
   projectGeneratedTableInvalidValue,
   projectGeneratedTableContract,
-  projectGeneratedNativeLinkAction,
   projectGeneratedTableOperationAction,
   projectGeneratedTableOrdering,
 } from "./table-projection.ts";
+import { projectGeneratedNativeLinkAction } from "./native-link-projection.ts";
 import {
   executeGeneratedOperationControl,
   executeGeneratedOrderingMoveOperation,

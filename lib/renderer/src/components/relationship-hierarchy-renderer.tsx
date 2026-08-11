@@ -10,6 +10,7 @@ import type {
   RelationshipHierarchyCreateActionContract,
   RelationshipHierarchyIntent,
   RelationshipHierarchyIntentHandler,
+  RelationshipHierarchyLinkActionContract,
   RelationshipHierarchyNodeContract,
   RelationshipHierarchyOperationActionContract,
   RelationshipHierarchyReference,
@@ -138,6 +139,10 @@ function AstryxRelationshipHierarchyActionEffects({
   onIntent: RelationshipHierarchyIntentHandler;
 }) {
   return node.headerActions.items.map((action) => {
+    if (action.kind === "linkAction") {
+      return null;
+    }
+
     if (action.kind === "createAction") {
       return (
         <AstryxCreateSurfaceRenderer
@@ -195,6 +200,10 @@ export function astryxRelationshipHierarchyActionMenuItems(
   onIntent: RelationshipHierarchyIntentHandler,
 ): DropdownMenuItemData[] {
   return node.headerActions.items.map((action) => {
+    if (action.kind === "linkAction") {
+      return astryxRelationshipHierarchyLinkMenuItem(action);
+    }
+
     if (action.kind === "createAction") {
       const trigger = action.surface.trigger;
       const disabled = Boolean(trigger.disabled || trigger.pending?.isPending);
@@ -235,6 +244,30 @@ export function astryxRelationshipHierarchyActionMenuItems(
       },
     };
   });
+}
+
+function astryxRelationshipHierarchyLinkMenuItem(
+  action: RelationshipHierarchyLinkActionContract,
+): DropdownMenuItemData {
+  const link = action.link;
+  if (link.availability === "unavailable") {
+    return {
+      isDisabled: true,
+      label: `${link.label} — ${link.unavailableReason}`,
+    };
+  }
+
+  return {
+    isDisabled: false,
+    label: link.label,
+    onClick: () => {
+      if (link.target === "newTab") {
+        window.open(link.href, "_blank", "noopener,noreferrer");
+        return;
+      }
+      window.location.assign(link.href);
+    },
+  };
 }
 
 export function dispatchAstryxRelationshipHierarchyRecordResultIntent(

@@ -3,7 +3,9 @@ import type {
   AppSchema,
   EntitySchema,
   FieldItemViewSchema,
+  KeyedDefinition,
   QueryExpression,
+  RecordLinkSchema,
   SelectedRecordDetailSchema,
   SelectedRecordRelationshipHierarchyOperationBindingSchema,
   SelectedRecordRelationshipHierarchyRelationshipSchema,
@@ -66,6 +68,7 @@ export type HomeSelectedRecordRelationshipHierarchyNodeConfig = {
   itemViewName: string;
   itemView: FieldItemViewSchema;
   result: RecordResultModel;
+  links: KeyedDefinition<RecordLinkSchema>[];
   operations: HomeSelectedRecordRelationshipHierarchyOperationConfig[];
   relationships: HomeSelectedRecordRelationshipHierarchyRelationshipConfig[];
 };
@@ -204,6 +207,7 @@ function selectHomeSelectedRecordRelationshipHierarchyNode(
   schema: AppSchema,
   node: {
     itemView: string;
+    links?: KeyedDefinition<RecordLinkSchema>[];
     operations?: SelectedRecordRelationshipHierarchyOperationBindingSchema[];
     relationships?: SelectedRecordRelationshipHierarchyRelationshipSchema[];
   },
@@ -234,6 +238,7 @@ function selectHomeSelectedRecordRelationshipHierarchyNode(
       entityName,
       entity,
     ),
+    links: node.links ?? [],
     operations: (node.operations ?? []).map((binding) =>
       selectHomeSelectedRecordRelationshipHierarchyOperation(schema, binding, entityName),
     ),

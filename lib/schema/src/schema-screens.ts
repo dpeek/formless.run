@@ -2,6 +2,7 @@ import { parseBrowserAccessRequirement } from "./schema-authorization.ts";
 import { createViewContextDefaultEntries } from "./create-defaults.ts";
 import { collectQueryContextNames } from "./query.ts";
 import { isFieldItemViewSchema } from "./schema-views.ts";
+import { parseRecordLinks } from "./schema-record-links.ts";
 import {
   formatEntityOperationKey,
   isEntityOperationVisibleToBrowser,
@@ -51,6 +52,7 @@ import type {
   ViewSchema,
   WorkspaceScreenSchema,
   KeyedDefinition,
+  RecordLinkSchema,
 } from "./types.ts";
 export function parseScreens(
   value: unknown,
@@ -857,7 +859,7 @@ function parseSelectedRecordRelationshipHierarchySection(
     context,
     value,
     ["id", "type", "itemView", "relationships"],
-    ["label", "operations"],
+    ["label", "links", "operations"],
   );
   const id = parseRequiredNonEmptyString(`${context} id`, value.id);
   const label = parseOptionalNonEmptyString(`${context} label`, value.label);
@@ -870,6 +872,12 @@ function parseSelectedRecordRelationshipHierarchySection(
   const operations = parseSelectedRecordRelationshipHierarchyOperationBindings(
     `${context} operations`,
     value.operations,
+    sourceEntityName,
+    entities,
+  );
+  const links = parseSelectedRecordRelationshipHierarchyLinks(
+    `${context} links`,
+    value.links,
     sourceEntityName,
     entities,
   );
@@ -889,6 +897,7 @@ function parseSelectedRecordRelationshipHierarchySection(
     type: "relationshipHierarchy",
     ...(label === undefined ? {} : { label }),
     itemView,
+    ...(links === undefined ? {} : { links }),
     ...(operations === undefined ? {} : { operations }),
     relationships: parsedRelationships!,
   };
@@ -921,7 +930,7 @@ function parseSelectedRecordRelationshipHierarchyRelationships(
       relationshipContext,
       relationshipValue,
       ["id", "relationship", "itemView"],
-      ["createAction", "label", "operations", "relationships"],
+      ["createAction", "label", "links", "operations", "relationships"],
     );
     const id = parseRequiredNonEmptyString(`${relationshipContext} id`, relationshipValue.id);
     if (siblingIds.has(id)) {
@@ -966,6 +975,12 @@ function parseSelectedRecordRelationshipHierarchyRelationships(
       relationship.to.entity,
       entities,
     );
+    const links = parseSelectedRecordRelationshipHierarchyLinks(
+      `${relationshipContext} links`,
+      relationshipValue.links,
+      relationship.to.entity,
+      entities,
+    );
     const createAction = parseSelectedRecordRelationshipHierarchyCreateBinding(
       `${relationshipContext} createAction`,
       relationshipValue.createAction,
@@ -990,11 +1005,25 @@ function parseSelectedRecordRelationshipHierarchyRelationships(
       ...(label === undefined ? {} : { label }),
       relationship: relationshipName,
       itemView,
+      ...(links === undefined ? {} : { links }),
       ...(createAction === undefined ? {} : { createAction }),
       ...(operations === undefined ? {} : { operations }),
       ...(childRelationships === undefined ? {} : { relationships: childRelationships }),
     };
   });
+}
+
+function parseSelectedRecordRelationshipHierarchyLinks(
+  context: string,
+  value: unknown,
+  entityName: string,
+  entities: Record<string, EntitySchema>,
+): KeyedDefinition<RecordLinkSchema>[] | undefined {
+  const entity = entities[entityName];
+  if (!entity) {
+    throw new Error(`${context} references unknown entity "${entityName}".`);
+  }
+  return parseRecordLinks(context, value, entityName, entity, entities);
 }
 
 function parseSelectedRecordRelationshipHierarchyItemView(

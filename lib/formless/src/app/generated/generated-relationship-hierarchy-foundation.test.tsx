@@ -9,6 +9,7 @@ import type {
   RelationshipHierarchyCreateActionContract,
   RelationshipHierarchyCreateFieldIntent,
   RelationshipHierarchyCreateIntent,
+  RelationshipHierarchyLinkActionContract,
   RelationshipHierarchyNodeContract,
   RelationshipHierarchyOperationIntent,
   RelationshipHierarchyRecordResultIntent,
@@ -93,6 +94,92 @@ describe("generated selected-record relationship hierarchy", () => {
     expect(primaryDesigner.recordId).toBe(duplicateDesigner.recordId);
     expect(primaryDesigner.occurrenceId).not.toBe(duplicateDesigner.occurrenceId);
     expect(primaryDesigner.editor.contract.id).not.toBe(duplicateDesigner.editor.contract.id);
+  });
+
+  it("resolves ordered record links per occurrence without registering link intents or operations", () => {
+    const schema = relationshipHierarchySchema();
+    const foundation = selectHierarchyFoundation(
+      schema,
+      hierarchyProjectionRecords(),
+      "rec_card_premium",
+    );
+    const root = foundation.runtimePlan.root;
+    const primaryDesigner = required(root.relationshipGroups[0]?.nodes[0]);
+    const duplicateDesigner = required(root.relationshipGroups[1]?.nodes[0]);
+    const adjustment = required(
+      root.relationshipGroups[0]?.nodes[1]?.relationshipGroups[0]?.nodes[0],
+    );
+    const rootLinks = hierarchyLinkActions(root.contract);
+    const primaryLinks = hierarchyLinkActions(primaryDesigner.contract);
+    const duplicateLinks = hierarchyLinkActions(duplicateDesigner.contract);
+    const adjustmentLinks = hierarchyLinkActions(adjustment.contract);
+    const primaryRateLink = required(primaryLinks[0]).link;
+    const duplicateRateLink = required(duplicateLinks[0]).link;
+
+    expect(root.contract.headerActions.items.map((action) => action.kind)).toEqual([
+      "linkAction",
+      "operationAction",
+      "createAction",
+      "createAction",
+    ]);
+    expect(primaryDesigner.contract.headerActions.items.map((action) => action.kind)).toEqual([
+      "linkAction",
+      "linkAction",
+      "operationAction",
+    ]);
+    expect(adjustment.contract.headerActions.items.map((action) => action.kind)).toEqual([
+      "linkAction",
+      "operationAction",
+    ]);
+    expect(rootLinks[0]?.link).toEqual({
+      accessibilityLabel: "Open card for Premium",
+      availability: "available",
+      href: "https://example.test/cards?name=Premium",
+      id: `${root.occurrenceId}:link:openCard`,
+      kind: "nativeLinkAction",
+      label: "Open card",
+      prominence: "secondary",
+      target: "sameTab",
+    });
+    expect(primaryLinks.map((action) => action.link.label)).toEqual([
+      "Open rate",
+      "Open external rate",
+    ]);
+    expect(primaryRateLink).toMatchObject({
+      availability: "available",
+      href: "https://example.test/rates?source=hierarchy&cost=550&resource=Designer",
+      id: `${primaryDesigner.occurrenceId}:link:openRate`,
+      target: "newTab",
+    });
+    expect(primaryLinks[1]?.link).toEqual({
+      accessibilityLabel: "Open external rate for rec_resource_designer",
+      availability: "unavailable",
+      id: `${primaryDesigner.occurrenceId}:link:openExternalRate`,
+      kind: "nativeLinkAction",
+      label: "Open external rate",
+      prominence: "secondary",
+      target: "sameTab",
+      unavailableReason: "Link destination is unavailable.",
+    });
+    expect(primaryLinks[1]?.link).not.toHaveProperty("href");
+    expect(duplicateRateLink).toMatchObject({
+      href: primaryRateLink.availability === "available" ? primaryRateLink.href : "",
+      id: `${duplicateDesigner.occurrenceId}:link:openRate`,
+    });
+    expect(duplicateRateLink.id).not.toBe(primaryRateLink.id);
+    expect(adjustmentLinks[0]?.link).toMatchObject({
+      availability: "available",
+      href: "https://example.test/adjustments?label=Developer+premium",
+      id: `${adjustment.occurrenceId}:link:openAdjustment`,
+    });
+
+    for (const action of [...rootLinks, ...primaryLinks, ...duplicateLinks, ...adjustmentLinks]) {
+      expect(action.link).not.toHaveProperty("intent");
+      expect(action.link).not.toHaveProperty("trigger");
+      expect(root.operationByControlId.has(action.link.id)).toBe(false);
+    }
+    expect(root.operationByControlId.size).toBe(root.operations.length);
+    expect(primaryDesigner.operationByControlId.size).toBe(primaryDesigner.operations.length);
   });
 
   it("projects only explicit enabled operations with occurrence-scoped canonical state", () => {
@@ -918,6 +1005,14 @@ function operationControl(
   return action.control;
 }
 
+function hierarchyLinkActions(
+  node: RelationshipHierarchyNodeContract,
+): RelationshipHierarchyLinkActionContract[] {
+  return node.headerActions.items.flatMap((action) =>
+    action.kind === "linkAction" ? [action] : [],
+  );
+}
+
 function operationLabels(node: RelationshipHierarchyNodeContract): string[] {
   return node.headerActions.items.flatMap((action) =>
     action.kind === "operationAction" ? [action.control.trigger.accessibilityLabel] : [],
@@ -1041,6 +1136,18 @@ function relationshipHierarchySchema(): AppSchema {
     type: "relationshipHierarchy" as const,
     label: "Rate card hierarchy",
     itemView: "cardListItem",
+    links: [
+      {
+        key: "openCard",
+        label: "Open card",
+        target: "sameTab",
+        destination: {
+          type: "url",
+          base: "https://example.test/cards",
+          query: [{ name: "name", source: { kind: "field", field: "name" } }],
+        },
+      },
+    ],
     operations: [{ operation: "card.delete", label: "Remove card" }],
     relationships: [
       {
@@ -1053,6 +1160,7 @@ function relationshipHierarchySchema(): AppSchema {
           createView: "rateCreateForCard",
           label: "Add rate",
         },
+        links: rateHierarchyLinks(),
         operations: [{ operation: "rate.archive" }, { operation: "rate.restore" }],
         relationships: [
           {
@@ -1060,6 +1168,18 @@ function relationshipHierarchySchema(): AppSchema {
             label: "Adjustments",
             relationship: "rateAdjustments",
             itemView: "adjustmentItem",
+            links: [
+              {
+                key: "openAdjustment",
+                label: "Open adjustment",
+                target: "sameTab",
+                destination: {
+                  type: "url",
+                  base: "https://example.test/adjustments",
+                  query: [{ name: "label", source: { kind: "field", field: "label" } }],
+                },
+              },
+            ],
             operations: [{ operation: "adjustment.update" }],
           },
         ],
@@ -1074,6 +1194,7 @@ function relationshipHierarchySchema(): AppSchema {
           createView: "rateCreateForCard",
           label: "Add rate copy",
         },
+        links: rateHierarchyLinks(),
         operations: [{ operation: "rate.archive" }, { operation: "rate.restore" }],
       },
     ],
@@ -1103,6 +1224,12 @@ function relationshipHierarchySchema(): AppSchema {
             ...entity,
             fields: [
               ...entity.fields,
+              {
+                key: "externalId",
+                label: "External id",
+                required: false,
+                type: "text" as const,
+              },
               {
                 key: "workflow",
                 default: "draft",
@@ -1219,6 +1346,42 @@ function relationshipHierarchySchema(): AppSchema {
         : screen,
     ),
   });
+}
+
+function rateHierarchyLinks() {
+  return [
+    {
+      key: "openRate",
+      label: "Open rate",
+      target: "newTab",
+      destination: {
+        type: "url",
+        base: "https://example.test/rates?source=hierarchy",
+        query: [
+          { name: "cost", source: { kind: "field", field: "cost" } },
+          {
+            name: "resource",
+            source: {
+              kind: "referenceField",
+              referenceField: "resource",
+              targetEntity: "resource",
+              field: "name",
+            },
+          },
+        ],
+      },
+    },
+    {
+      key: "openExternalRate",
+      label: "Open external rate",
+      target: "sameTab",
+      destination: {
+        type: "url",
+        base: "https://example.test/external-rate",
+        query: [{ name: "id", source: { kind: "field", field: "externalId" } }],
+      },
+    },
+  ];
 }
 
 function committedCommandResponse(): OperationInvocationResponse {

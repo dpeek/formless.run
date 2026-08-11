@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import type { FieldSchema } from "@dpeek/formless-schema";
 import type {
   ButtonContract,
@@ -9,6 +9,7 @@ import type {
   RelationshipHierarchyContract,
   RelationshipHierarchyCreateActionContract,
   RelationshipHierarchyIntent,
+  RelationshipHierarchyLinkActionContract,
   RelationshipHierarchyNodeContract,
   RelationshipHierarchyOperationActionContract,
   WorkspaceIntent,
@@ -39,6 +40,10 @@ const titleSchema = {
 } satisfies Extract<FieldSchema, { type: "text" }>;
 const titleControl = textControl(titleSchema);
 
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe("Astryx relationship-hierarchy renderer", () => {
   it("renders every heterogeneous editable node, one populated header menu, action state, a child dialog, and labelled empty groups", () => {
     const hierarchy = hierarchyContract();
@@ -57,6 +62,9 @@ describe("Astryx relationship-hierarchy renderer", () => {
     expect(html).toContain('value="Runtime"');
     expect(html).toContain('value="Ship hierarchy"');
     expect(html).toContain('aria-label="More project actions"');
+    expect(html).toContain("Open project dashboard");
+    expect(html).toContain("Open project documentation");
+    expect(html).toContain("Open project issue — External issue key is unavailable.");
     expect(html).not.toContain('aria-label="More account actions"');
     expect(html).toContain('data-operation-progress="');
     expect(html).toContain('data-operation-status="pending"');
@@ -69,6 +77,54 @@ describe("Astryx relationship-hierarchy renderer", () => {
     expect(html).not.toMatch(/aria-label="(?:Select|Expand|Collapse|Move) /);
     expect(html.indexOf(">Projects<")).toBeLessThan(html.indexOf(">Tasks<"));
     expect(html.indexOf(">Tasks<")).toBeLessThan(html.indexOf(">Archived projects<"));
+  });
+
+  it("renders available and unavailable link menu items and navigates without intents", () => {
+    const hierarchy = hierarchyContract();
+    const project = required(hierarchy.root.relationshipGroups[0]?.nodes[0]);
+    const intents: RelationshipHierarchyIntent[] = [];
+    const menuItems = astryxRelationshipHierarchyActionMenuItems(hierarchy, project, (intent) => {
+      intents.push(intent);
+    });
+    const assign = vi.fn();
+    const open = vi.fn();
+    vi.stubGlobal("window", { location: { assign }, open });
+
+    expect(
+      menuItems.slice(0, 3).map(({ isDisabled, label, onClick }) => ({
+        hasActivation: onClick !== undefined,
+        isDisabled,
+        label,
+      })),
+    ).toEqual([
+      {
+        hasActivation: true,
+        isDisabled: false,
+        label: "Open project dashboard",
+      },
+      {
+        hasActivation: true,
+        isDisabled: false,
+        label: "Open project documentation",
+      },
+      {
+        hasActivation: false,
+        isDisabled: true,
+        label: "Open project issue — External issue key is unavailable.",
+      },
+    ]);
+
+    clickMenuItem(required(menuItems[0]));
+    clickMenuItem(required(menuItems[1]));
+    clickMenuItem(required(menuItems[2]));
+
+    expect(assign).toHaveBeenCalledWith("https://example.test/projects/project:runtime");
+    expect(open).toHaveBeenCalledWith(
+      "https://docs.example.test/projects/project:runtime",
+      "_blank",
+      "noopener,noreferrer",
+    );
+    expect(intents).toEqual([]);
   });
 
   it("dispatches path-scoped record, operation, create, create-field, and workspace intents", () => {
@@ -135,13 +191,16 @@ describe("Astryx relationship-hierarchy renderer", () => {
 
     const menuItems = astryxRelationshipHierarchyActionMenuItems(hierarchy, project, handleIntent);
     expect(menuItems.map((item) => item.label)).toEqual([
+      "Open project dashboard",
+      "Open project documentation",
+      "Open project issue — External issue key is unavailable.",
       "Pushing workspace",
       "Deleting task",
       "Add task",
     ]);
-    clickMenuItem(required(menuItems[0]));
-    clickMenuItem(required(menuItems[1]));
-    clickMenuItem(required(menuItems[2]));
+    clickMenuItem(required(menuItems[3]));
+    clickMenuItem(required(menuItems[4]));
+    clickMenuItem(required(menuItems[5]));
 
     expect(hierarchyIntents).toEqual([
       {
@@ -274,6 +333,26 @@ function hierarchyContract(rootRecordId = "account:formless"): RelationshipHiera
   const create = createAction("occurrence:account/project:create-task", tasks.id);
   const project = hierarchyNode({
     actions: [
+      linkAction({
+        availability: "available",
+        href: "https://example.test/projects/project:runtime",
+        id: "occurrence:account/project:dashboard",
+        label: "Open project dashboard",
+        target: "sameTab",
+      }),
+      linkAction({
+        availability: "available",
+        href: "https://docs.example.test/projects/project:runtime",
+        id: "occurrence:account/project:documentation",
+        label: "Open project documentation",
+        target: "newTab",
+      }),
+      linkAction({
+        availability: "unavailable",
+        id: "occurrence:account/project:issue",
+        label: "Open project issue",
+        target: "newTab",
+      }),
       {
         control: operationControlFixtures.workspacePushSuccess.pending,
         kind: "operationAction",
@@ -411,6 +490,43 @@ function createAction(
     kind: "createAction",
     relationshipGroupId,
     surface: createSurface(surfaceId),
+  };
+}
+
+function linkAction(
+  options:
+    | {
+        availability: "available";
+        href: string;
+        id: string;
+        label: string;
+        target: "newTab" | "sameTab";
+      }
+    | {
+        availability: "unavailable";
+        id: string;
+        label: string;
+        target: "newTab" | "sameTab";
+      },
+): RelationshipHierarchyLinkActionContract {
+  const link = {
+    accessibilityLabel: options.label,
+    id: options.id,
+    kind: "nativeLinkAction" as const,
+    label: options.label,
+    prominence: "secondary" as const,
+    target: options.target,
+  };
+  return {
+    kind: "linkAction",
+    link:
+      options.availability === "available"
+        ? { ...link, availability: "available", href: options.href }
+        : {
+            ...link,
+            availability: "unavailable",
+            unavailableReason: "External issue key is unavailable.",
+          },
   };
 }
 

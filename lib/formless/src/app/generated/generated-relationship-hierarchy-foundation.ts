@@ -10,7 +10,11 @@ import type {
   RelationshipHierarchyRecordResultIntent,
 } from "@dpeek/formless-presentation/contract";
 import type { MediaAssetOption } from "@dpeek/formless-media/client";
-import type { AppSchema, QueryEvaluationContext } from "@dpeek/formless-schema";
+import {
+  resolveRecordLink,
+  type AppSchema,
+  type QueryEvaluationContext,
+} from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type { BrowserReplicaProjectionSnapshot } from "../../client/projections.ts";
 import type {
@@ -55,6 +59,7 @@ import {
   projectGeneratedCreateSurface,
   type GeneratedReferenceOption,
 } from "./field-projection.ts";
+import { projectGeneratedNativeLinkAction } from "./native-link-projection.ts";
 
 type GeneratedRelationshipHierarchyRecordResultOptions = Partial<
   Pick<
@@ -368,6 +373,20 @@ function selectGeneratedRelationshipHierarchyNode({
     record,
     recordLabel: foundation.recordResult.selectedRecord?.accessibilityLabel,
   });
+  const links =
+    record === undefined || record.entity !== model.entityName || record.deletedAt
+      ? []
+      : model.links.map((link) => ({
+          kind: "linkAction" as const,
+          link: projectGeneratedNativeLinkAction({
+            accessibilityLabel: `${link.label} for ${foundation.recordResult.selectedRecord?.accessibilityLabel ?? record.id}`,
+            id: generatedRelationshipHierarchyLinkId(occurrenceId, link.key),
+            label: link.label,
+            prominence: "secondary",
+            resolution: resolveRecordLink(link, record, snapshot.recordsById),
+            target: link.target,
+          }),
+        }));
   const operationByControlId = new Map(
     operations.map((operation) => [operation.binding.id, operation]),
   );
@@ -429,6 +448,7 @@ function selectGeneratedRelationshipHierarchyNode({
       accessibilityLabel: `More ${model.entity.label.toLowerCase()} actions`,
       id: `${occurrenceId}:header-actions`,
       items: [
+        ...links,
         ...operations.map(({ control }) => ({ control, kind: "operationAction" as const })),
         ...creates.map(({ relationshipGroupId, surface }) => ({
           kind: "createAction" as const,
@@ -755,4 +775,8 @@ function generatedRelationshipHierarchyOperationId(
   operationKey: string,
 ): string {
   return `${occurrenceId}:operation:${encodeURIComponent(operationKey)}`;
+}
+
+function generatedRelationshipHierarchyLinkId(occurrenceId: string, linkKey: string): string {
+  return `${occurrenceId}:link:${encodeURIComponent(linkKey)}`;
 }

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   parseAppSchema,
   type AppSchema,
+  type KeyedDefinition,
+  type RecordLinkSchema,
   type SelectedRecordDetailSchema,
 } from "@dpeek/formless-schema";
 import { rateSourceSchema } from "../test/schema-apps.ts";
@@ -11,12 +13,8 @@ describe("selected-record relationship-hierarchy model", () => {
   it("resolves heterogeneous root and child nodes, operations, item views, and create contexts", () => {
     const schema = relationshipHierarchySchema();
     const card = schema.entities.find((entity) => entity.key === "card")!;
-    const model = selectHomeSelectedRecordDetail(
-      schema,
-      relationshipHierarchyDetail(),
-      "card",
-      card,
-    );
+    const detail = relationshipHierarchyDetail();
+    const model = selectHomeSelectedRecordDetail(schema, detail, "card", card);
 
     expect(model.sections[0]).toMatchObject({
       id: "hierarchy",
@@ -24,6 +22,10 @@ describe("selected-record relationship-hierarchy model", () => {
       entityName: "card",
       itemViewName: "cardListItem",
       result: { type: "record", itemViewName: "cardListItem" },
+      links: [
+        { key: "openCard", destination: { query: [{ source: { field: "name" } }] } },
+        { key: "inspectCard", target: "newTab" },
+      ],
       operations: [{ bindingName: "card.update", label: "Edit card" }],
       relationships: [
         {
@@ -32,6 +34,23 @@ describe("selected-record relationship-hierarchy model", () => {
           entityName: "rate",
           itemViewName: "rateListItem",
           result: { type: "record", itemViewName: "rateListItem" },
+          links: [
+            { key: "openRate", destination: { query: [{ source: { field: "cost" } }] } },
+            {
+              key: "openResource",
+              destination: {
+                query: [
+                  {
+                    source: {
+                      referenceField: "resource",
+                      targetEntity: "resource",
+                      field: "name",
+                    },
+                  },
+                ],
+              },
+            },
+          ],
           operations: [{ bindingName: "rate.update", label: "Edit rate" }],
           createAction: {
             type: "create",
@@ -46,6 +65,9 @@ describe("selected-record relationship-hierarchy model", () => {
               entityName: "adjustment",
               itemViewName: "adjustmentItem",
               result: { type: "record", itemViewName: "adjustmentItem" },
+              links: [
+                { key: "openAdjustment", destination: { query: [{ source: { field: "label" } }] } },
+              ],
               operations: [{ bindingName: "adjustment.update", label: "Update adjustment" }],
               createAction: {
                 type: "create",
@@ -59,6 +81,20 @@ describe("selected-record relationship-hierarchy model", () => {
         },
       ],
     });
+
+    const hierarchyDetail = detail.sections[0];
+    const hierarchyModel = model.sections[0];
+    if (
+      hierarchyDetail?.type !== "relationshipHierarchy" ||
+      hierarchyModel?.type !== "relationshipHierarchy"
+    ) {
+      throw new Error("Expected relationship hierarchy.");
+    }
+    expect(hierarchyModel.links).toBe(hierarchyDetail.links);
+    expect(hierarchyModel.relationships[0]?.links).toBe(hierarchyDetail.relationships[0]?.links);
+    expect(hierarchyModel.relationships[0]?.relationships[0]?.links).toBe(
+      hierarchyDetail.relationships[0]?.relationships?.[0]?.links,
+    );
   });
 
   it("rejects incompatible hierarchy entities, relationships, item views, operations, and create views", () => {
@@ -142,6 +178,15 @@ function relationshipHierarchyDetail(
         type: "relationshipHierarchy",
         label: "Rate card hierarchy",
         itemView: "cardListItem",
+        links: [
+          relationshipHierarchyLink("openCard", "Open card", { kind: "field", field: "name" }),
+          relationshipHierarchyLink(
+            "inspectCard",
+            "Inspect card",
+            { kind: "field", field: "name" },
+            "newTab",
+          ),
+        ],
         operations: [{ operation: "card.update", label: "Edit card" }],
         relationships: [relationshipHierarchyRelationship()],
         ...overrides,
@@ -156,6 +201,15 @@ function relationshipHierarchyRelationship(overrides: Record<string, unknown> = 
     label: "Rates",
     relationship: "cardRates",
     itemView: "rateListItem",
+    links: [
+      relationshipHierarchyLink("openRate", "Open rate", { kind: "field", field: "cost" }),
+      relationshipHierarchyLink("openResource", "Open resource", {
+        kind: "referenceField",
+        referenceField: "resource",
+        targetEntity: "resource",
+        field: "name",
+      }),
+    ],
     operations: [{ operation: "rate.update", label: "Edit rate" }],
     createAction: {
       operation: "rate.create",
@@ -168,6 +222,12 @@ function relationshipHierarchyRelationship(overrides: Record<string, unknown> = 
         label: "Adjustments",
         relationship: "rateAdjustments",
         itemView: "adjustmentItem",
+        links: [
+          relationshipHierarchyLink("openAdjustment", "Open adjustment", {
+            kind: "field",
+            field: "label",
+          }),
+        ],
         operations: [{ operation: "adjustment.update" }],
         createAction: {
           operation: "adjustment.create",
@@ -176,6 +236,24 @@ function relationshipHierarchyRelationship(overrides: Record<string, unknown> = 
       },
     ],
     ...overrides,
+  };
+}
+
+function relationshipHierarchyLink(
+  key: string,
+  label: string,
+  source: RecordLinkSchema["destination"]["query"][number]["source"],
+  target: RecordLinkSchema["target"] = "sameTab",
+): KeyedDefinition<RecordLinkSchema> {
+  return {
+    key,
+    label,
+    target,
+    destination: {
+      type: "url",
+      base: "https://example.test/open",
+      query: [{ name: "value", source, missing: "disable" }],
+    },
   };
 }
 

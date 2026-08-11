@@ -1893,8 +1893,14 @@ export type RelationshipHierarchyCreateActionContract = {
   surface: CreateSurfaceContract;
 };
 
+export type RelationshipHierarchyLinkActionContract = {
+  kind: "linkAction";
+  link: NativeLinkActionContract;
+};
+
 export type RelationshipHierarchyActionContract =
   | RelationshipHierarchyCreateActionContract
+  | RelationshipHierarchyLinkActionContract
   | RelationshipHierarchyOperationActionContract;
 
 export type RelationshipHierarchyActionGroupContract = {

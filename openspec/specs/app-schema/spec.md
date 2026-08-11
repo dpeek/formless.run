@@ -798,16 +798,16 @@ strings.
 
 #### Scenario: Validate record link value sources
 
-- GIVEN a table record link query parameter derives a value from schema data
-- WHEN the containing table view is parsed
+- GIVEN a record link query parameter derives a value from schema data
+- WHEN its containing table view or relationship-hierarchy node is parsed
 - THEN a `literal` source accepts a string, finite number, or boolean
 - AND a `field` source references a declared non-reference scalar value field
-  on the table entity
-- AND a `referenceField` source names a declared reference field on the table
-  entity plus a declared non-reference scalar value field on that reference's
-  local target entity
-- AND the referenced terminal field does not need to appear as a visible table
-  column
+  on the containing record entity
+- AND a `referenceField` source names a declared reference field on the table or
+  hierarchy node entity plus a declared non-reference scalar value field on
+  that reference's local target entity
+- AND the referenced terminal field does not need to appear in the containing
+  surface's visible field projection
 - AND unknown fields, system fields, non-scalar terminal fields, incompatible
   reference targets, cross-schema reference targets, and traversal beyond one
   reference hop are rejected before the schema reaches generated UI
@@ -828,8 +828,8 @@ strings.
 
 #### Scenario: Resolve a deterministic record link URL
 
-- GIVEN a parsed record link, one current table row record, and the current
-  record map are available
+- GIVEN a parsed record link, one current record, and the current record map are
+  available
 - WHEN the runtime-neutral Schema package resolver evaluates the destination
 - THEN literal values, direct field values, and one-hop referenced-record field
   values are converted to deterministic scalar query values
@@ -857,17 +857,32 @@ strings.
 - AND link evaluation does not patch a record, persist a denormalized URL,
   fetch the destination, or change browser replica state
 
+#### Scenario: Place record links on relationship-hierarchy nodes
+
+- GIVEN a selected-record relationship hierarchy needs record-scoped native URL
+  navigation in node headers
+- WHEN its root or one recursive child declaration provides an ordered `links`
+  array
+- THEN each entry is one keyed record-link definition validated against that
+  node's entity
+- AND declaration order is link-action order in that node's one header menu
+- AND the declaration itself supplies the hierarchy placement without a second
+  link registry or action-placement array
+- AND hierarchy links reuse table record-link labels, targets, structured
+  destinations, value sources, missing behavior, and URL validation
+- AND they do not become entity operations or redefine operation semantics
+
 #### Scenario: Keep record link definitions reusable across surfaces
 
-- GIVEN the initial generated placement is a table `linkControl` column
+- GIVEN table and relationship-hierarchy placements use record links
 - WHEN record-link contracts and resolution helpers are exposed by the Schema
   package
 - THEN their definition, value-source, target, missing-value, and URL-resolution
-  semantics remain independent from table rendering
+  semantics remain independent from either renderer
 - AND a later list, record-result, item-view, or other record-scoped placement
   can reuse those contracts without introducing an app-specific link language
-- AND the initial table placement does not synthesize list, record-result,
-  workspace, screen, or collection-toolbar links
+- AND current placements do not synthesize list, record-result, workspace,
+  screen, or collection-toolbar links
 
 ### Requirement: Schema Package Boundary
 
@@ -1356,14 +1371,15 @@ contain one level of destination-less labelled sections.
   at the selected record
 - WHEN a detail section declares type `relationshipHierarchy`
 - THEN the section declares one field item view for the selected root entity,
-  optional root record-operation bindings, and a non-empty ordered array of
-  child relationship declarations
+  optional ordered root record-link definitions, optional root record-operation
+  bindings, and a non-empty ordered array of child relationship declarations
 - AND each child declaration has a stable id, references a to-many relationship
   whose source is the current node entity, references a field item view for the
   relationship target entity, and may recursively declare the next fixed child
   relationships
 - AND each child declaration may provide a display label for its relationship
-  group
+  group plus ordered record-link definitions and record-operation bindings for
+  its target record entity
 - AND sibling declaration ids are unique, relationship order is schema order,
   and the finite declaration fixes every permitted entity and relationship path
 - AND the hierarchy stores no nested arrays, placement records, projection

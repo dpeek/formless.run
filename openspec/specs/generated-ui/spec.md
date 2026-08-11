@@ -598,9 +598,9 @@ summary slots, operation controls, and schema-declared result types.
   groups recursively contain complete child record nodes selected through the
   declared to-many relationships
 - AND every record node carries stable path-scoped occurrence identity, its
-  entity type label, one canonical record-result editor contract, enabled
-  operation controls, ordered relationship groups, and display-safe runtime
-  state
+  entity type label, one canonical record-result editor contract, resolved
+  record-link actions, enabled operation controls, ordered relationship groups,
+  and display-safe runtime state
 - AND every declared labelled relationship group remains present when it has no
   active target records while its parent record node remains present
 - AND occurrence identity scopes fields, create surfaces, controls, drafts,
@@ -626,16 +626,22 @@ summary slots, operation controls, and schema-declared result types.
 
 #### Scenario: Render hierarchy node actions
 
-- GIVEN a hierarchy record node declares record operations or its immediate
-  child relationships declare create actions
+- GIVEN a hierarchy record node declares record links or record operations, or
+  its immediate child relationships declare create actions
 - WHEN generated runtime resolves action availability for the current record
-- THEN the node header exposes one action menu containing only bindings whose
-  canonical runtime availability is enabled and omits the menu when no item
-  remains
+- THEN the node header exposes one action menu containing link actions in link
+  declaration order, enabled operation actions in operation declaration order,
+  then enabled immediate-child create actions in relationship declaration order
+- AND an unavailable link remains present and disabled with its display-safe
+  reason and no href while unavailable operations and create actions retain
+  their canonical filtering behavior
+- AND the menu is omitted only when no link, operation, or create item remains
 - AND a semantically enabled operation that is currently executing remains in
   the menu with canonical pending and disabled interaction state
 - AND invocation reuses canonical create or operation controls, authorization,
   confirmation, idempotency, progress, feedback, and error behavior
+- AND following a link does not invoke those controls or dispatch a hierarchy,
+  workspace, presentation, or operation intent
 - AND the renderer does not discover entity operations, evaluate availability,
   construct operation input, attach child records, or execute writes
 
@@ -1606,7 +1612,8 @@ reference resolution, structured URL construction, and availability.
 
 #### Scenario: Render native record link semantics
 
-- GIVEN the Formless Renderer receives an available record link
+- GIVEN the Formless Renderer receives an available record link in a placement
+  whose control supports link-backed rendering
 - WHEN it renders and the user follows the destination
 - THEN it renders a native anchor rather than a button click that dispatches an
   operation or presentation intent
@@ -1617,20 +1624,38 @@ reference resolution, structured URL construction, and availability.
 - AND an unavailable destination renders as a disabled control with its
   display-safe reason and without an href
 
-#### Scenario: Keep initial record link placement bounded
+#### Scenario: Navigate relationship-hierarchy menu links
 
-- GIVEN the current schema placement for record links is a table
-  `linkControl` column
-- WHEN generated UI selects row controls
+- GIVEN a relationship-hierarchy node header carries a projected native-link
+  action and the active More-menu primitive exposes callback-backed items rather
+  than link-backed items
+- WHEN the user activates an available item
+- THEN `sameTab` navigation assigns the resolved href to the current location
+- AND `newTab` navigation opens the resolved href in a new tab without an opener
+- AND the callback performs client-side navigation directly without dispatching
+  a hierarchy, workspace, presentation, or operation intent
+- AND an unavailable item is disabled, includes its display-safe reason, carries
+  no activation callback, and performs no navigation
+- AND the callback placement does not add callbacks to the native-link contract
+  and may become a native anchor when the menu primitive supports href, target,
+  and relationship attributes
+
+#### Scenario: Keep current record link placement bounded
+
+- GIVEN current schema placements for record links are table `linkControl`
+  columns and selected-record relationship-hierarchy node headers
+- WHEN generated UI selects record controls
 - THEN each `linkControl` renders its one referenced link as a visible primary
   row action in its own table column
+- AND each hierarchy node projects its ordered links into that node's one More
+  menu without a second placement registry
 - AND the table's one operation-control column places edit, command,
   destructive, transition, delete, or ordering operations independently
 - AND a row may contain both link-control and operation-control columns in
   declared column order
-- AND current record links are not placed in secondary action overflow menus,
-  list items, record results, item views, collection toolbars, workspace
-  actions, or external section actions
+- AND current record links are not placed in table operation overflow menus,
+  list items, ordinary record results, item views, collection toolbars,
+  workspace actions, or external section actions
 - AND the reusable record-link contract and resolution semantics do not depend
   on the table renderer or introduce a COA- or builder-specific abstraction
 

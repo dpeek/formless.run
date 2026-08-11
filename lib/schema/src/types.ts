@@ -1097,6 +1097,7 @@ export type SelectedRecordRelationshipHierarchyRelationshipSchema = {
   label?: string;
   relationship: string;
   itemView: string;
+  links?: KeyedDefinition<RecordLinkSchema>[];
   createAction?: SelectedRecordRelationshipHierarchyCreateBindingSchema;
   operations?: SelectedRecordRelationshipHierarchyOperationBindingSchema[];
   relationships?: SelectedRecordRelationshipHierarchyRelationshipSchema[];
@@ -1107,6 +1108,7 @@ export type SelectedRecordDetailRelationshipHierarchySectionSchema = {
   type: "relationshipHierarchy";
   label?: string;
   itemView: string;
+  links?: KeyedDefinition<RecordLinkSchema>[];
   operations?: SelectedRecordRelationshipHierarchyOperationBindingSchema[];
   relationships: SelectedRecordRelationshipHierarchyRelationshipSchema[];
 };
@@ -1135,12 +1137,27 @@ export type SelectedRecordRelationshipHierarchyOperationBindingSchemaSource =
   SelectedRecordRelationshipHierarchyOperationBindingSchema;
 export type SelectedRecordRelationshipHierarchyCreateBindingSchemaSource =
   SelectedRecordRelationshipHierarchyCreateBindingSchema;
-export type SelectedRecordRelationshipHierarchyRelationshipSchemaSource =
-  SelectedRecordRelationshipHierarchyRelationshipSchema;
-export type SelectedRecordDetailRelationshipHierarchySectionSchemaSource =
-  SelectedRecordDetailRelationshipHierarchySectionSchema;
-export type SelectedRecordDetailSectionSchemaSource = SelectedRecordDetailSectionSchema;
-export type SelectedRecordDetailSchemaSource = SelectedRecordDetailSchema;
+export type SelectedRecordRelationshipHierarchyRelationshipSchemaSource = Omit<
+  SelectedRecordRelationshipHierarchyRelationshipSchema,
+  "links" | "relationships"
+> & {
+  links?: KeyedDefinition<RecordLinkSchemaSource>[];
+  relationships?: SelectedRecordRelationshipHierarchyRelationshipSchemaSource[];
+};
+export type SelectedRecordDetailRelationshipHierarchySectionSchemaSource = Omit<
+  SelectedRecordDetailRelationshipHierarchySectionSchema,
+  "links" | "relationships"
+> & {
+  links?: KeyedDefinition<RecordLinkSchemaSource>[];
+  relationships: SelectedRecordRelationshipHierarchyRelationshipSchemaSource[];
+};
+export type SelectedRecordDetailSectionSchemaSource =
+  | SelectedRecordDetailRecordSectionSchemaSource
+  | SelectedRecordDetailRelationshipSectionSchemaSource
+  | SelectedRecordDetailRelationshipHierarchySectionSchemaSource;
+export type SelectedRecordDetailSchemaSource = Omit<SelectedRecordDetailSchema, "sections"> & {
+  sections: SelectedRecordDetailSectionSchemaSource[];
+};
 
 export type CollectionScreenSectionSchema = {
   id: string;

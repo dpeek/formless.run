@@ -56,6 +56,24 @@ describe("relationship-hierarchy memory Presentation Host", () => {
       hierarchy?.root.relationshipGroups[0]?.nodes[0]?.relationshipGroups[0]?.nodes[0]
         ?.entityTypeLabel,
     ).toBe("Task");
+    expect(
+      hierarchy?.root.relationshipGroups[0]?.nodes[0]?.relationshipGroups[0]?.nodes[0]
+        ?.headerActions.items,
+    ).toEqual([
+      {
+        kind: "linkAction",
+        link: {
+          accessibilityLabel: "Open Ship task documentation",
+          availability: "available",
+          href: "https://example.test/tasks/task:ship",
+          id: "occurrence:account/project/task:documentation",
+          kind: "nativeLinkAction",
+          label: "Open documentation",
+          prominence: "secondary",
+          target: "newTab",
+        },
+      },
+    ]);
     expect(hierarchy?.root.relationshipGroups[1]).toMatchObject({
       label: "Archived projects",
       nodes: [],
@@ -295,6 +313,21 @@ function selectedRecordList(): ListContract {
 
 function hierarchyContract(): RelationshipHierarchyContract {
   const task = hierarchyNode({
+    actions: [
+      {
+        kind: "linkAction",
+        link: {
+          accessibilityLabel: "Open Ship task documentation",
+          availability: "available",
+          href: "https://example.test/tasks/task:ship",
+          id: "occurrence:account/project/task:documentation",
+          kind: "nativeLinkAction",
+          label: "Open documentation",
+          prominence: "secondary",
+          target: "newTab",
+        },
+      },
+    ],
     entityTypeLabel: "Task",
     id: "occurrence:account/project/task",
     recordId: "task:ship",
@@ -341,12 +374,14 @@ function hierarchyContract(): RelationshipHierarchyContract {
 }
 
 function hierarchyNode({
+  actions = [],
   entityTypeLabel,
   headerCreateGroupId,
   id,
   recordId,
   relationshipGroups = [],
 }: {
+  actions?: RelationshipHierarchyNodeContract["headerActions"]["items"];
   entityTypeLabel: string;
   headerCreateGroupId?: string;
   id: string;
@@ -360,16 +395,18 @@ function hierarchyNode({
     headerActions: {
       accessibilityLabel: `More ${entityTypeLabel.toLowerCase()} actions`,
       id: `${id}:header-actions`,
-      items:
-        headerCreateGroupId === undefined
+      items: [
+        ...actions,
+        ...(headerCreateGroupId === undefined
           ? []
           : [
               {
-                kind: "createAction",
+                kind: "createAction" as const,
                 relationshipGroupId: headerCreateGroupId,
                 surface: createSurface(`${id}:create`),
               },
-            ],
+            ]),
+      ],
       kind: "relationshipHierarchyActions",
     },
     id,

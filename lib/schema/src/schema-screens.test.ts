@@ -768,6 +768,118 @@ describe("schema screens", () => {
     expect(parseAppSchema(JSON.parse(stringifySchema(parsed)))).toEqual(parsed);
   });
 
+  it("parses ordered record links against every hierarchy node entity and serializes recursively", () => {
+    const hierarchy = selectedRecordRelationshipHierarchySection({
+      links: [
+        hierarchyRecordLink("openTask", "title"),
+        hierarchyRecordLink("inspectTask", "title", "newTab"),
+      ],
+      relationships: [
+        selectedRecordHierarchyRelationship({
+          links: [
+            hierarchyRecordLink("openNote", "title"),
+            hierarchyReferenceRecordLink("openParentTask", "parentTask", "title"),
+          ],
+          relationships: [
+            {
+              id: "comments",
+              label: "Comments",
+              relationship: "noteComments",
+              itemView: "commentItem",
+              links: [hierarchyRecordLink("openComment", "body")],
+            },
+          ],
+        }),
+      ],
+    });
+    const parsed = parseAppSchema(
+      selectedRecordDetailSchema(selectedRecordDetail({ sections: [hierarchy] })),
+    );
+    const screen = parsed.screens[0];
+    if (screen.type !== "workspace") {
+      throw new Error("Expected selected-record workspace.");
+    }
+    const section = screen.layout.sections[0].detail?.sections[0];
+    if (section?.type !== "relationshipHierarchy") {
+      throw new Error("Expected selected-record relationship hierarchy.");
+    }
+
+    expect(section.links?.map((link) => link.key)).toEqual(["openTask", "inspectTask"]);
+    expect(section.relationships[0]?.links?.map((link) => link.key)).toEqual([
+      "openNote",
+      "openParentTask",
+    ]);
+    expect(section.relationships[0]?.links?.[1]?.destination.query[0]).toEqual({
+      name: "value",
+      source: {
+        kind: "referenceField",
+        referenceField: "parentTask",
+        targetEntity: "task",
+        field: "title",
+      },
+      missing: "disable",
+    });
+    expect(section.relationships[0]?.relationships?.[0]?.links?.[0]).toMatchObject({
+      key: "openComment",
+      destination: {
+        query: [{ source: { kind: "field", field: "body" }, missing: "disable" }],
+      },
+    });
+    expect(parseAppSchema(JSON.parse(stringifySchema(parsed)))).toEqual(parsed);
+  });
+
+  it("rejects duplicate hierarchy link keys and fields from a different node entity", () => {
+    const invalidHierarchies: { hierarchy: unknown; message: string }[] = [
+      {
+        hierarchy: selectedRecordRelationshipHierarchySection({
+          links: [hierarchyRecordLink("open", "title"), hierarchyRecordLink("open", "title")],
+        }),
+        message: 'links contains duplicate key "open"',
+      },
+      {
+        hierarchy: selectedRecordRelationshipHierarchySection({
+          links: [hierarchyRecordLink("invalid", "body")],
+        }),
+        message: 'references unknown value field "task.body"',
+      },
+      {
+        hierarchy: selectedRecordRelationshipHierarchySection({
+          relationships: [
+            selectedRecordHierarchyRelationship({
+              links: [hierarchyRecordLink("invalid", "body")],
+            }),
+          ],
+        }),
+        message: 'references unknown value field "note.body"',
+      },
+      {
+        hierarchy: selectedRecordRelationshipHierarchySection({
+          relationships: [
+            selectedRecordHierarchyRelationship({
+              relationships: [
+                {
+                  id: "comments",
+                  relationship: "noteComments",
+                  itemView: "commentItem",
+                  links: [hierarchyRecordLink("invalid", "title")],
+                },
+              ],
+            }),
+          ],
+        }),
+        message: 'references unknown value field "comment.title"',
+      },
+    ];
+
+    for (const invalid of invalidHierarchies) {
+      expect(() =>
+        parseAppSchema(
+          selectedRecordDetailSchema(selectedRecordDetail({ sections: [invalid.hierarchy] })),
+        ),
+      ).toThrow(invalid.message);
+    }
+  });
+
   it("validates relationship-hierarchy paths, field item views, sibling ids, and operations", () => {
     const invalidHierarchies: { hierarchy: unknown; message: string }[] = [
       {
@@ -1572,6 +1684,32 @@ function selectedRecordHierarchyRelationship(overrides: Record<string, unknown> 
       },
     ],
     ...overrides,
+  };
+}
+
+function hierarchyRecordLink(key: string, field: string, target: "sameTab" | "newTab" = "sameTab") {
+  return {
+    key,
+    label: `Open ${field}`,
+    target,
+    destination: {
+      type: "url",
+      base: "https://example.test/open",
+      query: [{ name: "value", source: { kind: "field", field } }],
+    },
+  };
+}
+
+function hierarchyReferenceRecordLink(key: string, referenceField: string, field: string) {
+  return {
+    key,
+    label: `Open ${field}`,
+    target: "sameTab",
+    destination: {
+      type: "url",
+      base: "https://example.test/open",
+      query: [{ name: "value", source: { kind: "referenceField", referenceField, field } }],
+    },
   };
 }
 
