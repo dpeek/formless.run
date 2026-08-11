@@ -572,6 +572,12 @@ summary slots, operation controls, and schema-declared result types.
   table view through the canonical table foundation and contract
 - AND a relationship heading operation uses the canonical record-scoped
   operation controller with the selected source record id
+- AND a relationship heading create action composes the canonical target create
+  surface with schema-declared defaults resolved from the selected source record
+  and relationship query context
+- AND opening that create surface changes only controlled dialog and draft state;
+  one target record is created and attached through flat reference values only
+  after a valid submit
 - AND selected-record detail does not select a separate context entity or use
   collection `listDetail` fallback semantics
 
@@ -679,10 +685,11 @@ selection, reads, evaluation, operation execution, and effects.
   ordered record and relationship section references, and semantic selection
   and back intents
 - AND record sections reference canonical record-result contracts while
-  relationship sections reference canonical table contracts and may carry
-  ordered canonical operation controls for heading placement
+  relationship sections reference canonical table contracts and may carry one
+  optional canonical `headingCreate` surface plus ordered canonical
+  `headingOperations`
 - AND a summary main list carries only each record's title and optional
-  subtitle plus semantic selection state and intent
+  subtitle plus one controlled semantic selection state and intent
 - AND the contract declares compact presentation as `drillIn`, so compact
   rendering starts at the list, selection enters detail, and back clears the
   selection
@@ -725,8 +732,13 @@ selection, reads, evaluation, operation execution, and effects.
 - AND changing or clearing selected-record identity does not project draft,
   error, pending, icon dialog, or confirmation state from the previous record
 - AND runtime verifies selected-record, detail-section, relationship-result,
-  and heading-operation identity against the latest screen projection before
+  heading-operation, heading-create-surface, result, record, field, table, and
+  table-field-context identity against the latest screen projection before
   applying a nested intent
+- AND selected-record relationship results resolve independently of an optional
+  table field-context id, while the table field resolver validates that context
+  before applying draft, commit, transition, picker, upload, or other table
+  field intents
 - AND nested result and control ids remain unique when one screen repeats the
   same view, item view, entity, or query in multiple sections
 - AND renderers do not evaluate queries or aggregates, select context fallback,
@@ -1169,7 +1181,8 @@ record reads, authoring state, operation execution, and ordering effects.
 - GIVEN generated UI selects a list result model
 - WHEN generated runtime prepares the list for the Formless Renderer
 - THEN it projects a stable list id, accessible label, density, ordered items,
-  empty state, and editing availability
+  empty state, and editing applicability plus availability when authoring is
+  applicable
 - AND each field-presented list item carries a stable id, accessible label,
   projected record fields, explicit primary and secondary actions, optional
   ordering actions, and display-safe readiness warnings
@@ -1215,10 +1228,12 @@ record reads, authoring state, operation execution, and ordering effects.
 
 - GIVEN a summary-presented list is the selector for selected-record detail
 - WHEN generated runtime prepares list-item interaction data
-- THEN each item carries controlled selected state and a semantic select-record
-  intent
+- THEN the list contract owns one controlled selected item identity and each
+  item carries a semantic select-record intent without a second selected flag
 - AND the summary item carries no field, operation, delete, ordering, warning,
   status, or badge contracts
+- AND summary presentation declares authoring not applicable rather than
+  disabled, so it publishes no editing-disabled reason or status
 - AND the renderer may make the whole summary row the selection target because
   it contains no nested interactive fields or actions
 - AND summary lists outside a selection composition remain non-interactive
@@ -1259,6 +1274,13 @@ record reads, authoring state, operation execution, and ordering effects.
   status presentation contains only projected warning messages
 - AND summary items render title and optional subtitle without synthesizing a
   status badge, field control, or action control
+- AND the renderer derives selected/current semantics for summary and
+  field-presented items from the same controlled list selection identity
+- AND a selected row has a persistent visible treatment distinct from hover and
+  keyboard focus while retaining accessible current semantics and click or
+  keyboard selection behavior
+- AND authoring-not-applicable lists emit no disabled-editing status, while a
+  list whose expected authoring is unavailable retains its projected reason
 - AND empty states use only projected title, description, and optional action
   facts rather than inventing unavailable create behavior
 - AND list behavior follows the renderer's list and action hierarchy
@@ -1659,6 +1681,9 @@ The system SHALL render generated field displays and editors from field behavior
   error
 - AND hidden fields are omitted before they reach the renderer, except hidden
   literal create defaults remain foundation-owned operation input
+- AND shared view bindings that declare display interaction project ordinary
+  entity fields with display access even when the underlying field is writable,
+  and those occurrences publish no draft or patch intents
 - AND `visibleWhen`, union discriminator variants, create defaults,
   non-writable fields, system fields, state-machine-owned fields, reference
   option loading, missing reference fallbacks, media upload state, value
@@ -1753,8 +1778,9 @@ owns create policy, draft state, validation, and operation execution.
 
 #### Scenario: Project controlled create surface
 
-- GIVEN a generated collection, context selector, list-detail selector, or root
-  navigation group exposes a create operation
+- GIVEN a generated collection, context selector, list-detail selector,
+  selected-record relationship heading, or root navigation group exposes a
+  create operation
 - WHEN generated runtime prepares the create control for the Formless Renderer
 - THEN it projects a stable create-surface id, semantic trigger content,
   accessible trigger label, disabled state and reason, controlled dialog open
@@ -1768,6 +1794,9 @@ owns create policy, draft state, validation, and operation execution.
   presentation classes
 - AND opening the create dialog is a presentation intent and does not execute
   the declared create operation
+- AND a selected-record relationship create surface resolves compatible
+  schema-declared defaults from the selected source record and relationship
+  query context into ordinary flat target operation input
 - AND unresolved context defaults or disabled create policy disable the trigger
   with a display-safe reason before the dialog opens
 - AND generated runtime retains the operation config, query context, create
@@ -1779,9 +1808,10 @@ owns create policy, draft state, validation, and operation execution.
 - GIVEN production generated UI publishes controlled create-surface contracts
 - WHEN generated runtime projects a create surface
 - THEN collection operation rows, context selectors, list-detail selectors,
-  root navigation groups, standalone generated create dialogs, and embedded
-  tree-child create forms render through a Formless Renderer entrypoint that
-  consumes the controlled create-surface and field contracts
+  selected-record relationship headings, root navigation groups, standalone
+  generated create dialogs, and embedded tree-child create forms render through
+  a Formless Renderer entrypoint that consumes the controlled create-surface
+  and field contracts
 - AND the presentation adapter receives projected display facts and open, field,
   cancel, and submit intents instead of raw operation configs, query context,
   draft-session state, operation controllers, records, or storage hooks
@@ -2165,6 +2195,22 @@ entity operations and view operation bindings.
 - AND heading placement changes only ordered presentation and visible labeling
 - AND the renderer cannot weaken operation authorization, transition validity,
   confirmation, input construction, or execution semantics
+
+#### Scenario: Place a selected-record create surface at a relationship heading
+
+- GIVEN a selected-record relationship section binds a target create view and
+  create operation at its heading
+- WHEN generated runtime projects and invokes the control
+- THEN the control reuses the canonical create surface, draft state, field
+  projection, validation, submission, feedback, operation controller, and
+  execution behavior
+- AND runtime resolves the selected source, relationship query context, and
+  declared compatible defaults against the latest workspace before opening or
+  submitting the surface
+- AND opening does not create a placeholder record, valid submission executes
+  once through the target entity's canonical collection create operation, and
+  the created flat target record carries the selected source id in the
+  relationship's declared target reference field
 
 #### Scenario: Bind a collection operation to empty state
 

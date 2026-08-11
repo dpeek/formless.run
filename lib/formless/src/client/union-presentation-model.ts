@@ -141,18 +141,17 @@ function selectRecordVariantPresentation(
     fields: presentation.fields.map((viewField) => {
       const fieldName = viewField.field;
       const selectedField = selectAddressableRecordFieldConfig(entity, fieldName);
+      const writable = selectedField.writable && viewField.interaction !== "display";
       return {
         fieldName,
         fieldRef: selectedField.fieldRef,
         field: selectedField.field,
-        editor: selectedField.writable ? viewField.editor : "text",
-        commit: selectedField.writable ? viewField.commit : "field-commit",
-        writable: selectedField.writable,
+        editor: viewField.editor,
+        commit: viewField.commit,
+        writable,
         label: selectedField.label,
         ...(viewField.visibleWhen === undefined ? {} : { visibleWhen: viewField.visibleWhen }),
-        ...(selectedField.writable && viewField.presentation !== undefined
-          ? { presentation: viewField.presentation }
-          : {}),
+        ...(viewField.presentation !== undefined ? { presentation: viewField.presentation } : {}),
       };
     }),
   };

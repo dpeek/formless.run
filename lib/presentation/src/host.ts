@@ -1408,13 +1408,17 @@ function assertWorkspaceSelectedRecordContract(
   }
 
   const selectedRecordId = presentation.selectedRecordId;
+  if (mainResult.selection?.selectedItemId !== selectedRecordId) {
+    throw new Error(
+      `Formless UI selected-record workspace ${JSON.stringify(presentation.id)} has invalid list selection.`,
+    );
+  }
   for (const item of mainResult.items) {
     if (item.presentation !== "summary") {
       continue;
     }
     const selectionIntent = item.selectionIntent;
     if (
-      item.selected !== (item.id === selectedRecordId) ||
       selectionIntent?.type !== "workspaceSelectedRecordSelection" ||
       selectionIntent.screenId !== sectionReference.workspaceId ||
       selectionIntent.sectionId !== sectionReference.sectionId ||

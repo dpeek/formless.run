@@ -69,7 +69,7 @@ describe("generated Formless UI list projection", () => {
     expect(contract).toMatchObject({
       accessibilityLabel: "Task records",
       density: "compact",
-      editing: { enabled: true },
+      editing: { applicability: "applicable", enabled: true },
       id: "tasks:active",
       items: [
         {
@@ -171,11 +171,64 @@ describe("generated Formless UI list projection", () => {
       presentation: "summary",
       title: "Title only",
     });
+    expect(projected.list.editing).toEqual({ applicability: "notApplicable" });
     expect(projected.runtimePlan.fields).toEqual([]);
     expect(projected.runtimePlan.operations).toEqual([]);
     for (const forbidden of ["actions", "availability", "fields", "ordering", "warnings"]) {
       expect(item).not.toHaveProperty(forbidden);
     }
+  });
+
+  it("projects ordinary display-bound fields without accepting authoring intents", () => {
+    const record = taskRecord("article-1", {
+      kind: "article",
+      summary: "Display and edit together",
+      title: "Order 1001",
+    });
+    const result = listResult();
+    result.recordFields = result.recordFields.map((field) =>
+      field.fieldName === "title" ? { ...field, writable: false } : field,
+    );
+    const projected = selectGeneratedListFoundation({
+      entity: taskEntity,
+      entityName: "task",
+      id: "tasks:mixed",
+      recordIds: [record.id],
+      recordsById: { [record.id]: record },
+      result,
+    });
+    const item = projected.list.items[0];
+    if (item?.presentation !== "fields") {
+      throw new Error("Missing mixed-interaction list item.");
+    }
+    const title = item.fields.find((field) => field.fieldName === "title")!;
+    const summary = item.fields.find((field) => field.fieldName === "summary")!;
+
+    expect(title).toMatchObject({
+      access: { kind: "readOnly", writable: false },
+      mode: "display",
+    });
+    expect(summary).toMatchObject({ access: { kind: "editable" }, mode: "editor" });
+    expect(
+      resolveGeneratedListFieldIntent(projected.runtimePlan, {
+        fieldId: title.fieldId,
+        intent: {
+          fieldName: title.fieldName,
+          fieldValue: { kind: "input", value: "Changed" },
+          type: "recordDraftCommit",
+        },
+        recordId: record.id,
+        resultId: projected.list.id,
+      }),
+    ).toBeUndefined();
+    expect(
+      resolveGeneratedListFieldIntent(projected.runtimePlan, {
+        fieldId: summary.fieldId,
+        intent: { fieldName: summary.fieldName, type: "recordDraftRevert" },
+        recordId: record.id,
+        resultId: projected.list.id,
+      }),
+    ).toMatchObject({ fieldId: summary.fieldId, recordId: record.id });
   });
 
   it("projects editing-disabled, empty, unavailable, and display-safe fallback states", () => {
@@ -209,7 +262,11 @@ describe("generated Formless UI list projection", () => {
     });
 
     expect(empty).toMatchObject({
-      editing: { disabledReason: "Task updates are unavailable.", enabled: false },
+      editing: {
+        applicability: "applicable",
+        disabledReason: "Task updates are unavailable.",
+        enabled: false,
+      },
       emptyState: {
         action: { control: { id: transitionBinding().id }, role: "command" },
         description: "Create a task to get started.",

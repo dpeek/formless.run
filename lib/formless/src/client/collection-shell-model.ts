@@ -594,6 +594,26 @@ function selectCreateOperation(
   };
 }
 
+export function selectHomeCreateOperation(
+  schema: AppSchema,
+  createViewName: string,
+  canonicalOperationKey: string,
+  label?: string,
+): Extract<HomeOperationConfig, { type: "create" }> {
+  const operation = selectBoundCollectionOperation(schema, canonicalOperationKey);
+  const selected = selectCreateOperation(
+    schema,
+    schema.views.map(({ key, ...view }) => [key, view] as [string, ViewSchema]),
+    createViewName,
+    label,
+    operation,
+  );
+  if (selected === undefined) {
+    throw new Error(`Missing create operation binding "${canonicalOperationKey}".`);
+  }
+  return selected;
+}
+
 function selectBoundCollectionOperation(
   schema: AppSchema,
   canonicalKey: string,
@@ -654,23 +674,22 @@ export function selectRecordFields(
     const fieldName = viewField.field;
     const selectedField = selectAddressableRecordFieldConfig(entity, fieldName);
     const stateMachine =
-      selectedField.fieldRef.kind === "value"
+      viewField.interaction !== "display" && selectedField.fieldRef.kind === "value"
         ? selectStateMachineField(entity, fieldName)
         : undefined;
+    const writable = selectedField.writable && viewField.interaction !== "display";
 
     return {
       fieldName,
       fieldRef: selectedField.fieldRef,
       field: selectedField.field,
-      editor: selectedField.writable ? viewField.editor : "text",
-      commit: selectedField.writable ? viewField.commit : "field-commit",
-      writable: selectedField.writable,
+      editor: viewField.editor,
+      commit: viewField.commit,
+      writable,
       label: selectedField.label,
       ...(stateMachine === undefined ? {} : { stateMachine }),
       ...(viewField.visibleWhen === undefined ? {} : { visibleWhen: viewField.visibleWhen }),
-      ...(selectedField.writable && viewField.presentation !== undefined
-        ? { presentation: viewField.presentation }
-        : {}),
+      ...(viewField.presentation !== undefined ? { presentation: viewField.presentation } : {}),
     };
   });
 }

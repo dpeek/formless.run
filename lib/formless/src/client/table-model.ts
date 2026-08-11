@@ -566,29 +566,27 @@ function selectEditViewConfig(schema: AppSchema, editViewName: string): EditView
   };
 }
 function selectEditFields(view: EditViewSchema, entity: EntitySchema): RecordFieldConfig[] {
-  return view.fields.flatMap((viewField) => {
+  return view.fields.map((viewField) => {
     const fieldName = viewField.field;
     const selectedField = selectAddressableRecordFieldConfig(entity, fieldName);
-    if (!selectedField.writable) {
-      return [];
-    }
+    const writable = selectedField.writable && viewField.interaction !== "display";
+    const stateMachine =
+      writable && selectedField.fieldRef.kind === "value"
+        ? selectStateMachineField(entity, fieldName)
+        : undefined;
 
-    const stateMachine = selectStateMachineField(entity, fieldName);
-
-    return [
-      {
-        fieldName,
-        fieldRef: selectedField.fieldRef,
-        field: selectedField.field,
-        editor: viewField.editor,
-        commit: viewField.commit,
-        writable: true,
-        label: selectedField.label,
-        ...(stateMachine === undefined ? {} : { stateMachine }),
-        ...(viewField.visibleWhen === undefined ? {} : { visibleWhen: viewField.visibleWhen }),
-        ...(viewField.presentation === undefined ? {} : { presentation: viewField.presentation }),
-      },
-    ];
+    return {
+      fieldName,
+      fieldRef: selectedField.fieldRef,
+      field: selectedField.field,
+      editor: viewField.editor,
+      commit: viewField.commit,
+      writable,
+      label: selectedField.label,
+      ...(stateMachine === undefined ? {} : { stateMachine }),
+      ...(viewField.visibleWhen === undefined ? {} : { visibleWhen: viewField.visibleWhen }),
+      ...(viewField.presentation === undefined ? {} : { presentation: viewField.presentation }),
+    };
   });
 }
 function selectRecordFields(view: ItemViewSchema, entity: EntitySchema): RecordFieldConfig[] {
@@ -599,23 +597,22 @@ function selectRecordFields(view: ItemViewSchema, entity: EntitySchema): RecordF
     const fieldName = viewField.field;
     const selectedField = selectAddressableRecordFieldConfig(entity, fieldName);
     const stateMachine =
-      selectedField.fieldRef.kind === "value"
+      viewField.interaction !== "display" && selectedField.fieldRef.kind === "value"
         ? selectStateMachineField(entity, fieldName)
         : undefined;
+    const writable = selectedField.writable && viewField.interaction !== "display";
 
     return {
       fieldName,
       fieldRef: selectedField.fieldRef,
       field: selectedField.field,
-      editor: selectedField.writable ? viewField.editor : "text",
-      commit: selectedField.writable ? viewField.commit : "field-commit",
-      writable: selectedField.writable,
+      editor: viewField.editor,
+      commit: viewField.commit,
+      writable,
       label: selectedField.label,
       ...(stateMachine === undefined ? {} : { stateMachine }),
       ...(viewField.visibleWhen === undefined ? {} : { visibleWhen: viewField.visibleWhen }),
-      ...(selectedField.writable && viewField.presentation !== undefined
-        ? { presentation: viewField.presentation }
-        : {}),
+      ...(viewField.presentation !== undefined ? { presentation: viewField.presentation } : {}),
     };
   });
 }

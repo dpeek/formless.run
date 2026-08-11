@@ -158,7 +158,7 @@ describe("memory Presentation Host", () => {
   it("preserves discriminated summary list items at the host boundary", () => {
     const summaryList: ListContract = {
       ...listResult("list:tasks", "Tasks"),
-      editing: { disabledReason: "Summary items are read-only.", enabled: false },
+      editing: { applicability: "notApplicable" },
       items: [
         {
           accessibilityLabel: "Release notes",
@@ -777,7 +777,7 @@ function listResult(id: string, accessibilityLabel: string): ListContract {
   return {
     accessibilityLabel,
     density: "default",
-    editing: { enabled: true },
+    editing: { applicability: "applicable", enabled: true },
     id,
     items: [],
     kind: "list",

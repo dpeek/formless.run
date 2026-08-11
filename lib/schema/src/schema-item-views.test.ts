@@ -188,6 +188,57 @@ describe("schema item views", () => {
       },
     ]);
   });
+
+  it("parses shared display interaction once for item and edit views", () => {
+    const displayTitle = { field: "title", interaction: "display" as const };
+    const editableDueDate = {
+      field: "dueDate",
+      interaction: "edit" as const,
+      editor: "date" as const,
+      commit: "field-commit" as const,
+    };
+    const schema = parseAppSchema({
+      ...taskSchema(),
+      itemViews: [
+        {
+          key: "taskItem",
+          entity: "task",
+          fields: [displayTitle, editableDueDate],
+        },
+      ],
+      views: [
+        ...taskSchema().views,
+        {
+          key: "taskEdit",
+          type: "edit",
+          entity: "task",
+          fields: [displayTitle, editableDueDate],
+        },
+      ],
+    });
+
+    expect(schema.itemViews[0]?.fields).toEqual([
+      { ...displayTitle, editor: "text", commit: "field-commit" },
+      editableDueDate,
+    ]);
+    expect(schema.views.find((view) => view.key === "taskEdit")).toMatchObject({
+      fields: [{ ...displayTitle, editor: "text", commit: "field-commit" }, editableDueDate],
+      type: "edit",
+    });
+    expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
+  });
+
+  it("rejects invalid shared field interaction", () => {
+    const parseField = (field: Record<string, unknown>) =>
+      parseAppSchema({
+        ...taskSchema(),
+        itemViews: [{ key: "taskItem", entity: "task", fields: [field] }],
+      });
+
+    expect(() => parseField({ field: "title", interaction: "disabled" })).toThrow(
+      'View field "taskItem.title" has unsupported interaction "disabled".',
+    );
+  });
   it("rejects unknown fields and incompatible commit policies", () => {
     expect(() =>
       parseAppSchema({

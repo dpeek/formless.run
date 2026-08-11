@@ -65,6 +65,33 @@ describe("home view model collections", () => {
     ).toEqual(["title", "dueDate", "priority", "done"]);
   });
 
+  it("selects shared display bindings as read-only beside editable item fields", () => {
+    const schema: AppSchema = {
+      ...appSchema,
+      itemViews: appSchema.itemViews.map((itemView) =>
+        itemView.key === "taskListItem" && isFieldItemViewSchema(itemView)
+          ? {
+              ...itemView,
+              fields: itemView.fields.map((field) =>
+                field.field === "title" ? { ...field, interaction: "display" as const } : field,
+              ),
+            }
+          : itemView,
+      ),
+    };
+    const model = selectPrimaryCollectionModels(schema)[0];
+    const fields = model?.result.type === "list" ? model.result.recordFields : [];
+
+    expect(
+      fields.map((field) => ({ fieldName: field.fieldName, writable: field.writable })),
+    ).toEqual([
+      { fieldName: "title", writable: false },
+      { fieldName: "dueDate", writable: true },
+      { fieldName: "priority", writable: true },
+      { fieldName: "done", writable: true },
+    ]);
+  });
+
   it("propagates generated field presentation metadata into collection models", () => {
     const schema = taskSchemaWithFieldPresentations();
     const model = selectPrimaryCollectionModels(schema)[0];
@@ -158,7 +185,7 @@ describe("home view model collections", () => {
       editControl?.type === "editRecord"
         ? editControl.editView.fields.map((field) => field.fieldName)
         : [],
-    ).toEqual(["title"]);
+    ).toEqual(["title", "updatedAt"]);
   });
 
   it("selects generated state-machine field and transition facts", () => {
@@ -2881,6 +2908,18 @@ describe("home view model collections", () => {
               type: "table",
               tableViewName: "rateTable",
             },
+            createAction: {
+              type: "create",
+              entityName: "rate",
+              operationName: "create",
+              label: "Add rate",
+              defaults: [
+                {
+                  fieldName: "card",
+                  value: { kind: "context", name: "card" },
+                },
+              ],
+            },
             operations: [
               {
                 bindingName: "card.update",
@@ -3182,6 +3221,12 @@ function rateCardSchemaWithSelectedRecordDetail(): AppSchema {
         relationship: "cardRates",
         query: "ratesForSelectedCard",
         result: { type: "table" as const, tableView: "rateTable" },
+        createAction: {
+          operation: "rate.create",
+          createView: "rateCreateForCard",
+          placement: "heading" as const,
+          label: "Add rate",
+        },
         operations: [
           {
             operation: "card.update",

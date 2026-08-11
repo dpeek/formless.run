@@ -24,6 +24,7 @@ import {
   type RecordFieldConfig,
   type TransitionStateOperationConfig,
   recordFieldRef,
+  recordFieldIsWritable,
 } from "../../client/views.ts";
 import {
   projectGeneratedRecordResultContract,
@@ -418,6 +419,7 @@ export function resolveGeneratedRecordResultFieldIntent(
       : undefined;
 
   return runtime !== undefined &&
+    recordFieldIsWritable(runtime.fieldConfig) &&
     runtime.recordId === recordId &&
     runtime.resultId === resultId &&
     runtime.field.recordId === recordId &&

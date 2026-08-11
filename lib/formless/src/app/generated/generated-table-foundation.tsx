@@ -502,6 +502,7 @@ export function resolveGeneratedTableFieldIntent(
   const intentRecordId = intent.type === "stateTransitionInvoke" ? intent.recordId : recordId;
 
   return runtime !== undefined &&
+    recordFieldIsWritable(runtime.fieldConfig) &&
     runtime.tableId === tableId &&
     runtime.contextId === contextId &&
     runtime.recordId === recordId &&

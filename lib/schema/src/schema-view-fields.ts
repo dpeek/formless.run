@@ -6,7 +6,7 @@ import {
 } from "./schema-parse-helpers.ts";
 import { parseFieldCommitPolicy, parseFieldEditor } from "./schema-view-field-parser.ts";
 import { isSystemFieldName } from "./fields.ts";
-import { isFieldCommitPolicy, isFieldEditor } from "./field-types.ts";
+import { getFieldTypeBehavior, isFieldCommitPolicy, isFieldEditor } from "./field-types.ts";
 import type {
   CreateViewFieldSchema,
   CreateViewFieldBindingSchema,
@@ -49,11 +49,18 @@ function parseListViewField(
   fieldName: string,
   value: unknown,
   entity: EntitySchema,
-): ViewFieldSchema {
+): ViewFieldSchema & { interaction?: "edit" | "display" } {
   if (!isRecord(value)) {
     throw new Error(`View field "${viewName}.${fieldName}" must be an object.`);
   }
-  const allowedKeys = new Set(["field", "editor", "commit", "visibleWhen", "presentation"]);
+  const allowedKeys = new Set([
+    "field",
+    "interaction",
+    "editor",
+    "commit",
+    "visibleWhen",
+    "presentation",
+  ]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
       throw new Error(`View field "${viewName}.${fieldName}" has unsupported key "${key}".`);
@@ -66,23 +73,41 @@ function parseListViewField(
   }
 
   const context = `View field "${viewName}.${fieldName}"`;
-  const editor =
-    field === undefined
-      ? parseSystemFieldEditor(context, value.editor)
-      : parseFieldEditor(context, value.editor, field);
-  const commit =
-    field === undefined
-      ? parseSystemFieldCommitPolicy(context, value.commit)
-      : parseFieldCommitPolicy(context, value.commit, field);
+  const interaction = value.interaction;
+  if (interaction !== undefined && interaction !== "edit" && interaction !== "display") {
+    throw new Error(`${context} has unsupported interaction "${formatUnknownValue(interaction)}".`);
+  }
   const visibleWhen = parseFieldVisibilityCondition(context, value.visibleWhen, entity);
   const presentation =
     field === undefined
       ? undefined
       : parseOptionalFieldPresentation(context, value.presentation, field);
 
+  const editor =
+    field === undefined
+      ? parseSystemFieldEditor(context, value.editor)
+      : parseFieldEditor(
+          context,
+          interaction === "display" && value.editor === undefined
+            ? getFieldTypeBehavior(field).defaultEditor
+            : value.editor,
+          field,
+        );
+  const commit =
+    field === undefined
+      ? parseSystemFieldCommitPolicy(context, value.commit)
+      : parseFieldCommitPolicy(
+          context,
+          interaction === "display" && value.commit === undefined
+            ? getFieldTypeBehavior(field).defaultCommit
+            : value.commit,
+          field,
+        );
+
   return {
     editor,
     commit,
+    ...(interaction === undefined ? {} : { interaction }),
     ...(visibleWhen === undefined ? {} : { visibleWhen }),
     ...(presentation === undefined ? {} : { presentation }),
   };

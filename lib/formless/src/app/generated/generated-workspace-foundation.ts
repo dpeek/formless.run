@@ -138,6 +138,7 @@ export type GeneratedWorkspaceSelectedRecordDetailHeadingOperationFoundation = {
 };
 
 export type GeneratedWorkspaceSelectedRecordDetailRelationshipFoundation = {
+  headingCreate?: GeneratedWorkspaceContextCreateFoundation;
   headingOperations?: readonly GeneratedWorkspaceSelectedRecordDetailHeadingOperationFoundation[];
   table: GeneratedWorkspaceTableFoundation;
 };
@@ -325,6 +326,7 @@ export type GeneratedWorkspaceSelectedRecordDetailHeadingOperationRuntime = {
 };
 
 export type GeneratedWorkspaceSelectedRecordDetailRelationshipRuntime = {
+  headingCreate?: GeneratedWorkspaceContextCreateFoundation;
   headingOperations: readonly GeneratedWorkspaceSelectedRecordDetailHeadingOperationRuntime[];
   id: string;
   label?: string;
@@ -1351,6 +1353,9 @@ function selectGeneratedWorkspaceSelectedRecordDetailRelationshipResults(
     }
 
     return {
+      ...(sectionInput.headingCreate === undefined
+        ? {}
+        : { headingCreate: sectionInput.headingCreate }),
       headingOperations: sectionInput.headingOperations ?? [],
       id: relationshipFacts.section.id,
       ...(relationshipFacts.section.label === undefined
@@ -1414,6 +1419,9 @@ function projectGeneratedWorkspaceSelectedRecordFacts({
             );
           }
           return {
+            ...(projected.headingCreate === undefined
+              ? {}
+              : { headingCreate: projected.headingCreate.action }),
             headingOperations: projected.headingOperations.map(({ control }) => control),
             id: projected.id,
             ...(projected.label === undefined ? {} : { label: projected.label }),
@@ -1550,6 +1558,19 @@ function selectGeneratedWorkspaceControlRuntimePlan(
     });
   }
 
+  for (const relationship of Object.values(input.selectedRecordDetailRelationships ?? {})) {
+    if (relationship?.headingCreate === undefined) {
+      continue;
+    }
+    const create = relationship.headingCreate;
+    controls.set(create.action.surface.id, {
+      contract: create.action.surface,
+      fieldsById: indexGeneratedCreateSurfaceFields(create.action.surface),
+      kind: "create",
+      runtime: create.runtime,
+    });
+  }
+
   return controls;
 }
 
@@ -1573,12 +1594,13 @@ function selectGeneratedWorkspaceIntentResult(
     if (selectedRecordResult !== undefined) {
       return selectedRecordResult.result;
     }
-    const selectedRelationshipResult = section.selectedRecordDetailRelationshipResults.find(
-      ({ result }) => result.contract.id === resultId,
-    );
-    if (selectedRelationshipResult !== undefined) {
-      return selectedRelationshipResult.result;
-    }
+  }
+
+  const selectedRelationshipResult = section.selectedRecordDetailRelationshipResults.find(
+    ({ result }) => result.contract.id === resultId,
+  );
+  if (selectedRelationshipResult !== undefined) {
+    return selectedRelationshipResult.result;
   }
 
   return section.contextResult?.contract.id === resultId && contextId === section.contextId

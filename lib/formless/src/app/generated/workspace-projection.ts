@@ -127,6 +127,7 @@ export type GeneratedWorkspaceSelectedRecordSectionProjectionFacts =
       type: "record";
     }
   | {
+      headingCreate?: Extract<WorkspaceCollectionActionContract, { kind: "createAction" }>;
       headingOperations: readonly OperationControlContract[];
       id: string;
       label?: string;
@@ -683,6 +684,7 @@ function projectGeneratedWorkspaceSelectedRecordList({
 
   return {
     ...result,
+    selection: { selectedItemId: selectedRecordId },
     items: result.items.map((item) => {
       if (item.presentation !== "summary") {
         return item;
@@ -690,7 +692,6 @@ function projectGeneratedWorkspaceSelectedRecordList({
       const selectionIntent = intentByRecordId.get(item.id)!;
       return {
         ...item,
-        selected: item.id === selectedRecordId,
         selectionIntent,
       };
     }),
@@ -770,6 +771,7 @@ function projectGeneratedWorkspaceSelectedRecordSections({
           result: section.result,
         }
       : {
+          ...(section.headingCreate === undefined ? {} : { headingCreate: section.headingCreate }),
           headingOperations: section.headingOperations,
           id,
           kind: "selectedRecordRelationshipSection",

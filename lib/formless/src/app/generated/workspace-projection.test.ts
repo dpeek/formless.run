@@ -557,7 +557,7 @@ function listResult(scope: GeneratedWorkspaceIdentityScope, id: string): Workspa
   return {
     accessibilityLabel: "Records",
     density: "compact",
-    editing: { enabled: true },
+    editing: { applicability: "applicable", enabled: true },
     id: generatedWorkspaceScopedId(scope, "result", id),
     items: [],
     kind: "list",

@@ -1000,18 +1000,10 @@ export type ListSummaryItemContract = {
   id: string;
   kind: "listItem";
   presentation: "summary";
+  selectionIntent?: WorkspaceSelectedRecordSelectionIntent;
   subtitle?: string;
   title: string;
-} & (
-  | {
-      selected?: never;
-      selectionIntent?: never;
-    }
-  | {
-      selected: boolean;
-      selectionIntent: WorkspaceSelectedRecordSelectionIntent;
-    }
-);
+};
 
 export type ListItemContract = ListFieldItemContract | ListSummaryItemContract;
 
@@ -1025,12 +1017,21 @@ export type ListEmptyStateContract = {
 
 export type ListEditingAvailability =
   | {
+      applicability: "applicable";
       enabled: true;
     }
   | {
+      applicability: "applicable";
       disabledReason: string;
       enabled: false;
+    }
+  | {
+      applicability: "notApplicable";
     };
+
+export type ListSelectionContract = {
+  selectedItemId: string | null;
+};
 
 export type ListContract = {
   accessibilityLabel: string;
@@ -1040,6 +1041,7 @@ export type ListContract = {
   id: string;
   items: readonly ListItemContract[];
   kind: "list";
+  selection?: ListSelectionContract;
 };
 
 export type RecordResultDensity = "compact" | "default";
@@ -1887,6 +1889,7 @@ export type WorkspaceSelectedRecordRecordSectionContract = {
 };
 
 export type WorkspaceSelectedRecordRelationshipSectionContract = {
+  headingCreate?: WorkspaceCreateActionContract;
   headingOperations: readonly OperationControlContract[];
   id: string;
   kind: "selectedRecordRelationshipSection";

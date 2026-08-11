@@ -1,4 +1,5 @@
 import { parseBrowserAccessRequirement } from "./schema-authorization.ts";
+import { createViewContextDefaultEntries } from "./create-defaults.ts";
 import { collectQueryContextNames } from "./query.ts";
 import {
   formatEntityOperationKey,
@@ -36,6 +37,7 @@ import type {
   ScreenSectionSchema,
   SemanticIconId,
   SelectedRecordDetailOperationBindingSchema,
+  SelectedRecordDetailRelationshipCreateBindingSchema,
   SelectedRecordDetailRelationshipResultSchema,
   SelectedRecordDetailRelationshipSectionSchema,
   SelectedRecordDetailSchema,
@@ -702,6 +704,7 @@ function parseCollectionScreenSection(
     tableViews,
     queries,
     relationships,
+    views,
   );
 
   return {
@@ -723,6 +726,7 @@ function parseSelectedRecordDetail(
   tableViews: Record<string, TableViewSchema>,
   queries: Record<string, CollectionQuerySchema>,
   relationships: Record<string, RelationshipSchema>,
+  views: Record<string, ViewSchema>,
 ): SelectedRecordDetailSchema | undefined {
   if (value === undefined) {
     return undefined;
@@ -755,6 +759,8 @@ function parseSelectedRecordDetail(
       tableViews,
       queries,
       relationships,
+      views,
+      contextName,
     );
     if (sectionIds.has(parsedSection.id)) {
       throw new Error(`${context} section id "${parsedSection.id}" must be unique.`);
@@ -775,6 +781,8 @@ function parseSelectedRecordDetailSection(
   tableViews: Record<string, TableViewSchema>,
   queries: Record<string, CollectionQuerySchema>,
   relationships: Record<string, RelationshipSchema>,
+  views: Record<string, ViewSchema>,
+  selectedRecordContextName: string,
 ): SelectedRecordDetailSectionSchema {
   if (!isRecord(value)) {
     throw new Error(`${context} must be an object.`);
@@ -811,6 +819,8 @@ function parseSelectedRecordDetailSection(
       tableViews,
       queries,
       relationships,
+      views,
+      selectedRecordContextName,
     );
   }
 
@@ -825,12 +835,14 @@ function parseSelectedRecordRelationshipSection(
   tableViews: Record<string, TableViewSchema>,
   queries: Record<string, CollectionQuerySchema>,
   relationships: Record<string, RelationshipSchema>,
+  views: Record<string, ViewSchema>,
+  selectedRecordContextName: string,
 ): SelectedRecordDetailRelationshipSectionSchema {
   assertExactKeys(
     context,
     value,
     ["id", "type", "relationship", "query", "result"],
-    ["label", "operations"],
+    ["createAction", "label", "operations"],
   );
   const id = parseRequiredNonEmptyString(`${context} id`, value.id);
   const label = parseOptionalNonEmptyString(`${context} label`, value.label);
@@ -874,6 +886,15 @@ function parseSelectedRecordRelationshipSection(
     sourceEntityName,
     entities,
   );
+  const createAction = parseSelectedRecordRelationshipCreateBinding(
+    `${context} createAction`,
+    value.createAction,
+    relationshipName,
+    relationship,
+    selectedRecordContextName,
+    entities,
+    views,
+  );
 
   return {
     id,
@@ -882,7 +903,97 @@ function parseSelectedRecordRelationshipSection(
     relationship: relationshipName,
     query: queryName,
     result,
+    ...(createAction === undefined ? {} : { createAction }),
     ...(operations === undefined ? {} : { operations }),
+  };
+}
+
+function parseSelectedRecordRelationshipCreateBinding(
+  context: string,
+  value: unknown,
+  relationshipName: string,
+  relationship: Extract<RelationshipSchema, { kind: "toMany" }>,
+  selectedRecordContextName: string,
+  entities: Record<string, EntitySchema>,
+  views: Record<string, ViewSchema>,
+): SelectedRecordDetailRelationshipCreateBindingSchema | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!isRecord(value)) {
+    throw new Error(`${context} must be an object.`);
+  }
+  assertExactKeys(context, value, ["operation", "createView", "placement"], ["label"]);
+
+  const operationKey = parseEntityOperationKey(`${context} operation`, value.operation);
+  const operationEntity = entities[operationKey.entityKey];
+  const operation = definitionsToRecord(operationEntity?.operations)[operationKey.operationKey];
+  if (!operationEntity || !operation) {
+    throw new Error(`${context} references unknown operation "${String(value.operation)}".`);
+  }
+  if (operationKey.entityKey !== relationship.to.entity) {
+    throw new Error(
+      `${context} operation must use relationship target entity "${relationship.to.entity}".`,
+    );
+  }
+  if (operation.kind !== "create" || operation.scope !== "collection") {
+    throw new Error(`${context} operation must be a collection-scoped create operation.`);
+  }
+  if (!isEntityOperationVisibleToBrowser(operation)) {
+    throw new Error(`${context} operation must be visible to browser actors.`);
+  }
+
+  const createViewName = parseRequiredNonEmptyString(`${context} createView`, value.createView);
+  const createView = views[createViewName];
+  if (!createView) {
+    throw new Error(`${context} references unknown create view "${createViewName}".`);
+  }
+  if (createView.type !== "create") {
+    throw new Error(`${context} view "${createViewName}" must be a create view.`);
+  }
+  if (createView.entity !== relationship.to.entity) {
+    throw new Error(
+      `${context} create view "${createViewName}" must use relationship target entity "${relationship.to.entity}".`,
+    );
+  }
+
+  const contextDefaults = createViewContextDefaultEntries(createView);
+  const attachmentDefault = contextDefaults.find(
+    ([fieldName]) => fieldName === relationship.to.field,
+  );
+  if (attachmentDefault === undefined || attachmentDefault[1].name !== selectedRecordContextName) {
+    throw new Error(
+      `${context} create view "${createViewName}" must default relationship field "${relationship.to.entity}.${relationship.to.field}" from selected-record context "${selectedRecordContextName}".`,
+    );
+  }
+  for (const [fieldName, defaultValue] of contextDefaults) {
+    if (defaultValue.name !== selectedRecordContextName) {
+      throw new Error(
+        `${context} create view "${createViewName}" requires unavailable context "${defaultValue.name}".`,
+      );
+    }
+    const field = definitionsToRecord(operationEntity.fields)[fieldName];
+    if (field?.type !== "reference" || field.to !== relationship.from.entity) {
+      throw new Error(
+        `${context} create view "${createViewName}" default field "${fieldName}" must reference source entity "${relationship.from.entity}".`,
+      );
+    }
+    if (fieldName !== relationship.to.field) {
+      throw new Error(
+        `${context} create view "${createViewName}" context default must use relationship "${relationshipName}" field "${relationship.to.entity}.${relationship.to.field}".`,
+      );
+    }
+  }
+
+  if (value.placement !== "heading") {
+    throw new Error(`${context} placement must be "heading".`);
+  }
+  const label = parseOptionalNonEmptyString(`${context} label`, value.label);
+  return {
+    operation: formatEntityOperationKey(operationKey),
+    createView: createViewName,
+    placement: "heading",
+    ...(label === undefined ? {} : { label }),
   };
 }
 

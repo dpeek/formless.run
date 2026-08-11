@@ -13,6 +13,7 @@ import {
 } from "./operation-presentation-model.ts";
 import { selectTableResultModel } from "./table-model.ts";
 import type { TableCollectionResultModel } from "./collection-result-model.ts";
+import { selectHomeCreateOperation, type HomeOperationConfig } from "./collection-shell-model.ts";
 
 export type HomeSelectedRecordDetailOperationConfig = {
   bindingName: string;
@@ -39,6 +40,7 @@ export type HomeSelectedRecordDetailRelationshipSectionConfig = {
   queryName: string;
   query: QueryExpression;
   result: TableCollectionResultModel;
+  createAction?: Extract<HomeOperationConfig, { type: "create" }>;
   operations: HomeSelectedRecordDetailOperationConfig[];
 };
 
@@ -132,6 +134,16 @@ export function selectHomeSelectedRecordDetail(
           transitionOperations: tableResult.transitionOperations,
           ...(tableResult.ordering === undefined ? {} : { ordering: tableResult.ordering }),
         },
+        ...(section.createAction === undefined
+          ? {}
+          : {
+              createAction: selectHomeCreateOperation(
+                schema,
+                section.createAction.createView,
+                section.createAction.operation,
+                section.createAction.label,
+              ),
+            }),
         operations: (section.operations ?? []).map((binding) =>
           selectHomeSelectedRecordDetailOperation(schema, binding, entityName),
         ),

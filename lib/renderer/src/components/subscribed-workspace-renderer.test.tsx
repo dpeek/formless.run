@@ -276,7 +276,7 @@ function listResult(id: string, accessibilityLabel: string): ListContract {
   return {
     accessibilityLabel,
     density: "default",
-    editing: { enabled: true },
+    editing: { applicability: "applicable", enabled: true },
     id,
     items: [],
     kind: "list",

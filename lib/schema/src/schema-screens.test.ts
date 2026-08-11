@@ -654,6 +654,104 @@ describe("schema screens", () => {
     }
   });
 
+  it("validates selected-record relationship create-action bindings and flat attachment defaults", () => {
+    const createAction = {
+      operation: "note.create",
+      createView: "noteCreate",
+      placement: "heading",
+      label: "Add note",
+    };
+    const parsed = parseAppSchema(
+      selectedRecordDetailSchema(
+        selectedRecordDetail({
+          sections: [selectedRecordRelationshipSection({ createAction })],
+        }),
+      ),
+    );
+    const screen = parsed.screens[0];
+    if (screen.type !== "workspace") {
+      throw new Error("Expected selected-record workspace.");
+    }
+    expect(screen.layout.sections[0].detail?.sections[0]).toMatchObject({ createAction });
+
+    const invalidBindings: { createAction: unknown; message: string }[] = [
+      {
+        createAction: { ...createAction, operation: "task.create" },
+        message:
+          'Screen "home" layout section 0 detail section 0 createAction operation must use relationship target entity "note".',
+      },
+      {
+        createAction: { ...createAction, operation: "note.update" },
+        message:
+          'Screen "home" layout section 0 detail section 0 createAction operation must be a collection-scoped create operation.',
+      },
+      {
+        createAction: { ...createAction, operation: "note.missing" },
+        message:
+          'Screen "home" layout section 0 detail section 0 createAction references unknown operation "note.missing".',
+      },
+      {
+        createAction: { ...createAction, createView: "missing" },
+        message:
+          'Screen "home" layout section 0 detail section 0 createAction references unknown create view "missing".',
+      },
+      {
+        createAction: { ...createAction, createView: "noteEdit" },
+        message:
+          'Screen "home" layout section 0 detail section 0 createAction view "noteEdit" must be a create view.',
+      },
+      {
+        createAction: { ...createAction, createView: "taskCreate" },
+        message:
+          'Screen "home" layout section 0 detail section 0 createAction create view "taskCreate" must use relationship target entity "note".',
+      },
+      {
+        createAction: { ...createAction, createView: "noteCreateWrongContext" },
+        message:
+          'Screen "home" layout section 0 detail section 0 createAction create view "noteCreateWrongContext" must default relationship field "note.task" from selected-record context "selectedTask".',
+      },
+      {
+        createAction: { ...createAction, createView: "noteCreateNoAttachment" },
+        message:
+          'Screen "home" layout section 0 detail section 0 createAction create view "noteCreateNoAttachment" must default relationship field "note.task" from selected-record context "selectedTask".',
+      },
+      {
+        createAction: { ...createAction, placement: "toolbar" },
+        message:
+          'Screen "home" layout section 0 detail section 0 createAction placement must be "heading".',
+      },
+    ];
+
+    for (const invalid of invalidBindings) {
+      expect(() =>
+        parseAppSchema(
+          selectedRecordDetailSchema(
+            selectedRecordDetail({
+              sections: [selectedRecordRelationshipSection({ createAction: invalid.createAction })],
+            }),
+          ),
+        ),
+      ).toThrow(invalid.message);
+    }
+
+    expect(() =>
+      parseAppSchema(
+        selectedRecordDetailSchema(
+          selectedRecordDetail({
+            sections: [
+              selectedRecordRelationshipSection({
+                createAction,
+                relationship: "noteComments",
+              }),
+            ],
+          }),
+        ),
+      ),
+    ).toThrow(
+      'Screen "home" layout section 0 detail section 0 relationship "noteComments" must start from entity "task".',
+    );
+  });
+
   it("rejects invalid query-count badge targets", () => {
     const source = taskSchema();
     const navigation = (screen: string, section: string) => ({
@@ -1251,6 +1349,13 @@ function selectedRecordDetailSchema(
         ],
         operations: [
           {
+            key: "create",
+            label: "Create note",
+            kind: "create",
+            scope: "collection",
+            effect: { type: "createRecord" },
+          },
+          {
             key: "update",
             label: "Update note",
             kind: "update",
@@ -1335,14 +1440,45 @@ function selectedRecordDetailSchema(
         columns: [{ type: "field", field: "title" }],
       },
     ],
-    views: source.views.map((view) =>
-      view.key === "taskHome" && "result" in view
-        ? {
-            ...view,
-            result: options.taskResult ?? view.result,
-          }
-        : view,
-    ),
+    views: [
+      ...source.views.map((view) =>
+        view.key === "taskHome" && "result" in view
+          ? {
+              ...view,
+              result: options.taskResult ?? view.result,
+            }
+          : view,
+      ),
+      {
+        key: "noteCreate",
+        type: "create",
+        entity: "note",
+        fields: [{ field: "title", editor: "text" }],
+        defaults: { task: { kind: "context", name: "selectedTask" } },
+      },
+      {
+        key: "noteCreateWrongContext",
+        type: "create",
+        entity: "note",
+        fields: [{ field: "title", editor: "text" }],
+        defaults: { task: { kind: "context", name: "otherTask" } },
+      },
+      {
+        key: "noteCreateNoAttachment",
+        type: "create",
+        entity: "note",
+        fields: [
+          { field: "title", editor: "text" },
+          { field: "task", editor: "reference" },
+        ],
+      },
+      {
+        key: "noteEdit",
+        type: "edit",
+        entity: "note",
+        fields: [{ field: "title", editor: "text", commit: "field-commit" }],
+      },
+    ],
     screens: [
       {
         key: "home",

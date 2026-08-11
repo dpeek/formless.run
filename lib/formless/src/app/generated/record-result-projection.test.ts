@@ -469,6 +469,7 @@ describe("generated Formless UI record-result projection", () => {
       result,
     });
     const body = requiredProjectedField(projected, "body");
+    const title = requiredProjectedField(projected, "title");
     const status = requiredProjectedField(projected, "status");
     const deletion = requiredOperation(projected, "delete");
 
@@ -486,6 +487,18 @@ describe("generated Formless UI record-result projection", () => {
       kind: "field",
       resultId: "blocks:featured",
     });
+    expect(
+      resolveGeneratedRecordResultFieldIntent(projected.runtimePlan, {
+        fieldId: title.fieldId,
+        intent: {
+          fieldName: title.fieldName,
+          fieldValue: { kind: "input", value: "Changed" },
+          type: "recordDraftCommit",
+        },
+        recordId: record.id,
+        resultId: "blocks:featured",
+      }),
+    ).toBeUndefined();
     for (const mismatch of [
       { fieldId: `${body.fieldId}:stale` },
       { intent: { fieldName: "title", type: "recordDraftRevert" as const } },

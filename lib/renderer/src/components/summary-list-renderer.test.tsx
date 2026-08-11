@@ -21,7 +21,6 @@ describe("Astryx summary list renderer", () => {
         onItemSelect={onItemSelect}
         onListIntent={onListIntent}
         onOperationIntent={onOperationIntent}
-        selectedItemId="order-1"
       />,
     );
 
@@ -32,15 +31,23 @@ describe("Astryx summary list renderer", () => {
     expect(within(firstOrder).getByText("Ready to ship")).toBeDefined();
     expect(within(secondOrder).getByText("Order 1002")).toBeDefined();
     expect(within(secondOrder).queryByText("Ready to ship")).toBeNull();
-    expect(firstOrder.getAttribute("aria-current")).toBeNull();
-    expect(secondOrder.getAttribute("aria-current")).toBe("true");
+    expect(firstOrder.getAttribute("aria-current")).toBe("true");
+    expect(secondOrder.getAttribute("aria-current")).toBeNull();
+    expect(getComputedStyle(firstOrder).borderInlineStartWidth).toBe("3px");
+    expect(getComputedStyle(secondOrder).borderInlineStartWidth).not.toBe("3px");
     expect(renderer.queryByText("View")).toBeNull();
     expect(renderer.queryByRole("status")).toBeNull();
     expect(renderer.queryByRole("textbox")).toBeNull();
 
-    fireEvent.click(firstOrder);
+    const secondOrderButton = within(secondOrder).getByRole("button");
+    secondOrderButton.focus();
+    expect(document.activeElement).toBe(secondOrderButton);
+    expect(firstOrder.getAttribute("aria-current")).toBe("true");
+    expect(secondOrder.getAttribute("aria-current")).toBeNull();
 
-    expect(onItemSelect).toHaveBeenCalledWith(list.items[0]);
+    fireEvent.click(secondOrder);
+
+    expect(onItemSelect).toHaveBeenCalledWith(list.items[1]);
     expect(onFieldIntent).not.toHaveBeenCalled();
     expect(onListIntent).not.toHaveBeenCalled();
     expect(onOperationIntent).not.toHaveBeenCalled();
@@ -65,13 +72,14 @@ function summaryList(selectable: boolean): ListContract {
   return {
     accessibilityLabel: "Orders",
     density: "compact",
-    editing: { enabled: true },
+    editing: { applicability: "notApplicable" },
     id: "orders",
     items: [
-      summaryItem("order-1", "Order 1001", "Ready to ship", false, selectable),
-      summaryItem("order-2", "Order 1002", undefined, true, selectable),
+      summaryItem("order-1", "Order 1001", "Ready to ship", selectable),
+      summaryItem("order-2", "Order 1002", undefined, selectable),
     ],
     kind: "list",
+    ...(selectable ? { selection: { selectedItemId: "order-1" } } : {}),
   };
 }
 
@@ -79,7 +87,6 @@ function summaryItem(
   id: string,
   title: string,
   subtitle: string | undefined,
-  selected: boolean,
   selectable: boolean,
 ): ListSummaryItemContract {
   const item = {
@@ -94,7 +101,6 @@ function summaryItem(
   return selectable
     ? {
         ...item,
-        selected,
         selectionIntent: {
           collectionId: "orders",
           recordId: id,

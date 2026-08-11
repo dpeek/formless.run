@@ -1,3 +1,4 @@
+import * as stylex from "@stylexjs/stylex";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { Button } from "@astryxdesign/core/Button";
 import { HStack } from "@astryxdesign/core/HStack";
@@ -8,6 +9,7 @@ import { MoreMenu } from "@astryxdesign/core/MoreMenu";
 import { Text } from "@astryxdesign/core/Text";
 import { VisuallyHidden } from "@astryxdesign/core/VisuallyHidden";
 import { VStack } from "@astryxdesign/core/VStack";
+import { colorVars } from "@astryxdesign/core/theme/tokens.stylex";
 import type { DropdownMenuOption } from "@astryxdesign/core/DropdownMenu";
 import type {
   CollectionEmptyStatePrimaryActionContract,
@@ -53,7 +55,6 @@ export function AstryxListRenderer({
   onListIntent,
   onOperationIntent,
   onItemSelect,
-  selectedItemId,
 }: {
   list: ListContract;
   onCreateFieldIntent?: CreateFieldIntentHandler;
@@ -62,15 +63,15 @@ export function AstryxListRenderer({
   onItemSelect?: (item: ListItemContract) => Promise<void> | void;
   onListIntent: ListIntentHandler;
   onOperationIntent: AstryxListOperationIntentHandler;
-  selectedItemId?: string | null;
 }) {
+  const selectedItemId = list.selection?.selectedItemId ?? null;
   return (
     <VStack as="section" aria-label={list.accessibilityLabel} gap={2} width="100%">
-      {list.editing.enabled ? null : (
+      {list.editing.applicability === "applicable" && !list.editing.enabled ? (
         <Text color="secondary" display="block" role="status" type="supporting">
           {list.editing.disabledReason}
         </Text>
-      )}
+      ) : null}
       {list.items.length === 0 ? (
         list.emptyState ? (
           <>
@@ -175,7 +176,7 @@ function AstryxListItem({
       <ListItem
         aria-label={item.accessibilityLabel}
         description={item.subtitle}
-        isSelected={item.selected ?? false}
+        isSelected={selected}
         label={item.title}
         onClick={
           onItemSelect && item.selectionIntent
@@ -184,6 +185,7 @@ function AstryxListItem({
               }
             : undefined
         }
+        xstyle={selected ? styles.selectedSummaryItem : undefined}
       />
     );
   }
@@ -243,6 +245,14 @@ function AstryxListItem({
     />
   );
 }
+
+const styles = stylex.create({
+  selectedSummaryItem: {
+    borderInlineStartColor: colorVars["--color-accent"],
+    borderInlineStartStyle: "solid",
+    borderInlineStartWidth: "3px",
+  },
+});
 
 function AstryxListPrimaryAction({
   action,

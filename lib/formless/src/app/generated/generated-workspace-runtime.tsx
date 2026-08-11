@@ -2464,10 +2464,31 @@ function selectWorkspaceSectionRuntimeInput({
             } satisfies GeneratedWorkspaceSelectedRecordHeadingOperationRuntime,
           };
         });
+        const headingCreate =
+          section.createAction === undefined
+            ? undefined
+            : selectWorkspaceCreateAction({
+                controller,
+                createFieldStateBySurfaceId,
+                createOpenBySurfaceId,
+                createStateBySurfaceId,
+                facts,
+                mediaAssetOptionsByFieldKey,
+                operation: section.createAction,
+                queryContext,
+                schema,
+                snapshot,
+                surfaceLocalId: `selectedRecord:${section.id}:${selectedRecordId}:heading:${section.createAction.operation.canonicalKey}`,
+              });
 
         return [
           section.id,
           {
+            ...(headingCreate === undefined
+              ? {}
+              : {
+                  headingCreate: { action: headingCreate.action, runtime: headingCreate.runtime },
+                }),
             headingOperations,
             table: {
               fieldsById: table.fieldsById,
@@ -2531,6 +2552,7 @@ function selectWorkspaceSectionRuntimeInput({
       mediaAssetOptionsByFieldKey,
       onSuccess: undefined,
       operation: context.createOperation,
+      queryContext: facts.actionQueryContext,
       schema,
       snapshot,
       surfaceLocalId: `context:${context.name}:${context.createOperation.operation.canonicalKey}`,
@@ -2701,6 +2723,7 @@ function selectWorkspaceCollectionAction({
       facts,
       mediaAssetOptionsByFieldKey,
       operation,
+      queryContext: facts.actionQueryContext,
       schema,
       snapshot,
       surfaceLocalId: collectionOperationLocalId(operation),
@@ -2761,6 +2784,7 @@ function selectWorkspaceCreateAction({
   mediaAssetOptionsByFieldKey,
   onSuccess,
   operation,
+  queryContext,
   schema,
   snapshot,
   surfaceLocalId,
@@ -2775,6 +2799,7 @@ function selectWorkspaceCreateAction({
   mediaAssetOptionsByFieldKey: GeneratedMediaAssetOptionsByFieldKey;
   onSuccess?: (recordId: string) => void;
   operation: CreateHomeOperationConfig;
+  queryContext: QueryEvaluationContext;
   schema: ReturnType<typeof useSchema>;
   snapshot: BrowserReplicaProjectionSnapshot;
   surfaceLocalId: string;
@@ -2786,7 +2811,7 @@ function selectWorkspaceCreateAction({
     defaults: operation.defaults,
     enabled: operation.enabled,
     fields: operation.fields,
-    queryContext: facts.actionQueryContext,
+    queryContext,
     state,
     union: operation.union,
   });
@@ -2837,7 +2862,7 @@ function selectWorkspaceCreateAction({
       kind: "create",
       onSuccess,
       operation,
-      queryContext: facts.actionQueryContext,
+      queryContext,
       surfaceId,
     } satisfies GeneratedWorkspaceCreateRuntime,
   };
@@ -2877,6 +2902,11 @@ function collectWorkspaceBindings(
     for (const operation of relationship.headingOperations ?? []) {
       const runtime = operation.runtime as GeneratedWorkspaceSelectedRecordHeadingOperationRuntime;
       bindings.push(runtime.binding);
+    }
+    if (relationship.headingCreate !== undefined) {
+      bindings.push(
+        (relationship.headingCreate.runtime as GeneratedWorkspaceCreateRuntime).binding,
+      );
     }
   }
 }

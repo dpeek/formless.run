@@ -689,7 +689,7 @@ function listResult(id: string): Extract<WorkspaceResultContract, { kind: "list"
   return {
     accessibilityLabel: "Tasks",
     density: "compact",
-    editing: { enabled: true },
+    editing: { applicability: "applicable", enabled: true },
     emptyState: {
       description: "Change the selected query.",
       id: `${id}:empty`,

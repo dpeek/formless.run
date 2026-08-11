@@ -44,6 +44,7 @@ export type GeneratedListItemProjectionFacts =
 export type ProjectGeneratedListContractOptions = {
   accessibilityLabel: string;
   density?: ListContract["density"];
+  editingApplicable?: boolean;
   editingDisabledReason?: string;
   editingEnabled: boolean;
   emptyStateAction?: CollectionEmptyStatePrimaryActionContract;
@@ -57,6 +58,7 @@ export type ProjectGeneratedListContractOptions = {
 export function projectGeneratedListContract({
   accessibilityLabel,
   density = "compact",
+  editingApplicable = true,
   editingDisabledReason = "Editing is disabled.",
   editingEnabled,
   emptyStateAction,
@@ -69,9 +71,15 @@ export function projectGeneratedListContract({
   return {
     accessibilityLabel,
     density,
-    editing: editingEnabled
-      ? { enabled: true }
-      : { disabledReason: editingDisabledReason, enabled: false },
+    editing: !editingApplicable
+      ? { applicability: "notApplicable" }
+      : editingEnabled
+        ? { applicability: "applicable", enabled: true }
+        : {
+            applicability: "applicable",
+            disabledReason: editingDisabledReason,
+            enabled: false,
+          },
     ...(orderedRecordIds.length === 0
       ? {
           emptyState: {

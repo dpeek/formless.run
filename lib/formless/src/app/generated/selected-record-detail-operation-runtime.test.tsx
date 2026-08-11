@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
-import { act, render, type RenderResult } from "@testing-library/react";
+import { useState } from "react";
+import { act, fireEvent, render, waitFor, within, type RenderResult } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { AppSchema } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
@@ -15,10 +16,15 @@ import {
   generatedWorkspaceSelectedRecordDetailResultId,
 } from "./generated-workspace-foundation.ts";
 import {
+  GeneratedWorkspaceRuntime,
   useGeneratedWorkspaceRuntimeController,
   type GeneratedWorkspaceRuntimeController,
 } from "./generated-workspace-runtime.tsx";
-import { projectGeneratedWorkspaceOperationIntent } from "./workspace-projection.ts";
+import {
+  projectGeneratedWorkspaceFieldIntent,
+  projectGeneratedWorkspaceOperationIntent,
+  projectGeneratedWorkspaceTableIntent,
+} from "./workspace-projection.ts";
 
 const submitOperationMock = vi.hoisted(() => vi.fn());
 
@@ -32,6 +38,41 @@ vi.mock("../../client/sync.ts", async (importOriginal) => ({
 beforeEach(() => {
   resetClientStore();
   submitOperationMock.mockReset();
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    value: (query: string): MediaQueryList => ({
+      addEventListener: () => undefined,
+      addListener: () => undefined,
+      dispatchEvent: () => true,
+      matches: false,
+      media: query,
+      onchange: null,
+      removeEventListener: () => undefined,
+      removeListener: () => undefined,
+    }),
+  });
+  window.scrollTo = () => undefined;
+  Object.defineProperty(globalThis, "CSS", {
+    configurable: true,
+    value: {
+      ...globalThis.CSS,
+      escape: (value: string) => value.replace(/[^a-zA-Z0-9_-]/g, (character) => `\\${character}`),
+    },
+  });
+  HTMLDialogElement.prototype.showModal = function showModal() {
+    this.open = true;
+  };
+  HTMLDialogElement.prototype.close = function close() {
+    this.open = false;
+  };
+  HTMLElement.prototype.showPopover = function showPopover() {
+    this.setAttribute("popover-open", "");
+    this.style.display = "block";
+  };
+  HTMLElement.prototype.hidePopover = function hidePopover() {
+    this.removeAttribute("popover-open");
+    this.style.display = "none";
+  };
 });
 
 describe("selected-record relationship heading operation runtime", () => {
@@ -260,6 +301,272 @@ describe("selected-record relationship heading operation runtime", () => {
       required(renderer).unmount();
     });
   });
+
+  it("retains and commits controlled drafts in a selected-record relationship edit dialog", async () => {
+    const schema = selectedRecordHeadingSchema();
+    applyBootstrapResponse(bootstrapResponse(schema, rateCardTestRecords));
+    const screen = required(
+      selectScreenModels(schema).find((candidate) => candidate.screenName === "rateSetup"),
+    );
+    const selectedRecordId = "rec_card_premium";
+    let controller: GeneratedWorkspaceRuntimeController | undefined;
+    let renderer: RenderResult | undefined;
+
+    function RuntimeProbe() {
+      controller = useGeneratedWorkspaceRuntimeController({
+        getSectionSelection: () => ({ selectedRecordId }),
+        onSelectContext: () => undefined,
+        onSelectQuery: () => undefined,
+        onSelectRecord: () => undefined,
+        screen,
+        today: "2026-08-10",
+      });
+      return null;
+    }
+
+    await act(async () => {
+      renderer = render(<RuntimeProbe />);
+    });
+
+    let runtime = required(controller);
+    const scope = currentScope(runtime);
+    const resultId = generatedWorkspaceSelectedRecordDetailResultId(scope, "rates");
+    let editAction = selectedRecordRelationshipEditAction(runtime);
+    expect(editAction.dialog.open).toBe(false);
+
+    await act(async () => {
+      await runtime.dispatch(
+        projectGeneratedWorkspaceTableIntent(scope, resultId, editAction.openIntent),
+      );
+    });
+
+    runtime = required(controller);
+    editAction = selectedRecordRelationshipEditAction(runtime);
+    expect(editAction.dialog.open).toBe(true);
+    if (editAction.dialog.target.kind !== "available") {
+      throw new Error("Missing selected-record relationship edit target.");
+    }
+    const fieldSetId = editAction.dialog.target.fieldSet.id;
+    const displayField = required(
+      editAction.dialog.target.fieldSet.fields.find((candidate) => candidate.fieldName === "price"),
+    );
+    expect(displayField).toMatchObject({
+      access: { kind: "readOnly", writable: false },
+      mode: "display",
+    });
+    let field = required(
+      editAction.dialog.target.fieldSet.fields.find((candidate) => candidate.fieldName === "cost"),
+    );
+    if (field.mode !== "editor" || !("drafts" in field)) {
+      throw new Error("Missing selected-record relationship editor field.");
+    }
+    const recordId = required(field.recordId);
+    const changedValue = "1250";
+    const fieldEnvelope = (intent: Parameters<typeof projectGeneratedWorkspaceFieldIntent>[2]) =>
+      projectGeneratedWorkspaceFieldIntent(scope, field.fieldId, intent, {
+        contextId: fieldSetId,
+        recordId,
+        resultId,
+      });
+
+    await act(async () => {
+      await runtime.dispatch(
+        projectGeneratedWorkspaceFieldIntent(
+          scope,
+          displayField.fieldId,
+          {
+            fieldName: displayField.fieldName,
+            fieldValue: { kind: "input", value: "9999" },
+            type: "recordDraftCommit",
+          },
+          { contextId: fieldSetId, recordId, resultId },
+        ),
+      );
+    });
+    expect(submitOperationMock).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await runtime.dispatch(
+        fieldEnvelope({
+          fieldName: field.fieldName,
+          fieldValue: { kind: "input", value: changedValue },
+          type: "recordDraftChange",
+        }),
+      );
+    });
+
+    runtime = required(controller);
+    editAction = selectedRecordRelationshipEditAction(runtime);
+    if (editAction.dialog.target.kind !== "available") {
+      throw new Error("Missing selected-record relationship edit target after draft.");
+    }
+    field = required(
+      editAction.dialog.target.fieldSet.fields.find((candidate) => candidate.fieldName === "cost"),
+    );
+    if (field.mode !== "editor" || !("drafts" in field)) {
+      throw new Error("Missing selected-record relationship draft field.");
+    }
+    expect(field.drafts.draft).toBe(changedValue);
+
+    const record = required(rateCardTestRecords.find((candidate) => candidate.id === recordId));
+    const updated = {
+      ...record,
+      updatedAt: "2026-08-10T03:00:00.000Z",
+      values: { ...record.values, cost: 1250 },
+    };
+    submitOperationMock.mockResolvedValueOnce(
+      operationResponse({
+        affectedChangeIds: ["write-rate-cost"],
+        changes: [change(3, updated, "update", "write-rate-cost")],
+        cursor: 3,
+        record: updated,
+        type: "update",
+      }),
+    );
+
+    await act(async () => {
+      await runtime.dispatch(
+        fieldEnvelope({
+          fieldName: field.fieldName,
+          fieldValue: { kind: "input", value: changedValue },
+          type: "recordDraftCommit",
+        }),
+      );
+    });
+
+    expect(submitOperationMock).toHaveBeenCalledTimes(1);
+    expect(submitOperationMock.mock.calls[0]?.slice(0, 3)).toEqual([
+      "rate",
+      "update",
+      { input: { cost: 1250 }, recordId },
+    ]);
+
+    await act(async () => {
+      required(renderer).unmount();
+    });
+  });
+
+  it("composes selected-record authoring through summary, record, table, and create surfaces", async () => {
+    const schema = selectedRecordHeadingSchema();
+    applyBootstrapResponse(bootstrapResponse(schema, rateCardTestRecords));
+    const screen = required(
+      selectScreenModels(schema).find((candidate) => candidate.screenName === "rateSetup"),
+    );
+    const selectedRecordId = "rec_card_premium";
+    function IntegratedRuntime() {
+      const [selected, setSelected] = useState<string | null>(null);
+      return (
+        <GeneratedWorkspaceRuntime
+          getSectionSelection={() => ({ selectedRecordId: selected })}
+          onSelectContext={() => undefined}
+          onSelectQuery={() => undefined}
+          onSelectRecord={(_section, recordId) => setSelected(recordId)}
+          screen={screen}
+          today="2026-08-10"
+        />
+      );
+    }
+    const renderer = render(<IntegratedRuntime />);
+
+    expect(submitOperationMock).not.toHaveBeenCalled();
+    const premiumSummary = await renderer.findByRole("listitem", { name: "Premium" });
+    expect(premiumSummary.getAttribute("aria-current")).toBeNull();
+    expect(renderer.queryByText(/Editing is disabled for/)).toBeNull();
+    fireEvent.click(within(premiumSummary).getByRole("button"));
+    await waitFor(() => expect(premiumSummary.getAttribute("aria-current")).toBe("true"));
+
+    const cardDetails = required(
+      (await renderer.findAllByRole("region", { name: "Card details" })).find((region) =>
+        region.hasAttribute("data-formless-record-result"),
+      ),
+    );
+    expect(within(cardDetails).getByText("Premium")).toBeDefined();
+    expect(within(cardDetails).queryByRole("textbox", { name: /^Name/ })).toBeNull();
+    expect(within(cardDetails).getByRole("textbox", { name: /^Minimum margin/ })).toBeDefined();
+
+    const sourceRate = required(
+      rateCardTestRecords.find((record) => record.id === "rec_rate_premium_designer"),
+    );
+    const updatedRate: StoredRecord = {
+      ...sourceRate,
+      values: { ...sourceRate.values, cost: 600 },
+      updatedAt: "2026-08-10T03:30:00.000Z",
+    };
+    submitOperationMock.mockResolvedValueOnce(
+      operationResponse({
+        affectedChangeIds: ["write-rate-integration-edit"],
+        changes: [change(3, updatedRate, "update", "write-rate-integration-edit")],
+        cursor: 3,
+        record: updatedRate,
+        type: "update",
+      }),
+    );
+    fireEvent.click((await renderer.findAllByRole("button", { name: "Edit rate" }))[0]!);
+    const editDialog = await renderer.findByRole("dialog", { name: "Edit rate" });
+    const costInput = within(editDialog).getByRole("textbox", { name: /^Cost/ });
+    fireEvent.change(costInput, { target: { value: "600" } });
+    await waitFor(() => expect((costInput as HTMLInputElement).value).toBe("600"));
+    fireEvent.blur(costInput);
+    await waitFor(() => expect(submitOperationMock).toHaveBeenCalledTimes(1));
+    expect(submitOperationMock.mock.calls[0]?.slice(0, 3)).toEqual([
+      "rate",
+      "update",
+      { input: { cost: 600 }, recordId: sourceRate.id },
+    ]);
+    fireEvent.click(within(editDialog).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(renderer.queryByRole("dialog", { name: "Edit rate" })).toBeNull());
+    submitOperationMock.mockClear();
+
+    fireEvent.click(await renderer.findByRole("button", { name: "Add rate" }));
+    const dialog = await renderer.findByRole("dialog", { name: "Add rate" });
+    expect(submitOperationMock).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByRole("combobox", { name: /^Resource/ }));
+    fireEvent.click(renderer.getByRole("option", { name: "Designer" }));
+    await waitFor(() =>
+      expect(within(dialog).getByRole("combobox", { name: /^Resource/ }).textContent).toContain(
+        "Designer",
+      ),
+    );
+
+    const created: StoredRecord = {
+      id: "rec_rate_created",
+      entity: "rate",
+      values: {
+        resource: "rec_resource_designer",
+        card: selectedRecordId,
+        cost: 0,
+        costUnit: "day",
+        price: 2500,
+      },
+      createdAt: "2026-08-10T04:00:00.000Z",
+      updatedAt: "2026-08-10T04:00:00.000Z",
+    };
+    const deferred = deferredResponse();
+    submitOperationMock.mockImplementationOnce(() => deferred.promise);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add rate" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /Add rate|Saving/ }));
+    expect(submitOperationMock).toHaveBeenCalledTimes(1);
+    expect(submitOperationMock.mock.calls[0]?.slice(0, 2)).toEqual(["rate", "create"]);
+    expect(submitOperationMock.mock.calls[0]?.[2]).toMatchObject({
+      input: created.values,
+      source: { protocol: "generated-ui", surface: "submitButton" },
+    });
+
+    deferred.resolve(
+      operationResponse({
+        affectedChangeIds: ["write-rate-create"],
+        changes: [change(4, created, "create", "write-rate-create")],
+        cursor: 4,
+        record: created,
+        type: "create",
+      }),
+    );
+    await waitFor(() => expect(renderer.queryByRole("dialog", { name: "Add rate" })).toBeNull());
+    expect(submitOperationMock).toHaveBeenCalledTimes(1);
+
+    renderer.unmount();
+  });
 });
 
 function selectedRecordHeadingSchema(): AppSchema {
@@ -314,6 +621,97 @@ function selectedRecordHeadingSchema(): AppSchema {
           }
         : entity,
     ),
+    tableViews: rateSourceSchema.tableViews.map((tableView) =>
+      tableView.key === "rateTable"
+        ? {
+            ...tableView,
+            operations: [
+              {
+                operation: "rate.update",
+                label: "Edit rate",
+                target: { kind: "row" as const },
+                editView: "rateEdit",
+              },
+            ],
+            columns: [
+              ...tableView.columns,
+              {
+                type: "operationControl" as const,
+                operation: "rate.update",
+                label: "Actions",
+              },
+            ],
+          }
+        : tableView,
+    ),
+    itemViews: [
+      ...rateSourceSchema.itemViews,
+      {
+        key: "selectedCardSummary",
+        entity: "card",
+        presentation: {
+          type: "summary" as const,
+          slots: { title: { field: "name" } },
+        },
+      },
+      {
+        key: "selectedCardDetail",
+        entity: "card",
+        fields: [
+          {
+            field: "name",
+            interaction: "display" as const,
+            editor: "text" as const,
+            commit: "field-commit" as const,
+          },
+          {
+            field: "marginMin",
+            editor: "number" as const,
+            commit: "field-commit" as const,
+          },
+        ],
+      },
+    ],
+    views: [
+      ...rateSourceSchema.views.map((view) =>
+        view.key === "cardHome" && view.type === "collection" && view.result.type === "list"
+          ? {
+              ...view,
+              result: {
+                ...view.result,
+                type: "list" as const,
+                itemView: "selectedCardSummary",
+              },
+            }
+          : view,
+      ),
+      {
+        key: "selectedRateCreate",
+        type: "create" as const,
+        entity: "rate",
+        fields: [{ field: "resource", editor: "reference" as const }],
+        defaults: {
+          card: { kind: "context" as const, name: "card" },
+          cost: { kind: "literal" as const, value: 0 },
+          costUnit: { kind: "literal" as const, value: "day" },
+          price: { kind: "literal" as const, value: 2500 },
+        },
+      },
+      {
+        key: "rateEdit",
+        type: "edit" as const,
+        entity: "rate",
+        fields: [
+          { field: "cost", editor: "number" as const, commit: "field-commit" as const },
+          {
+            field: "price",
+            interaction: "display" as const,
+            editor: "number" as const,
+            commit: "field-commit" as const,
+          },
+        ],
+      },
+    ],
     screens: rateSourceSchema.screens.map((screen) =>
       screen.key === setup.key
         ? {
@@ -328,11 +726,23 @@ function selectedRecordHeadingSchema(): AppSchema {
                     context: "card",
                     sections: [
                       {
+                        id: "cardDetails",
+                        type: "record" as const,
+                        label: "Card details",
+                        itemView: "selectedCardDetail",
+                      },
+                      {
                         id: "rates",
                         type: "relationship" as const,
                         relationship: "cardRates",
                         query: "ratesForSelectedCard",
                         result: { type: "table" as const, tableView: "rateTable" },
+                        createAction: {
+                          operation: "rate.create",
+                          createView: "selectedRateCreate",
+                          placement: "heading" as const,
+                          label: "Add rate",
+                        },
                         operations: [
                           {
                             operation: "card.rebuildRates",
@@ -350,6 +760,34 @@ function selectedRecordHeadingSchema(): AppSchema {
         : screen,
     ),
   };
+}
+
+function selectedRecordRelationshipEditAction(controller: GeneratedWorkspaceRuntimeController) {
+  const workspace = required(controller.workspace);
+  const section = required(workspace.sections[0]);
+  if (section.collection.presentation.kind !== "selectedRecord") {
+    throw new Error("Missing selected-record relationship presentation.");
+  }
+  const relationship = required(
+    section.collection.presentation.sections.find(
+      (candidate) => candidate.kind === "selectedRecordRelationshipSection",
+    ),
+  );
+  if (relationship.kind !== "selectedRecordRelationshipSection") {
+    throw new Error("Missing selected-record relationship section.");
+  }
+  const actions = relationship.result.rows.flatMap((row) =>
+    row.cells.flatMap((cell) =>
+      cell.contents.flatMap((content) =>
+        content.kind === "actionGroup" ? [...content.primary, ...content.secondary] : [],
+      ),
+    ),
+  );
+  const editAction = required(actions.find((action) => action.kind === "editAction"));
+  if (editAction.kind !== "editAction") {
+    throw new Error("Missing selected-record relationship edit action.");
+  }
+  return editAction;
 }
 
 function rebuildRatesOutput(): Extract<OperationInvocationResponse["output"], { type: "command" }> {

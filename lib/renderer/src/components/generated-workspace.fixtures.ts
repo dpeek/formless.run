@@ -232,6 +232,7 @@ function selectedRecordWorkspace(selectedRecordId: string | null): WorkspaceCont
   const result = {
     ...sourceResult,
     accessibilityLabel: "Orders",
+    editing: { applicability: "notApplicable" as const },
     items: sourceResult.items.map((item, index) => {
       const summary = orderSummaryFacts[index];
       const selectionIntent = selectionIntents[index];
@@ -244,12 +245,12 @@ function selectedRecordWorkspace(selectedRecordId: string | null): WorkspaceCont
         id: item.id,
         kind: "listItem" as const,
         presentation: "summary" as const,
-        selected: item.id === selected,
         selectionIntent,
         subtitle: summary.subtitle,
         title: summary.title,
       };
     }),
+    selection: { selectedItemId: selected },
   };
 
   return workspace(
@@ -363,12 +364,7 @@ function selectSummaryResultItem(
 ): Extract<WorkspaceResultContract, { kind: "list" }> {
   return {
     ...result,
-    items: result.items.map((item) => {
-      if (item.presentation !== "summary" || item.selectionIntent === undefined) {
-        return item;
-      }
-      return { ...item, selected: item.id === selectedRecordId };
-    }),
+    selection: { selectedItemId: selectedRecordId },
   };
 }
 

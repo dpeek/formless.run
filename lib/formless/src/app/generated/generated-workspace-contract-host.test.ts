@@ -422,13 +422,13 @@ function selectedRecordWorkspaceFixture(relationshipLabel = "Task compounds"): W
   }));
   const mainResult: ListContract = {
     ...sourceResult,
-    editing: { disabledReason: "Summary items are read-only.", enabled: false },
+    editing: { applicability: "notApplicable" },
+    selection: { selectedItemId: "task-1" },
     items: sourceResult.items.map((item) => ({
       accessibilityLabel: item.accessibilityLabel,
       id: item.id,
       kind: "listItem",
       presentation: "summary",
-      selected: item.id === "task-1",
       selectionIntent: required(selectionIntents.find(({ recordId }) => recordId === item.id)),
       title: item.id === "task-1" ? "Initial title" : "Second task",
     })),
@@ -698,7 +698,7 @@ function listResult(options: WorkspaceFixtureOptions): ListContract {
   return {
     accessibilityLabel: "Task records",
     density: "compact",
-    editing: { enabled: true },
+    editing: { applicability: "applicable", enabled: true },
     id: "list:tasks",
     items: ids.map((id) => {
       const field = projectGeneratedRecordField({

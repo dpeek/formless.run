@@ -163,7 +163,11 @@ describe("Astryx list renderer", () => {
     const html = renderList({
       accessibilityLabel: "Tasks",
       density: "default",
-      editing: { disabledReason: "Editing requires an owner session.", enabled: false },
+      editing: {
+        applicability: "applicable",
+        disabledReason: "Editing requires an owner session.",
+        enabled: false,
+      },
       emptyState: {
         action: { ...action, role: "command" },
         description: "Adjust the current filters.",
@@ -240,7 +244,7 @@ function listContract({ pending }: { pending: boolean }): ListContract {
   return {
     accessibilityLabel: "Tasks",
     density: "compact",
-    editing: { enabled: true },
+    editing: { applicability: "applicable", enabled: true },
     id: "tasks",
     items: [
       {

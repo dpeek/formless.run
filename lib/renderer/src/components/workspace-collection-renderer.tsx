@@ -787,7 +787,6 @@ function AstryxWorkspaceOperationControl({
 
 type WorkspaceListSelection = {
   onSelectItem: (item: { id: string }) => Promise<void> | void;
-  selectedItemId: string | null;
 };
 
 function selectedRecordListSelection(
@@ -807,7 +806,6 @@ function selectedRecordListSelection(
       );
       return intent ? onIntent(intent) : undefined;
     },
-    selectedItemId: presentation.selectedRecordId,
   };
 }
 
@@ -914,12 +912,23 @@ function AstryxWorkspaceSelectedRecordSection({
 }) {
   const headingOperations =
     section.kind === "selectedRecordRelationshipSection" ? section.headingOperations : [];
+  const headingCreate =
+    section.kind === "selectedRecordRelationshipSection" ? section.headingCreate : undefined;
   const heading =
-    section.label === undefined && headingOperations.length === 0 ? null : (
+    section.label === undefined &&
+    headingOperations.length === 0 &&
+    headingCreate === undefined ? null : (
       <HStack align="center" gap={3} justify="between" width="100%" wrap="wrap">
         {section.label ? <Heading level={3}>{section.label}</Heading> : <span aria-hidden="true" />}
-        {headingOperations.length > 0 ? (
+        {headingCreate !== undefined || headingOperations.length > 0 ? (
           <HStack gap={2} wrap="wrap">
+            {headingCreate !== undefined ? (
+              <AstryxWorkspaceCollectionAction
+                action={headingCreate}
+                onIntent={onIntent}
+                scope={scope}
+              />
+            ) : null}
             {headingOperations.map((control) => (
               <AstryxWorkspaceOperationControl
                 control={control}
@@ -1121,7 +1130,6 @@ function AstryxWorkspaceResult({
             recordId === undefined ? {} : { recordId, resultId: result.id },
           );
         }}
-        selectedItemId={listSelection?.selectedItemId}
       />
     );
   }

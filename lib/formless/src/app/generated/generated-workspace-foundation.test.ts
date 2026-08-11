@@ -169,7 +169,7 @@ describe("generated workspace foundation", () => {
       (item) => item.presentation === "summary",
     );
     expect(unselectedSummaryItems).toHaveLength(2);
-    expect(unselectedSummaryItems.every((item) => item.selected === false)).toBe(true);
+    expect(unselectedPresentation.result.selection).toEqual({ selectedItemId: null });
     expect(unselectedSummaryItems[0]).not.toHaveProperty("subtitle");
     const selectionIntent = required(
       unselectedSummaryItems.find(({ id }) => id === "rec_card_premium")?.selectionIntent,
@@ -203,9 +203,11 @@ describe("generated workspace foundation", () => {
       selectedPresentation.result.items.find(({ id }) => id === "rec_card_premium"),
     ).toMatchObject({
       presentation: "summary",
-      selected: true,
       selectionIntent,
       title: "Premium",
+    });
+    expect(selectedPresentation.result.selection).toEqual({
+      selectedItemId: "rec_card_premium",
     });
     const backIntent = required(selectedPresentation.backIntent);
     expect(resolveGeneratedWorkspaceIntent(selected.runtimePlan, backIntent)).toMatchObject({
@@ -381,6 +383,65 @@ describe("generated workspace foundation", () => {
     expect(premiumRelationship.result.contract.rows.map(({ id }) => id)).toEqual(
       premiumRelationship.recordIds,
     );
+
+    const editableCell = required(
+      premiumRelationship.result.contract.rows[0]?.cells.find((cell) =>
+        cell.contents.some((content) => content.kind === "field"),
+      ),
+    );
+    const editableContent = required(
+      editableCell.contents.find((content) => content.kind === "field"),
+    );
+    if (editableContent.kind !== "field") {
+      throw new Error("Missing selected-record relationship field.");
+    }
+    const fieldRuntime = required(
+      premiumRelationship.result.fieldsById.get(editableContent.field.fieldId),
+    );
+    const fieldIntent = projectGeneratedWorkspaceFieldIntent(
+      premium.scope,
+      editableContent.field.fieldId,
+      {
+        fieldName: editableContent.field.fieldName,
+        fieldValue: { kind: "input", value: "1250" },
+        type: "recordDraftChange",
+      },
+      {
+        contextId: fieldRuntime.contextId,
+        recordId: fieldRuntime.recordId,
+        resultId: premiumRelationship.result.contract.id,
+      },
+    );
+    const runtimePlan = required(
+      selectGeneratedWorkspaceFoundation({
+        screen,
+        sectionSelection: { cards: { selectedRecordId: "rec_card_premium" } },
+        selectSectionFoundation: selectSelectedRecordDetailSectionFoundation,
+        snapshot,
+        today: "2026-08-10",
+      }),
+    ).runtimePlan;
+    expect(resolveGeneratedWorkspaceIntent(runtimePlan, fieldIntent)).toMatchObject({
+      field: {
+        fieldId: editableContent.field.fieldId,
+        recordId: fieldRuntime.recordId,
+      },
+      kind: "field",
+      result: { contract: { id: premiumRelationship.result.contract.id }, kind: "table" },
+    });
+    expect(
+      resolveGeneratedWorkspaceIntent(runtimePlan, {
+        ...fieldIntent,
+        contextId: `${fieldRuntime.contextId}:stale`,
+      }),
+    ).toBeUndefined();
+    for (const staleIntent of [
+      { ...fieldIntent, fieldId: `${fieldIntent.fieldId}:stale` },
+      { ...fieldIntent, recordId: `${fieldRuntime.recordId}:stale` },
+      { ...fieldIntent, resultId: `${premiumRelationship.result.contract.id}:stale` },
+    ]) {
+      expect(resolveGeneratedWorkspaceIntent(runtimePlan, staleIntent)).toBeUndefined();
+    }
 
     const defaultRelationship = required(
       required(select("rec_card_default")).selectedRecordDetailRelationshipResults[0],

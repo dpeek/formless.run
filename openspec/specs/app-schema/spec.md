@@ -1066,6 +1066,34 @@ The system SHALL let collection views select records through schema-declared que
   projection, or an unbounded output is rejected
 - AND these constraints do not expose a generic app query or listing interface
 
+### Requirement: Shared View Field Interaction
+
+The system SHALL let shared item- and edit-view field bindings declare whether
+an ordinary entity field is editable or display-only, and SHALL validate that
+interaction once as portable view schema.
+
+#### Scenario: Declare a display-only view field
+
+- GIVEN an item or edit view includes a shared field binding for an ordinary
+  writable entity field
+- WHEN the binding declares display interaction
+- THEN the field remains an ordered member of the view and projects through its
+  normal display formatting contract
+- AND generated record results, list fields, item views, edit views, and row
+  edit dialogs that consume the binding do not expose draft, commit, patch,
+  picker, upload, or transition interaction for that occurrence
+- AND neighboring editable bindings retain their declared editor, commit,
+  visibility, presentation, state-machine, validation, media, and union behavior
+
+#### Scenario: Reject invalid view field interaction
+
+- GIVEN a shared view field binding declares an unknown interaction value or
+  otherwise contradicts the referenced field behavior
+- WHEN the complete schema is parsed
+- THEN parsing fails before the view reaches generated UI
+- AND omission retains the ordinary editable behavior for writable entity
+  fields
+
 ### Requirement: Item View Summary Presentation
 
 The system SHALL let an item view select either its existing field-based record
@@ -1259,6 +1287,24 @@ contain one level of destination-less labelled sections.
   transition validity, confirmation, or execution semantics
 - AND an operation for another entity, a collection-scoped operation, an
   unknown operation, or an unsupported placement is rejected
+
+#### Scenario: Bind a selected-record relationship create surface
+
+- GIVEN a selected-record relationship section places a create action beside
+  its heading
+- WHEN the complete schema is parsed
+- THEN the section's optional `createAction` declares a canonical `operation`,
+  ordinary `createView`, `placement: "heading"`, and optional label
+- AND the create view and browser-visible collection-scoped create operation
+  use the section relationship target entity
+- AND the create view defaults the relationship's exact target reference field
+  from the selected-record detail context name, whose runtime query context
+  resolves to the selected source record id
+- AND the binding stores no nested target data and expresses attachment through
+  ordinary flat target fields
+- AND an unknown or mismatched relationship, source or target entity, create
+  view, create operation, unavailable context, missing attachment default,
+  incompatible default, or unsupported placement is rejected
 
 #### Scenario: Keep selected-record detail distinct from collection context
 

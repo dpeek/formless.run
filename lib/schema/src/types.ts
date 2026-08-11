@@ -700,6 +700,7 @@ export type EntityUnionSchema = {
 };
 export type ViewFieldBindingSchema = ViewFieldSchema & {
   field: string;
+  interaction?: "edit" | "display";
 };
 export type ViewFieldBindingSchemaSource = Omit<ViewFieldBindingSchema, "editor" | "commit"> & {
   editor?: FieldEditor;
@@ -1078,6 +1079,13 @@ export type SelectedRecordDetailOperationBindingSchema = {
   label?: string;
 };
 
+export type SelectedRecordDetailRelationshipCreateBindingSchema = {
+  operation: string;
+  createView: string;
+  placement: "heading";
+  label?: string;
+};
+
 export type SelectedRecordDetailRecordSectionSchema = {
   id: string;
   type: "record";
@@ -1097,6 +1105,7 @@ export type SelectedRecordDetailRelationshipSectionSchema = {
   relationship: string;
   query: string;
   result: SelectedRecordDetailRelationshipResultSchema;
+  createAction?: SelectedRecordDetailRelationshipCreateBindingSchema;
   operations?: SelectedRecordDetailOperationBindingSchema[];
 };
 
@@ -1112,6 +1121,8 @@ export type SelectedRecordDetailSchema = {
 
 export type SelectedRecordDetailOperationBindingSchemaSource =
   SelectedRecordDetailOperationBindingSchema;
+export type SelectedRecordDetailRelationshipCreateBindingSchemaSource =
+  SelectedRecordDetailRelationshipCreateBindingSchema;
 export type SelectedRecordDetailRecordSectionSchemaSource = SelectedRecordDetailRecordSectionSchema;
 export type SelectedRecordDetailRelationshipResultSchemaSource =
   SelectedRecordDetailRelationshipResultSchema;

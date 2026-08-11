@@ -162,7 +162,7 @@ function activeListFixture(): ListContract {
   return {
     accessibilityLabel: "Tasks",
     density: "compact",
-    editing: { enabled: true },
+    editing: { applicability: "applicable", enabled: true },
     id: "tasks",
     items,
     kind: "list",
@@ -173,7 +173,7 @@ function emptyListFixture(): ListContract {
   return {
     accessibilityLabel: "Empty tasks",
     density: "default",
-    editing: { enabled: true },
+    editing: { applicability: "applicable", enabled: true },
     emptyState: {
       action: {
         ...operationAction(operationControlFixtures.refreshTasks.initial, "command"),
@@ -195,6 +195,7 @@ function editingDisabledListFixture(): ListContract {
     accessibilityLabel: "Read-only tasks",
     density: "default",
     editing: {
+      applicability: "applicable",
       disabledReason: "Editing requires an owner session.",
       enabled: false,
     },

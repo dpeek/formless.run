@@ -14,6 +14,7 @@ import {
   createIdleGeneratedOperationExecutionState,
   projectOrderingMoveOperationControlBinding,
   projectStateTransitionOperationControlBinding,
+  recordFieldIsWritable,
   type GeneratedOperationControlBinding,
   type GeneratedOperationExecutionState,
   type RecordFieldConfig,
@@ -359,7 +360,7 @@ function selectGeneratedSummaryListFoundation({
     list: projectGeneratedListContract({
       accessibilityLabel: `${entity.label} records`,
       density,
-      editingDisabledReason: `Editing is disabled for ${entity.label}.`,
+      editingApplicable: false,
       editingEnabled: false,
       ...(emptyStateAction === undefined ? {} : { emptyStateAction }),
       id,
@@ -438,6 +439,7 @@ export function resolveGeneratedListFieldIntent(
   const intentRecordId = intent.type === "stateTransitionInvoke" ? intent.recordId : recordId;
 
   return runtime !== undefined &&
+    recordFieldIsWritable(runtime.fieldConfig) &&
     runtime.recordId === recordId &&
     runtime.field.recordId === recordId &&
     intentRecordId === recordId &&
