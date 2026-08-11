@@ -1,52 +1,46 @@
 import { Banner } from "@astryxdesign/core/Banner";
-import { Card } from "@astryxdesign/core/Card";
-import { Divider } from "@astryxdesign/core/Divider";
+import type { DropdownMenuItemData } from "@astryxdesign/core/DropdownMenu";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
-import { HStack } from "@astryxdesign/core/HStack";
-import { Icon } from "@astryxdesign/core/Icon";
-import { IconButton } from "@astryxdesign/core/IconButton";
-import { Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
-import { spacingVars } from "@astryxdesign/core/theme/tokens.stylex";
-import { FolderIcon, FolderOpenIcon } from "@heroicons/react/24/outline";
-import * as stylex from "@stylexjs/stylex";
 import type {
+  ButtonContract,
   CollectionEmptyStatePrimaryActionContract,
   CreateFieldIntentHandler,
+  CreateIntent,
   CreateIntentHandler,
+  FieldIntent,
+  OperationControlContract,
   OperationPresentationIntent,
+  OperationPresentationIntentHandler,
+  RecordResultIntent,
+  TreeChildCreationContract,
+  TreeChildVariantContract,
+  TreeContextActionContract,
   TreeIntent,
   TreeIntentHandler,
-  TreeItemContract,
+  TreeNodeContract,
+  TreeOperationActionContract,
+  TreeOrderingActionContract,
+  TreeOrderingContract,
   TreeResultContract,
   TreeResultReference,
+  TreeWarningContract,
   WorkspaceIntentHandler,
   WorkspaceIntentScope,
 } from "@dpeek/formless-presentation/contract";
 import { useTreeResult, useWorkspaceIntentHandler } from "@dpeek/formless-presentation/host/react";
-import {
-  AstryxTreeResultSignals,
-  AstryxTreeSelectedActions,
-  AstryxTreeSelectedDiagnostics,
-} from "./tree-actions.tsx";
-import { AstryxTreeChildCreation, AstryxTreeChildCreationTrigger } from "./tree-child-creation.tsx";
-import { AstryxTreeFieldSet } from "./tree-selected-editor.tsx";
 import { AstryxCreateSurfaceRenderer } from "./create-renderer.tsx";
 import {
   AstryxOperationButton,
   AstryxOperationButtonWithProgress,
+  AstryxOperationCompactStatus,
   AstryxOperationDestructiveConfirmation,
   AstryxOperationFeedback,
+  AstryxOperationProgress,
+  operationIcon,
 } from "./operation-renderer.tsx";
-
-const styles = stylex.create({
-  childCards: {
-    paddingBlockStart: spacingVars["--spacing-4"],
-  },
-  inlineNode: {
-    marginInline: `calc(${spacingVars["--spacing-8"]} * -1)`,
-  },
-});
+import { AstryxRecursiveRecordNode } from "./recursive-record-node.tsx";
+import { semanticIcon } from "./semantic-icon.tsx";
 
 export function AstryxSubscribedTreeResultRenderer({
   reference,
@@ -77,28 +71,13 @@ export function AstryxSubscribedTreeResultRenderer({
         const action =
           tree.availability.state === "empty" ? tree.availability.emptyState.action : undefined;
         return action?.kind === "createAction"
-          ? onIntent({
-              ...scope,
-              intent,
-              surfaceId: action.surface.id,
-              type: "workspaceCreate",
-            })
+          ? onIntent({ ...scope, intent, surfaceId: action.surface.id, type: "workspaceCreate" })
           : undefined;
       }}
-      onIntent={(intent) => {
-        const action =
-          tree.availability.state === "empty" ? tree.availability.emptyState.action : undefined;
-        return action?.kind === "operationAction" &&
-          intent.type === "treeOperation" &&
-          intent.controlId === action.control.id
-          ? onIntent({
-              ...scope,
-              controlId: action.control.id,
-              intent: intent.intent,
-              type: "workspaceOperation",
-            })
-          : dispatchAstryxWorkspaceTreeIntent(onIntent, scope, tree.id, intent);
-      }}
+      onEmptyOperationIntent={(controlId, intent) =>
+        onIntent({ ...scope, controlId, intent, type: "workspaceOperation" })
+      }
+      onIntent={(intent) => dispatchAstryxWorkspaceTreeIntent(onIntent, scope, tree.id, intent)}
       tree={tree}
     />
   ) : null;
@@ -107,41 +86,35 @@ export function AstryxSubscribedTreeResultRenderer({
 export function AstryxTreeResultRenderer({
   onCreateFieldIntent = ignoreCreateFieldIntent,
   onCreateIntent = ignoreCreateIntent,
+  onEmptyOperationIntent = ignoreEmptyOperationIntent,
   onIntent = ignoreTreeIntent,
   tree,
 }: {
   onCreateFieldIntent?: CreateFieldIntentHandler;
   onCreateIntent?: CreateIntentHandler;
+  onEmptyOperationIntent?: (
+    controlId: string,
+    intent: OperationPresentationIntent,
+  ) => Promise<void> | void;
   onIntent?: TreeIntentHandler;
   tree: TreeResultContract;
 }) {
   if (tree.availability.state === "empty") {
     return (
-      <VStack gap={3} width="100%">
-        <EmptyState
-          actions={
-            tree.availability.emptyState.action ? (
-              <AstryxTreeEmptyStatePrimaryAction
-                action={tree.availability.emptyState.action}
-                onCreateFieldIntent={onCreateFieldIntent}
-                onCreateIntent={onCreateIntent}
-                onIntent={onIntent}
-                resultId={tree.id}
-              />
-            ) : undefined
-          }
-          description={tree.availability.emptyState.description}
-          title={tree.availability.emptyState.title}
-        />
-        {tree.rootChildCreation ? (
-          <AstryxTreeChildCreation
-            creation={tree.rootChildCreation}
-            onIntent={onIntent}
-            parent={{ kind: "root" }}
-            resultId={tree.id}
-          />
-        ) : null}
-      </VStack>
+      <EmptyState
+        actions={
+          tree.availability.emptyState.action ? (
+            <AstryxTreeEmptyStatePrimaryAction
+              action={tree.availability.emptyState.action}
+              onCreateFieldIntent={onCreateFieldIntent}
+              onCreateIntent={onCreateIntent}
+              onOperationIntent={onEmptyOperationIntent}
+            />
+          ) : undefined
+        }
+        description={tree.availability.emptyState.description}
+        title={tree.availability.emptyState.title}
+      />
     );
   }
 
@@ -149,267 +122,408 @@ export function AstryxTreeResultRenderer({
     return <Banner container="card" status="warning" title={tree.availability.message} />;
   }
 
+  if (!tree.root) {
+    return <Banner container="card" status="warning" title={tree.accessibilityLabel} />;
+  }
+
   return (
-    <VStack
-      aria-label={tree.accessibilityLabel}
-      data-formless-astryx-tree-layout={tree.id}
-      gap={5}
-      width="100%"
-    >
+    <VStack aria-label={tree.accessibilityLabel} gap={5} width="100%">
       <AstryxTreeResultSignals tree={tree} />
-      <AstryxTreeRootNode onIntent={onIntent} tree={tree} />
+      <AstryxTreeNode node={tree.root} onIntent={onIntent} root tree={tree} />
     </VStack>
   );
 }
 
-function AstryxTreeRootNode({
+function AstryxTreeNode({
+  node,
   onIntent,
+  root = false,
   tree,
 }: {
+  node: TreeNodeContract;
   onIntent: TreeIntentHandler;
+  root?: boolean;
   tree: TreeResultContract;
 }) {
-  const root = tree.root;
+  const headerDetail = [node.variant?.label, node.slot?.label].filter(Boolean).join(" · ");
 
   return (
-    <Card
-      data-formless-astryx-tree-node={root.id}
-      elevation="med"
-      padding={0}
-      variant="transparent"
-      width="100%"
-    >
-      <VStack gap={0} width="100%">
-        <HStack
-          align="center"
-          gap={3}
-          justify="between"
-          paddingBlock={4}
-          paddingInline={8}
-          width="100%"
-        >
-          <HStack align="center" gap={2}>
-            <Icon aria-hidden icon={root.childCreation ? FolderOpenIcon : FolderIcon} size="sm" />
-            <Text color="secondary" type="supporting">
-              {root.typeLabel ?? "Block"}
-            </Text>
-          </HStack>
-          <HStack align="center" gap={1}>
-            {root.childCreation ? (
-              <AstryxTreeChildCreationTrigger creation={root.childCreation} onIntent={onIntent} />
-            ) : null}
-            {root.deleteRecord ? (
-              <AstryxTreeRootDelete
-                control={root.deleteRecord}
-                onIntent={onIntent}
-                resultId={tree.id}
-              />
-            ) : null}
-          </HStack>
-        </HStack>
-        <Divider isFullBleed />
-        <VStack gap={4} padding={8} width="100%">
-          {root.deleteRecord ? (
-            <AstryxTreeRootDeleteEffects
-              control={root.deleteRecord}
-              onIntent={onIntent}
-              resultId={tree.id}
-            />
-          ) : null}
-          {root.childFields ? (
-            <AstryxTreeFieldSet
-              editor={{ itemId: root.id }}
-              fieldSet={root.childFields}
-              kind="child"
-              onIntent={onIntent}
-              resultId={tree.id}
-              showLabel={false}
-            />
-          ) : null}
-          {tree.items.length > 0 ? (
-            <VStack gap={4} width="100%" xstyle={root.childFields ? styles.childCards : undefined}>
-              {tree.items.map((item) => (
-                <AstryxTreeInlineNode item={item} key={item.id} onIntent={onIntent} tree={tree} />
-              ))}
-            </VStack>
-          ) : null}
-          {root.childCreation ? (
-            <AstryxTreeChildCreation
-              creation={root.childCreation}
-              onIntent={onIntent}
-              parent={{ kind: "root" }}
-              renderTrigger={false}
-              resultId={tree.id}
-            />
-          ) : null}
-        </VStack>
-      </VStack>
-    </Card>
-  );
-}
-
-function AstryxTreeInlineNode({
-  item,
-  onIntent,
-  tree,
-}: {
-  item: TreeItemContract;
-  onIntent: TreeIntentHandler;
-  tree: TreeResultContract;
-}) {
-  const editor = item.editor;
-  const disclosure = item.disclosure;
-  const expanded = disclosure?.open ?? true;
-
-  return (
-    <Card
-      data-formless-astryx-tree-node={item.id}
-      elevation="med"
-      padding={0}
-      variant="muted"
-      width={`calc(100% + ${spacingVars["--spacing-8"]} * 2)`}
-      {...stylex.props(styles.inlineNode)}
-    >
-      <VStack gap={0} width="100%">
-        <HStack
-          align="center"
-          gap={3}
-          justify="between"
-          paddingBlock={4}
-          paddingInline={8}
-          width="100%"
-        >
-          <HStack align="center" gap={2}>
-            {disclosure ? (
-              <IconButton
-                icon={
-                  <Icon
-                    aria-hidden
-                    icon={disclosure.open ? FolderOpenIcon : FolderIcon}
-                    size="sm"
-                  />
-                }
-                label={disclosure.accessibilityLabel}
-                onClick={() => void onIntent(disclosure.intent)}
-                size="sm"
-                variant="ghost"
-              />
-            ) : (
-              <Icon aria-hidden icon={FolderIcon} size="sm" />
-            )}
-            <Text color="secondary" type="supporting">
-              {item.variant?.label ?? "Block"}
-            </Text>
-          </HStack>
-          <HStack align="center" gap={1}>
-            {editor?.childCreation ? (
-              <AstryxTreeChildCreationTrigger creation={editor.childCreation} onIntent={onIntent} />
-            ) : null}
-            {editor ? (
-              <AstryxTreeSelectedActions
-                editor={editor}
-                item={item}
-                onIntent={onIntent}
-                resultId={tree.id}
-              />
-            ) : null}
-          </HStack>
-        </HStack>
-        <Divider isFullBleed />
-        <VStack gap={4} padding={8} width="100%">
-          {editor ? <AstryxTreeSelectedDiagnostics editor={editor} item={item} /> : null}
-          {expanded && editor?.childFields ? (
-            <AstryxTreeFieldSet
-              editor={editor}
-              fieldSet={editor.childFields}
-              kind="child"
-              onIntent={onIntent}
-              resultId={tree.id}
-              showLabel={false}
-            />
-          ) : null}
-          {expanded && item.children.length > 0 ? (
-            <VStack
-              gap={4}
-              width="100%"
-              xstyle={editor?.childFields ? styles.childCards : undefined}
-            >
-              {item.children.map((child) => (
-                <AstryxTreeInlineNode item={child} key={child.id} onIntent={onIntent} tree={tree} />
-              ))}
-            </VStack>
-          ) : null}
-          {expanded && editor?.childCreation ? (
-            <AstryxTreeChildCreation
-              creation={editor.childCreation}
-              onIntent={onIntent}
-              parent={{ itemId: item.id, kind: "item" }}
-              renderTrigger={false}
-              resultId={tree.id}
-            />
-          ) : null}
-        </VStack>
-      </VStack>
-    </Card>
-  );
-}
-
-function AstryxTreeRootDelete({
-  control,
-  onIntent,
-  resultId,
-}: {
-  control: NonNullable<TreeResultContract["root"]["deleteRecord"]>;
-  onIntent: TreeIntentHandler;
-  resultId: string;
-}) {
-  return (
-    <AstryxOperationButton
-      button={control.trigger}
-      onIntent={(intent) =>
-        onIntent({ controlId: control.id, intent, resultId, type: "treeOperation" })
+    <AstryxRecursiveRecordNode
+      accessibilityLabel={node.accessibilityLabel}
+      actionMenuAccessibilityLabel={node.headerActions.accessibilityLabel}
+      actionMenuItems={astryxTreeActionMenuItems(tree, node, onIntent)}
+      editor={node.editor}
+      entityTypeLabel={node.entityTypeLabel}
+      headerDetail={headerDetail || undefined}
+      leadingContent={
+        <>
+          <AstryxTreeNodeDiagnostics node={node} />
+          <AstryxTreeNodeActionEffects node={node} onIntent={onIntent} tree={tree} />
+        </>
       }
-    />
+      onEditorIntent={(intent) =>
+        dispatchAstryxTreeRecordResultIntent(onIntent, tree, node, intent)
+      }
+      root={root}
+    >
+      {node.children.length > 0 ? (
+        <VStack gap={4} width="100%">
+          {node.children.map((child) => (
+            <AstryxTreeNode key={child.id} node={child} onIntent={onIntent} tree={tree} />
+          ))}
+        </VStack>
+      ) : null}
+    </AstryxRecursiveRecordNode>
   );
 }
 
-function AstryxTreeRootDeleteEffects({
-  control,
+function AstryxTreeNodeActionEffects({
+  node,
   onIntent,
-  resultId,
+  tree,
 }: {
-  control: NonNullable<TreeResultContract["root"]["deleteRecord"]>;
+  node: TreeNodeContract;
   onIntent: TreeIntentHandler;
-  resultId: string;
+  tree: TreeResultContract;
 }) {
-  const dispatch = (intent: OperationPresentationIntent) =>
-    onIntent({ controlId: control.id, intent, resultId, type: "treeOperation" });
-
-  return (
-    <>
-      {control.confirmation ? (
-        <AstryxOperationDestructiveConfirmation
-          confirmation={control.confirmation}
-          onIntent={dispatch}
+  return node.headerActions.items.map((action) => {
+    if (action.kind === "treeChildCreation") {
+      const surface = action.activeCreateSurface;
+      return surface ? (
+        <AstryxCreateSurfaceRenderer
+          key={action.id}
+          onFieldIntent={(fieldId, intent) =>
+            dispatchAstryxTreeCreateFieldIntent(onIntent, tree, node, action, fieldId, intent)
+          }
+          onIntent={(intent) =>
+            dispatchAstryxTreeCreateIntent(onIntent, tree, node, action, intent)
+          }
+          renderTrigger={false}
+          surface={surface}
         />
+      ) : null;
+    }
+
+    if (action.kind !== "operationAction") {
+      return null;
+    }
+
+    const control = action.control;
+    const dispatch: OperationPresentationIntentHandler = (intent) =>
+      dispatchAstryxTreeOperationIntent(onIntent, tree, node, action, intent);
+
+    return (
+      <VStack gap={2} key={control.id} width="100%">
+        {control.progress ? <AstryxOperationProgress progress={control.progress} /> : null}
+        {control.status.status === "idle" ? null : (
+          <AstryxOperationCompactStatus status={control.status} />
+        )}
+        {control.confirmation ? (
+          <AstryxOperationDestructiveConfirmation
+            confirmation={control.confirmation}
+            onIntent={dispatch}
+          />
+        ) : null}
+        <AstryxOperationFeedback feedback={control.feedback} />
+      </VStack>
+    );
+  });
+}
+
+function AstryxTreeNodeDiagnostics({ node }: { node: TreeNodeContract }) {
+  const hasDiagnostics =
+    node.warnings.length > 0 || "message" in node.structure || !node.availability.available;
+
+  return hasDiagnostics ? (
+    <VStack aria-label={`${node.accessibilityLabel} diagnostics`} gap={2} width="100%">
+      <AstryxTreeWarnings warnings={node.warnings} />
+      {"message" in node.structure ? (
+        <Banner container="card" status="warning" title={node.structure.message} />
       ) : null}
-      <AstryxOperationFeedback feedback={control.feedback} />
-    </>
+      {node.availability.available ? null : (
+        <Banner container="card" status="warning" title={node.availability.message} />
+      )}
+    </VStack>
+  ) : null;
+}
+
+function AstryxTreeResultSignals({ tree }: { tree: TreeResultContract }) {
+  return tree.status || tree.warnings.length > 0 || tree.feedback.length > 0 ? (
+    <VStack gap={2} width="100%">
+      <AstryxTreeWarnings warnings={tree.warnings} />
+      {tree.status ? <AstryxOperationCompactStatus status={tree.status} /> : null}
+      {tree.feedback.map((feedback) => (
+        <AstryxOperationFeedback feedback={feedback} key={feedback.id} />
+      ))}
+    </VStack>
+  ) : null;
+}
+
+function AstryxTreeWarnings({ warnings }: { warnings: readonly TreeWarningContract[] }) {
+  return warnings.map((warning) => (
+    <Banner
+      container="card"
+      description={warning.items.map((item) => item.message).join(" ") || undefined}
+      key={warning.id}
+      status="warning"
+      title={warning.title}
+    />
+  ));
+}
+
+export function astryxTreeActionMenuItems(
+  tree: TreeResultContract,
+  node: TreeNodeContract,
+  onIntent: TreeIntentHandler,
+): DropdownMenuItemData[] {
+  return node.headerActions.items.flatMap((action): DropdownMenuItemData[] => {
+    if (action.kind === "treeContextAction") {
+      const disabled = treeActionDisabled(node, action);
+      return [
+        {
+          icon:
+            action.control.content.kind === "label"
+              ? undefined
+              : operationIcon(action.control.content.icon),
+          isDisabled: disabled,
+          label: treeContextActionLabel(action),
+          onClick: () => {
+            if (!disabled) {
+              void onIntent(action.intent);
+            }
+          },
+        },
+      ];
+    }
+
+    if (action.kind === "treeChildCreation") {
+      return action.variants.map((variant) => {
+        const disabled = !node.availability.available || !variant.availability.available;
+        return {
+          icon: semanticIcon("add"),
+          isDisabled: disabled,
+          label: treeChildVariantLabel(variant),
+          onClick: () => {
+            if (!disabled) {
+              void onIntent(variant.selectionIntent);
+            }
+          },
+        };
+      });
+    }
+
+    if (action.kind === "treeOrderingAction") {
+      return action.actions
+        .filter((orderingAction) => orderingAction.structurallyAvailable)
+        .map((orderingAction) => {
+          const disabled = treeOrderingActionDisabled(node, action, orderingAction);
+          return {
+            isDisabled: disabled,
+            label: treeOrderingActionLabel(orderingAction),
+            onClick: () => {
+              if (!disabled) {
+                void onIntent(orderingAction.intent);
+              }
+            },
+          };
+        });
+    }
+
+    const disabled = operationActionDisabled(node, action);
+    return [
+      {
+        icon:
+          action.control.trigger.content.kind === "label"
+            ? undefined
+            : operationIcon(action.control.trigger.content.icon),
+        isDisabled: disabled,
+        label: buttonLabel(action.control.trigger),
+        onClick: () => {
+          if (!disabled) {
+            void dispatchAstryxTreeOperationIntent(
+              onIntent,
+              tree,
+              node,
+              action,
+              action.control.trigger.intent,
+            );
+          }
+        },
+      },
+    ];
+  });
+}
+
+export function dispatchAstryxTreeRecordResultIntent(
+  handler: TreeIntentHandler,
+  tree: TreeResultContract,
+  node: TreeNodeContract,
+  intent: RecordResultIntent,
+) {
+  const editor = node.editor;
+  if (
+    !editor ||
+    intent.resultId !== editor.id ||
+    ("recordId" in intent &&
+      intent.recordId !== undefined &&
+      intent.recordId !== editor.selectedRecord?.id)
+  ) {
+    return;
+  }
+
+  return handler({ intent, nodeId: node.id, resultId: tree.id, type: "treeRecordResult" });
+}
+
+export function dispatchAstryxTreeOperationIntent(
+  handler: TreeIntentHandler,
+  tree: TreeResultContract,
+  node: TreeNodeContract,
+  action: TreeOperationActionContract,
+  intent: OperationPresentationIntent,
+) {
+  if (intent.controlId !== action.control.id) {
+    return;
+  }
+
+  return handler({
+    controlId: action.control.id,
+    intent,
+    nodeId: node.id,
+    resultId: tree.id,
+    type: "treeOperation",
+  });
+}
+
+export function dispatchAstryxTreeCreateIntent(
+  handler: TreeIntentHandler,
+  tree: TreeResultContract,
+  node: TreeNodeContract,
+  action: TreeChildCreationContract,
+  intent: CreateIntent,
+) {
+  const surface = action.activeCreateSurface;
+  if (!surface || intent.surfaceId !== surface.id) {
+    return;
+  }
+
+  return handler({
+    intent,
+    nodeId: node.id,
+    resultId: tree.id,
+    surfaceId: surface.id,
+    type: "treeCreate",
+  });
+}
+
+export function dispatchAstryxTreeCreateFieldIntent(
+  handler: TreeIntentHandler,
+  tree: TreeResultContract,
+  node: TreeNodeContract,
+  action: TreeChildCreationContract,
+  fieldId: string,
+  intent: FieldIntent,
+) {
+  const surface = action.activeCreateSurface;
+  if (!surface?.dialog.form.fieldSet.fields.some((field) => field.fieldId === fieldId)) {
+    return;
+  }
+
+  return handler({
+    fieldId,
+    intent,
+    nodeId: node.id,
+    resultId: tree.id,
+    surfaceId: surface.id,
+    type: "treeCreateField",
+  });
+}
+
+export function dispatchAstryxWorkspaceTreeIntent(
+  handler: WorkspaceIntentHandler,
+  scope: WorkspaceIntentScope,
+  resultId: string,
+  intent: TreeIntent,
+) {
+  if (intent.resultId !== resultId) {
+    return;
+  }
+
+  return handler({ ...scope, intent, resultId, type: "workspaceTree" });
+}
+
+function treeContextActionLabel(action: TreeContextActionContract) {
+  const reason = action.availability.available
+    ? action.control.disabledReason
+    : action.availability.message;
+  return withDisabledReason(buttonLabel(action.control), reason);
+}
+
+function treeActionDisabled(node: TreeNodeContract, action: TreeContextActionContract) {
+  return Boolean(
+    !node.availability.available ||
+    !action.availability.available ||
+    action.control.disabled ||
+    action.control.pending?.isPending,
   );
+}
+
+function treeChildVariantLabel(variant: TreeChildVariantContract) {
+  const label = variant.slot ? `${variant.label} · ${variant.slot.label}` : variant.label;
+  return withDisabledReason(
+    label,
+    variant.availability.available ? undefined : variant.availability.message,
+  );
+}
+
+function treeOrderingActionDisabled(
+  node: TreeNodeContract,
+  ordering: TreeOrderingContract,
+  action: TreeOrderingActionContract,
+) {
+  return Boolean(
+    !node.availability.available ||
+    ordering.pending ||
+    action.disabled ||
+    action.pending?.isPending,
+  );
+}
+
+function treeOrderingActionLabel(action: TreeOrderingActionContract) {
+  return withDisabledReason(action.pending?.label ?? action.label, action.disabledReason);
+}
+
+function operationActionDisabled(node: TreeNodeContract, action: TreeOperationActionContract) {
+  return Boolean(
+    !node.availability.available ||
+    action.control.trigger.disabled ||
+    action.control.trigger.pending?.isPending,
+  );
+}
+
+function buttonLabel(button: ButtonContract | OperationControlContract["trigger"]) {
+  const label =
+    button.pending?.label ??
+    (button.content.kind === "iconOnly" ? button.accessibilityLabel : button.content.label);
+  return withDisabledReason(label, button.disabledReason);
+}
+
+function withDisabledReason(label: string, reason: string | undefined) {
+  return reason && reason !== label ? `${label} — ${reason}` : label;
 }
 
 function AstryxTreeEmptyStatePrimaryAction({
   action,
   onCreateFieldIntent,
   onCreateIntent,
-  onIntent,
-  resultId,
+  onOperationIntent,
 }: {
   action: CollectionEmptyStatePrimaryActionContract;
   onCreateFieldIntent: CreateFieldIntentHandler;
   onCreateIntent: CreateIntentHandler;
-  onIntent: TreeIntentHandler;
-  resultId: string;
+  onOperationIntent: (
+    controlId: string,
+    intent: OperationPresentationIntent,
+  ) => Promise<void> | void;
 }) {
   if (action.kind === "createAction") {
     return (
@@ -421,13 +535,8 @@ function AstryxTreeEmptyStatePrimaryAction({
     );
   }
 
-  const dispatch = (intent: OperationPresentationIntent) =>
-    onIntent({
-      controlId: action.control.id,
-      intent,
-      resultId,
-      type: "treeOperation",
-    });
+  const dispatch: OperationPresentationIntentHandler = (intent) =>
+    onOperationIntent(action.control.id, intent);
 
   return (
     <VStack gap={2}>
@@ -451,21 +560,10 @@ function AstryxTreeEmptyStatePrimaryAction({
   );
 }
 
-export function dispatchAstryxWorkspaceTreeIntent(
-  handler: WorkspaceIntentHandler,
-  scope: WorkspaceIntentScope,
-  resultId: string,
-  intent: TreeIntent,
-) {
-  if (intent.resultId !== resultId) {
-    return;
-  }
-
-  return handler({ ...scope, intent, resultId, type: "workspaceTree" });
-}
-
 function ignoreTreeIntent() {}
 
 function ignoreCreateFieldIntent() {}
 
 function ignoreCreateIntent() {}
+
+function ignoreEmptyOperationIntent() {}

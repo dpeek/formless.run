@@ -2192,8 +2192,6 @@ describe("home view model collections", () => {
           childFieldName: "block",
           childItemViewName: "blockTreeNode",
           childFields: ["label"],
-          placementItemViewName: undefined,
-          placementFields: [],
           orderingField: "order",
           orderingPresentations: ["dragHandle"],
           maxDepth: 8,
@@ -3460,9 +3458,6 @@ function summarizeHomeModel(model: HomeViewModel) {
                 childFieldName: collection.result.childFieldName,
                 childItemViewName: collection.result.childItemViewName,
                 childFields: collection.result.childRecordFields.map((field) => field.fieldName),
-                placementItemViewName: collection.result.placementItemViewName,
-                placementFields:
-                  collection.result.placementRecordFields?.map((field) => field.fieldName) ?? [],
                 orderingField: collection.result.ordering?.fieldName ?? null,
                 orderingPresentations: collection.result.ordering?.presentations ?? [],
                 maxDepth: collection.result.maxDepth,

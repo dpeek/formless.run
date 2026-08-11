@@ -479,7 +479,6 @@ export type HomeResultConfig =
           type: "reference";
         }
       >;
-      presentation: "inlineEditor" | "outlineDetail";
       childEntityName: string;
       childEntity: EntitySchema;
       childDeleteOperation?: EntityOperationPresentationConfig;
@@ -489,9 +488,6 @@ export type HomeResultConfig =
       childRecordUnion?: RecordUnionPresentationConfig;
       placementEntityName: string;
       placementEntity: EntitySchema;
-      placementItemViewName?: string;
-      placementRecordFields?: RecordFieldConfig[];
-      placementRecordUnion?: RecordUnionPresentationConfig;
       placementUpdateOperation?: EntityOperationPresentationConfig;
       ordering?: ResultOrderingConfig;
       branches?: TreeBranchPolicyConfig;

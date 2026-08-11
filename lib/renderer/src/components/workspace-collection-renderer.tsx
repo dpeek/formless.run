@@ -79,9 +79,7 @@ export function AstryxWorkspaceCollectionRenderer({
   surface?: WorkspaceSurface;
 }) {
   const presentation = collection.presentation;
-  const treeOwnsContextDetail =
-    presentation.result.kind === "treeResult" &&
-    presentation.result.presentation === "inlineEditor";
+  const treeOwnsContextDetail = presentation.result.kind === "treeResult";
 
   return (
     <AstryxWorkspaceCollectionFrame
@@ -136,8 +134,7 @@ export function AstryxSubscribedWorkspaceCollectionRenderer({
   const onIntent = useWorkspaceIntentHandler();
   const presentation = collection.presentation;
   const mainResult = useResult(presentation.result);
-  const treeOwnsContextDetail =
-    mainResult?.kind === "treeResult" && mainResult.presentation === "inlineEditor";
+  const treeOwnsContextDetail = mainResult?.kind === "treeResult";
 
   return (
     <AstryxWorkspaceCollectionFrame

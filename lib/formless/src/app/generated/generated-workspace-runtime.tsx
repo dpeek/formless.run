@@ -27,7 +27,6 @@ import type { EntityOperationPresentationConfig } from "../../client/operation-p
 import type {
   GeneratedOperationControlBinding,
   GeneratedOperationController,
-  GeneratedOperationExecutionResult,
   HomeOperationConfig,
   HomeScreenCollectionSectionModel,
   HomeScreenModel,
@@ -94,6 +93,7 @@ import type {
   GeneratedTreeChildCreateRuntime,
   GeneratedTreeCreateFieldProjectionState,
 } from "./generated-tree-create-foundation.ts";
+import type { GeneratedTreeRecordResultRuntime } from "./generated-tree-foundation.ts";
 import {
   prepareGeneratedWorkspaceRuntimePublication,
   useGeneratedWorkspaceContractHost,
@@ -267,12 +267,6 @@ export function useGeneratedWorkspaceRuntimeController({
   const [tableDialogOpenById, setTableDialogOpenById] = useState<
     Record<string, boolean | undefined>
   >({});
-  const [treeSelectedPlacementIdByResultId, setTreeSelectedPlacementIdByResultId] = useState<
-    Record<string, string | null | undefined>
-  >({});
-  const [treeDisclosureOpenByItemId, setTreeDisclosureOpenByItemId] = useState<
-    Record<string, boolean | undefined>
-  >({});
   const [treeActiveChildVariantIdByCreationId, setTreeActiveChildVariantIdByCreationId] = useState<
     Record<string, string | null | undefined>
   >({});
@@ -313,8 +307,6 @@ export function useGeneratedWorkspaceRuntimeController({
     treeActiveChildVariantIdByCreationId,
     treeCreateErrorBySurfaceId,
     createFieldStateBySurfaceId,
-    treeDisclosureOpenByItemId,
-    treeSelectedPlacementIdByResultId,
     mediaAssetOptionsByFieldKey,
     workspaceActions,
   });
@@ -340,8 +332,6 @@ export function useGeneratedWorkspaceRuntimeController({
     treeActiveChildVariantIdByCreationId,
     treeCreateErrorBySurfaceId,
     createFieldStateBySurfaceId,
-    treeDisclosureOpenByItemId,
-    treeSelectedPlacementIdByResultId,
     mediaAssetOptionsByFieldKey,
     workspaceActions,
   });
@@ -437,29 +427,6 @@ export function useGeneratedWorkspaceRuntimeController({
       }
     }
   }, [onSelectRecord, sectionSelection, selected.foundation]);
-
-  useEffect(() => {
-    setTreeSelectedPlacementIdByResultId((current) => {
-      let next = current;
-
-      for (const section of selected.foundation?.runtimePlan.sections ?? []) {
-        if (section.result.kind !== "treeResult") {
-          continue;
-        }
-        const resultId = section.result.contract.id;
-        const selectedPlacementId = section.result.foundation.runtimePlan.selectedPlacementId;
-        if (current[resultId] === selectedPlacementId) {
-          continue;
-        }
-        if (next === current) {
-          next = { ...current };
-        }
-        next[resultId] = selectedPlacementId;
-      }
-
-      return next;
-    });
-  }, [selected.foundation]);
 
   async function onIntent(intent: WorkspaceIntent) {
     if (!selected.foundation) {
@@ -637,28 +604,6 @@ export function useGeneratedWorkspaceRuntimeController({
       onSelectContext(resolved.section.section, resolved.navigation.recordId);
       return;
     }
-    if (resolved.kind === "treeSelection") {
-      setTreeSelectedPlacementIdByResultId((current) =>
-        current[resolved.result.contract.id] === resolved.selection.placementId
-          ? current
-          : {
-              ...current,
-              [resolved.result.contract.id]: resolved.selection.placementId,
-            },
-      );
-      return;
-    }
-    if (resolved.kind === "treeDisclosure") {
-      setTreeDisclosureOpenByItemId((current) =>
-        current[resolved.disclosure.itemId] === resolved.disclosure.open
-          ? current
-          : {
-              ...current,
-              [resolved.disclosure.itemId]: resolved.disclosure.open,
-            },
-      );
-      return;
-    }
     if (resolved.kind === "treeChildVariant") {
       const operation = resolved.runtime.operation;
       if (operation === undefined) {
@@ -688,16 +633,12 @@ export function useGeneratedWorkspaceRuntimeController({
     }
     if (resolved.kind === "treeCreate") {
       if (intent.type === "workspaceTree" && intent.intent.type === "treeCreate") {
-        await handleTreeCreateIntent(
-          resolved.runtime,
-          intent.intent.intent,
-          resolved.result.contract.id,
-        );
+        await handleTreeCreateIntent(resolved.runtime, intent.intent.intent);
       }
       return;
     }
     if (resolved.kind === "treeCreateField") {
-      if (intent.type !== "workspaceTree" || intent.intent.type !== "treeField") {
+      if (intent.type !== "workspaceTree" || intent.intent.type !== "treeCreateField") {
         return;
       }
       if (intent.intent.intent.type === "mediaFileSelect") {
@@ -734,19 +675,46 @@ export function useGeneratedWorkspaceRuntimeController({
       }));
       return;
     }
-    if (resolved.kind === "treeField") {
-      if (intent.type !== "workspaceTree" || intent.intent.type !== "treeField") {
+    if (resolved.kind === "treeRecordResult") {
+      if (intent.type !== "workspaceTree" || intent.intent.type !== "treeRecordResult") {
         return;
       }
-      await handleGeneratedRecordFieldIntent({
-        current: resolved.runtime.target.recordState,
-        fieldIntent: intent.intent.intent,
-        fields: resolved.runtime.target.result.recordFields,
-        recordId: resolved.runtime.target.recordId,
-        resultId: resolved.runtime.target.fieldSetId,
-        union: resolved.runtime.target.result.recordUnion,
-        updateOperation: resolved.runtime.target.result.updateOperation,
-      });
+      const nestedIntent = intent.intent.intent;
+      const runtime = resolved.runtime.runtime;
+      if (runtime.kind === "field" && nestedIntent.type === "recordResultFieldIntent") {
+        if (nestedIntent.intent.type === "stateTransitionInvoke") {
+          const transitionRuntime = selectGeneratedRecordResultTransitionRuntimeForFieldIntent(
+            resolved.runtime.node.foundation.runtimePlan,
+            nestedIntent.intent,
+          );
+          if (
+            transitionRuntime !== undefined &&
+            !controller.isPending(transitionRuntime.binding.id) &&
+            transitionRuntime.binding.availability.state === "enabled"
+          ) {
+            await executeTransitionStateOperation({
+              binding: transitionRuntime.binding,
+              controller,
+              operation: transitionRuntime.operation,
+              recordId: transitionRuntime.recordId,
+              source: nestedIntent.intent.source,
+            });
+          }
+          return;
+        }
+        await handleRecordResultFieldIntent(
+          resolved.runtime.node,
+          resolved.runtime.node.foundation.recordResult.id,
+          nestedIntent.intent,
+        );
+        return;
+      }
+      if (
+        (runtime.kind === "delete" || runtime.kind === "transition") &&
+        nestedIntent.type === "recordResultOperationIntent"
+      ) {
+        await handleNestedOperation(runtime, nestedIntent.intent);
+      }
       return;
     }
     if (resolved.kind === "treeOrdering") {
@@ -799,15 +767,6 @@ export function useGeneratedWorkspaceRuntimeController({
             ...current,
             [runtime.binding.id]: open,
           })),
-        ...(runtime.kind === "rootDelete"
-          ? {}
-          : {
-              onSuccess: () =>
-                setTreeSelectedPlacementIdByResultId((current) => ({
-                  ...current,
-                  [resolved.result.contract.id]: runtime.fallbackPlacementId,
-                })),
-            }),
       });
       return;
     }
@@ -1039,7 +998,6 @@ export function useGeneratedWorkspaceRuntimeController({
   async function handleTreeCreateIntent(
     runtime: GeneratedTreeChildCreateRuntime,
     intent: CreateIntent,
-    resultId: string,
   ) {
     if (intent.type === "createOpenChange") {
       if (intent.open && runtime.surface.trigger.disabled) {
@@ -1103,18 +1061,7 @@ export function useGeneratedWorkspaceRuntimeController({
       return;
     }
 
-    const placementId = selectCreatedTreePlacementId(
-      result,
-      runtime.operation.entityName,
-      runtime.placementEntityName,
-    );
     resetTreeCreate(runtime);
-    if (placementId !== undefined) {
-      setTreeSelectedPlacementIdByResultId((currentSelection) => ({
-        ...currentSelection,
-        [resultId]: placementId,
-      }));
-    }
   }
 
   function resetTreeCreate(runtime: GeneratedTreeChildCreateRuntime) {
@@ -1342,7 +1289,8 @@ export function useGeneratedWorkspaceRuntimeController({
           Extract<ReturnType<typeof resolveGeneratedWorkspaceIntent>, { kind: "result" }>["result"],
           { kind: "recordResult" }
         >
-      | GeneratedRelationshipHierarchyRecordResultRuntime,
+      | GeneratedRelationshipHierarchyRecordResultRuntime
+      | GeneratedTreeRecordResultRuntime,
     resultId: string,
     fieldIntent: FieldIntent,
   ) {
@@ -2207,8 +2155,6 @@ function selectWorkspaceRuntimeFoundation({
   treeActiveChildVariantIdByCreationId,
   treeCreateErrorBySurfaceId,
   createFieldStateBySurfaceId,
-  treeDisclosureOpenByItemId,
-  treeSelectedPlacementIdByResultId,
   mediaAssetOptionsByFieldKey,
   workspaceActions,
 }: {
@@ -2241,8 +2187,6 @@ function selectWorkspaceRuntimeFoundation({
   createFieldStateBySurfaceId: Readonly<
     Record<string, GeneratedTreeCreateFieldProjectionState | undefined>
   >;
-  treeDisclosureOpenByItemId: Readonly<Record<string, boolean | undefined>>;
-  treeSelectedPlacementIdByResultId: Readonly<Record<string, string | null | undefined>>;
   mediaAssetOptionsByFieldKey: GeneratedMediaAssetOptionsByFieldKey;
   workspaceActions: readonly WorkspaceLinkActionContract[];
 }) {
@@ -2268,8 +2212,6 @@ function selectWorkspaceRuntimeFoundation({
         treeActiveChildVariantIdByCreationId,
         treeCreateErrorBySurfaceId,
         createFieldStateBySurfaceId,
-        treeDisclosureOpenByItemId,
-        treeSelectedPlacementIdByResultId,
         mediaAssetOptionsByFieldKey,
       });
       collectWorkspaceBindings(input, bindings);
@@ -2290,6 +2232,9 @@ function selectWorkspaceRuntimeFoundation({
       bindings.push(
         ...Array.from(section.result.foundation.runtimePlan.childCreateBySurfaceId.values()).map(
           (runtime) => runtime.binding,
+        ),
+        ...section.result.foundation.runtimePlan.recordResults.flatMap((runtime) =>
+          runtime.foundation.runtimePlan.operations.map(({ binding }) => binding),
         ),
         ...section.result.foundation.runtimePlan.orderings.map((runtime) => runtime.binding),
         ...section.result.foundation.runtimePlan.removePlacements.map((runtime) => runtime.binding),
@@ -2340,8 +2285,6 @@ function selectWorkspaceSectionRuntimeInput({
   treeActiveChildVariantIdByCreationId,
   treeCreateErrorBySurfaceId,
   createFieldStateBySurfaceId,
-  treeDisclosureOpenByItemId,
-  treeSelectedPlacementIdByResultId,
   mediaAssetOptionsByFieldKey,
 }: {
   confirmationOpenByControlId: Readonly<Record<string, boolean | undefined>>;
@@ -2369,8 +2312,6 @@ function selectWorkspaceSectionRuntimeInput({
   createFieldStateBySurfaceId: Readonly<
     Record<string, GeneratedTreeCreateFieldProjectionState | undefined>
   >;
-  treeDisclosureOpenByItemId: Readonly<Record<string, boolean | undefined>>;
-  treeSelectedPlacementIdByResultId: Readonly<Record<string, string | null | undefined>>;
   mediaAssetOptionsByFieldKey: GeneratedMediaAssetOptionsByFieldKey;
 }): GeneratedWorkspaceSectionFoundationInput {
   const operationStateByExecutionKey = new Proxy(
@@ -2452,7 +2393,6 @@ function selectWorkspaceSectionRuntimeInput({
       schema,
     },
     tree: {
-      disclosureOpenByItemId: treeDisclosureOpenByItemId,
       childCreation: {
         activeVariantIdByCreationId: treeActiveChildVariantIdByCreationId,
         createErrorBySurfaceId: treeCreateErrorBySurfaceId,
@@ -2487,7 +2427,19 @@ function selectWorkspaceSectionRuntimeInput({
           snapshot,
         ),
       },
-      childFields: {
+      ordering: {
+        operationStateByExecutionKey,
+      },
+      placementRemoval: {
+        confirmationOpenByControlId,
+        operationStateByExecutionKey,
+      },
+      rootDelete: {
+        confirmationOpenByControlId,
+        operationStateByExecutionKey,
+      },
+      recordResult: {
+        confirmationOpenByControlId,
         mediaAssetOptionsByFieldName: selectWorkspaceRecordMediaOptions(
           collectRecordPresentationFields(
             facts.section.collection.result.type === "tree"
@@ -2502,6 +2454,7 @@ function selectWorkspaceSectionRuntimeInput({
             : "",
           mediaAssetOptionsByFieldKey,
         ),
+        operationStateByExecutionKey,
         referenceOptionsByFieldName: selectWorkspaceRecordReferenceOptions(
           collectRecordPresentationFields(
             facts.section.collection.result.type === "tree"
@@ -2514,47 +2467,8 @@ function selectWorkspaceSectionRuntimeInput({
           snapshot,
         ),
       },
-      fieldStateByFieldSetId: recordStateByResultId,
-      placementFields: {
-        mediaAssetOptionsByFieldName: selectWorkspaceRecordMediaOptions(
-          collectRecordPresentationFields(
-            facts.section.collection.result.type === "tree"
-              ? (facts.section.collection.result.placementRecordFields ?? [])
-              : [],
-            facts.section.collection.result.type === "tree"
-              ? facts.section.collection.result.placementRecordUnion
-              : undefined,
-          ),
-          facts.section.collection.result.type === "tree"
-            ? facts.section.collection.result.placementEntityName
-            : "",
-          mediaAssetOptionsByFieldKey,
-        ),
-        referenceOptionsByFieldName: selectWorkspaceRecordReferenceOptions(
-          collectRecordPresentationFields(
-            facts.section.collection.result.type === "tree"
-              ? (facts.section.collection.result.placementRecordFields ?? [])
-              : [],
-            facts.section.collection.result.type === "tree"
-              ? facts.section.collection.result.placementRecordUnion
-              : undefined,
-          ),
-          snapshot,
-        ),
-      },
-      ordering: {
-        operationStateByExecutionKey,
-      },
-      placementRemoval: {
-        confirmationOpenByControlId,
-        operationStateByExecutionKey,
-      },
-      rootDelete: {
-        confirmationOpenByControlId,
-        operationStateByExecutionKey,
-      },
+      recordStateByEditorId: recordStateByResultId,
       schema,
-      selectedPlacementId: treeSelectedPlacementIdByResultId[facts.resultId],
     },
   };
   const selectedRecordDetail = facts.section.collection.detail;
@@ -3205,29 +3119,4 @@ function initialCreateState(operation: CreateHomeOperationConfig) {
 
 function createdRecordId(recordIds: readonly string[] | undefined) {
   return recordIds?.length === 1 ? recordIds[0] : undefined;
-}
-
-function selectCreatedTreePlacementId(
-  result: GeneratedOperationExecutionResult,
-  childEntityName: string,
-  placementEntityName: string,
-): string | undefined {
-  if (result.type === "failed" || result.output?.type !== "command") {
-    return undefined;
-  }
-
-  const createdRecords = result.output.changes
-    .filter((change) => change.operationKind === "create" && !change.payload.deletedAt)
-    .map((change) => change.payload);
-  const child = createdRecords.find((record) => record.entity === childEntityName);
-  const placement = createdRecords.find((record) => record.entity === placementEntityName);
-
-  if (child !== undefined && placement !== undefined) {
-    return placement.id;
-  }
-
-  const steps = result.output.recordPlan?.steps.filter((step) => step.kind === "create") ?? [];
-  const childStep = steps.find((step) => step.entity === childEntityName);
-  const placementStep = steps.find((step) => step.entity === placementEntityName);
-  return childStep === undefined ? undefined : placementStep?.recordId;
 }

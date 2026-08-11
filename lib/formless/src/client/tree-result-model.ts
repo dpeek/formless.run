@@ -89,23 +89,10 @@ export function selectTreeResultModel(
   if (!childItemView) {
     throw new Error(`Missing child item view "${result.childItemView}".`);
   }
-  const placementItemViewName = result.placementItemView;
-  const placementItemView =
-    placementItemViewName === undefined
-      ? undefined
-      : schema.itemViews.find((definition) => definition.key === placementItemViewName)!;
-  if (placementItemViewName !== undefined && placementItemView === undefined) {
-    throw new Error(`Missing placement item view "${placementItemViewName}".`);
-  }
-
   const ordering =
     selectResultOrderingConfig(result.ordering, entity, ["dragHandle"]) ??
     selectImplicitTreeOrderingFallback(entity, relationship);
   const childRecordUnion = selectRecordUnionPresentation(schema, childItemView, childEntity);
-  const placementRecordUnion =
-    placementItemView === undefined
-      ? undefined
-      : selectRecordUnionPresentation(schema, placementItemView, entity);
   const branches = selectTreeBranchPolicyConfig(result.branches, childRecordUnion);
   const composition = selectTreeCompositionOperationConfig(result.composition, entityName, entity);
   const childUpdateOperation = selectEntityOperationByKind(
@@ -133,7 +120,6 @@ export function selectTreeResultModel(
     relationship,
     childFieldName: result.childField,
     childField,
-    presentation: result.presentation ?? "outlineDetail",
     childEntityName: childField.to,
     childEntity,
     ...(childDeleteOperation === undefined ? {} : { childDeleteOperation }),
@@ -143,13 +129,6 @@ export function selectTreeResultModel(
     ...(childRecordUnion === undefined ? {} : { childRecordUnion }),
     placementEntityName: entityName,
     placementEntity: entity,
-    ...(placementItemViewName === undefined || placementItemView === undefined
-      ? {}
-      : {
-          placementItemViewName,
-          placementRecordFields: selectRecordFields(placementItemView, entity),
-          ...(placementRecordUnion === undefined ? {} : { placementRecordUnion }),
-        }),
     ...(placementUpdateOperation === undefined ? {} : { placementUpdateOperation }),
     ...(ordering === undefined ? {} : { ordering }),
     ...(branches === undefined ? {} : { branches }),

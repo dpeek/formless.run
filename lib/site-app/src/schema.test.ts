@@ -88,7 +88,6 @@ describe("Site schema authoring", () => {
       "blockContextItem",
       "blockRootDetail",
       "blockTreeNode",
-      "blockPlacementTreeItem",
     ]);
     expect(sitePresentationSchemaModule).not.toHaveProperty("tableViews");
     expect(sitePresentationSchemaModule.views?.map(({ key }) => key)).toEqual([
@@ -213,6 +212,54 @@ describe("Site schema authoring", () => {
       expect(view.fields.map(({ field }) => field)).not.toContain("site");
       expect(view.defaults).toMatchObject({ site: { kind: "context", name: "site" } });
     }
+  });
+
+  it("declares the recursive Site tree composition contract", () => {
+    const schema = parseAppSchema(siteSchemaSource);
+    const view = schema.views.find(({ key }) => key === "siteCompositionHome");
+
+    if (view?.type !== "collection" || view.result.type !== "tree") {
+      throw new Error("Expected Site tree collection result.");
+    }
+
+    expect(view.result).toMatchObject({
+      type: "tree",
+      relationship: "blockPlacements",
+      childField: "block",
+      childItemView: "blockTreeNode",
+      branches: {
+        variants: {
+          page: { children: expect.arrayContaining(["group", "section", "markdown"]) },
+          feature: {
+            children: [
+              {
+                variant: "image",
+                label: "Feature image",
+                placementValues: { slot: "media" },
+              },
+              {
+                variant: "link",
+                label: "Action link",
+                placementValues: { slot: "actions" },
+              },
+            ],
+          },
+          postList: "leaf",
+        },
+      },
+      composition: {
+        createOperation: "block-placement.addTreeChild",
+        removeOperation: "block-placement.removeTreePlacement",
+      },
+      ordering: {
+        field: "order",
+        scope: [
+          { kind: "field", field: "parent" },
+          { kind: "field", field: "slot" },
+        ],
+      },
+      maxDepth: 8,
+    });
   });
 
   it("declares the inputless Site starter command", () => {

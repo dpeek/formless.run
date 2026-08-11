@@ -5,8 +5,7 @@ import type {
   CreateSurfaceContract,
   OperationControlContract,
   RecordResultContract,
-  TreeChildCreationContract,
-  TreeItemContract,
+  TreeNodeContract,
   TreeResultContract,
   WorkspaceCollectionActionGroupContract,
   WorkspaceCollectionContract,
@@ -972,70 +971,41 @@ function treeResult(
   return {
     ...source,
     id,
-    items: scopeTreeItems(source.items, id),
-    root: { ...source.root, id: `${id}:root` },
-    ...(source.rootChildCreation === undefined
-      ? {}
-      : { rootChildCreation: scopeTreeChildCreation(source.rootChildCreation, id) }),
-    ...(source.selectedEditor === undefined
-      ? {}
-      : {
-          selectedEditor: {
-            ...source.selectedEditor,
-            ...(source.selectedEditor.childCreation === undefined
-              ? {}
-              : {
-                  childCreation: scopeTreeChildCreation(source.selectedEditor.childCreation, id),
-                }),
-          },
-        }),
+    ...(source.root ? { root: scopeTreeNode(source.root, id) } : {}),
   };
 }
 
-function scopeTreeItems(
-  items: readonly TreeItemContract[],
-  resultId: string,
-): readonly TreeItemContract[] {
-  return items.map((item) => ({
-    ...item,
-    children: scopeTreeItems(item.children, resultId),
-    contextActions: item.contextActions.map((action) => ({
-      ...action,
-      intent: { ...action.intent, resultId },
-    })),
-    ...(item.disclosure === undefined
-      ? {}
-      : {
-          disclosure: {
-            ...item.disclosure,
-            intent: { ...item.disclosure.intent, resultId },
-          },
-        }),
-    ...(item.ordering === undefined
-      ? {}
-      : {
-          ordering: {
-            ...item.ordering,
-            actions: item.ordering.actions.map((action) => ({
-              ...action,
-              intent: { ...action.intent, resultId },
-            })),
-          },
-        }),
-    selectionIntent: { ...item.selectionIntent, resultId },
-  }));
-}
-
-function scopeTreeChildCreation(
-  creation: TreeChildCreationContract,
-  resultId: string,
-): TreeChildCreationContract {
+function scopeTreeNode(node: TreeNodeContract, resultId: string): TreeNodeContract {
   return {
-    ...creation,
-    variants: creation.variants.map((variant) => ({
-      ...variant,
-      selectionIntent: { ...variant.selectionIntent, resultId },
-    })),
+    ...node,
+    children: node.children.map((child) => scopeTreeNode(child, resultId)),
+    headerActions: {
+      ...node.headerActions,
+      items: node.headerActions.items.map((action) => {
+        if (action.kind === "treeContextAction") {
+          return { ...action, intent: { ...action.intent, resultId } };
+        }
+        if (action.kind === "treeChildCreation") {
+          return {
+            ...action,
+            variants: action.variants.map((variant) => ({
+              ...variant,
+              selectionIntent: { ...variant.selectionIntent, resultId },
+            })),
+          };
+        }
+        if (action.kind === "treeOrderingAction") {
+          return {
+            ...action,
+            actions: action.actions.map((orderingAction) => ({
+              ...orderingAction,
+              intent: { ...orderingAction.intent, resultId },
+            })),
+          };
+        }
+        return action;
+      }),
+    },
   };
 }
 

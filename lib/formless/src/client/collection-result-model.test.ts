@@ -143,6 +143,8 @@ describe("collection result model", () => {
       childFieldName: "block",
       childEntityName: "block",
       childItemViewName: "blockTreeNode",
+      childRecordFields: [{ fieldName: "label" }],
+      placementEntityName: "block-placement",
       ordering: {
         fieldName: "order",
         scope: [
@@ -176,6 +178,8 @@ describe("collection result model", () => {
         },
       },
     });
+    expect(result.childUpdateOperation?.canonicalKey).toBe("block.update");
+    expect(result.childDeleteOperation?.canonicalKey).toBe("block.delete");
     expect(result.placementUpdateOperation?.canonicalKey).toBe("block-placement.update");
     expect(result.childRecordUnion?.unionName).toBe("blockByType");
     expect(result.branches?.variants.leafVariantValues).toEqual(
@@ -190,6 +194,7 @@ describe("collection result model", () => {
       { variantValue: "image", placementValues: { slot: "media" } },
       { variantValue: "link", placementValues: { slot: "actions" } },
     ]);
+    expect(result.maxDepth).toBe(8);
   });
 });
 function requiredCollectionView(schema: AppSchema, viewName: string): CollectionViewSchema {

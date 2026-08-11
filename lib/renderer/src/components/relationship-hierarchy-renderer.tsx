@@ -1,9 +1,5 @@
-import { Card } from "@astryxdesign/core/Card";
-import { Divider } from "@astryxdesign/core/Divider";
 import type { DropdownMenuItemData } from "@astryxdesign/core/DropdownMenu";
-import { HStack } from "@astryxdesign/core/HStack";
-import { MoreMenu } from "@astryxdesign/core/MoreMenu";
-import { Heading, Text } from "@astryxdesign/core/Text";
+import { Heading } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import type {
   CreateIntent,
@@ -32,7 +28,7 @@ import {
   AstryxOperationProgress,
   operationIcon,
 } from "./operation-renderer.tsx";
-import { AstryxRecordResultRenderer } from "./record-result-renderer.tsx";
+import { AstryxRecursiveRecordNode } from "./recursive-record-node.tsx";
 import { semanticIcon } from "./semantic-icon.tsx";
 
 export function AstryxSubscribedRelationshipHierarchyRenderer({
@@ -88,73 +84,47 @@ function AstryxRelationshipHierarchyNode({
   const menuItems = astryxRelationshipHierarchyActionMenuItems(hierarchy, node, onIntent);
 
   return (
-    <Card elevation="med" padding={0} variant={root ? "transparent" : "muted"} width="100%">
-      <VStack as="section" aria-label={node.accessibilityLabel} gap={0} width="100%">
-        <HStack
-          align="center"
-          gap={3}
-          justify="between"
-          paddingBlock={4}
-          paddingInline={8}
-          width="100%"
-        >
-          <Text color="secondary" type="supporting">
-            {node.entityTypeLabel}
-          </Text>
-          {menuItems.length > 0 ? (
-            <MoreMenu
-              items={menuItems}
-              label={node.headerActions.accessibilityLabel}
-              size="sm"
-              variant="ghost"
-            />
-          ) : null}
-        </HStack>
-        <Divider isFullBleed />
-        <VStack gap={4} padding={8} width="100%">
-          <AstryxRelationshipHierarchyActionEffects
-            hierarchy={hierarchy}
-            node={node}
-            onIntent={onIntent}
-          />
-          <AstryxRecordResultRenderer
-            container="inline"
-            onIntent={(intent) =>
-              dispatchAstryxRelationshipHierarchyRecordResultIntent(
-                onIntent,
-                hierarchy,
-                node,
-                intent,
-              )
-            }
-            recordResult={node.editor}
-            showActions={false}
-          />
-          {node.relationshipGroups.map((group) =>
-            group.label === undefined && group.nodes.length === 0 ? null : (
-              <VStack
-                {...(group.label === undefined
-                  ? {}
-                  : { "aria-label": group.label, as: "section" as const })}
-                gap={4}
-                key={group.id}
-                width="100%"
-              >
-                {group.label === undefined ? null : <Heading level={4}>{group.label}</Heading>}
-                {group.nodes.map((child) => (
-                  <AstryxRelationshipHierarchyNode
-                    hierarchy={hierarchy}
-                    key={child.id}
-                    node={child}
-                    onIntent={onIntent}
-                  />
-                ))}
-              </VStack>
-            ),
-          )}
-        </VStack>
-      </VStack>
-    </Card>
+    <AstryxRecursiveRecordNode
+      accessibilityLabel={node.accessibilityLabel}
+      actionMenuAccessibilityLabel={node.headerActions.accessibilityLabel}
+      actionMenuItems={menuItems}
+      editor={node.editor}
+      entityTypeLabel={node.entityTypeLabel}
+      leadingContent={
+        <AstryxRelationshipHierarchyActionEffects
+          hierarchy={hierarchy}
+          node={node}
+          onIntent={onIntent}
+        />
+      }
+      onEditorIntent={(intent) =>
+        dispatchAstryxRelationshipHierarchyRecordResultIntent(onIntent, hierarchy, node, intent)
+      }
+      root={root}
+    >
+      {node.relationshipGroups.map((group) =>
+        group.label === undefined && group.nodes.length === 0 ? null : (
+          <VStack
+            {...(group.label === undefined
+              ? {}
+              : { "aria-label": group.label, as: "section" as const })}
+            gap={4}
+            key={group.id}
+            width="100%"
+          >
+            {group.label === undefined ? null : <Heading level={4}>{group.label}</Heading>}
+            {group.nodes.map((child) => (
+              <AstryxRelationshipHierarchyNode
+                hierarchy={hierarchy}
+                key={child.id}
+                node={child}
+                onIntent={onIntent}
+              />
+            ))}
+          </VStack>
+        ),
+      )}
+    </AstryxRecursiveRecordNode>
   );
 }
 

@@ -945,39 +945,31 @@ describe("generated workspace foundation", () => {
     if (treeResult.kind !== "treeResult") {
       throw new Error("Missing tree result.");
     }
-    const firstTreeItem = required(treeResult.items[0]);
-    expect(firstTreeItem.id).not.toBe(firstTreeItem.placementId);
-    expect(firstTreeItem.id).not.toBe(firstTreeItem.childRecordId);
+    const treeRoot = required(treeResult.root);
+    const firstTreeNode = required(treeRoot.children[0]);
+    expect(firstTreeNode.id).toContain(`${treeRoot.id}:placement:`);
+    expect(firstTreeNode.editor?.id).toBe(`${firstTreeNode.id}:editor`);
     expect(JSON.stringify(treeResult)).not.toContain("recordsById");
+    expect(JSON.stringify(treeResult)).not.toContain("selectedEditor");
+    expect(JSON.stringify(treeResult)).not.toContain('"type":"treeItemSelection"');
     const treePlan = required(mixedFoundation.runtimePlan.sections[0]);
-    const treeIntent = projectGeneratedWorkspaceTreeIntent(
-      treePlan.scope,
-      treeResult.id,
-      firstTreeItem.selectionIntent,
-    );
-    expect(resolveGeneratedWorkspaceIntent(mixedFoundation.runtimePlan, treeIntent)).toMatchObject({
-      kind: "treeSelection",
-      selection: {
-        itemId: firstTreeItem.id,
-        placementId: firstTreeItem.placementId,
-      },
-    });
-    const treeEditor = required(treeResult.selectedEditor);
-    const treeChildField = required(treeEditor.childFields?.fields[0]);
+    const treeEditor = required(firstTreeNode.editor);
+    const treeChildField = required(treeEditor.fields[0]);
     const treeNestedFieldIntent = {
-      fieldId: treeChildField.fieldId,
       intent: {
-        fieldName: treeChildField.fieldName,
-        type: "recordEditorDraftChange",
-        value: "Next child value",
+        fieldId: treeChildField.fieldId,
+        intent: {
+          fieldName: treeChildField.fieldName,
+          type: "recordEditorDraftChange",
+          value: "Next child value",
+        },
+        recordId: required(treeEditor.selectedRecord).id,
+        resultId: treeEditor.id,
+        type: "recordResultFieldIntent",
       },
+      nodeId: firstTreeNode.id,
       resultId: treeResult.id,
-      target: {
-        fieldSetId: required(treeEditor.childFields).id,
-        itemId: treeEditor.itemId,
-        kind: "child",
-      },
-      type: "treeField",
+      type: "treeRecordResult",
     } as const;
     const treeFieldIntent = projectGeneratedWorkspaceTreeIntent(
       treePlan.scope,
@@ -987,34 +979,30 @@ describe("generated workspace foundation", () => {
     expect(
       resolveGeneratedWorkspaceIntent(mixedFoundation.runtimePlan, treeFieldIntent),
     ).toMatchObject({
-      field: { fieldId: treeChildField.fieldId, recordId: treeEditor.childRecordId },
-      kind: "treeField",
-      runtime: { target: { kind: "child", recordId: treeEditor.childRecordId } },
+      kind: "treeRecordResult",
+      runtime: {
+        node: { nodeId: firstTreeNode.id, recordId: treeEditor.selectedRecord?.id },
+        runtime: { fieldId: treeChildField.fieldId, kind: "field" },
+      },
     });
     expect(
       resolveGeneratedWorkspaceIntent(mixedFoundation.runtimePlan, {
         ...treeFieldIntent,
         intent: {
           ...treeNestedFieldIntent,
-          target: { ...treeNestedFieldIntent.target, kind: "placement" },
+          nodeId: `${firstTreeNode.id}:stale`,
         },
       }),
     ).toBeUndefined();
     expect(
       resolveGeneratedWorkspaceIntent(mixedFoundation.runtimePlan, {
-        ...treeIntent,
-        intent: { ...firstTreeItem.selectionIntent, itemId: `${firstTreeItem.id}:stale` },
+        ...treeFieldIntent,
+        intent: { ...treeNestedFieldIntent, resultId: listResult.id },
       }),
     ).toBeUndefined();
     expect(
       resolveGeneratedWorkspaceIntent(mixedFoundation.runtimePlan, {
-        ...treeIntent,
-        intent: { ...firstTreeItem.selectionIntent, resultId: listResult.id },
-      }),
-    ).toBeUndefined();
-    expect(
-      resolveGeneratedWorkspaceIntent(mixedFoundation.runtimePlan, {
-        ...treeIntent,
+        ...treeFieldIntent,
         collectionId: required(mixedFoundation.runtimePlan.sections[1]).scope.collectionId,
         sectionId: required(mixedFoundation.runtimePlan.sections[1]).scope.sectionId,
       }),

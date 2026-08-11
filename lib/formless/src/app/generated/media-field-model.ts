@@ -150,13 +150,6 @@ export function collectGeneratedWorkspaceMediaFields(
         result.childEntityName,
         collectRecordPresentationFields(result.childRecordFields, result.childRecordUnion),
       );
-      addFields(
-        result.placementEntityName,
-        collectRecordPresentationFields(
-          result.placementRecordFields ?? [],
-          result.placementRecordUnion,
-        ),
-      );
     }
   }
 

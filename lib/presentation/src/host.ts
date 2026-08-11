@@ -748,6 +748,8 @@ function assertNodeMatchesReference(node: PresentationNode) {
       if (snapshot.kind !== "treeResult" || snapshot.id !== reference.resultId) {
         throw mismatchedNodeError(reference);
       }
+      assertTreeResultContract(snapshot);
+      return;
   }
 }
 
@@ -1578,6 +1580,64 @@ function assertRelationshipHierarchyContract(snapshot: RelationshipHierarchyCont
   }
 
   visit(snapshot.root);
+}
+
+function assertTreeResultContract(snapshot: TreeResultContract) {
+  if (snapshot.availability.state === "ready" && snapshot.root === undefined) {
+    throw new Error(
+      `Formless UI tree result ${JSON.stringify(snapshot.id)} has no ready root occurrence.`,
+    );
+  }
+  if (snapshot.availability.state !== "ready" && snapshot.root !== undefined) {
+    throw new Error(
+      `Formless UI tree result ${JSON.stringify(snapshot.id)} has a root outside ready state.`,
+    );
+  }
+
+  const nodeIds = new Set<string>();
+  const editorIds = new Set<string>();
+
+  function visit(node: NonNullable<TreeResultContract["root"]>) {
+    if (nodeIds.has(node.id)) {
+      throw new Error(
+        `Formless UI tree result ${JSON.stringify(snapshot.id)} has duplicate node identities.`,
+      );
+    }
+    nodeIds.add(node.id);
+
+    if (node.structure.state === "missingChild") {
+      if (node.editor !== undefined) {
+        throw new Error(
+          `Formless UI tree result ${JSON.stringify(snapshot.id)} has an editor for a missing child.`,
+        );
+      }
+    } else if (
+      node.editor === undefined ||
+      node.editor.id !== `${node.id}:editor` ||
+      node.editor.selectedRecord === undefined
+    ) {
+      throw new Error(
+        `Formless UI tree result ${JSON.stringify(snapshot.id)} has an invalid node editor.`,
+      );
+    }
+
+    if (node.editor !== undefined) {
+      if (editorIds.has(node.editor.id)) {
+        throw new Error(
+          `Formless UI tree result ${JSON.stringify(snapshot.id)} has duplicate editor identities.`,
+        );
+      }
+      editorIds.add(node.editor.id);
+    }
+
+    for (const child of node.children) {
+      visit(child);
+    }
+  }
+
+  if (snapshot.root !== undefined) {
+    visit(snapshot.root);
+  }
 }
 
 function assertWorkspaceResultScope(

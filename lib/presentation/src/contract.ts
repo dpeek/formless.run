@@ -1452,37 +1452,15 @@ export type TreeAvailability =
       state: "unavailable";
     };
 
-export type TreeParentIdentity =
-  | {
-      kind: "root";
-    }
-  | {
-      itemId: string;
-      kind: "item";
-    };
-
-export type TreeItemSelectionIntent = {
-  itemId: string;
-  resultId: string;
-  type: "treeItemSelection";
-};
-
-export type TreeDisclosureOpenChangeIntent = {
-  itemId: string;
-  open: boolean;
-  resultId: string;
-  type: "treeDisclosureOpenChange";
-};
-
 export type TreeContextActionIntent = {
   actionId: string;
-  itemId: string;
+  nodeId: string;
   resultId: string;
   type: "treeContextAction";
 };
 
 export type TreeChildVariantSelectionIntent = {
-  parent: TreeParentIdentity;
+  nodeId: string;
   resultId: string;
   variantId: string;
   type: "treeChildVariantSelection";
@@ -1490,36 +1468,32 @@ export type TreeChildVariantSelectionIntent = {
 
 export type TreeCreateIntent = {
   intent: CreateIntent;
-  parent: TreeParentIdentity;
+  nodeId: string;
   resultId: string;
   surfaceId: string;
   type: "treeCreate";
 };
 
-export type TreeFieldTarget =
-  | {
-      fieldSetId: string;
-      itemId: string;
-      kind: "child" | "placement";
-    }
-  | {
-      kind: "create";
-      parent: TreeParentIdentity;
-      surfaceId: string;
-    };
-
-export type TreeFieldIntent = {
+export type TreeCreateFieldIntent = {
   fieldId: string;
   intent: FieldIntent;
+  nodeId: string;
   resultId: string;
-  target: TreeFieldTarget;
-  type: "treeField";
+  surfaceId: string;
+  type: "treeCreateField";
+};
+
+export type TreeRecordResultIntent = {
+  intent: RecordResultIntent;
+  nodeId: string;
+  resultId: string;
+  type: "treeRecordResult";
 };
 
 export type TreeOperationIntent = {
   controlId: string;
   intent: OperationPresentationIntent;
-  itemId?: string;
+  nodeId: string;
   resultId: string;
   type: "treeOperation";
 };
@@ -1527,7 +1501,7 @@ export type TreeOperationIntent = {
 export type TreeReorderIntent = {
   actionId: string;
   direction: SemanticOrderingDirection;
-  itemId: string;
+  nodeId: string;
   resultId: string;
   type: "treeReorder";
 };
@@ -1535,11 +1509,10 @@ export type TreeReorderIntent = {
 export type TreeIntent =
   | TreeChildVariantSelectionIntent
   | TreeContextActionIntent
+  | TreeCreateFieldIntent
   | TreeCreateIntent
-  | TreeDisclosureOpenChangeIntent
-  | TreeFieldIntent
-  | TreeItemSelectionIntent
   | TreeOperationIntent
+  | TreeRecordResultIntent
   | TreeReorderIntent;
 
 export type TreeIntentHandler = (intent: TreeIntent) => Promise<void> | void;
@@ -1555,7 +1528,7 @@ export type TreeWarningContract = {
   title: string;
 };
 
-export type TreeItemAvailability =
+export type TreeNodeAvailability =
   | {
       available: true;
     }
@@ -1564,19 +1537,19 @@ export type TreeItemAvailability =
       message: string;
     };
 
-export type TreeItemVariantContract = {
+export type TreeNodeVariantContract = {
   id: string;
-  kind: "treeItemVariant";
+  kind: "treeNodeVariant";
   label: string;
 };
 
-export type TreeItemSlotContract = {
+export type TreeNodeSlotContract = {
   id: string;
-  kind: "treeItemSlot";
+  kind: "treeNodeSlot";
   label: string;
 };
 
-export type TreeItemStructureContract =
+export type TreeNodeStructureContract =
   | {
       state: "branch" | "leaf";
     }
@@ -1585,16 +1558,8 @@ export type TreeItemStructureContract =
       state: "cycleStopped" | "depthStopped" | "missingChild";
     };
 
-export type TreeItemDisclosureContract = {
-  accessibilityLabel: string;
-  id: string;
-  intent: TreeDisclosureOpenChangeIntent;
-  kind: "treeItemDisclosure";
-  open: boolean;
-};
-
 export type TreeContextActionContract = {
-  availability: TreeItemAvailability;
+  availability: TreeNodeAvailability;
   control: ButtonContract;
   id: string;
   intent: TreeContextActionIntent;
@@ -1614,18 +1579,18 @@ export type TreeOrderingContract = {
   actions: readonly TreeOrderingActionContract[];
   affordance: "reorder";
   id: string;
-  kind: "treeOrdering";
+  kind: "treeOrderingAction";
   pending: boolean;
 };
 
 export type TreeChildVariantContract = {
-  availability: TreeItemAvailability;
+  availability: TreeNodeAvailability;
   id: string;
   kind: "treeChildVariant";
   label: string;
   selected: boolean;
   selectionIntent: TreeChildVariantSelectionIntent;
-  slot?: TreeItemSlotContract;
+  slot?: TreeNodeSlotContract;
 };
 
 export type TreeChildCreationContract = {
@@ -1637,52 +1602,39 @@ export type TreeChildCreationContract = {
   variants: readonly TreeChildVariantContract[];
 };
 
-export type TreeItemContract = {
-  accessibilityLabel: string;
-  availability: TreeItemAvailability;
-  childRecordId?: string;
-  children: readonly TreeItemContract[];
-  contextActions: readonly TreeContextActionContract[];
-  disclosure?: TreeItemDisclosureContract;
-  editor?: TreeSelectedEditorContract;
-  id: string;
-  kind: "treeItem";
-  label: string;
-  ordering?: TreeOrderingContract;
-  placementId: string;
-  selected: boolean;
-  selectionIntent: TreeItemSelectionIntent;
-  slot?: TreeItemSlotContract;
-  structure: TreeItemStructureContract;
-  variant?: TreeItemVariantContract;
-  warnings: readonly TreeWarningContract[];
+export type TreeOperationActionContract = {
+  control: OperationControlContract;
+  kind: "operationAction";
+  role: "placementRemoval" | "rootDelete";
 };
 
-export type TreeSelectedEditorContract = {
+export type TreeNodeActionContract =
+  | TreeChildCreationContract
+  | TreeContextActionContract
+  | TreeOperationActionContract
+  | TreeOrderingContract;
+
+export type TreeNodeActionGroupContract = {
   accessibilityLabel: string;
-  availability: TreeItemAvailability;
-  childCreation?: TreeChildCreationContract;
-  childFields?: FieldSetContract;
-  childRecordId?: string;
-  editing: TreeEditingAvailability;
   id: string;
-  itemId: string;
-  kind: "treeSelectedEditor";
-  placementFields: FieldSetContract;
-  placementId: string;
-  removePlacement?: OperationControlContract;
-  warnings: readonly TreeWarningContract[];
+  items: readonly TreeNodeActionContract[];
+  kind: "treeNodeActions";
 };
 
-export type TreeRootContract = {
+export type TreeNodeContract = {
   accessibilityLabel: string;
-  childCreation?: TreeChildCreationContract;
-  childFields?: FieldSetContract;
-  deleteRecord?: OperationControlContract;
+  availability: TreeNodeAvailability;
+  children: readonly TreeNodeContract[];
+  editor?: RecordResultContract;
+  entityTypeLabel: string;
+  headerActions: TreeNodeActionGroupContract;
   id: string;
-  kind: "treeRoot";
+  kind: "treeNode";
   label: string;
-  typeLabel?: string;
+  slot?: TreeNodeSlotContract;
+  structure: TreeNodeStructureContract;
+  variant?: TreeNodeVariantContract;
+  warnings: readonly TreeWarningContract[];
 };
 
 export type TreeResultContract = {
@@ -1692,12 +1644,8 @@ export type TreeResultContract = {
   editing: TreeEditingAvailability;
   feedback: readonly OperationFeedbackEventContract[];
   id: string;
-  items: readonly TreeItemContract[];
   kind: "treeResult";
-  presentation?: "inlineEditor" | "outlineDetail";
-  root: TreeRootContract;
-  rootChildCreation?: TreeChildCreationContract;
-  selectedEditor?: TreeSelectedEditorContract;
+  root?: TreeNodeContract;
   status?: CompactStatusContract;
   warnings: readonly TreeWarningContract[];
 };

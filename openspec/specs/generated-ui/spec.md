@@ -895,31 +895,36 @@ selection, reads, evaluation, operation execution, and effects.
 
 ### Requirement: Generated Tree Builder Renderer Contract
 
-The system SHALL project complete generated tree results through a controlled
-renderer-neutral Presentation tree-builder contract while generated runtime
-owns flat record reads, tree-model selection, traversal, authoring state,
-operation execution, ordering plans, navigation, and effects.
+The system SHALL project complete generated trees as recursive inline record
+nodes through a controlled renderer-neutral Presentation contract while
+generated runtime owns flat record reads, tree-model selection, traversal,
+authoring state, operation execution, ordering plans, navigation, and effects.
 
 #### Scenario: Project flat records into a complete tree result
 
 - GIVEN a generated collection selects a tree result for one root record
 - WHEN generated runtime prepares the result for the active workspace renderer
-- THEN it projects stable tree and root identity, accessibility and density
-  facts, editing availability, explicit ready, empty, or unavailable state,
-  recursively ordered tree items, controlled selection, one selected-item
-  editor, display-safe feedback, and nested intent routing
-- AND each item preserves distinct placement-edge, child-record, and stable
-  presentation identities while carrying only projected labels, variant facts,
-  slot facts, disclosure state, structural state, child items, and applicable
-  actions
-- AND items with projected children expose controlled disclosure state whose
-  exact open-change intents are validated and retained by generated runtime
+- THEN it projects stable tree identity, accessibility, editing availability,
+  explicit ready, empty, or unavailable state, one root record node,
+  recursively ordered child nodes, display-safe feedback, and nested intent
+  routing
+- AND every available record node carries stable path-scoped occurrence
+  identity, its entity type label, one canonical record-result editor, one
+  ordered header action group, structural and readiness facts, and its child
+  nodes
+- AND child occurrence identity scopes editor fields, create surfaces,
+  operation controls, confirmations, feedback, and stale-intent checks while
+  runtime privately retains the corresponding placement edge and child record
+  identities
 - AND the nested hierarchy is a presentation projection over flat placement and
   child records rather than stored nesting or denormalized child arrays
 - AND the contract does not expose tree result models, relationships, schemas,
   records, record maps, query contexts, operation bindings or controllers,
   ordering scope keys or rank plans, recursion bookkeeping, storage hooks, sync
   functions, React nodes, presentation class names, or renderer props
+- AND it projects no node selection, selected-node editor, selection fallback,
+  disclosure state, expand or collapse intent, presentation mode, placement
+  field editor, or post-create focus state
 
 #### Scenario: Preserve an explicit collection empty-state action
 
@@ -945,36 +950,54 @@ operation execution, ordering plans, navigation, and effects.
 - AND more than one match produces an explicit unavailable state without
   selecting the first record, combining results, or exposing collection actions
 
-#### Scenario: Select and edit one tree item
+#### Scenario: Author every block record inline
 
-- GIVEN a projected tree contains one or more placement items
-- WHEN the user selects an item
-- THEN runtime retains the selected placement identity without patching a
-  record or changing the workspace root
-- AND the selected editor projects placement fields separately from child
-  fields through canonical field-set contracts, including active union,
-  `visibleWhen`, specialized field, draft, pending, and display-safe error facts
-- AND a valid item-view context target produces a projected context-navigation
-  action whose intent is resolved by runtime
-- AND initial load, refresh, child creation, placement removal, or disappearance
-  of the selected item resolves through a stable explicit selection fallback
-  rather than leaving a stale editor
-- AND non-selected rows remain concise and do not duplicate complete editors
+- GIVEN a projected tree contains a root block and zero or more child placement
+  occurrences
+- WHEN the active renderer presents the tree
+- THEN the root and every available child block render through the same
+  recursive structure of record-type header, right-aligned available actions,
+  ordinary record editor, and child blocks
+- AND each record editor preserves canonical editable and display fields,
+  active union and `visibleWhen` selection, specialized fields, drafts, commits,
+  pending state, readiness, feedback, and display-safe errors
+- AND a child block placed more than once receives one independently scoped
+  editor occurrence at every placement path without duplicating stored data
+- AND the complete finite tree remains inline without an outline-detail split,
+  selected row, focused editor, disclosure control, or placement-field section
 
 #### Scenario: Create and remove tree placements
 
-- GIVEN the selected root or item permits one or more schema-declared child
+- GIVEN the root or one child node permits one or more schema-declared child
   variants
 - WHEN the renderer opens child creation or placement removal
 - THEN runtime projects stable allowed-variant options and only the active
   canonical create surface for child creation
 - AND runtime retains branch and slot policy, discriminator and literal default
   derivation, create draft state, `create-tree-child` execution, operation
-  output handling, refresh, and created-item selection
+  output handling, and flat-record refresh
 - AND placement removal composes a canonical operation control and destructive
   confirmation for `remove-tree-placement`
 - AND the tree result exposes no child-record delete control through placement
   removal capability
+- AND successful child creation or placement removal updates ordinary recursive
+  reprojection without selecting, expanding, focusing, or inferring a node from
+  an operation result
+
+#### Scenario: Project one node header action group
+
+- GIVEN a tree node exposes context navigation, child creation, placement
+  ordering, root deletion, or placement removal
+- WHEN runtime resolves the actions available for that exact occurrence
+- THEN the node header carries one ordered action group with only applicable
+  controls and omits its menu when no control remains
+- AND context navigation resolves the current block as a workspace context,
+  root deletion targets the root block, and placement removal and ordering
+  target only the current placement occurrence
+- AND create, operation, confirmation, ordering, progress, feedback, disabled,
+  and error behavior retain their canonical contracts
+- AND the renderer does not discover entity operations, resolve placement
+  targets, calculate ranks, attach child records, or execute writes
 
 #### Scenario: Order placements inside one parent and slot
 
@@ -999,14 +1022,13 @@ operation execution, ordering plans, navigation, and effects.
 - AND warnings carry stable identity, display-safe codes or labels, and
   display-safe messages without records, payloads, exceptions, parser errors,
   operation responses, or sync internals
-- AND a missing-child placement remains selectable so its placement fields and
-  removal action stay reachable, while deleted or invalid child records do not
-  enter the selected editor's child fields or child creation contract
+- AND a missing-child placement remains an inline diagnostic node whose removal
+  action stays reachable while it exposes no child record editor or child
+  creation contract
 - AND cycle-stopped and depth-stopped items expose no child creation even when
   their referenced child record would otherwise permit child variants
-- AND valid deep trees remain discoverable through controlled disclosure and
-  selected-path visibility rather than silent truncation or always-expanded
-  full-depth editors
+- AND valid descendants render recursively until the declared maximum depth,
+  where an explicit depth-stopped diagnostic replaces further traversal
 
 #### Scenario: Selected tree renderer consumes the complete contract
 
@@ -1025,14 +1047,18 @@ operation execution, ordering plans, navigation, and effects.
 
 - GIVEN runtime publishes complete production tree contracts
 - WHEN the selected renderer implements the contract in `lib/renderer`
-- THEN it uses an accessible package hierarchy outline with controlled selection,
-  disclosure, concise item rows, and a responsive focused editor
-- AND it composes canonical field, create, operation, confirmation, ordering,
-  warning, status, and empty-state renderers without reading generated runtime
+- THEN it reuses the recursive record-node structure established by relationship
+  hierarchy rendering: record-type header, one action menu, ordinary inline
+  record editor, and child node groups
+- AND it composes canonical record-result, create, operation, confirmation,
+  ordering, warning, status, and empty-state renderers without reading generated
+  runtime
 - AND package-local data-only fixtures cover shallow and maximum-depth trees,
-  selected paths, slots, active variants, context actions, empty, unavailable,
-  missing-child, cycle, depth-stopped, leaf, warning, editing-disabled, and
-  pending states through the reusable memory host
+  duplicate block occurrences, slots, active variants, context actions, empty,
+  unavailable, missing-child, cycle, depth-stopped, leaf, warning,
+  editing-disabled, and pending states through the reusable memory host
+- AND fixtures and production rendering contain no outline, selected editor,
+  placement field set, disclosure, or selection state
 - AND the renderer does not read records, schemas, or storage; execute
   operations; own DnD behavior; use media clients; run sync effects; or import
   runtime modules

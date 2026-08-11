@@ -647,16 +647,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
         ],
       },
     },
-    {
-      key: "blockPlacementTreeItem",
-      entity: "block-placement",
-      fields: [
-        {
-          field: "label",
-          editor: "text",
-        },
-      ],
-    },
   ],
   views: [
     {
@@ -739,7 +729,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
       defaultQuery: "placementsForSelectedBlock",
       result: {
         type: "tree",
-        presentation: "inlineEditor",
         relationship: "blockPlacements",
         childField: "block",
         childItemView: "blockTreeNode",

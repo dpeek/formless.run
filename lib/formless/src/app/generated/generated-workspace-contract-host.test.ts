@@ -264,8 +264,8 @@ describe("generated workspace contract host adapter", () => {
     expect(host.read(initial.workspaceReference)).toBe(initialManifest);
     expect(host.read(treeSectionReference)).toBe(initialSection);
     expect(host.read(treeReference)).toMatchObject({
-      items: [{ label: "Updated hero" }],
       kind: "treeResult",
+      root: { children: [{ label: "Updated hero" }] },
     });
 
     host.publish(projectGeneratedWorkspaceContractHostPublication(workspaceFixture()).nodes);
@@ -551,7 +551,8 @@ function treeSection(itemLabel: string) {
 
 function treeResult(itemLabel: string): TreeResultContract {
   const id = "tree:site";
-  const itemId = `${id}:item:hero`;
+  const rootId = `${id}:root:homepage`;
+  const itemId = `${rootId}:placement:hero`;
 
   return {
     accessibilityLabel: "Homepage tree",
@@ -560,29 +561,68 @@ function treeResult(itemLabel: string): TreeResultContract {
     editing: { enabled: true },
     feedback: [],
     id,
-    items: [
-      {
-        accessibilityLabel: itemLabel,
-        availability: { available: true },
-        childRecordId: "block:hero",
-        children: [],
-        contextActions: [],
-        id: itemId,
-        kind: "treeItem",
-        label: itemLabel,
-        placementId: "placement:hero",
-        selected: false,
-        selectionIntent: { itemId, resultId: id, type: "treeItemSelection" },
-        structure: { state: "branch" },
-        warnings: [],
-      },
-    ],
     kind: "treeResult",
     root: {
-      accessibilityLabel: "Homepage tree root",
-      id: `${id}:root:homepage`,
-      kind: "treeRoot",
+      accessibilityLabel: "Homepage block",
+      availability: { available: true },
+      children: [
+        {
+          accessibilityLabel: itemLabel,
+          availability: { available: true },
+          children: [],
+          editor: treeEditor(`${itemId}:editor`, "block:hero", itemLabel),
+          entityTypeLabel: "Hero",
+          headerActions: {
+            accessibilityLabel: `More ${itemLabel} actions`,
+            id: `${itemId}:header-actions`,
+            items: [],
+            kind: "treeNodeActions",
+          },
+          id: itemId,
+          kind: "treeNode",
+          label: itemLabel,
+          structure: { state: "leaf" },
+          warnings: [],
+        },
+      ],
+      editor: treeEditor(`${rootId}:editor`, "block:homepage", "Homepage"),
+      entityTypeLabel: "Page",
+      headerActions: {
+        accessibilityLabel: "More Homepage actions",
+        id: `${rootId}:header-actions`,
+        items: [],
+        kind: "treeNodeActions",
+      },
+      id: rootId,
+      kind: "treeNode",
       label: "Homepage",
+      structure: { state: "branch" },
+      warnings: [],
+    },
+    warnings: [],
+  };
+}
+
+function treeEditor(id: string, recordId: string, label: string): RecordResultContract {
+  return {
+    accessibilityLabel: `${label} editor`,
+    actions: {
+      id: `${id}:actions`,
+      kind: "actionGroup",
+      primary: [],
+      secondary: [],
+      secondaryAccessibilityLabel: `More ${label} actions`,
+    },
+    availability: { state: "ready" },
+    density: "compact",
+    editing: { enabled: true },
+    fields: [],
+    id,
+    kind: "recordResult",
+    selectedRecord: {
+      accessibilityLabel: `${label} record`,
+      id: recordId,
+      kind: "recordResultRecord",
     },
     warnings: [],
   };

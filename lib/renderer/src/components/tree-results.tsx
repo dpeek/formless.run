@@ -1,25 +1,23 @@
 import { Heading } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
-import { useState } from "react";
 import type {
   CreateFieldContract,
-  FieldSetContract,
-  TreeChildCreationContract,
   TreeIntent,
-  TreeItemContract,
+  TreeNodeActionContract,
+  TreeNodeContract,
   TreeResultContract,
   TreeResultReference,
-  TreeSelectedEditorContract,
   WorkspaceIntentScope,
 } from "@dpeek/formless-presentation/contract";
 import {
   createMemoryPresentationHost,
-  treeResultReference,
   isWorkspaceIntent,
-  type PresentationNodeSet,
+  treeResultReference,
   type MutablePresentationHost,
+  type PresentationNodeSet,
 } from "@dpeek/formless-presentation/host";
 import { PresentationHostProvider } from "@dpeek/formless-presentation/host/react";
+import { useState } from "react";
 import { AstryxApplicationSurfaceFrame } from "./application-surface-frame.tsx";
 import { applyScenarioFieldIntent } from "./fields/fixture-helpers.ts";
 import { FormlessFixtureFrame, FormlessFixtureSelector } from "./fixture-layout.tsx";
@@ -84,10 +82,8 @@ export function createTreeResultFixtureHost(
       if (!isWorkspaceIntent(intent)) {
         throw new Error("Tree-result fixture host received a non-workspace intent.");
       }
-      if (intent.type !== "workspaceTree") {
-        return;
-      }
       if (
+        intent.type !== "workspaceTree" ||
         intent.screenId !== treeFixtureWorkspaceScope.screenId ||
         intent.sectionId !== treeFixtureWorkspaceScope.sectionId ||
         intent.collectionId !== treeFixtureWorkspaceScope.collectionId
@@ -102,33 +98,20 @@ export function createTreeResultFixtureHost(
       }
 
       const nextTree = applyTreeResultFixtureIntent(tree, intent.intent);
-      if (nextTree === tree) {
-        return;
+      if (nextTree !== tree) {
+        trees.set(fixture.id, nextTree);
+        host.publish(projectTreeResultFixtureNodes(fixtures, trees));
       }
-
-      trees.set(fixture.id, nextTree);
-      host.publish(projectTreeResultFixtureNodes(fixtures, trees));
     },
     nodes: projectTreeResultFixtureNodes(fixtures, trees),
   });
 
   return {
     fixtures,
-    getTree: (fixtureId) => {
-      const tree = trees.get(fixtureId);
-      if (!tree) {
-        throw new Error(`Missing ${fixtureId} tree-result fixture.`);
-      }
-      return tree;
-    },
+    getTree: (fixtureId) => required(trees.get(fixtureId), `Missing ${fixtureId} tree fixture.`),
     host,
-    referenceFor: (fixtureId) => {
-      const reference = references.get(fixtureId);
-      if (!reference) {
-        throw new Error(`Missing ${fixtureId} tree-result fixture reference.`);
-      }
-      return reference;
-    },
+    referenceFor: (fixtureId) =>
+      required(references.get(fixtureId), `Missing ${fixtureId} tree fixture reference.`),
   };
 }
 
@@ -138,77 +121,40 @@ export function projectTreeResultFixtureNodes(
     fixtures.map((fixture) => [fixture.id, fixture.tree]),
   ),
 ): PresentationNodeSet {
-  return fixtures.map((fixture) => {
-    const tree = trees.get(fixture.id);
-    if (!tree) {
-      throw new Error(`Missing ${fixture.id} tree-result fixture.`);
-    }
-    return { reference: treeFixtureReference(tree), snapshot: tree };
-  });
+  return fixtures.map((fixture) => ({
+    reference: treeFixtureReference(fixture.tree),
+    snapshot: required(trees.get(fixture.id), `Missing ${fixture.id} tree fixture.`),
+  }));
 }
 
 export function applyTreeResultFixtureIntent(
   tree: TreeResultContract,
   intent: TreeIntent,
 ): TreeResultContract {
-  if (intent.resultId !== tree.id) {
+  if (intent.resultId !== tree.id || tree.availability.state !== "ready" || !tree.root) {
     return tree;
   }
 
-  if (intent.type === "treeItemSelection") {
-    const item = findTreeItem(tree.items, intent.itemId);
-    if (!item?.availability.available) {
-      return tree;
-    }
-
-    return {
-      ...tree,
-      items: selectTreeItem(tree.items, item.id),
-      selectedEditor: fixtureSelectedEditorForItem(tree, item),
-    };
-  }
-
-  if (intent.type === "treeDisclosureOpenChange") {
-    const disclosureItem = findTreeItem(tree.items, intent.itemId);
+  if (intent.type === "treeContextAction") {
+    const node = findTreeNode(tree.root, intent.nodeId);
+    const action = node?.headerActions.items.find(
+      (candidate) => candidate.kind === "treeContextAction" && candidate.id === intent.actionId,
+    );
     if (
-      !disclosureItem?.availability.available ||
-      !disclosureItem.disclosure ||
-      disclosureItem.disclosure.open === intent.open
+      !node?.availability.available ||
+      !action ||
+      action.kind !== "treeContextAction" ||
+      !action.availability.available
     ) {
       return tree;
     }
-    const updated = updateTreeItem(tree.items, intent.itemId, (item) =>
-      item.disclosure
-        ? {
-            ...item,
-            disclosure: {
-              ...item.disclosure,
-              accessibilityLabel: `${intent.open ? "Collapse" : "Expand"} ${item.label}`,
-              intent: { ...item.disclosure.intent, open: !intent.open },
-              open: intent.open,
-            },
-          }
-        : item,
-    );
-    return updated === tree.items ? tree : { ...tree, items: updated };
-  }
-
-  if (intent.type === "treeContextAction") {
-    const item = findTreeItem(tree.items, intent.itemId);
-    const action = item?.contextActions.find(
-      (candidate) => candidate.id === intent.actionId && candidate.availability.available,
-    );
-    if (!item?.availability.available || !action) {
-      return tree;
-    }
-
     return {
       ...tree,
       feedback: [
         ...tree.feedback,
         {
-          detail: `${item.label} context action handled by the fixture host.`,
-          id: `${action.id}:fixture:committed`,
+          detail: `${node.label} context navigation dispatched by the fixture host.`,
+          id: `${action.id}:fixture`,
           intent: "success",
           kind: "operationFeedbackEvent",
           status: "committed",
@@ -218,393 +164,222 @@ export function applyTreeResultFixtureIntent(
     };
   }
 
-  if (intent.type === "treeChildVariantSelection") {
-    return updateTreeChildCreation(tree, intent.parent, (creation) => {
-      const variant = creation.variants.find(
-        (candidate) => candidate.id === intent.variantId && candidate.availability.available,
-      );
-      if (!variant) {
-        return creation;
-      }
-
-      return {
-        ...creation,
-        activeVariantId: variant.id,
-        variants: creation.variants.map((candidate) => ({
-          ...candidate,
-          selected: candidate.id === variant.id,
-        })),
-      };
-    });
+  if (intent.type === "treeReorder") {
+    const root = reorderTreeNode(tree.root, intent.nodeId, intent.direction);
+    return root === tree.root ? tree : { ...tree, root };
   }
 
-  if (intent.type === "treeCreate") {
-    return updateTreeChildCreation(tree, intent.parent, (creation) => {
-      const surface = creation.activeCreateSurface;
-      if (!surface || surface.id !== intent.surfaceId || intent.intent.surfaceId !== surface.id) {
-        return creation;
+  const root = updateTreeNode(tree.root, intent.nodeId, (node) => {
+    if (intent.type === "treeRecordResult") {
+      const editor = node.editor;
+      const nested = intent.intent;
+      if (!editor || nested.resultId !== editor.id || nested.type !== "recordResultFieldIntent") {
+        return node;
       }
-      return {
-        ...creation,
-        activeCreateSurface: {
-          ...surface,
-          dialog: {
-            ...surface.dialog,
-            open: intent.intent.type === "createOpenChange" ? intent.intent.open : false,
-          },
-        },
-      };
-    });
-  }
+      const field = editor.fields.find((candidate) => candidate.fieldId === nested.fieldId);
+      if (!field) {
+        return node;
+      }
+      const nextField = applyScenarioFieldIntent(field, nested.intent);
+      return nextField === field
+        ? node
+        : {
+            ...node,
+            editor: {
+              ...editor,
+              fields: editor.fields.map((candidate) =>
+                candidate.fieldId === field.fieldId ? nextField : candidate,
+              ),
+            },
+          };
+    }
 
-  if (intent.type === "treeField") {
-    if (intent.target.kind === "create") {
-      const target = intent.target;
-      return updateTreeChildCreation(tree, target.parent, (creation) => {
-        const surface = creation.activeCreateSurface;
-        const field = surface?.dialog.form.fieldSet.fields.find(
-          (candidate) => candidate.fieldId === intent.fieldId,
-        );
-        if (!surface || surface.id !== target.surfaceId || !field) {
-          return creation;
-        }
-        const nextField = applyScenarioFieldIntent(field, intent.intent) as CreateFieldContract;
-        if (nextField === field) {
-          return creation;
+    if (intent.type === "treeChildVariantSelection") {
+      return updateTreeNodeAction(node, (action) => {
+        if (
+          action.kind !== "treeChildCreation" ||
+          !action.variants.some((variant) => variant.id === intent.variantId)
+        ) {
+          return action;
         }
         return {
-          ...creation,
+          ...action,
+          activeVariantId: intent.variantId,
+          variants: action.variants.map((variant) => ({
+            ...variant,
+            selected: variant.id === intent.variantId,
+          })),
+        };
+      });
+    }
+
+    if (intent.type === "treeCreate") {
+      return updateTreeNodeAction(node, (action) => {
+        const surface =
+          action.kind === "treeChildCreation" ? action.activeCreateSurface : undefined;
+        if (!surface || surface.id !== intent.surfaceId || intent.intent.surfaceId !== surface.id) {
+          return action;
+        }
+        return {
+          ...action,
           activeCreateSurface: {
             ...surface,
             dialog: {
               ...surface.dialog,
-              form: {
-                ...surface.dialog.form,
-                fieldSet: {
-                  ...surface.dialog.form.fieldSet,
-                  fields: surface.dialog.form.fieldSet.fields.map((candidate) =>
-                    candidate.fieldId === field.fieldId ? nextField : candidate,
-                  ),
-                },
-              },
+              open: intent.intent.type === "createOpenChange" ? intent.intent.open : false,
             },
           },
         };
       });
     }
 
-    const editor = tree.selectedEditor;
-    if (!editor || editor.itemId !== intent.target.itemId) {
-      return tree;
-    }
-
-    const fieldSet =
-      intent.target.kind === "placement" ? editor.placementFields : editor.childFields;
-    if (!fieldSet || fieldSet.id !== intent.target.fieldSetId) {
-      return tree;
-    }
-
-    const field = fieldSet.fields.find((candidate) => candidate.fieldId === intent.fieldId);
-    if (!field) {
-      return tree;
-    }
-    const nextField = applyScenarioFieldIntent(field, intent.intent);
-    if (nextField === field) {
-      return tree;
-    }
-
-    const nextFieldSet = {
-      ...fieldSet,
-      fields: fieldSet.fields.map((candidate) =>
-        candidate.fieldId === field.fieldId ? nextField : candidate,
-      ),
-    };
-    return {
-      ...tree,
-      selectedEditor: {
-        ...editor,
-        ...(intent.target.kind === "placement"
-          ? { placementFields: nextFieldSet }
-          : { childFields: nextFieldSet }),
-      },
-    };
-  }
-
-  if (intent.type === "treeOperation") {
-    const editor = tree.selectedEditor;
-    const control = editor?.removePlacement;
-    if (
-      !editor ||
-      editor.itemId !== intent.itemId ||
-      !control ||
-      control.id !== intent.controlId ||
-      intent.intent.controlId !== control.id
-    ) {
-      return tree;
-    }
-
-    if (intent.intent.type === "operationConfirmationOpenChange") {
-      if (!control.confirmation) {
-        return tree;
-      }
-      return {
-        ...tree,
-        selectedEditor: {
-          ...editor,
-          removePlacement: {
-            ...control,
-            confirmation: { ...control.confirmation, open: intent.intent.open },
-          },
-        },
-      };
-    }
-
-    if (control.confirmation && !control.confirmation.open) {
-      return tree;
-    }
-
-    const items = removeTreeItem(tree.items, editor.itemId);
-    const fallback = firstAvailableTreeItem(items);
-    return {
-      ...tree,
-      feedback: [
-        ...tree.feedback,
-        {
-          detail: "Placement removed without deleting its child record.",
-          id: `${control.id}:fixture:committed`,
-          intent: "success",
-          kind: "operationFeedbackEvent",
-          status: "committed",
-          title: "Placement removed",
-        },
-      ],
-      items: fallback ? selectTreeItem(items, fallback.id) : items,
-      selectedEditor: fallback ? fixtureSelectedEditorForItem(tree, fallback) : undefined,
-    };
-  }
-
-  const item = findTreeItem(tree.items, intent.itemId);
-  const action = item?.ordering?.actions.find(
-    (candidate) =>
-      candidate.id === intent.actionId &&
-      candidate.direction === intent.direction &&
-      candidate.intent.actionId === intent.actionId &&
-      candidate.intent.itemId === intent.itemId,
-  );
-  if (
-    !item?.availability.available ||
-    !item.ordering ||
-    item.ordering.pending ||
-    !action?.structurallyAvailable ||
-    action.disabled ||
-    action.pending?.isPending
-  ) {
-    return tree;
-  }
-
-  const reordered = reorderTreeItem(tree.items, intent.itemId, intent.direction);
-  return reordered === tree.items ? tree : { ...tree, items: reordered };
-}
-function updateTreeChildCreation(
-  tree: TreeResultContract,
-  parent: Extract<
-    TreeIntent,
-    {
-      type: "treeChildVariantSelection";
-    }
-  >["parent"],
-  update: (creation: TreeChildCreationContract) => TreeChildCreationContract,
-) {
-  if (parent.kind === "root") {
-    if (!tree.rootChildCreation) {
-      return tree;
-    }
-    const rootChildCreation = update(tree.rootChildCreation);
-    return rootChildCreation === tree.rootChildCreation ? tree : { ...tree, rootChildCreation };
-  }
-
-  const editor = tree.selectedEditor;
-  if (!editor?.childCreation || editor.itemId !== parent.itemId) {
-    return tree;
-  }
-  const childCreation = update(editor.childCreation);
-  return childCreation === editor.childCreation
-    ? tree
-    : { ...tree, selectedEditor: { ...editor, childCreation } };
-}
-
-function fixtureSelectedEditorForItem(
-  tree: TreeResultContract,
-  item: TreeItemContract,
-): TreeSelectedEditorContract {
-  if (tree.selectedEditor?.itemId === item.id) {
-    return tree.selectedEditor;
-  }
-
-  const placementFields = emptyFixtureTreeFieldSet(
-    `${tree.id}:${item.id}:placement-fields`,
-    "Placement fields",
-    tree.editing,
-  );
-  return {
-    accessibilityLabel: `Edit ${item.label} placement and block`,
-    availability: item.availability,
-    ...(item.childRecordId
-      ? {
-          childFields: emptyFixtureTreeFieldSet(
-            `${tree.id}:${item.id}:child-fields`,
-            "Child fields",
-            tree.editing,
-          ),
-          childRecordId: item.childRecordId,
+    if (intent.type === "treeCreateField") {
+      return updateTreeNodeAction(node, (action) => {
+        const surface =
+          action.kind === "treeChildCreation" ? action.activeCreateSurface : undefined;
+        const field = surface?.dialog.form.fieldSet.fields.find(
+          (candidate) => candidate.fieldId === intent.fieldId,
+        );
+        if (!surface || surface.id !== intent.surfaceId || !field) {
+          return action;
         }
-      : {}),
-    editing: tree.editing,
-    id: `${tree.id}:${item.id}:editor`,
-    itemId: item.id,
-    kind: "treeSelectedEditor",
-    placementFields,
-    placementId: item.placementId,
-    warnings: item.warnings,
-  };
-}
+        const nextField = applyScenarioFieldIntent(field, intent.intent) as CreateFieldContract;
+        return nextField === field
+          ? action
+          : {
+              ...action,
+              activeCreateSurface: {
+                ...surface,
+                dialog: {
+                  ...surface.dialog,
+                  form: {
+                    ...surface.dialog.form,
+                    fieldSet: {
+                      ...surface.dialog.form.fieldSet,
+                      fields: surface.dialog.form.fieldSet.fields.map((candidate) =>
+                        candidate.fieldId === field.fieldId ? nextField : candidate,
+                      ),
+                    },
+                  },
+                },
+              },
+            };
+      });
+    }
 
-function emptyFixtureTreeFieldSet(
-  id: string,
-  label: string,
-  editing: TreeResultContract["editing"],
-): FieldSetContract {
-  return {
-    disabled: !editing.enabled,
-    ...(editing.enabled ? {} : { disabledReason: editing.disabledReason }),
-    fields: [],
-    id,
-    kind: "fieldSet",
-    label,
-  };
-}
+    if (intent.type === "treeOperation") {
+      return updateTreeNodeAction(node, (action) => {
+        if (
+          action.kind !== "operationAction" ||
+          action.control.id !== intent.controlId ||
+          intent.intent.controlId !== action.control.id ||
+          intent.intent.type !== "operationConfirmationOpenChange" ||
+          !action.control.confirmation
+        ) {
+          return action;
+        }
+        return {
+          ...action,
+          control: {
+            ...action.control,
+            confirmation: { ...action.control.confirmation, open: intent.intent.open },
+          },
+        };
+      });
+    }
 
-function findTreeItem(
-  items: readonly TreeItemContract[],
-  itemId: string,
-): TreeItemContract | undefined {
-  for (const item of items) {
-    if (item.id === itemId) {
-      return item;
-    }
-    const child = findTreeItem(item.children, itemId);
-    if (child) {
-      return child;
-    }
-  }
-  return undefined;
-}
-
-function firstAvailableTreeItem(items: readonly TreeItemContract[]): TreeItemContract | undefined {
-  for (const item of items) {
-    if (item.availability.available) {
-      return item;
-    }
-    const child = firstAvailableTreeItem(item.children);
-    if (child) {
-      return child;
-    }
-  }
-  return undefined;
-}
-
-function updateTreeItem(
-  items: readonly TreeItemContract[],
-  itemId: string,
-  update: (item: TreeItemContract) => TreeItemContract,
-): readonly TreeItemContract[] {
-  let changed = false;
-  const nextItems = items.map((item) => {
-    if (item.id === itemId) {
-      const nextItem = update(item);
-      changed ||= nextItem !== item;
-      return nextItem;
-    }
-    const children = updateTreeItem(item.children, itemId, update);
-    if (children === item.children) {
-      return item;
-    }
-    changed = true;
-    return { ...item, children };
+    return node;
   });
-  return changed ? nextItems : items;
+
+  return root === tree.root ? tree : { ...tree, root };
 }
 
-function selectTreeItem(
-  items: readonly TreeItemContract[],
-  itemId: string,
-): readonly TreeItemContract[] {
-  return items.map((item) => ({
-    ...item,
-    children: selectTreeItem(item.children, itemId),
-    selected: item.id === itemId,
-  }));
+function updateTreeNode(
+  node: TreeNodeContract,
+  nodeId: string,
+  update: (node: TreeNodeContract) => TreeNodeContract,
+): TreeNodeContract {
+  if (node.id === nodeId) {
+    return update(node);
+  }
+
+  let changed = false;
+  const children = node.children.map((child) => {
+    const next = updateTreeNode(child, nodeId, update);
+    changed ||= next !== child;
+    return next;
+  });
+  return changed ? { ...node, children } : node;
 }
 
-function removeTreeItem(
-  items: readonly TreeItemContract[],
-  itemId: string,
-): readonly TreeItemContract[] {
-  return items
-    .filter((item) => item.id !== itemId)
-    .map((item) => ({ ...item, children: removeTreeItem(item.children, itemId) }));
+function updateTreeNodeAction(
+  node: TreeNodeContract,
+  update: (action: TreeNodeActionContract) => TreeNodeActionContract,
+) {
+  let changed = false;
+  const items = node.headerActions.items.map((action) => {
+    const next = update(action);
+    changed ||= next !== action;
+    return next;
+  });
+  return changed ? { ...node, headerActions: { ...node.headerActions, items } } : node;
 }
 
-function reorderTreeItem(
-  items: readonly TreeItemContract[],
-  itemId: string,
-  direction: Extract<
-    TreeIntent,
-    {
-      type: "treeReorder";
-    }
-  >["direction"],
-): readonly TreeItemContract[] {
-  const index = items.findIndex((item) => item.id === itemId);
+function reorderTreeNode(
+  node: TreeNodeContract,
+  nodeId: string,
+  direction: Extract<TreeIntent, { type: "treeReorder" }>["direction"],
+): TreeNodeContract {
+  const index = node.children.findIndex((child) => child.id === nodeId);
   if (index >= 0) {
-    const targetIndex =
+    const target =
       direction === "top"
         ? 0
         : direction === "up"
           ? Math.max(0, index - 1)
           : direction === "down"
-            ? Math.min(items.length - 1, index + 1)
-            : items.length - 1;
-    if (targetIndex === index) {
-      return items;
+            ? Math.min(node.children.length - 1, index + 1)
+            : node.children.length - 1;
+    if (target === index) {
+      return node;
     }
-    const reordered = [...items];
-    const [item] = reordered.splice(index, 1);
-    if (!item) {
-      return items;
+    const children = [...node.children];
+    const [moved] = children.splice(index, 1);
+    if (!moved) {
+      return node;
     }
-    reordered.splice(targetIndex, 0, item);
-    return reordered;
+    children.splice(target, 0, moved);
+    return { ...node, children };
   }
 
   let changed = false;
-  const nextItems = items.map((item) => {
-    const children = reorderTreeItem(item.children, itemId, direction);
-    if (children === item.children) {
-      return item;
-    }
-    changed = true;
-    return { ...item, children };
+  const children = node.children.map((child) => {
+    const next = reorderTreeNode(child, nodeId, direction);
+    changed ||= next !== child;
+    return next;
   });
-  return changed ? nextItems : items;
+  return changed ? { ...node, children } : node;
+}
+
+function findTreeNode(node: TreeNodeContract, nodeId: string): TreeNodeContract | undefined {
+  if (node.id === nodeId) {
+    return node;
+  }
+  for (const child of node.children) {
+    const found = findTreeNode(child, nodeId);
+    if (found) {
+      return found;
+    }
+  }
+  return undefined;
 }
 
 function treeFixtureReference(tree: TreeResultContract) {
   return treeResultReference({
     resultId: tree.id,
     role: "mainResult",
-    sectionId: "section:tree-result-fixtures",
-    workspaceId: "workspace:tree-result-fixtures",
+    sectionId: treeFixtureWorkspaceScope.sectionId,
+    workspaceId: treeFixtureWorkspaceScope.screenId,
   });
 }
 
@@ -613,3 +388,10 @@ const treeFixtureWorkspaceScope = {
   screenId: "workspace:tree-result-fixtures",
   sectionId: "section:tree-result-fixtures",
 } satisfies WorkspaceIntentScope;
+
+function required<Value>(value: Value | undefined, message: string): Value {
+  if (value === undefined) {
+    throw new Error(message);
+  }
+  return value;
+}

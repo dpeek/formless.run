@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import type {
-  ButtonContract,
-  OperationButtonContract,
-  OperationControlContract,
-  TreeResultContract,
-} from "./contract.ts";
+import type { RecordResultContract, TreeNodeContract, TreeResultContract } from "./contract.ts";
 import {
   createMemoryPresentationHost,
   presentationReferenceKey,
@@ -27,33 +22,27 @@ const treeReference = treeResultReference({
   workspaceId: workspaceReference.workspaceId,
 });
 
-describe("Formless UI tree contract", () => {
-  it("keeps tree-specific placement and selected-editor structure", () => {
-    const tree = treeResult();
-
-    expect(tree.items[0]).toMatchObject({
-      childRecordId: "block:hero",
-      id: "tree-item:hero",
-      placementId: "placement:hero",
-    });
-    expect(tree.selectedEditor).toMatchObject({
-      childFields: { kind: "fieldSet" },
-      placementFields: { kind: "fieldSet" },
-      removePlacement: {
-        confirmation: { kind: "destructiveConfirmation" },
-        kind: "operationControl",
-      },
-    });
-  });
-});
-
 describe("Formless UI tree-result host member", () => {
   it("provides typed reads, a stable reference key, and complete-set validation", () => {
     const nodes = treeNodes();
     const host = createMemoryPresentationHost({ nodes });
     const tree: TreeResultContract | undefined = host.read({ ...treeReference });
 
-    expect(tree?.kind).toBe("treeResult");
+    expect(tree?.root).toMatchObject({
+      editor: { id: "tree:homepage:root:page:homepage:editor", kind: "recordResult" },
+      entityTypeLabel: "Page",
+      kind: "treeNode",
+      children: [
+        {
+          editor: {
+            id: "tree:homepage:root:page:homepage:placement:hero:editor",
+            kind: "recordResult",
+          },
+          entityTypeLabel: "Hero",
+          kind: "treeNode",
+        },
+      ],
+    });
     expect(presentationReferenceKey(treeReference)).toBe(
       JSON.stringify([
         "mainResult",
@@ -74,9 +63,41 @@ describe("Formless UI tree-result host member", () => {
       "does not match reference",
     );
   });
+
+  it("validates recursive occurrence identity and canonical editor agreement", () => {
+    const duplicate = treeResult();
+    const child = required(duplicate.root?.children[0]);
+    const invalidDuplicate: TreeResultNode = {
+      reference: treeReference,
+      snapshot: {
+        ...duplicate,
+        root: {
+          ...required(duplicate.root),
+          children: [{ ...child, id: duplicate.root?.id ?? "" }],
+        },
+      },
+    };
+    expect(() => createMemoryPresentationHost({ nodes: [invalidDuplicate] })).toThrow(
+      "duplicate node identities",
+    );
+
+    const invalidEditor: TreeResultNode = {
+      reference: treeReference,
+      snapshot: {
+        ...duplicate,
+        root: {
+          ...required(duplicate.root),
+          editor: { ...required(duplicate.root?.editor), id: "editor:other" },
+        },
+      },
+    };
+    expect(() => createMemoryPresentationHost({ nodes: [invalidEditor] })).toThrow(
+      "invalid node editor",
+    );
+  });
 });
 
-function treeNodes({ itemLabel = "Hero" }: { itemLabel?: string } = {}): PresentationNodeSet {
+function treeNodes(): PresentationNodeSet {
   return [
     {
       reference: workspaceReference,
@@ -122,280 +143,91 @@ function treeNodes({ itemLabel = "Hero" }: { itemLabel?: string } = {}): Present
         label: "Pages",
       },
     },
-    {
-      reference: treeReference,
-      snapshot: treeResult({ itemLabel }),
-    },
+    { reference: treeReference, snapshot: treeResult() },
   ];
 }
 
-function treeResult({
-  id = treeReference.resultId,
-  itemLabel = "Hero",
-}: {
-  id?: string;
-  itemLabel?: string;
-} = {}): TreeResultContract {
-  const resultId = id;
-  const itemId = "tree-item:hero";
-  const parent = { itemId, kind: "item" as const };
-  const warning = {
-    id: "warning:child-readiness",
-    items: [{ code: "missing-reference", message: "Image reference is unavailable." }],
-    kind: "treeWarning" as const,
-    source: "child" as const,
-    title: "Child needs attention",
-  };
+function treeResult({ id = treeReference.resultId }: { id?: string } = {}): TreeResultContract {
+  const rootId = `${id}:root:page:homepage`;
+  const childId = `${rootId}:placement:hero`;
 
   return {
     accessibilityLabel: "Homepage block tree",
     availability: { state: "ready" },
     density: "default",
     editing: { enabled: true },
-    feedback: [
-      {
-        detail: "Placement moved.",
-        id: "feedback:move",
-        intent: "success",
-        kind: "operationFeedbackEvent",
-        status: "committed",
-        title: "Move complete",
-      },
-    ],
-    id: resultId,
-    items: [
-      {
-        accessibilityLabel: `${itemLabel} block`,
-        availability: { available: true },
-        childRecordId: "block:hero",
-        children: [],
-        contextActions: [
-          {
-            availability: { available: true },
-            control: button("control:open-hero", "Open hero"),
-            id: "action:open-hero",
-            intent: {
-              actionId: "action:open-hero",
-              itemId,
-              resultId,
-              type: "treeContextAction",
-            },
-            kind: "treeContextAction",
-          },
-        ],
-        disclosure: {
-          accessibilityLabel: "Collapse Hero",
-          id: "disclosure:hero",
-          intent: {
-            itemId,
-            open: false,
-            resultId,
-            type: "treeDisclosureOpenChange",
-          },
-          kind: "treeItemDisclosure",
-          open: true,
-        },
-        id: itemId,
-        kind: "treeItem",
-        label: itemLabel,
-        ordering: {
-          accessibilityLabel: "Order Hero",
-          actions: [
-            {
-              direction: "down",
-              id: "order:hero:down",
-              intent: {
-                actionId: "order:hero:down",
-                direction: "down",
-                itemId,
-                resultId,
-                type: "treeReorder",
-              },
-              label: "Move down",
-              structurallyAvailable: true,
-            },
-          ],
-          affordance: "reorder",
-          id: "ordering:hero",
-          kind: "treeOrdering",
-          pending: false,
-        },
-        placementId: "placement:hero",
-        selected: true,
-        selectionIntent: { itemId, resultId, type: "treeItemSelection" },
-        slot: { id: "slot:main", kind: "treeItemSlot", label: "Main" },
-        structure: { state: "branch" },
-        variant: { id: "variant:hero", kind: "treeItemVariant", label: "Hero" },
-        warnings: [warning],
-      },
-    ],
+    feedback: [],
+    id,
     kind: "treeResult",
-    root: {
-      accessibilityLabel: "Homepage root",
-      id: "page:homepage",
-      kind: "treeRoot",
-      label: "Homepage",
+    root: treeNode({
+      children: [treeNode({ entityTypeLabel: "Hero", id: childId, recordId: "block:hero" })],
+      entityTypeLabel: "Page",
+      id: rootId,
+      recordId: "page:homepage",
+    }),
+    warnings: [],
+  };
+}
+
+function treeNode({
+  children = [],
+  entityTypeLabel,
+  id,
+  recordId,
+}: {
+  children?: readonly TreeNodeContract[];
+  entityTypeLabel: string;
+  id: string;
+  recordId: string;
+}): TreeNodeContract {
+  return {
+    accessibilityLabel: `${entityTypeLabel} block`,
+    availability: { available: true },
+    children,
+    editor: recordResult(`${id}:editor`, recordId),
+    entityTypeLabel,
+    headerActions: {
+      accessibilityLabel: `More ${entityTypeLabel.toLowerCase()} actions`,
+      id: `${id}:header-actions`,
+      items: [],
+      kind: "treeNodeActions",
     },
-    rootChildCreation: childCreation(resultId, { kind: "root" }),
-    selectedEditor: {
-      accessibilityLabel: "Edit Hero placement and block",
-      availability: { available: true },
-      childCreation: childCreation(resultId, parent),
-      childFields: fieldSet("fields:hero", "Block fields"),
-      childRecordId: "block:hero",
-      editing: { enabled: true },
-      id: "editor:hero",
-      itemId,
-      kind: "treeSelectedEditor",
-      placementFields: fieldSet("fields:hero-placement", "Placement fields"),
-      placementId: "placement:hero",
-      removePlacement: removePlacementControl(),
-      warnings: [warning],
+    id,
+    kind: "treeNode",
+    label: entityTypeLabel,
+    structure: { state: children.length === 0 ? "leaf" : "branch" },
+    warnings: [],
+  };
+}
+
+function recordResult(id: string, recordId: string): RecordResultContract {
+  return {
+    accessibilityLabel: "Block editor",
+    actions: {
+      id: `${id}:actions`,
+      kind: "actionGroup",
+      primary: [],
+      secondary: [],
+      secondaryAccessibilityLabel: "More block actions",
     },
-    status: {
-      accessibilityLabel: "Tree authoring status",
-      detail: "All changes saved.",
-      id: "status:tree",
-      intent: "success",
-      kind: "compactStatus",
-      label: "Saved",
-      status: "committed",
+    availability: { state: "ready" },
+    density: "compact",
+    editing: { enabled: true },
+    fields: [],
+    id,
+    kind: "recordResult",
+    selectedRecord: {
+      accessibilityLabel: `${recordId} record`,
+      id: recordId,
+      kind: "recordResultRecord",
     },
     warnings: [],
   };
 }
 
-function childCreation(
-  resultId: string,
-  parent: { kind: "root" } | { itemId: string; kind: "item" },
-): NonNullable<TreeResultContract["rootChildCreation"]> {
-  const variantId = parent.kind === "root" ? "variant:root:hero" : "variant:hero:text";
-  return {
-    accessibilityLabel: "Allowed child blocks",
-    activeCreateSurface: createSurface(),
-    activeVariantId: variantId,
-    id: `children:${variantId}`,
-    kind: "treeChildCreation",
-    variants: [
-      {
-        availability: { available: true },
-        id: variantId,
-        kind: "treeChildVariant",
-        label: "Text",
-        selected: true,
-        selectionIntent: {
-          parent,
-          resultId,
-          variantId,
-          type: "treeChildVariantSelection",
-        },
-        slot: { id: "slot:main", kind: "treeItemSlot", label: "Main" },
-      },
-    ],
-  };
-}
-
-function createSurface() {
-  return {
-    dialog: {
-      form: {
-        cancel: button("control:create-cancel", "Cancel"),
-        errors: [],
-        fieldSet: fieldSet("fields:create-child", "New child fields"),
-        id: "form:create-child",
-        kind: "createForm" as const,
-        submit: { ...button("control:create-submit", "Create"), type: "submit" as const },
-      },
-      id: "dialog:create-child",
-      kind: "createDialog" as const,
-      open: true,
-      title: "Add child",
-    },
-    id: "surface:create-child",
-    kind: "createSurface" as const,
-    trigger: button("control:create-open", "Add child"),
-  };
-}
-
-function fieldSet(id: string, label: string) {
-  return {
-    disabled: false,
-    fields: [],
-    id,
-    kind: "fieldSet" as const,
-    label,
-  };
-}
-
-function removePlacementControl(): OperationControlContract {
-  return {
-    confirmation: {
-      action: operationButton("control:remove-confirm", "Remove", "destructive", {
-        controlId: "operation:remove-placement",
-        invocationSource: "confirmationDialog",
-        type: "operationInvoke",
-      }),
-      cancel: operationButton("control:remove-cancel", "Cancel", "secondary", {
-        controlId: "operation:remove-placement",
-        open: false,
-        type: "operationConfirmationOpenChange",
-      }),
-      closeIntent: {
-        controlId: "operation:remove-placement",
-        open: false,
-        type: "operationConfirmationOpenChange",
-      },
-      description: "Remove this placement from the page.",
-      id: "confirmation:remove-placement",
-      kind: "destructiveConfirmation",
-      open: true,
-      title: "Remove placement?",
-    },
-    id: "operation:remove-placement",
-    kind: "operationControl",
-    status: {
-      accessibilityLabel: "Remove placement status",
-      detail: "Ready to remove.",
-      id: "status:remove-placement",
-      intent: "neutral",
-      kind: "compactStatus",
-      label: "Ready",
-      status: "idle",
-    },
-    trigger: operationButton("control:remove-open", "Remove placement", "destructive", {
-      controlId: "operation:remove-placement",
-      open: true,
-      type: "operationConfirmationOpenChange",
-    }),
-  };
-}
-
-function button(id: string, label: string): ButtonContract {
-  return {
-    accessibilityLabel: label,
-    content: { kind: "label", label },
-    density: "default",
-    id,
-    kind: "button",
-    prominence: "secondary",
-    type: "button",
-  };
-}
-
-function operationButton(
-  id: string,
-  label: string,
-  prominence: OperationButtonContract["prominence"],
-  intent: OperationButtonContract["intent"],
-): OperationButtonContract {
-  return {
-    accessibilityLabel: label,
-    content: { kind: "label", label },
-    density: "default",
-    id,
-    intent,
-    kind: "button",
-    prominence,
-    type: "button",
-  };
+function required<Value>(value: Value | null | undefined): Value {
+  if (value === undefined || value === null) {
+    throw new Error("Expected value.");
+  }
+  return value;
 }

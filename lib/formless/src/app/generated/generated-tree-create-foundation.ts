@@ -2,7 +2,6 @@ import type {
   CreateSurfaceContract,
   TreeChildCreationContract,
   TreeEditingAvailability,
-  TreeParentIdentity,
 } from "@dpeek/formless-presentation/contract";
 import type { MediaAssetOption } from "@dpeek/formless-media/client";
 import type { AppSchema, QueryEvaluationContext } from "@dpeek/formless-schema";
@@ -57,8 +56,8 @@ export type GeneratedTreeCreateFieldProjectionState = {
 export type GeneratedTreeChildVariantRuntime = {
   available: boolean;
   creationId: string;
+  nodeId: string;
   operation?: CreateHomeOperationConfig;
-  parent: TreeParentIdentity;
   parentRecordId: string;
   placementEntityName: string;
   placementValues?: TreeAllowedChildVariantConfig["placementValues"];
@@ -83,8 +82,8 @@ export type GeneratedTreeChildCreationProjection = {
 export function projectGeneratedTreeChildCreation({
   creationId,
   editing,
+  nodeId,
   options = {},
-  parent,
   parentLabel,
   parentRecord,
   result,
@@ -92,8 +91,8 @@ export function projectGeneratedTreeChildCreation({
 }: {
   creationId: string;
   editing: TreeEditingAvailability;
+  nodeId: string;
   options?: GeneratedTreeChildCreationProjectionOptions;
-  parent: TreeParentIdentity;
   parentLabel: string;
   parentRecord: StoredRecord;
   result: TreeResultModel;
@@ -121,8 +120,8 @@ export function projectGeneratedTreeChildCreation({
     const runtime: GeneratedTreeChildVariantRuntime = {
       available,
       creationId,
+      nodeId,
       ...(operation === undefined ? {} : { operation }),
-      parent,
       parentRecordId: parentRecord.id,
       placementEntityName: result.placementEntityName,
       ...(variant.placementValues === undefined
@@ -146,7 +145,7 @@ export function projectGeneratedTreeChildCreation({
       label: variant.label,
       selected: activeVariantId === variantId,
       selectionIntent: {
-        parent,
+        nodeId,
         resultId,
         type: "treeChildVariantSelection" as const,
         variantId,
@@ -156,7 +155,7 @@ export function projectGeneratedTreeChildCreation({
         : {
             slot: {
               id: `${variantId}:slot:${slotValue}`,
-              kind: "treeItemSlot" as const,
+              kind: "treeNodeSlot" as const,
               label: humanizeFieldName(slotValue),
             },
           }),

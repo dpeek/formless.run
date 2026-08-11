@@ -80,18 +80,14 @@ import {
   resolveGeneratedTreeContextActionIntent,
   resolveGeneratedTreeCreateFieldIntent,
   resolveGeneratedTreeCreateIntent,
-  resolveGeneratedTreeDisclosureIntent,
-  resolveGeneratedTreeFieldIntent,
-  resolveGeneratedTreeItemSelectionIntent,
   resolveGeneratedTreeOperationIntent,
+  resolveGeneratedTreeRecordResultIntent,
   resolveGeneratedTreeReorderIntent,
   selectGeneratedTreeFoundation,
   type GeneratedTreeFoundation,
-  type GeneratedTreeDisclosureRuntime,
-  type GeneratedTreeFieldIntentRuntime,
-  type GeneratedTreeItemSelectionRuntime,
   type GeneratedTreeOperationRuntime,
   type GeneratedTreeOrderingRuntime,
+  type GeneratedTreeRecordResultIntentRuntime,
   type GeneratedTreeContextNavigationRuntime,
   type SelectGeneratedTreeFoundationOptions,
 } from "./generated-tree-foundation.ts";
@@ -453,23 +449,10 @@ export type GeneratedWorkspaceResolvedIntent =
       section: GeneratedWorkspaceSectionRuntimePlan;
     }
   | {
-      disclosure: GeneratedTreeDisclosureRuntime;
-      kind: "treeDisclosure";
-      result: GeneratedWorkspaceNestedResultRuntime & { kind: "treeResult" };
-      section: GeneratedWorkspaceSectionRuntimePlan;
-    }
-  | {
       field: FieldContract;
       kind: "treeCreateField";
       result: GeneratedWorkspaceNestedResultRuntime & { kind: "treeResult" };
       runtime: GeneratedTreeChildCreateRuntime;
-      section: GeneratedWorkspaceSectionRuntimePlan;
-    }
-  | {
-      field: FieldContract;
-      kind: "treeField";
-      result: GeneratedWorkspaceNestedResultRuntime & { kind: "treeResult" };
-      runtime: GeneratedTreeFieldIntentRuntime;
       section: GeneratedWorkspaceSectionRuntimePlan;
     }
   | {
@@ -479,10 +462,10 @@ export type GeneratedWorkspaceResolvedIntent =
       section: GeneratedWorkspaceSectionRuntimePlan;
     }
   | {
-      kind: "treeSelection";
+      kind: "treeRecordResult";
       result: GeneratedWorkspaceNestedResultRuntime & { kind: "treeResult" };
+      runtime: GeneratedTreeRecordResultIntentRuntime;
       section: GeneratedWorkspaceSectionRuntimePlan;
-      selection: GeneratedTreeItemSelectionRuntime;
     }
   | {
       kind: "treeOperation";
@@ -981,24 +964,6 @@ export function resolveGeneratedWorkspaceIntent(
     if (result.kind !== "treeResult") {
       return undefined;
     }
-    if (intent.intent.type === "treeItemSelection") {
-      const selection = resolveGeneratedTreeItemSelectionIntent(
-        result.foundation.runtimePlan,
-        intent.intent,
-      );
-      return selection === undefined
-        ? undefined
-        : { kind: "treeSelection", result, section, selection };
-    }
-    if (intent.intent.type === "treeDisclosureOpenChange") {
-      const disclosure = resolveGeneratedTreeDisclosureIntent(
-        result.foundation.runtimePlan,
-        intent.intent,
-      );
-      return disclosure === undefined
-        ? undefined
-        : { disclosure, kind: "treeDisclosure", result, section };
-    }
     if (intent.intent.type === "treeContextAction") {
       const navigation = resolveGeneratedTreeContextActionIntent(
         result.foundation.runtimePlan,
@@ -1024,24 +989,29 @@ export function resolveGeneratedWorkspaceIntent(
       );
       return runtime === undefined ? undefined : { kind: "treeCreate", result, runtime, section };
     }
-    if (intent.intent.type === "treeField") {
+    if (intent.intent.type === "treeCreateField") {
       const create = resolveGeneratedTreeCreateFieldIntent(
         result.foundation.runtimePlan,
         intent.intent,
       );
-      if (create !== undefined) {
-        return {
-          field: create.field,
-          kind: "treeCreateField",
-          result,
-          runtime: create.runtime,
-          section,
-        };
-      }
-      const runtime = resolveGeneratedTreeFieldIntent(result.foundation.runtimePlan, intent.intent);
+      return create === undefined
+        ? undefined
+        : {
+            field: create.field,
+            kind: "treeCreateField",
+            result,
+            runtime: create.runtime,
+            section,
+          };
+    }
+    if (intent.intent.type === "treeRecordResult") {
+      const runtime = resolveGeneratedTreeRecordResultIntent(
+        result.foundation.runtimePlan,
+        intent.intent,
+      );
       return runtime === undefined
         ? undefined
-        : { field: runtime.field, kind: "treeField", result, runtime, section };
+        : { kind: "treeRecordResult", result, runtime, section };
     }
     if (intent.intent.type === "treeOperation") {
       const runtime = resolveGeneratedTreeOperationIntent(

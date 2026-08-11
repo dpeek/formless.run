@@ -176,7 +176,7 @@ export function parseCollectionResult(
       `Collection view "${viewName}" result`,
       value,
       ["type", "relationship", "childField", "childItemView"],
-      ["placementItemView", "ordering", "branches", "composition", "maxDepth", "presentation"],
+      ["ordering", "branches", "composition", "maxDepth"],
     );
 
     if (!collectionContext) {
@@ -256,34 +256,9 @@ export function parseCollectionResult(
       );
     }
 
-    const placementItemViewName = parseOptionalNonEmptyString(
-      `Collection view "${viewName}" result placementItemView`,
-      value.placementItemView,
-    );
-
-    if (placementItemViewName !== undefined) {
-      const placementItemView = itemViews[placementItemViewName];
-
-      if (!placementItemView) {
-        throw new Error(
-          `Collection view "${viewName}" result references unknown placement item view "${placementItemViewName}".`,
-        );
-      }
-
-      if (placementItemView.entity !== entityName) {
-        throw new Error(
-          `Collection view "${viewName}" result placement item view "${placementItemViewName}" must use entity "${entityName}".`,
-        );
-      }
-    }
-
     const maxDepth = parseOptionalTreeMaxDepth(
       `Collection view "${viewName}" result maxDepth`,
       value.maxDepth,
-    );
-    const presentation = parseOptionalTreePresentation(
-      `Collection view "${viewName}" result presentation`,
-      value.presentation,
     );
     const ordering = parseOptionalResultOrdering(
       `Collection view "${viewName}" result ordering`,
@@ -318,8 +293,6 @@ export function parseCollectionResult(
       relationship: relationshipName,
       childField: childFieldName,
       childItemView: childItemViewName,
-      ...(presentation === undefined ? {} : { presentation }),
-      ...(placementItemViewName === undefined ? {} : { placementItemView: placementItemViewName }),
       ...(ordering === undefined ? {} : { ordering }),
       ...(branches === undefined ? {} : { branches }),
       ...(composition === undefined ? {} : { composition }),
@@ -330,19 +303,6 @@ export function parseCollectionResult(
   throw new Error(
     `Collection view "${viewName}" result type must be "list", "record", "table", or "tree".`,
   );
-}
-
-function parseOptionalTreePresentation(
-  context: string,
-  value: unknown,
-): "inlineEditor" | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-  if (value !== "inlineEditor") {
-    throw new Error(`${context} must be "inlineEditor" when provided.`);
-  }
-  return value;
 }
 
 function parseOptionalTreeMaxDepth(context: string, value: unknown): number | undefined {

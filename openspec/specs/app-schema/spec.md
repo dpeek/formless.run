@@ -1083,6 +1083,21 @@ The system SHALL let collection views select records through schema-declared que
 - THEN matching records can be ordered through the declared rank field
 - AND `list`, `table`, and `tree` results honor result-level ordering
 
+#### Scenario: Declare one recursive inline tree result
+
+- GIVEN a collection view projects flat placement records and referenced child
+  records as a tree
+- WHEN its `tree` result is parsed
+- THEN the result declares the to-many placement relationship, the placement
+  reference field that identifies each child record, and one child item view
+- AND it may declare placement ordering, finite branch and child-variant policy,
+  tree composition operations, and a maximum traversal depth
+- AND the child item view owns block record presentation while placement records
+  remain flat composition edges used for attachment, ordering, removal, and
+  diagnostics
+- AND the tree result has one recursive inline editor presentation without a
+  presentation-mode choice or placement item view
+
 #### Scenario: Bind list operation input into query context
 
 - GIVEN a list operation declares required scalar input and references a query

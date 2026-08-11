@@ -298,14 +298,7 @@ describe("Astryx workspace renderer", () => {
         editing: { enabled: true },
         feedback: [],
         id: "result:tree",
-        items: [],
         kind: "treeResult",
-        root: {
-          accessibilityLabel: "Site root",
-          id: "result:tree:root",
-          kind: "treeRoot",
-          label: "Site",
-        },
         warnings: [],
       },
     ];

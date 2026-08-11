@@ -5480,16 +5480,6 @@
           "variant": "image"
         }
       ]
-    },
-    {
-      "entity": "block-placement",
-      "fields": [
-        {
-          "editor": "text",
-          "field": "label"
-        }
-      ],
-      "key": "blockPlacementTreeItem"
     }
   ],
   "navigation": {
@@ -8009,7 +7999,6 @@
             }
           ]
         },
-        "presentation": "inlineEditor",
         "relationship": "blockPlacements",
         "type": "tree"
       },
