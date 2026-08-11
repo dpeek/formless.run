@@ -1788,6 +1788,33 @@ record reads, operation execution, and ordering effects.
 
 The system SHALL render generated field displays and editors from field behavior and presentation metadata.
 
+#### Scenario: Open text suggestions
+
+- GIVEN a generated create, operation, ordinary record, or selected-record
+  relationship hierarchy item editor renders a text field whose schema declares
+  `suggestions`
+- WHEN generated runtime projects the field and Formless Renderer renders it
+- THEN the Presentation field contract carries the ordered text suggestions as
+  explicit text option facts distinct from enum and reference options
+- AND a text editor with non-empty suggestions uses the Astryx `Typeahead`
+  backed by `createStaticSource` while the same editor without suggestions
+  continues using `TextInput`
+- AND suggestions assist entry without constraining it, so an arbitrary value
+  accepted by ordinary text field behavior remains visible, editable, and
+  committable even when it does not match a suggestion
+- AND query changes, suggestion selection, and optional clearing dispatch the
+  same controlled draft intents as ordinary text entry
+- AND required, disabled, pending, validation, dirty, blur and save, Enter
+  commit, Escape revert, and suggestion-list keyboard behavior retain the
+  field contract's existing semantics
+- AND moving focus within the Typeahead control or its suggestion list does not
+  commit a record field as though the user left the editor
+- AND Formless Renderer shares the open-text Typeahead behavior with public
+  operation forms while keeping public submit-boundary hidden inputs outside
+  the shared control
+- AND generated suggested text does not use a native HTML `datalist` or alter
+  enum and reference field behavior
+
 #### Scenario: Specialized text-backed editors
 
 - GIVEN text fields use `icon` or `media` editor metadata

@@ -136,6 +136,94 @@ describe("generated field projection", () => {
     });
   });
 
+  it("projects ordered open text suggestions without constraining generated drafts", () => {
+    const suggestedTextField = {
+      type: "text",
+      required: false,
+      label: "Topic",
+      suggestions: ["Support", "Sales"],
+    } satisfies FieldSchema;
+    const createConfig = createField("topic", suggestedTextField, "text");
+    const createState = nextGeneratedCreateDraftSessionState({
+      fieldName: "topic",
+      fieldValue: { kind: "input", value: "Partnership" },
+      state: initialGeneratedCreateDraftSessionState({ fields: [createConfig] }),
+    });
+    const create = projectGeneratedCreateField({
+      fieldConfig: createConfig,
+      occurrence: createOccurrence("topic", "suggested-create"),
+      state: createState,
+      value: "Partnership",
+    });
+    const operationConfig = operationInputField("topic", "Topic", "text", false, {
+      suggestions: ["Support", "Sales"],
+    });
+    const operationState = nextGeneratedOperationDraftSessionState({
+      inputName: "topic",
+      inputValue: { kind: "input", value: "Partnership" },
+      state: initialGeneratedOperationDraftSessionState({ fields: [operationConfig] }),
+    });
+    const operationSession = selectGeneratedOperationDraftSession({
+      fields: [operationConfig],
+      state: operationState,
+    });
+    const [operation] = projectGeneratedOperationFields({
+      owner: { formId: "suggested-operation", kind: "operationForm" },
+      session: operationSession,
+      state: operationState,
+    });
+    const record = asRecordField(
+      projectGeneratedRecordField({
+        canPatch: true,
+        draftInput: { kind: "input", value: "Partnership" },
+        fieldConfig: recordField("topic", suggestedTextField, "text"),
+        occurrence: recordOccurrence("topic", "suggested-record"),
+        recordValue: "Support",
+      }),
+    );
+    const detail = projectGeneratedDisplayField({
+      fieldConfig: recordField("topic", suggestedTextField, "text"),
+      occurrence: {
+        owner: { kind: "recordResult", recordId: "record-1", resultId: "suggested-detail" },
+        placementId: "topic",
+      },
+      recordValue: "Partnership",
+      surface: "detail",
+    });
+    const unsuggested = projectGeneratedCreateField({
+      fieldConfig: createField("title", fields.title, "text"),
+      occurrence: createOccurrence("title", "unsuggested-create"),
+      value: "Partnership",
+    });
+
+    expect(create).toMatchObject({
+      draftInput: { kind: "input", value: "Partnership" },
+      options: { textSuggestions: ["Support", "Sales"] },
+      value: "Partnership",
+    });
+    expect(operation).toMatchObject({
+      draftInput: { kind: "input", value: "Partnership" },
+      options: { textSuggestions: ["Support", "Sales"] },
+      value: "Partnership",
+    });
+    expect(record).toMatchObject({
+      drafts: {
+        draft: "Partnership",
+        draftInput: { kind: "input", value: "Partnership" },
+        recordValue: "Support",
+      },
+      options: { textSuggestions: ["Support", "Sales"] },
+      surface: "record",
+    });
+    expect(detail).toMatchObject({
+      formatting: { displayValue: "Partnership" },
+      options: { textSuggestions: ["Support", "Sales"] },
+      surface: "detail",
+      value: "Partnership",
+    });
+    expect(unsuggested.options).toBeUndefined();
+  });
+
   it("projects create sessions and field configs into submit-bound create fields", () => {
     const createFields = [
       createField("title", fields.title, "text"),

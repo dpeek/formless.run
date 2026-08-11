@@ -32,7 +32,6 @@ import { SideNavItem, SideNavSection } from "@astryxdesign/core/SideNav";
 import { TextArea } from "@astryxdesign/core/TextArea";
 import { Heading, Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
-import { createStaticSource, Typeahead, type SearchableItem } from "@astryxdesign/core/Typeahead";
 import {
   TopNav,
   TopNavItem,
@@ -79,6 +78,7 @@ import type {
 } from "@dpeek/formless-presentation/contract";
 import { FormlessSiteRendererProvider } from "../site-provider.tsx";
 import { SourceIcon } from "./field-primitives.tsx";
+import { OpenTextTypeahead } from "./open-text-typeahead.tsx";
 
 export const FormlessSitePageRenderer: SitePublicRendererComponent = (rendererProps) => (
   <AstryxSitePresentation rendererProps={rendererProps} />
@@ -2075,7 +2075,7 @@ function renderPublicOperationFieldControl(
     );
   }
 
-  if (field.options?.referenceOptions?.length) {
+  if (field.options?.textSuggestions?.length) {
     return (
       <ProjectedPublicOperationTypeahead
         field={field}
@@ -2097,9 +2097,6 @@ function renderPublicOperationFieldControl(
     />
   );
 }
-type PublicSuggestionItem = SearchableItem<{
-  value: string;
-}>;
 function ProjectedPublicOperationTypeahead({
   field,
   sharedProps,
@@ -2121,31 +2118,16 @@ function ProjectedPublicOperationTypeahead({
   };
   updateDraftValue: (value: SitePublicFormFieldValue) => void;
 }) {
-  const items = publicSuggestionItems(field.options?.referenceOptions ?? []);
-  const searchSource = createStaticSource(items);
   const value = formatPublicFieldValue(field.draftInput);
-  const selectedItem = items.find((item) => publicSuggestionItemValue(item) === value) ?? null;
 
   return (
     <>
-      <Typeahead
-        description={sharedProps.description}
-        emptySearchResultsText="No suggestions"
+      <OpenTextTypeahead
+        {...sharedProps}
         hasClear={!field.required}
-        hasEntriesOnFocus
-        isDisabled={sharedProps.isDisabled}
-        isRequired={sharedProps.isRequired}
-        label={sharedProps.label}
-        placeholder={sharedProps.placeholder}
-        searchSource={searchSource}
-        status={sharedProps.status}
-        value={selectedItem}
-        width={sharedProps.width}
-        debounceMs={0}
-        onChange={(item) => {
-          updateDraftValue(item ? publicSuggestionItemValue(item) : "");
-        }}
-        onChangeQuery={updateDraftValue}
+        suggestions={field.options?.textSuggestions ?? []}
+        value={value}
+        onValueChange={updateDraftValue}
       />
       <input name={field.inputName} readOnly type="hidden" value={value} />
     </>
@@ -2303,10 +2285,7 @@ function toPublicOperationFieldOptions(field: SitePublicFormField): FieldOptions
 
   if (field.suggestions?.length) {
     return {
-      referenceOptions: field.suggestions.map((suggestion) => ({
-        id: suggestion,
-        label: suggestion,
-      })),
+      textSuggestions: [...field.suggestions],
     };
   }
 
@@ -2452,22 +2431,6 @@ function publicSelectorOptions(
     label: option.label,
     value: option.value,
   }));
-}
-
-function publicSuggestionItems(
-  options: NonNullable<FieldOptions["referenceOptions"]>,
-): PublicSuggestionItem[] {
-  return options.map((option) => ({
-    id: option.id,
-    label: option.label,
-    auxiliaryData: {
-      value: option.id,
-    },
-  }));
-}
-
-function publicSuggestionItemValue(item: PublicSuggestionItem) {
-  return item.auxiliaryData?.value ?? item.id;
 }
 
 function publicOperationFieldControlName(field: ProjectedPublicOperationFieldData) {

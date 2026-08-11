@@ -746,6 +746,7 @@ describe("Astryx public Site form contract mapping", () => {
         details: "Review the public page.",
         email: "ada@example.com",
         tier: "enterprise",
+        topic: "Custom research",
       },
     });
     const session = { ...projectedSession, challenge: undefined };
@@ -756,12 +757,17 @@ describe("Astryx public Site form contract mapping", () => {
     const approved = queries.getByRole<HTMLInputElement>("checkbox", { name: /^Approved/ });
     const tier = queries.getByRole("combobox", { name: /^Tier/ });
     const email = queries.getByRole<HTMLInputElement>("textbox", { name: /^Email/ });
+    const topic = queries.getByRole("combobox", { name: /^Topic/ });
 
     expect(details.value).toBe("Review the public page.");
     expect(approved.checked).toBe(false);
     expect(tier.textContent).toContain("Enterprise");
     expect(email.value).toBe("ada@example.com");
     expect(email.type).toBe("email");
+    expect(topic.parentElement?.textContent).toContain("Custom research");
+    expect(
+      required(form.querySelector<HTMLInputElement>('input[type="hidden"][name="topic"]')).value,
+    ).toBe("Custom research");
     expect(queries.getByRole<HTMLButtonElement>("button", { name: "Send request" }).disabled).toBe(
       false,
     );
@@ -939,6 +945,13 @@ function genericOperationFields(): SitePublicOperationInputFieldNode[] {
       ],
     },
     { name: "email", label: "Email", required: true, control: "text", format: "email" },
+    {
+      name: "topic",
+      label: "Topic",
+      required: false,
+      control: "text",
+      suggestions: ["Research", "Delivery"],
+    },
   ];
 }
 

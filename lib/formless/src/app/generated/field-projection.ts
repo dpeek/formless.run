@@ -1230,12 +1230,24 @@ function projectFieldOptions({
   if (includeIconOptions) {
     return {
       iconOptions: projectIconOptions(schema),
+      ...(field.type === "text" && field.suggestions !== undefined
+        ? { textSuggestions: [...field.suggestions] }
+        : {}),
     };
   }
 
   if (mediaAssetOptions !== undefined) {
     return {
       mediaAssetOptions: mediaAssetOptions.map(projectMediaAssetOption),
+      ...(field.type === "text" && field.suggestions !== undefined
+        ? { textSuggestions: [...field.suggestions] }
+        : {}),
+    };
+  }
+
+  if (field.type === "text" && field.suggestions !== undefined) {
+    return {
+      textSuggestions: [...field.suggestions],
     };
   }
 

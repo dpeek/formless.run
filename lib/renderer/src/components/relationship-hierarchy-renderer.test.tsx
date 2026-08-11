@@ -1,4 +1,7 @@
+// @vitest-environment jsdom
+
 import { renderToStaticMarkup } from "react-dom/server";
+import { cleanup, fireEvent, render, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import type { FieldSchema } from "@dpeek/formless-schema";
 import type {
@@ -41,9 +44,9 @@ const titleSchema = {
 const titleControl = textControl(titleSchema);
 
 afterEach(() => {
+  cleanup();
   vi.unstubAllGlobals();
 });
-
 describe("Astryx relationship-hierarchy renderer", () => {
   it("renders every heterogeneous editable node, one populated header menu, action state, a child dialog, and labelled empty groups", () => {
     const hierarchy = hierarchyContract();
@@ -262,6 +265,55 @@ describe("Astryx relationship-hierarchy renderer", () => {
         hierarchyId: hierarchy.id,
         intent: hierarchyIntents[0],
         type: "workspaceRelationshipHierarchy",
+      },
+    ]);
+  });
+
+  it("keeps suggested item editing on the selected relationship occurrence path", () => {
+    const hierarchy = hierarchyContract();
+    const project = required(hierarchy.root.relationshipGroups[0]?.nodes[0]);
+    const field = required(project.editor.fields[0]);
+    project.editor = {
+      ...project.editor,
+      fields: [
+        {
+          ...field,
+          options: { textSuggestions: ["Research", "Delivery"] },
+        },
+      ],
+    };
+    const intents: RelationshipHierarchyIntent[] = [];
+    const renderer = render(
+      <AstryxRelationshipHierarchyRenderer
+        hierarchy={hierarchy}
+        onIntent={(intent) => {
+          intents.push(intent);
+        }}
+      />,
+    );
+    const projectEditor = renderer.getByRole("article", { name: "Runtime project" });
+    const combobox = within(projectEditor).getByRole("combobox", { name: /^Name/ });
+
+    fireEvent.change(combobox, { target: { value: "Delivery" } });
+
+    expect(intents).toEqual([
+      {
+        hierarchyId: hierarchy.id,
+        intent: {
+          fieldId: field.fieldId,
+          intent: {
+            fieldName: "name",
+            type: "recordEditorDraftChange",
+            value: "Delivery",
+          },
+          recordId: project.recordId,
+          resultId: project.editor.id,
+          type: "recordResultFieldIntent",
+        },
+        occurrenceId: project.id,
+        recordId: project.recordId,
+        resultId: project.editor.id,
+        type: "relationshipHierarchyRecordResult",
       },
     ]);
   });

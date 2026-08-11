@@ -20,6 +20,7 @@ import {
   type EditorField,
 } from "./field-chrome.tsx";
 import { MarkdownFieldDisplay, MarkdownInput } from "../field-primitives.tsx";
+import { OpenTextTypeahead } from "../open-text-typeahead.tsx";
 
 export function TextFieldEditor({
   field,
@@ -28,6 +29,25 @@ export function TextFieldEditor({
   field: EditorField;
   onIntent: FieldIntentHandler | undefined;
 }) {
+  const suggestions = field.options?.textSuggestions;
+
+  if (suggestions?.length) {
+    return (
+      <OpenTextTypeahead
+        {...fieldChromeProps(field)}
+        hasClear={!field.required}
+        isLoading={Boolean(field.pending?.isPending)}
+        size={inputSize(field)}
+        suggestions={suggestions}
+        value={formatInputValue(editorFieldValue(field))}
+        onBlur={(value) => emitRecordFieldCommit(field, value, onIntent)}
+        onEnter={(value) => emitRecordFieldCommit(field, value, onIntent)}
+        onEscape={() => emitRecordFieldRevert(field, onIntent)}
+        onValueChange={(value) => emitFieldDraftChange(field, value, onIntent)}
+      />
+    );
+  }
+
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "Enter") {
       event.preventDefault();

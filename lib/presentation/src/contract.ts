@@ -393,6 +393,7 @@ export type FieldOptions = {
   iconOptions?: readonly IconOption[];
   referenceOptions?: readonly ReferenceOption[];
   mediaAssetOptions?: readonly MediaAssetOption[];
+  textSuggestions?: readonly string[];
 };
 
 export type TemporalDisplay =
