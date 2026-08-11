@@ -1110,9 +1110,40 @@ export type SelectedRecordDetailRelationshipSectionSchema = {
   operations?: SelectedRecordDetailOperationBindingSchema[];
 };
 
+export type SelectedRecordRelationshipHierarchyOperationBindingSchema = {
+  operation: string;
+  label?: string;
+};
+
+export type SelectedRecordRelationshipHierarchyCreateBindingSchema = {
+  operation: string;
+  createView: string;
+  label?: string;
+};
+
+export type SelectedRecordRelationshipHierarchyRelationshipSchema = {
+  id: string;
+  label?: string;
+  relationship: string;
+  itemView: string;
+  createAction?: SelectedRecordRelationshipHierarchyCreateBindingSchema;
+  operations?: SelectedRecordRelationshipHierarchyOperationBindingSchema[];
+  relationships?: SelectedRecordRelationshipHierarchyRelationshipSchema[];
+};
+
+export type SelectedRecordDetailRelationshipHierarchySectionSchema = {
+  id: string;
+  type: "relationshipHierarchy";
+  label?: string;
+  itemView: string;
+  operations?: SelectedRecordRelationshipHierarchyOperationBindingSchema[];
+  relationships: SelectedRecordRelationshipHierarchyRelationshipSchema[];
+};
+
 export type SelectedRecordDetailSectionSchema =
   | SelectedRecordDetailRecordSectionSchema
-  | SelectedRecordDetailRelationshipSectionSchema;
+  | SelectedRecordDetailRelationshipSectionSchema
+  | SelectedRecordDetailRelationshipHierarchySectionSchema;
 
 export type SelectedRecordDetailSchema = {
   type: "selectedRecord";
@@ -1129,6 +1160,14 @@ export type SelectedRecordDetailRelationshipResultSchemaSource =
   SelectedRecordDetailRelationshipResultSchema;
 export type SelectedRecordDetailRelationshipSectionSchemaSource =
   SelectedRecordDetailRelationshipSectionSchema;
+export type SelectedRecordRelationshipHierarchyOperationBindingSchemaSource =
+  SelectedRecordRelationshipHierarchyOperationBindingSchema;
+export type SelectedRecordRelationshipHierarchyCreateBindingSchemaSource =
+  SelectedRecordRelationshipHierarchyCreateBindingSchema;
+export type SelectedRecordRelationshipHierarchyRelationshipSchemaSource =
+  SelectedRecordRelationshipHierarchyRelationshipSchema;
+export type SelectedRecordDetailRelationshipHierarchySectionSchemaSource =
+  SelectedRecordDetailRelationshipHierarchySectionSchema;
 export type SelectedRecordDetailSectionSchemaSource = SelectedRecordDetailSectionSchema;
 export type SelectedRecordDetailSchemaSource = SelectedRecordDetailSchema;
 

@@ -288,8 +288,14 @@ describe("generated workspace contract host adapter", () => {
       throw new Error("Missing selected-record shell fixture.");
     }
     const [recordSection, relationshipSection] = presentation.sections;
-    const recordReference = required(recordSection).result;
-    const relationshipReference = required(relationshipSection).result;
+    if (
+      recordSection?.kind !== "selectedRecordRecordSection" ||
+      relationshipSection?.kind !== "selectedRecordRelationshipSection"
+    ) {
+      throw new Error("Missing selected-record detail result fixtures.");
+    }
+    const recordReference = recordSection.result;
+    const relationshipReference = relationshipSection.result;
 
     expect(presentation).toMatchObject({
       activePresentation: "detail",

@@ -4,7 +4,7 @@ import type {
   ContextResultReference,
   MainResultReference,
   RecordResultContract,
-  SelectedDetailResultReference,
+  SelectedDetailReference,
   WorkspaceContract,
   WorkspaceCollectionShellContract,
   WorkspaceIntentHandler,
@@ -18,6 +18,7 @@ import {
   createMemoryPresentationHost,
   listResultReference,
   recordResultReference,
+  relationshipHierarchyReference,
   tableResultReference,
   treeResultReference,
   workspaceManifestReference,
@@ -207,9 +208,22 @@ function projectSelectedDetailResult(
   detailSection: WorkspaceSelectedRecordSectionContract,
 ): {
   node: PresentationNode;
-  reference: SelectedDetailResultReference;
+  reference: SelectedDetailReference;
   section: WorkspaceSelectedRecordSectionShellContract;
 } {
+  if (detailSection.kind === "selectedRecordRelationshipHierarchySection") {
+    const reference = relationshipHierarchyReference({
+      hierarchyId: detailSection.hierarchy.id,
+      sectionId,
+      workspaceId,
+    });
+    return {
+      node: { reference, snapshot: detailSection.hierarchy },
+      reference,
+      section: { ...detailSection, hierarchy: reference },
+    };
+  }
+
   if (detailSection.kind === "selectedRecordRecordSection") {
     const reference = recordResultReference({
       resultId: detailSection.result.id,

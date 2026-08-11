@@ -570,6 +570,13 @@ summary slots, operation controls, and schema-declared result types.
 - AND a relationship section evaluates its declared target query with the
   selected record id under the detail's declared context name and projects its
   table view through the canonical table foundation and contract
+- AND a relationship-hierarchy section projects the selected record and every
+  declared related record through canonical record-result foundations and a
+  recursive renderer-neutral hierarchy contract
+- AND hierarchy runtime selects active direct children exclusively from flat
+  target records whose declared relationship reference equals the current
+  parent record id, orders siblings by `createdAt` then record id, and retains
+  schema declaration order for relationship groups
 - AND a relationship heading operation uses the canonical record-scoped
   operation controller with the selected source record id
 - AND a relationship heading create action composes the canonical target create
@@ -580,6 +587,77 @@ summary slots, operation controls, and schema-declared result types.
   after a valid submit
 - AND selected-record detail does not select a separate context entity or use
   collection `listDetail` fallback semantics
+
+#### Scenario: Project the complete inline relationship hierarchy
+
+- GIVEN a selected-record detail section declares a finite heterogeneous
+  relationship hierarchy
+- WHEN generated runtime projects the selected root and its active related
+  records
+- THEN the hierarchy contains one root record node whose ordered relationship
+  groups recursively contain complete child record nodes selected through the
+  declared to-many relationships
+- AND every record node carries stable path-scoped occurrence identity, its
+  entity type label, one canonical record-result editor contract, enabled
+  operation controls, ordered relationship groups, and display-safe runtime
+  state
+- AND every declared labelled relationship group remains present when it has no
+  active target records while its parent record node remains present
+- AND occurrence identity scopes fields, create surfaces, controls, drafts,
+  confirmations, feedback, and intent routing without becoming stored record
+  identity or user selection state
+- AND runtime does not project hierarchy node selection, selection intents,
+  selected-node fallback, disclosure state, expand or collapse intents,
+  placement identity, placement fields, or post-create focus behavior
+
+#### Scenario: Author every hierarchy record inline
+
+- GIVEN generated runtime projects a complete relationship hierarchy
+- WHEN the active renderer renders its root and child nodes
+- THEN every node uses the same recursive structure of a record-type header,
+  right-aligned available actions, ordinary record editor, and ordered child
+  relationship groups
+- AND record editors preserve canonical editable and display fields, drafts,
+  commits, specialized fields, readiness, updates, lifecycle controls, pending
+  state, feedback, and display-safe errors
+- AND the complete finite hierarchy renders without an outline-detail split,
+  selected-node editor, disclosure control, hierarchy toolbar, or application-
+  specific renderer
+
+#### Scenario: Render hierarchy node actions
+
+- GIVEN a hierarchy record node declares record operations or its immediate
+  child relationships declare create actions
+- WHEN generated runtime resolves action availability for the current record
+- THEN the node header exposes one action menu containing only bindings whose
+  canonical runtime availability is enabled and omits the menu when no item
+  remains
+- AND a semantically enabled operation that is currently executing remains in
+  the menu with canonical pending and disabled interaction state
+- AND invocation reuses canonical create or operation controls, authorization,
+  confirmation, idempotency, progress, feedback, and error behavior
+- AND the renderer does not discover entity operations, evaluate availability,
+  construct operation input, attach child records, or execute writes
+
+#### Scenario: Create a flat related child from a hierarchy node
+
+- GIVEN an immediate child relationship exposes an enabled canonical create
+  action for its target entity
+- WHEN the user opens and submits its ordinary create dialog
+- THEN opening changes only controlled dialog and draft state and creates no
+  placeholder record
+- AND runtime resolves the current parent occurrence against the latest
+  hierarchy, supplies its record id under the context name derived from the
+  attachment default, and submits once through the target create operation
+- AND the submitted flat record puts that parent id in the relationship's
+  declared target reference field
+- AND successful committed data refreshes the flat-record projection, closes
+  and resets the dialog, and causes the active child record to appear in its
+  declared relationship group according to `createdAt` and record-id order
+- AND failure retains ordinary create feedback without inserting, selecting,
+  expanding, scrolling to, focusing, or otherwise inferring a hierarchy node
+- AND runtime does not infer insertion from created record ids, entity type,
+  operation name, record diffs, or rendered position
 
 #### Scenario: Summary item view projection
 
@@ -688,6 +766,9 @@ selection, reads, evaluation, operation execution, and effects.
   relationship sections reference canonical table contracts and may carry one
   optional canonical `headingCreate` surface plus ordered canonical
   `headingOperations`
+- AND relationship-hierarchy sections reference complete recursive hierarchy
+  contracts whose nodes compose canonical record-result, create-surface, and
+  operation-control contracts
 - AND a summary main list carries only each record's title and optional
   subtitle plus one controlled semantic selection state and intent
 - AND the contract declares compact presentation as `drillIn`, so compact
@@ -732,9 +813,9 @@ selection, reads, evaluation, operation execution, and effects.
 - AND changing or clearing selected-record identity does not project draft,
   error, pending, icon dialog, or confirmation state from the previous record
 - AND runtime verifies selected-record, detail-section, relationship-result,
-  heading-operation, heading-create-surface, result, record, field, table, and
-  table-field-context identity against the latest screen projection before
-  applying a nested intent
+  relationship-hierarchy occurrence, relationship group, heading-operation,
+  heading-create-surface, result, record, field, table, and table-field-context
+  identity against the latest screen projection before applying a nested intent
 - AND selected-record relationship results resolve independently of an optional
   table field-context id, while the table field resolver validates that context
   before applying draft, commit, transition, picker, upload, or other table

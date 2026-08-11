@@ -1265,15 +1265,65 @@ contain one level of destination-less labelled sections.
 - THEN the referenced collection result is a list whose entity is the selected
   record entity
 - AND the detail declares a non-empty context name plus non-empty ordered
-  record and relationship sections with unique stable ids
+  record, relationship, and relationship-hierarchy sections with unique stable
+  ids
 - AND a record section references an item view for the selected record entity
   so ordered editable and read-only field projection remains owned by the item
   view
 - AND a relationship section references a to-many relationship that starts at
   the selected record entity, a query for the relationship target entity, and a
   table result whose table view uses that target entity
+- AND a relationship-hierarchy section references one field item view for the
+  selected record root plus a finite ordered declaration of child relationships
 - AND the selected-record detail composes projections without nesting or
   changing stored records
+
+#### Scenario: Declare a selected-record relationship hierarchy
+
+- GIVEN selected-record detail must author one heterogeneous hierarchy rooted
+  at the selected record
+- WHEN a detail section declares type `relationshipHierarchy`
+- THEN the section declares one field item view for the selected root entity,
+  optional root record-operation bindings, and a non-empty ordered array of
+  child relationship declarations
+- AND each child declaration has a stable id, references a to-many relationship
+  whose source is the current node entity, references a field item view for the
+  relationship target entity, and may recursively declare the next fixed child
+  relationships
+- AND each child declaration may provide a display label for its relationship
+  group
+- AND sibling declaration ids are unique, relationship order is schema order,
+  and the finite declaration fixes every permitted entity and relationship path
+- AND the hierarchy stores no nested arrays, placement records, projection
+  records, selection state, disclosure state, query, or traversal callback
+
+#### Scenario: Bind relationship-hierarchy record operations
+
+- GIVEN a relationship-hierarchy root or child node declares operation bindings
+- WHEN the complete schema is parsed
+- THEN each binding references a browser-visible record-scoped operation for
+  that node entity and may override only its visible label
+- AND the binding does not redefine operation access, input, output, effect,
+  audit, idempotency, transition validity, confirmation, or execution semantics
+- AND an operation for another entity, a collection-scoped operation, an
+  unknown operation, or an unsupported binding value is rejected
+
+#### Scenario: Bind relationship-hierarchy child creation
+
+- GIVEN a relationship-hierarchy child declaration exposes ordinary target
+  record creation from its current parent node
+- WHEN the child declaration binds a create action
+- THEN the binding references an ordinary create view and browser-visible
+  collection-scoped create operation for the child relationship target entity
+- AND the create view defaults the relationship's exact target reference field
+  from one named context value
+- AND runtime derives that context name from the attachment default and scopes
+  its current parent record value to the path-scoped record occurrence
+- AND the binding stores no nested target data and expresses attachment through
+  ordinary flat target fields
+- AND an unknown or mismatched relationship, source or target entity, create
+  view, create operation, missing attachment default, incompatible default, or
+  unsupported binding value is rejected
 
 #### Scenario: Bind a selected-record relationship action
 

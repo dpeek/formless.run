@@ -10,7 +10,7 @@ import type {
   OperationControlContract,
   OperationPresentationIntent,
   RecordResultContract,
-  SelectedDetailResultReference,
+  SelectedDetailReference,
   TableActionGroupContract,
   WorkspaceCollectionActionGroupContract,
   WorkspaceCollectionContract,
@@ -29,6 +29,7 @@ import {
   createMemoryPresentationHost,
   listResultReference,
   recordResultReference,
+  relationshipHierarchyReference,
   tableResultReference,
   treeResultReference,
   workspaceManifestReference,
@@ -259,9 +260,22 @@ function projectGeneratedWorkspaceFixtureSelectedDetailResult(
   detailSection: WorkspaceSelectedRecordSectionContract,
 ): {
   node: PresentationNode;
-  reference: SelectedDetailResultReference;
+  reference: SelectedDetailReference;
   section: WorkspaceSelectedRecordSectionShellContract;
 } {
+  if (detailSection.kind === "selectedRecordRelationshipHierarchySection") {
+    const reference = relationshipHierarchyReference({
+      hierarchyId: detailSection.hierarchy.id,
+      sectionId,
+      workspaceId,
+    });
+    return {
+      node: { reference, snapshot: detailSection.hierarchy },
+      reference,
+      section: { ...detailSection, hierarchy: reference },
+    };
+  }
+
   if (detailSection.kind === "selectedRecordRecordSection") {
     const reference = recordResultReference({
       resultId: detailSection.result.id,
@@ -685,6 +699,9 @@ function mapWorkspaceResults(
   if (presentation.kind === "selectedRecord") {
     const mainResult = result.kind === "list" ? result : presentation.result;
     const sections = presentation.sections.map((section) => {
+      if (section.kind === "selectedRecordRelationshipHierarchySection") {
+        return section;
+      }
       if (section.result.id !== resultId) {
         return section;
       }

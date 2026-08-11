@@ -165,6 +165,10 @@ function withDetailSectionState(
     };
   }
 
+  if (section.kind === "selectedRecordRelationshipHierarchySection") {
+    return section;
+  }
+
   return {
     ...section,
     headingOperations: [operationControlFixtures.deleteTask.pending],

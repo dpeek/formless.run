@@ -48,6 +48,11 @@ import { useResult, useWorkspaceIntentHandler } from "@dpeek/formless-presentati
 import { AstryxCreateSurfaceRenderer } from "./create-renderer.tsx";
 import { AstryxListRenderer } from "./list-renderer.tsx";
 import { AstryxRecordResultRenderer } from "./record-result-renderer.tsx";
+import {
+  AstryxRelationshipHierarchyRenderer,
+  AstryxSubscribedRelationshipHierarchyRenderer,
+  dispatchAstryxWorkspaceRelationshipHierarchyIntent,
+} from "./relationship-hierarchy-renderer.tsx";
 import { AstryxTableRenderer } from "./table-renderer.tsx";
 import {
   AstryxSubscribedTreeResultRenderer,
@@ -871,6 +876,39 @@ function AstryxSubscribedWorkspaceSelectedRecordSection({
   section: WorkspaceSelectedRecordSectionShellContract;
   selectedRecordId: string;
 }) {
+  if (section.kind === "selectedRecordRelationshipHierarchySection") {
+    return (
+      <VStack as="section" aria-label={section.label} gap={4} width="100%">
+        {section.label ? <Heading level={3}>{section.label}</Heading> : null}
+        <AstryxSubscribedRelationshipHierarchyRenderer
+          reference={section.hierarchy}
+          scope={scope}
+        />
+      </VStack>
+    );
+  }
+
+  return (
+    <AstryxSubscribedWorkspaceSelectedRecordResultSection
+      scope={scope}
+      section={section}
+      selectedRecordId={selectedRecordId}
+    />
+  );
+}
+
+function AstryxSubscribedWorkspaceSelectedRecordResultSection({
+  scope,
+  section,
+  selectedRecordId,
+}: {
+  scope: WorkspaceIntentScope;
+  section: Exclude<
+    WorkspaceSelectedRecordSectionShellContract,
+    { kind: "selectedRecordRelationshipHierarchySection" }
+  >;
+  selectedRecordId: string;
+}) {
   const onIntent = useWorkspaceIntentHandler();
   const result = useResult(section.result);
 
@@ -910,6 +948,30 @@ function AstryxWorkspaceSelectedRecordSection({
   section: WorkspaceSelectedRecordSectionContract;
   selectedRecordId: string;
 }) {
+  if (section.kind === "selectedRecordRelationshipHierarchySection") {
+    return (
+      <VStack
+        as="section"
+        aria-label={section.label ?? section.hierarchy.accessibilityLabel}
+        gap={4}
+        width="100%"
+      >
+        {section.label ? <Heading level={3}>{section.label}</Heading> : null}
+        <AstryxRelationshipHierarchyRenderer
+          hierarchy={section.hierarchy}
+          onIntent={(intent) =>
+            dispatchAstryxWorkspaceRelationshipHierarchyIntent(
+              onIntent,
+              scope,
+              section.hierarchy.id,
+              intent,
+            )
+          }
+        />
+      </VStack>
+    );
+  }
+
   const headingOperations =
     section.kind === "selectedRecordRelationshipSection" ? section.headingOperations : [];
   const headingCreate =

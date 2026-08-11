@@ -8,6 +8,8 @@ import type {
   ListIntent,
   OperationControlContract,
   OperationPresentationIntent,
+  RelationshipHierarchyContract,
+  RelationshipHierarchyIntent,
   RecordResultContract,
   RecordResultIntent,
   TableIntent,
@@ -28,6 +30,7 @@ import type {
   WorkspaceListIntent,
   WorkspaceOperationIntent,
   WorkspaceRecordResultIntent,
+  WorkspaceRelationshipHierarchyIntent,
   WorkspaceResultContract,
   WorkspaceSelectedRecordBackIntent,
   WorkspaceSelectedRecordSectionContract,
@@ -48,6 +51,7 @@ export type GeneratedWorkspaceScopedIdentityKind =
   | "control"
   | "externalAction"
   | "field"
+  | "hierarchy"
   | "listDetail"
   | "query"
   | "queryNavigation"
@@ -125,6 +129,12 @@ export type GeneratedWorkspaceSelectedRecordSectionProjectionFacts =
       label?: string;
       result: RecordResultContract;
       type: "record";
+    }
+  | {
+      hierarchy: RelationshipHierarchyContract;
+      id: string;
+      label?: string;
+      type: "relationshipHierarchy";
     }
   | {
       headingCreate?: Extract<WorkspaceCollectionActionContract, { kind: "createAction" }>;
@@ -713,6 +723,14 @@ export function projectGeneratedWorkspaceRecordResultIntent(
   };
 }
 
+export function projectGeneratedWorkspaceRelationshipHierarchyIntent(
+  scope: WorkspaceIntentScope,
+  hierarchyId: string,
+  intent: RelationshipHierarchyIntent,
+): WorkspaceRelationshipHierarchyIntent {
+  return { ...scope, hierarchyId, intent, type: "workspaceRelationshipHierarchy" };
+}
+
 export function projectGeneratedWorkspaceTreeIntent(
   scope: WorkspaceIntentScope,
   resultId: string,
@@ -763,21 +781,30 @@ function projectGeneratedWorkspaceSelectedRecordSections({
     sectionIds.add(section.id);
     const id = generatedWorkspaceScopedId(scope, "selectedRecordSection", section.id);
 
-    return section.type === "record"
-      ? {
-          id,
-          kind: "selectedRecordRecordSection",
-          ...(section.label === undefined ? {} : { label: section.label }),
-          result: section.result,
-        }
-      : {
-          ...(section.headingCreate === undefined ? {} : { headingCreate: section.headingCreate }),
-          headingOperations: section.headingOperations,
-          id,
-          kind: "selectedRecordRelationshipSection",
-          ...(section.label === undefined ? {} : { label: section.label }),
-          result: section.result,
-        };
+    if (section.type === "record") {
+      return {
+        id,
+        kind: "selectedRecordRecordSection",
+        ...(section.label === undefined ? {} : { label: section.label }),
+        result: section.result,
+      };
+    }
+    if (section.type === "relationshipHierarchy") {
+      return {
+        hierarchy: section.hierarchy,
+        id,
+        kind: "selectedRecordRelationshipHierarchySection",
+        ...(section.label === undefined ? {} : { label: section.label }),
+      };
+    }
+    return {
+      ...(section.headingCreate === undefined ? {} : { headingCreate: section.headingCreate }),
+      headingOperations: section.headingOperations,
+      id,
+      kind: "selectedRecordRelationshipSection",
+      ...(section.label === undefined ? {} : { label: section.label }),
+      result: section.result,
+    };
   });
 }
 

@@ -3,6 +3,7 @@ import type { TextFieldSchema } from "@dpeek/formless-schema";
 import type {
   CreateFieldConfig,
   HomeScreenModel,
+  HomeSelectedRecordRelationshipHierarchyNodeConfig,
   RecordFieldConfig,
   RecordUnionPresentationConfig,
 } from "../../client/views.ts";
@@ -79,6 +80,13 @@ export function collectGeneratedWorkspaceMediaFields(
     );
   }
 
+  function addHierarchyCreateOperations(node: HomeSelectedRecordRelationshipHierarchyNodeConfig) {
+    for (const relationship of node.relationships) {
+      addCreateOperation(relationship.createAction);
+      addHierarchyCreateOperations(relationship);
+    }
+  }
+
   for (const { collection } of screen.layout.sections) {
     for (const operation of collection.operations) {
       if (operation.type === "create") {
@@ -105,6 +113,9 @@ export function collectGeneratedWorkspaceMediaFields(
               section.result.recordUnion,
             ),
           );
+        }
+        if (section.type === "relationshipHierarchy") {
+          addHierarchyCreateOperations(section);
         }
       }
     }

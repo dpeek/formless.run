@@ -27,6 +27,8 @@ import type {
   ManagementManifestReference,
   RecordResultContract,
   RecordResultReference,
+  RelationshipHierarchyContract,
+  RelationshipHierarchyReference,
   ResultReferenceRole,
   ShellManifestContract,
   ShellIntent,
@@ -76,7 +78,9 @@ export type PresentationSnapshot<Reference extends PresentationReference> =
                               ? TreeResultContract
                               : Reference extends RecordResultReference
                                 ? RecordResultContract
-                                : never;
+                                : Reference extends RelationshipHierarchyReference
+                                  ? RelationshipHierarchyContract
+                                  : never;
 
 export type PresentationHostListener = () => void;
 
@@ -161,6 +165,11 @@ export type RecordResultNode = {
   snapshot: RecordResultContract;
 };
 
+export type RelationshipHierarchyNode = {
+  reference: RelationshipHierarchyReference;
+  snapshot: RelationshipHierarchyContract;
+};
+
 export type ManagementManifestNode = {
   reference: ManagementManifestReference;
   snapshot: ManagementManifestContract;
@@ -176,6 +185,7 @@ export type PresentationNode =
   | ListResultNode
   | ManagementManifestNode
   | RecordResultNode
+  | RelationshipHierarchyNode
   | ShellManifestNode
   | ShellNavigationSectionNode
   | TableResultNode
@@ -435,6 +445,20 @@ export function recordResultReference<Role extends ResultReferenceRole>({
   };
 }
 
+export function relationshipHierarchyReference({
+  hierarchyId,
+  sectionId,
+  workspaceId,
+}: Omit<RelationshipHierarchyReference, "kind" | "role">): RelationshipHierarchyReference {
+  return {
+    hierarchyId,
+    kind: "relationshipHierarchyReference",
+    role: "selectedDetail",
+    sectionId,
+    workspaceId,
+  };
+}
+
 export function presentationReferenceKey(reference: PresentationReference): string {
   switch (reference.kind) {
     case "accessManifestReference":
@@ -466,6 +490,7 @@ export function presentationReferenceKey(reference: PresentationReference): stri
       return JSON.stringify([reference.role, reference.workspaceId, reference.sectionId]);
     case "listResultReference":
     case "recordResultReference":
+    case "relationshipHierarchyReference":
     case "tableResultReference":
     case "treeResultReference":
       return JSON.stringify([
@@ -473,7 +498,9 @@ export function presentationReferenceKey(reference: PresentationReference): stri
         reference.workspaceId,
         reference.sectionId,
         reference.kind,
-        reference.resultId,
+        reference.kind === "relationshipHierarchyReference"
+          ? reference.hierarchyId
+          : reference.resultId,
       ]);
   }
 }
@@ -705,6 +732,12 @@ function assertNodeMatchesReference(node: PresentationNode) {
       if (snapshot.kind !== "recordResult" || snapshot.id !== reference.resultId) {
         throw mismatchedNodeError(reference);
       }
+      return;
+    case "relationshipHierarchyReference":
+      if (snapshot.kind !== "relationshipHierarchy" || snapshot.id !== reference.hierarchyId) {
+        throw mismatchedNodeError(reference);
+      }
+      assertRelationshipHierarchyContract(snapshot);
       return;
     case "tableResultReference":
       if (snapshot.kind !== "table" || snapshot.id !== reference.resultId) {
@@ -1468,6 +1501,22 @@ function assertWorkspaceSelectedRecordContract(
       );
     }
     detailSectionIds.add(detailSection.id);
+    if (detailSection.kind === "selectedRecordRelationshipHierarchySection") {
+      assertWorkspaceResultScope(sectionReference, detailSection.hierarchy);
+      assertReferenceResolves(nodes, detailSection.hierarchy);
+      const hierarchy = snapshotForReference(nodes, detailSection.hierarchy);
+      if (
+        detailSection.hierarchy.role !== "selectedDetail" ||
+        hierarchy?.kind !== "relationshipHierarchy" ||
+        hierarchy.root.recordId !== selectedRecordId
+      ) {
+        throw new Error(
+          `Formless UI selected-record workspace ${JSON.stringify(presentation.id)} has an invalid relationship hierarchy.`,
+        );
+      }
+      continue;
+    }
+
     assertWorkspaceResultScope(sectionReference, detailSection.result);
     assertReferenceResolves(nodes, detailSection.result);
 
@@ -1483,6 +1532,52 @@ function assertWorkspaceSelectedRecordContract(
       );
     }
   }
+}
+
+function assertRelationshipHierarchyContract(snapshot: RelationshipHierarchyContract) {
+  const occurrenceIds = new Set<string>();
+  const relationshipGroupIds = new Set<string>();
+
+  function visit(node: RelationshipHierarchyContract["root"]) {
+    if (occurrenceIds.has(node.id)) {
+      throw new Error(
+        `Formless UI relationship hierarchy ${JSON.stringify(snapshot.id)} has duplicate occurrence identities.`,
+      );
+    }
+    occurrenceIds.add(node.id);
+
+    if (node.editor.selectedRecord?.id !== node.recordId) {
+      throw new Error(
+        `Formless UI relationship hierarchy ${JSON.stringify(snapshot.id)} has an invalid occurrence record editor.`,
+      );
+    }
+
+    const immediateRelationshipGroupIds = new Set(node.relationshipGroups.map(({ id }) => id));
+    for (const action of node.headerActions.items) {
+      if (
+        action.kind === "createAction" &&
+        !immediateRelationshipGroupIds.has(action.relationshipGroupId)
+      ) {
+        throw new Error(
+          `Formless UI relationship hierarchy ${JSON.stringify(snapshot.id)} has an invalid create-action relationship group.`,
+        );
+      }
+    }
+
+    for (const relationshipGroup of node.relationshipGroups) {
+      if (relationshipGroupIds.has(relationshipGroup.id)) {
+        throw new Error(
+          `Formless UI relationship hierarchy ${JSON.stringify(snapshot.id)} has duplicate relationship group identities.`,
+        );
+      }
+      relationshipGroupIds.add(relationshipGroup.id);
+      for (const child of relationshipGroup.nodes) {
+        visit(child);
+      }
+    }
+  }
+
+  visit(snapshot.root);
 }
 
 function assertWorkspaceResultScope(

@@ -28,15 +28,19 @@ import {
 } from "./operation-renderer.tsx";
 
 export function AstryxRecordResultRenderer({
+  container = "card",
   onCreateFieldIntent = ignoreCreateFieldIntent,
   onCreateIntent = ignoreCreateIntent,
   onIntent,
   recordResult,
+  showActions = true,
 }: {
+  container?: "card" | "inline";
   onCreateFieldIntent?: CreateFieldIntentHandler;
   onCreateIntent?: CreateIntentHandler;
   onIntent: RecordResultIntentHandler;
   recordResult: RecordResultContract;
+  showActions?: boolean;
 }) {
   const spacing = astryxRecordResultSpacing(recordResult.density);
 
@@ -50,10 +54,12 @@ export function AstryxRecordResultRenderer({
       width="100%"
     >
       <AstryxRecordResultContent
+        container={container}
         onCreateFieldIntent={onCreateFieldIntent}
         onCreateIntent={onCreateIntent}
         onIntent={onIntent}
         recordResult={recordResult}
+        showActions={showActions}
         spacing={spacing}
       />
     </VStack>
@@ -61,16 +67,20 @@ export function AstryxRecordResultRenderer({
 }
 
 function AstryxRecordResultContent({
+  container,
   onCreateFieldIntent,
   onCreateIntent,
   onIntent,
   recordResult,
+  showActions,
   spacing,
 }: {
+  container: "card" | "inline";
   onCreateFieldIntent: CreateFieldIntentHandler;
   onCreateIntent: CreateIntentHandler;
   onIntent: RecordResultIntentHandler;
   recordResult: RecordResultContract;
+  showActions: boolean;
   spacing: ReturnType<typeof astryxRecordResultSpacing>;
 }) {
   if (recordResult.availability.state === "empty") {
@@ -125,53 +135,61 @@ function AstryxRecordResultContent({
     );
   }
 
-  return (
-    <Card padding={spacing.padding} width="100%">
-      <VStack
-        as="article"
-        aria-label={selectedRecord.accessibilityLabel}
-        gap={spacing.gap}
-        width="100%"
-      >
-        {recordResult.editing.enabled ? null : (
-          <Banner container="card" status="info" title={recordResult.editing.disabledReason} />
-        )}
-        {recordResult.warnings.map((warning) => {
-          const firstWarning = warning.items[0];
-          const otherIssueCount = Math.max(0, warning.items.length - 1);
-          const title = firstWarning
-            ? `${firstWarning.message}${
-                otherIssueCount > 0
-                  ? ` and ${otherIssueCount} other issue${otherIssueCount === 1 ? "" : "s"}`
-                  : ""
-              }`
-            : warning.title;
+  const editor = (
+    <VStack
+      as="article"
+      aria-label={selectedRecord.accessibilityLabel}
+      gap={spacing.gap}
+      width="100%"
+    >
+      {recordResult.editing.enabled ? null : (
+        <Banner container="card" status="info" title={recordResult.editing.disabledReason} />
+      )}
+      {recordResult.warnings.map((warning) => {
+        const firstWarning = warning.items[0];
+        const otherIssueCount = Math.max(0, warning.items.length - 1);
+        const title = firstWarning
+          ? `${firstWarning.message}${
+              otherIssueCount > 0
+                ? ` and ${otherIssueCount} other issue${otherIssueCount === 1 ? "" : "s"}`
+                : ""
+            }`
+          : warning.title;
 
-          return <Banner container="card" key={warning.id} status="warning" title={title} />;
-        })}
-        <VStack gap={spacing.fieldGap} width="100%">
-          {recordResult.fields.map((field) => (
-            <FieldRenderer
-              field={astryxRecordResultFieldPresentation(field, recordResult)}
-              key={field.fieldId}
-              onIntent={(intent) =>
-                dispatchAstryxRecordResultFieldIntent(
-                  onIntent,
-                  recordResult,
-                  selectedRecord.id,
-                  field,
-                  intent,
-                )
-              }
-            />
-          ))}
-        </VStack>
+        return <Banner container="card" key={warning.id} status="warning" title={title} />;
+      })}
+      <VStack gap={spacing.fieldGap} width="100%">
+        {recordResult.fields.map((field) => (
+          <FieldRenderer
+            field={astryxRecordResultFieldPresentation(field, recordResult)}
+            key={field.fieldId}
+            onIntent={(intent) =>
+              dispatchAstryxRecordResultFieldIntent(
+                onIntent,
+                recordResult,
+                selectedRecord.id,
+                field,
+                intent,
+              )
+            }
+          />
+        ))}
+      </VStack>
+      {showActions ? (
         <AstryxRecordResultActionGroup
           onIntent={onIntent}
           recordId={selectedRecord.id}
           recordResult={recordResult}
         />
-      </VStack>
+      ) : null}
+    </VStack>
+  );
+
+  return container === "inline" ? (
+    editor
+  ) : (
+    <Card padding={spacing.padding} width="100%">
+      {editor}
     </Card>
   );
 }

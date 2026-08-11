@@ -752,6 +752,215 @@ describe("schema screens", () => {
     );
   });
 
+  it("parses and serializes a finite heterogeneous selected-record relationship hierarchy", () => {
+    const hierarchy = selectedRecordRelationshipHierarchySection();
+    const parsed = parseAppSchema(
+      selectedRecordDetailSchema(
+        selectedRecordDetail({ sections: [selectedRecordSection(), hierarchy] }),
+      ),
+    );
+    const screen = parsed.screens[0];
+    if (screen.type !== "workspace") {
+      throw new Error("Expected selected-record workspace.");
+    }
+
+    expect(screen.layout.sections[0].detail?.sections[1]).toEqual(hierarchy);
+    expect(parseAppSchema(JSON.parse(stringifySchema(parsed)))).toEqual(parsed);
+  });
+
+  it("validates relationship-hierarchy paths, field item views, sibling ids, and operations", () => {
+    const invalidHierarchies: { hierarchy: unknown; message: string }[] = [
+      {
+        hierarchy: selectedRecordRelationshipHierarchySection({ relationships: [] }),
+        message:
+          'Screen "home" layout section 0 detail section 0 relationships must be a non-empty array.',
+      },
+      {
+        hierarchy: selectedRecordRelationshipHierarchySection({ itemView: "taskSummary" }),
+        message:
+          'Screen "home" layout section 0 detail section 0 itemView "taskSummary" must be a field item view.',
+      },
+      {
+        hierarchy: selectedRecordRelationshipHierarchySection({ itemView: "noteItem" }),
+        message:
+          'Screen "home" layout section 0 detail section 0 itemView "noteItem" must use entity "task".',
+      },
+      {
+        hierarchy: selectedRecordRelationshipHierarchySection({
+          relationships: [
+            selectedRecordHierarchyRelationship(),
+            selectedRecordHierarchyRelationship(),
+          ],
+        }),
+        message:
+          'Screen "home" layout section 0 detail section 0 relationships relationship id "notes" must be unique.',
+      },
+      {
+        hierarchy: selectedRecordRelationshipHierarchySection({
+          relationships: [selectedRecordHierarchyRelationship({ relationship: "noteTask" })],
+        }),
+        message:
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 relationship "noteTask" must be a toMany relationship.',
+      },
+      {
+        hierarchy: selectedRecordRelationshipHierarchySection({
+          relationships: [selectedRecordHierarchyRelationship({ relationship: "missing" })],
+        }),
+        message:
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 references unknown relationship "missing".',
+      },
+      {
+        hierarchy: selectedRecordRelationshipHierarchySection({
+          relationships: [
+            selectedRecordHierarchyRelationship({
+              relationships: [selectedRecordHierarchyRelationship({ relationship: "taskNotes" })],
+            }),
+          ],
+        }),
+        message:
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 relationships relationship 0 relationship "taskNotes" must start from entity "note".',
+      },
+      {
+        hierarchy: selectedRecordRelationshipHierarchySection({
+          relationships: [selectedRecordHierarchyRelationship({ itemView: "taskItem" })],
+        }),
+        message:
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 itemView "taskItem" must use entity "note".',
+      },
+      {
+        hierarchy: selectedRecordRelationshipHierarchySection({
+          relationships: [selectedRecordHierarchyRelationship({ itemView: "missing" })],
+        }),
+        message:
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 itemView references unknown item view "missing".',
+      },
+      {
+        hierarchy: selectedRecordRelationshipHierarchySection({
+          operations: [{ operation: "task.missing" }],
+        }),
+        message:
+          'Screen "home" layout section 0 detail section 0 operations binding 0 references unknown operation "task.missing".',
+      },
+      {
+        hierarchy: selectedRecordRelationshipHierarchySection({
+          operations: [{ operation: "note.update" }],
+        }),
+        message:
+          'Screen "home" layout section 0 detail section 0 operations binding 0 operation must use entity "task".',
+      },
+      {
+        hierarchy: selectedRecordRelationshipHierarchySection({
+          operations: [{ operation: "task.create" }],
+        }),
+        message:
+          'Screen "home" layout section 0 detail section 0 operations binding 0 operation must use record scope.',
+      },
+      {
+        hierarchy: selectedRecordRelationshipHierarchySection({
+          operations: [{ operation: "task.hiddenUpdate" }],
+        }),
+        message:
+          'Screen "home" layout section 0 detail section 0 operations binding 0 operation must be visible to browser actors.',
+      },
+      {
+        hierarchy: selectedRecordRelationshipHierarchySection({
+          operations: [{ operation: "task.update", placement: "heading" }],
+        }),
+        message:
+          'Screen "home" layout section 0 detail section 0 operations binding 0 has unsupported key "placement".',
+      },
+    ];
+
+    for (const invalid of invalidHierarchies) {
+      expect(() =>
+        parseAppSchema(
+          selectedRecordDetailSchema(selectedRecordDetail({ sections: [invalid.hierarchy] })),
+        ),
+      ).toThrow(invalid.message);
+    }
+  });
+
+  it("validates relationship-hierarchy child create operations, views, and attachment defaults", () => {
+    const createAction = {
+      operation: "note.create",
+      createView: "noteCreateForHierarchy",
+      label: "Add note",
+    };
+    const invalidBindings: { createAction: unknown; message: string }[] = [
+      {
+        createAction: { ...createAction, operation: "task.create" },
+        message:
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 createAction operation must use relationship target entity "note".',
+      },
+      {
+        createAction: { ...createAction, operation: "note.update" },
+        message:
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 createAction operation must be a collection-scoped create operation.',
+      },
+      {
+        createAction: { ...createAction, operation: "note.missing" },
+        message:
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 createAction references unknown operation "note.missing".',
+      },
+      {
+        createAction: { ...createAction, operation: "note.hiddenCreate" },
+        message:
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 createAction operation must be visible to browser actors.',
+      },
+      {
+        createAction: { ...createAction, createView: "missing" },
+        message:
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 createAction references unknown create view "missing".',
+      },
+      {
+        createAction: { ...createAction, createView: "noteEdit" },
+        message:
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 createAction view "noteEdit" must be a create view.',
+      },
+      {
+        createAction: { ...createAction, createView: "taskCreate" },
+        message:
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 createAction create view "taskCreate" must use relationship target entity "note".',
+      },
+      {
+        createAction: { ...createAction, createView: "noteCreateNoAttachment" },
+        message:
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 createAction create view "noteCreateNoAttachment" must default relationship field "note.task" from one context.',
+      },
+      {
+        createAction: { ...createAction, createView: "noteCreateExtraContext" },
+        message:
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 createAction create view "noteCreateExtraContext" must use only relationship "taskNotes" field "note.task" as a context default.',
+      },
+      {
+        createAction: { ...createAction, placement: "heading" },
+        message:
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 createAction has unsupported key "placement".',
+      },
+    ];
+
+    for (const invalid of invalidBindings) {
+      expect(() =>
+        parseAppSchema(
+          selectedRecordDetailSchema(
+            selectedRecordDetail({
+              sections: [
+                selectedRecordRelationshipHierarchySection({
+                  relationships: [
+                    selectedRecordHierarchyRelationship({
+                      createAction: invalid.createAction,
+                      relationships: undefined,
+                    }),
+                  ],
+                }),
+              ],
+            }),
+          ),
+        ),
+      ).toThrow(invalid.message);
+    }
+  });
+
   it("rejects invalid query-count badge targets", () => {
     const source = taskSchema();
     const navigation = (screen: string, section: string) => ({
@@ -1324,6 +1533,48 @@ function selectedRecordRelationshipSection(overrides: Record<string, unknown> = 
   };
 }
 
+function selectedRecordRelationshipHierarchySection(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "hierarchy",
+    type: "relationshipHierarchy",
+    label: "Task hierarchy",
+    itemView: "taskItem",
+    operations: [{ operation: "task.update", label: "Edit task" }],
+    relationships: [selectedRecordHierarchyRelationship()],
+    ...overrides,
+  };
+}
+
+function selectedRecordHierarchyRelationship(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "notes",
+    label: "Notes",
+    relationship: "taskNotes",
+    itemView: "noteItem",
+    operations: [{ operation: "note.update", label: "Edit note" }],
+    createAction: {
+      operation: "note.create",
+      createView: "noteCreateForHierarchy",
+      label: "Add note",
+    },
+    relationships: [
+      {
+        id: "comments",
+        label: "Comments",
+        relationship: "noteComments",
+        itemView: "commentItem",
+        operations: [{ operation: "comment.update", label: "Edit comment" }],
+        createAction: {
+          operation: "comment.create",
+          createView: "commentCreateForHierarchy",
+          label: "Add comment",
+        },
+      },
+    ],
+    ...overrides,
+  };
+}
+
 function selectedRecordDetailSchema(
   detail: unknown = selectedRecordDetail(),
   options: { taskResult?: unknown } = {},
@@ -1346,6 +1597,13 @@ function selectedRecordDetailSchema(
             label: "Task",
             to: "task",
           },
+          {
+            key: "parentTask",
+            type: "reference",
+            required: false,
+            label: "Parent task",
+            to: "task",
+          },
         ],
         operations: [
           {
@@ -1362,6 +1620,14 @@ function selectedRecordDetailSchema(
             scope: "record",
             effect: { type: "patchRecord" },
           },
+          {
+            key: "hiddenCreate",
+            label: "Hidden create note",
+            kind: "create",
+            scope: "collection",
+            effect: { type: "createRecord" },
+            policy: { actors: ["owner"], visible: false },
+          },
         ],
       },
       {
@@ -1376,6 +1642,22 @@ function selectedRecordDetailSchema(
             required: true,
             label: "Note",
             to: "note",
+          },
+        ],
+        operations: [
+          {
+            key: "create",
+            label: "Create comment",
+            kind: "create",
+            scope: "collection",
+            effect: { type: "createRecord" },
+          },
+          {
+            key: "update",
+            label: "Update comment",
+            kind: "update",
+            scope: "record",
+            effect: { type: "patchRecord" },
           },
         ],
       },
@@ -1427,6 +1709,16 @@ function selectedRecordDetailSchema(
         entity: "note",
         fields: [{ field: "title", editor: "text", commit: "field-commit" }],
       },
+      {
+        key: "commentItem",
+        entity: "comment",
+        fields: [{ field: "body", editor: "text", commit: "field-commit" }],
+      },
+      {
+        key: "taskSummary",
+        entity: "task",
+        presentation: { type: "summary", slots: { title: { field: "title" } } },
+      },
     ],
     tableViews: [
       {
@@ -1462,6 +1754,30 @@ function selectedRecordDetailSchema(
         entity: "note",
         fields: [{ field: "title", editor: "text" }],
         defaults: { task: { kind: "context", name: "otherTask" } },
+      },
+      {
+        key: "noteCreateForHierarchy",
+        type: "create",
+        entity: "note",
+        fields: [{ field: "title", editor: "text" }],
+        defaults: { task: { kind: "context", name: "parentTask" } },
+      },
+      {
+        key: "commentCreateForHierarchy",
+        type: "create",
+        entity: "comment",
+        fields: [{ field: "body", editor: "text" }],
+        defaults: { note: { kind: "context", name: "parentNote" } },
+      },
+      {
+        key: "noteCreateExtraContext",
+        type: "create",
+        entity: "note",
+        fields: [{ field: "title", editor: "text" }],
+        defaults: {
+          task: { kind: "context", name: "parentTask" },
+          parentTask: { kind: "context", name: "otherTask" },
+        },
       },
       {
         key: "noteCreateNoAttachment",

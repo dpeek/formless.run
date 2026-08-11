@@ -1,9 +1,12 @@
-import { parseEntityOperationKey } from "@dpeek/formless-schema";
+import { isFieldItemViewSchema, parseEntityOperationKey } from "@dpeek/formless-schema";
 import type {
   AppSchema,
   EntitySchema,
+  FieldItemViewSchema,
   QueryExpression,
   SelectedRecordDetailSchema,
+  SelectedRecordRelationshipHierarchyOperationBindingSchema,
+  SelectedRecordRelationshipHierarchyRelationshipSchema,
   ToManyRelationshipSchema,
 } from "@dpeek/formless-schema";
 import { selectRecordResultModel, type RecordResultModel } from "./list-result-model.ts";
@@ -44,9 +47,49 @@ export type HomeSelectedRecordDetailRelationshipSectionConfig = {
   operations: HomeSelectedRecordDetailOperationConfig[];
 };
 
+export type HomeSelectedRecordRelationshipHierarchyOperationConfig = {
+  bindingName: string;
+  label: string;
+  operation: EntityOperationPresentationConfig;
+};
+
+export type HomeSelectedRecordRelationshipHierarchyCreateActionConfig = Extract<
+  HomeOperationConfig,
+  { type: "create" }
+> & {
+  contextName: string;
+};
+
+export type HomeSelectedRecordRelationshipHierarchyNodeConfig = {
+  entityName: string;
+  entity: EntitySchema;
+  itemViewName: string;
+  itemView: FieldItemViewSchema;
+  result: RecordResultModel;
+  operations: HomeSelectedRecordRelationshipHierarchyOperationConfig[];
+  relationships: HomeSelectedRecordRelationshipHierarchyRelationshipConfig[];
+};
+
+export type HomeSelectedRecordRelationshipHierarchyRelationshipConfig =
+  HomeSelectedRecordRelationshipHierarchyNodeConfig & {
+    id: string;
+    label?: string;
+    relationshipName: string;
+    relationship: ToManyRelationshipSchema;
+    createAction?: HomeSelectedRecordRelationshipHierarchyCreateActionConfig;
+  };
+
+export type HomeSelectedRecordDetailRelationshipHierarchySectionConfig =
+  HomeSelectedRecordRelationshipHierarchyNodeConfig & {
+    id: string;
+    type: "relationshipHierarchy";
+    label?: string;
+  };
+
 export type HomeSelectedRecordDetailSectionConfig =
   | HomeSelectedRecordDetailRecordSectionConfig
-  | HomeSelectedRecordDetailRelationshipSectionConfig;
+  | HomeSelectedRecordDetailRelationshipSectionConfig
+  | HomeSelectedRecordDetailRelationshipHierarchySectionConfig;
 
 export type HomeSelectedRecordDetailConfig = {
   type: "selectedRecord";
@@ -79,6 +122,15 @@ export function selectHomeSelectedRecordDetail(
             entityName,
             entity,
           ),
+        };
+      }
+
+      if (section.type === "relationshipHierarchy") {
+        return {
+          id: section.id,
+          type: section.type,
+          ...(section.label === undefined ? {} : { label: section.label }),
+          ...selectHomeSelectedRecordRelationshipHierarchyNode(schema, section, entityName, entity),
         };
       }
 
@@ -149,6 +201,162 @@ export function selectHomeSelectedRecordDetail(
         ),
       };
     }),
+  };
+}
+
+function selectHomeSelectedRecordRelationshipHierarchyNode(
+  schema: AppSchema,
+  node: {
+    itemView: string;
+    operations?: SelectedRecordRelationshipHierarchyOperationBindingSchema[];
+    relationships?: SelectedRecordRelationshipHierarchyRelationshipSchema[];
+  },
+  entityName: string,
+  entity: EntitySchema,
+): HomeSelectedRecordRelationshipHierarchyNodeConfig {
+  const itemView = schema.itemViews.find((definition) => definition.key === node.itemView);
+  if (!itemView) {
+    throw new Error(`Missing selected-record hierarchy item view "${node.itemView}".`);
+  }
+  if (!isFieldItemViewSchema(itemView)) {
+    throw new Error(`Selected-record hierarchy item view "${node.itemView}" must use fields.`);
+  }
+  if (itemView.entity !== entityName) {
+    throw new Error(
+      `Selected-record hierarchy item view "${node.itemView}" must use entity "${entityName}".`,
+    );
+  }
+
+  return {
+    entityName,
+    entity,
+    itemViewName: node.itemView,
+    itemView,
+    result: selectRecordResultModel(
+      schema,
+      { type: "record", itemView: node.itemView },
+      entityName,
+      entity,
+    ),
+    operations: (node.operations ?? []).map((binding) =>
+      selectHomeSelectedRecordRelationshipHierarchyOperation(schema, binding, entityName),
+    ),
+    relationships: (node.relationships ?? []).map((relationship) =>
+      selectHomeSelectedRecordRelationshipHierarchyRelationship(schema, relationship, entityName),
+    ),
+  };
+}
+
+function selectHomeSelectedRecordRelationshipHierarchyRelationship(
+  schema: AppSchema,
+  declaration: SelectedRecordRelationshipHierarchyRelationshipSchema,
+  sourceEntityName: string,
+): HomeSelectedRecordRelationshipHierarchyRelationshipConfig {
+  const relationship = schema.relationships?.find(
+    (definition) => definition.key === declaration.relationship,
+  );
+  if (relationship?.kind !== "toMany") {
+    throw new Error(
+      `Missing selected-record hierarchy relationship "${declaration.relationship}".`,
+    );
+  }
+  if (relationship.from.entity !== sourceEntityName) {
+    throw new Error(
+      `Selected-record hierarchy relationship "${declaration.relationship}" must start from entity "${sourceEntityName}".`,
+    );
+  }
+
+  const targetEntity = schema.entities.find(
+    (definition) => definition.key === relationship.to.entity,
+  );
+  if (!targetEntity) {
+    throw new Error(`Missing selected-record hierarchy entity "${relationship.to.entity}".`);
+  }
+  const node = selectHomeSelectedRecordRelationshipHierarchyNode(
+    schema,
+    declaration,
+    relationship.to.entity,
+    targetEntity,
+  );
+  const createAction =
+    declaration.createAction === undefined
+      ? undefined
+      : selectHomeSelectedRecordRelationshipHierarchyCreateAction(
+          schema,
+          declaration.createAction,
+          relationship,
+        );
+
+  return {
+    id: declaration.id,
+    ...(declaration.label === undefined ? {} : { label: declaration.label }),
+    relationshipName: declaration.relationship,
+    relationship,
+    ...(createAction === undefined ? {} : { createAction }),
+    ...node,
+  };
+}
+
+function selectHomeSelectedRecordRelationshipHierarchyOperation(
+  schema: AppSchema,
+  binding: SelectedRecordRelationshipHierarchyOperationBindingSchema,
+  entityName: string,
+): HomeSelectedRecordRelationshipHierarchyOperationConfig {
+  const { entityKey, operationKey } = parseEntityOperationKey(
+    "Selected-record relationship-hierarchy operation binding",
+    binding.operation,
+  );
+  const entity = schema.entities.find((definition) => definition.key === entityKey);
+  const operation =
+    entityKey === entityName && entity !== undefined
+      ? selectAvailableEntityOperations(entityKey, entity, "record").find(
+          (candidate) => candidate.operationName === operationKey,
+        )
+      : undefined;
+  if (!operation) {
+    throw new Error(
+      `Missing selected-record relationship-hierarchy operation binding "${binding.operation}".`,
+    );
+  }
+
+  return {
+    bindingName: operation.canonicalKey,
+    label: binding.label ?? operation.label,
+    operation,
+  };
+}
+
+function selectHomeSelectedRecordRelationshipHierarchyCreateAction(
+  schema: AppSchema,
+  binding: NonNullable<SelectedRecordRelationshipHierarchyRelationshipSchema["createAction"]>,
+  relationship: ToManyRelationshipSchema,
+): HomeSelectedRecordRelationshipHierarchyCreateActionConfig {
+  const createAction = selectHomeCreateOperation(
+    schema,
+    binding.createView,
+    binding.operation,
+    binding.label,
+  );
+  if (createAction.entityName !== relationship.to.entity) {
+    throw new Error(
+      `Selected-record relationship-hierarchy create action must use entity "${relationship.to.entity}".`,
+    );
+  }
+  const contextDefaults = createAction.defaults.filter(
+    (defaultConfig) => defaultConfig.value.kind === "context",
+  );
+  const attachmentDefault = contextDefaults.find(
+    (defaultConfig) => defaultConfig.fieldName === relationship.to.field,
+  );
+  if (attachmentDefault?.value.kind !== "context" || contextDefaults.length !== 1) {
+    throw new Error(
+      `Selected-record relationship-hierarchy create view "${binding.createView}" must default relationship field "${relationship.to.entity}.${relationship.to.field}" from one context.`,
+    );
+  }
+
+  return {
+    ...createAction,
+    contextName: attachmentDefault.value.name,
   };
 }
 

@@ -31,6 +31,7 @@ import type { RecordResultModel } from "../../client/list-result-model.ts";
 import type {
   HomeQueryTabConfig,
   HomeSelectedRecordDetailRecordSectionConfig,
+  HomeSelectedRecordDetailRelationshipHierarchySectionConfig,
   HomeSelectedRecordDetailRelationshipSectionConfig,
   HomeScreenCollectionSectionModel,
   HomeScreenModel,
@@ -51,6 +52,7 @@ import {
   type GeneratedWorkspaceContextProjectionFacts,
   type GeneratedWorkspaceIdentityScope,
   type GeneratedWorkspaceSelectedRecordProjectionFacts,
+  type GeneratedWorkspaceSelectedRecordSectionProjectionFacts,
   type GeneratedWorkspaceSectionProjectionFacts,
 } from "./workspace-projection.ts";
 import {
@@ -97,6 +99,18 @@ import type {
   GeneratedTreeChildCreateRuntime,
   GeneratedTreeChildVariantRuntime,
 } from "./generated-tree-create-foundation.ts";
+import {
+  resolveGeneratedRelationshipHierarchyCreateFieldIntent,
+  resolveGeneratedRelationshipHierarchyCreateIntent,
+  resolveGeneratedRelationshipHierarchyOperationIntent,
+  resolveGeneratedRelationshipHierarchyRecordFieldIntent,
+  selectGeneratedRelationshipHierarchyFoundation,
+  type GeneratedRelationshipHierarchyFoundation,
+  type GeneratedRelationshipHierarchyFoundationInput,
+  type GeneratedRelationshipHierarchyCreateRuntime,
+  type GeneratedRelationshipHierarchyNodeRuntime,
+  type GeneratedRelationshipHierarchyOperationRuntime,
+} from "./generated-relationship-hierarchy-foundation.ts";
 
 export type GeneratedWorkspaceSectionSelection = {
   selectedContextRecordId?: string | null;
@@ -211,6 +225,9 @@ export type GeneratedWorkspaceSectionFoundationInput = {
   selectedRecordDetailRelationships?: Readonly<
     Record<string, GeneratedWorkspaceSelectedRecordDetailRelationshipFoundation | undefined>
   >;
+  selectedRecordDetailRelationshipHierarchies?: Readonly<
+    Record<string, GeneratedRelationshipHierarchyFoundationInput | undefined>
+  >;
   table?: GeneratedWorkspaceTableFoundation;
   tree?: GeneratedWorkspaceTreeFoundationOptions;
 };
@@ -307,6 +324,7 @@ export type GeneratedWorkspaceSectionRuntimePlan = {
   scopeSelection?: GeneratedSingletonScopeSelectionFacts;
   section: HomeScreenCollectionSectionModel;
   selectedRecordDetailRecordResults: readonly GeneratedWorkspaceSelectedRecordDetailRecordRuntime[];
+  selectedRecordDetailRelationshipHierarchies: readonly GeneratedWorkspaceSelectedRecordDetailRelationshipHierarchyRuntime[];
   selectedRecordDetailRelationshipResults: readonly GeneratedWorkspaceSelectedRecordDetailRelationshipRuntime[];
   selectedContextRecordId: string | null;
   selectedQuery: HomeQueryTabConfig;
@@ -337,6 +355,13 @@ export type GeneratedWorkspaceSelectedRecordDetailRelationshipRuntime = {
   selectedRecordId: string;
 };
 
+export type GeneratedWorkspaceSelectedRecordDetailRelationshipHierarchyRuntime = {
+  foundation: GeneratedRelationshipHierarchyFoundation;
+  id: string;
+  label?: string;
+  section: HomeSelectedRecordDetailRelationshipHierarchySectionConfig;
+};
+
 export type GeneratedWorkspaceRuntimePlan = {
   screen: HomeScreenModel;
   screenId: string;
@@ -365,6 +390,33 @@ export type GeneratedWorkspaceResolvedIntent =
       kind: "field";
       result?: GeneratedWorkspaceNestedResultRuntime;
       runtime?: GeneratedWorkspaceControlRuntime;
+      section: GeneratedWorkspaceSectionRuntimePlan;
+    }
+  | {
+      create: GeneratedRelationshipHierarchyCreateRuntime;
+      hierarchy: GeneratedWorkspaceSelectedRecordDetailRelationshipHierarchyRuntime;
+      kind: "relationshipHierarchyCreate";
+      section: GeneratedWorkspaceSectionRuntimePlan;
+    }
+  | {
+      create: GeneratedRelationshipHierarchyCreateRuntime;
+      field: FieldContract;
+      hierarchy: GeneratedWorkspaceSelectedRecordDetailRelationshipHierarchyRuntime;
+      kind: "relationshipHierarchyCreateField";
+      section: GeneratedWorkspaceSectionRuntimePlan;
+    }
+  | {
+      field: FieldContract;
+      hierarchy: GeneratedWorkspaceSelectedRecordDetailRelationshipHierarchyRuntime;
+      kind: "relationshipHierarchyField";
+      node: GeneratedRelationshipHierarchyNodeRuntime;
+      section: GeneratedWorkspaceSectionRuntimePlan;
+    }
+  | {
+      hierarchy: GeneratedWorkspaceSelectedRecordDetailRelationshipHierarchyRuntime;
+      kind: "relationshipHierarchyOperation";
+      node: GeneratedRelationshipHierarchyNodeRuntime;
+      operation: GeneratedRelationshipHierarchyOperationRuntime;
       section: GeneratedWorkspaceSectionRuntimePlan;
     }
   | {
@@ -542,9 +594,12 @@ export function selectGeneratedWorkspaceFoundation(
     const contextResult = selectGeneratedWorkspaceContextResult(facts, sectionFoundation);
     const selectedRecordDetailRecordResults =
       selectGeneratedWorkspaceSelectedRecordDetailRecordResults(facts, sectionFoundation);
+    const selectedRecordDetailRelationshipHierarchies =
+      selectGeneratedWorkspaceSelectedRecordDetailRelationshipHierarchies(facts, sectionFoundation);
     const selectedRecordDetailRelationshipResults =
       selectGeneratedWorkspaceSelectedRecordDetailRelationshipResults(facts, sectionFoundation);
     const selectedRecord = projectGeneratedWorkspaceSelectedRecordFacts({
+      hierarchyResults: selectedRecordDetailRelationshipHierarchies,
       recordResults: selectedRecordDetailRecordResults,
       relationshipResults: selectedRecordDetailRelationshipResults,
       section,
@@ -593,6 +648,7 @@ export function selectGeneratedWorkspaceFoundation(
       ...(scopeSelection === undefined ? {} : { scopeSelection }),
       section,
       selectedRecordDetailRecordResults,
+      selectedRecordDetailRelationshipHierarchies,
       selectedRecordDetailRelationshipResults,
       selectedContextRecordId,
       selectedQuery,
@@ -828,6 +884,70 @@ export function resolveGeneratedWorkspaceIntent(
     return undefined;
   }
 
+  if (intent.type === "workspaceRelationshipHierarchy") {
+    const hierarchy = section.selectedRecordDetailRelationshipHierarchies.find(
+      ({ foundation }) => foundation.hierarchy.id === intent.hierarchyId,
+    );
+    if (hierarchy === undefined) {
+      return undefined;
+    }
+    if (intent.intent.type === "relationshipHierarchyRecordResult") {
+      const resolved = resolveGeneratedRelationshipHierarchyRecordFieldIntent(
+        hierarchy.foundation.runtimePlan,
+        intent.intent,
+      );
+      return resolved === undefined
+        ? undefined
+        : {
+            field: resolved.field.field,
+            hierarchy,
+            kind: "relationshipHierarchyField",
+            node: resolved.node,
+            section,
+          };
+    }
+    if (intent.intent.type === "relationshipHierarchyCreate") {
+      const create = resolveGeneratedRelationshipHierarchyCreateIntent(
+        hierarchy.foundation.runtimePlan,
+        intent.intent,
+      );
+      return create === undefined
+        ? undefined
+        : { create, hierarchy, kind: "relationshipHierarchyCreate", section };
+    }
+    if (intent.intent.type === "relationshipHierarchyCreateField") {
+      const resolved = resolveGeneratedRelationshipHierarchyCreateFieldIntent(
+        hierarchy.foundation.runtimePlan,
+        intent.intent,
+      );
+      return resolved === undefined
+        ? undefined
+        : {
+            create: resolved.create,
+            field: resolved.field,
+            hierarchy,
+            kind: "relationshipHierarchyCreateField",
+            section,
+          };
+    }
+    if (intent.intent.type === "relationshipHierarchyOperation") {
+      const resolved = resolveGeneratedRelationshipHierarchyOperationIntent(
+        hierarchy.foundation.runtimePlan,
+        intent.intent,
+      );
+      return resolved === undefined
+        ? undefined
+        : {
+            hierarchy,
+            kind: "relationshipHierarchyOperation",
+            node: resolved.node,
+            operation: resolved.operation,
+            section,
+          };
+    }
+    return undefined;
+  }
+
   const result = selectGeneratedWorkspaceIntentResult(
     section,
     intent.resultId,
@@ -1003,7 +1123,7 @@ function selectGeneratedWorkspaceSelectedRecordDetailRelationshipFacts({
   };
 
   return detail.sections.flatMap((detailSection) =>
-    detailSection.type === "record"
+    detailSection.type !== "relationship"
       ? []
       : [
           {
@@ -1375,13 +1495,49 @@ function selectGeneratedWorkspaceSelectedRecordDetailRelationshipResults(
   });
 }
 
+function selectGeneratedWorkspaceSelectedRecordDetailRelationshipHierarchies(
+  facts: GeneratedWorkspaceSectionSelectionFacts,
+  input: GeneratedWorkspaceSectionFoundationInput,
+): GeneratedWorkspaceSelectedRecordDetailRelationshipHierarchyRuntime[] {
+  const detail = facts.section.collection.detail;
+  const selectedRecordId = facts.selectedRecordId;
+  if (detail === undefined || selectedRecordId === null) {
+    return [];
+  }
+
+  return detail.sections.flatMap((section) => {
+    if (section.type !== "relationshipHierarchy") {
+      return [];
+    }
+    const foundation = selectGeneratedRelationshipHierarchyFoundation({
+      id: generatedWorkspaceSelectedRecordDetailHierarchyId(facts.scope, section.id),
+      model: section,
+      queryContext: facts.actionQueryContext,
+      selectedRecordId,
+      snapshot: facts.snapshot,
+      ...input.selectedRecordDetailRelationshipHierarchies?.[section.id],
+    });
+
+    return [
+      {
+        foundation,
+        id: section.id,
+        ...(section.label === undefined ? {} : { label: section.label }),
+        section,
+      },
+    ];
+  });
+}
+
 function projectGeneratedWorkspaceSelectedRecordFacts({
+  hierarchyResults,
   recordIds,
   recordResults,
   relationshipResults,
   section,
   selectedRecordId,
 }: {
+  hierarchyResults: readonly GeneratedWorkspaceSelectedRecordDetailRelationshipHierarchyRuntime[];
   recordIds: readonly string[];
   recordResults: readonly GeneratedWorkspaceSelectedRecordDetailRecordRuntime[];
   relationshipResults: readonly GeneratedWorkspaceSelectedRecordDetailRelationshipRuntime[];
@@ -1396,39 +1552,64 @@ function projectGeneratedWorkspaceSelectedRecordFacts({
   const sections =
     selectedRecordId === null
       ? []
-      : detail.sections.map((detailSection) => {
-          if (detailSection.type === "record") {
-            const projected = recordResults.find(({ id }) => id === detailSection.id);
+      : detail.sections.flatMap<GeneratedWorkspaceSelectedRecordSectionProjectionFacts>(
+          (detailSection) => {
+            if (detailSection.type === "record") {
+              const projected = recordResults.find(({ id }) => id === detailSection.id);
+              if (projected === undefined) {
+                throw new Error(
+                  `Missing selected-record detail result for section "${detailSection.id}".`,
+                );
+              }
+              return [
+                {
+                  id: projected.id,
+                  ...(projected.label === undefined ? {} : { label: projected.label }),
+                  result: projected.result.contract,
+                  type: "record" as const,
+                },
+              ];
+            }
+            if (detailSection.type === "relationshipHierarchy") {
+              const projected = hierarchyResults.find(({ id }) => id === detailSection.id);
+              if (projected === undefined) {
+                throw new Error(
+                  `Missing selected-record detail hierarchy for section "${detailSection.id}".`,
+                );
+              }
+              return [
+                {
+                  hierarchy: projected.foundation.hierarchy,
+                  id: projected.id,
+                  ...(projected.label === undefined ? {} : { label: projected.label }),
+                  type: "relationshipHierarchy" as const,
+                },
+              ];
+            }
+            if (detailSection.type !== "relationship") {
+              return [];
+            }
+
+            const projected = relationshipResults.find(({ id }) => id === detailSection.id);
             if (projected === undefined) {
               throw new Error(
                 `Missing selected-record detail result for section "${detailSection.id}".`,
               );
             }
-            return {
-              id: projected.id,
-              ...(projected.label === undefined ? {} : { label: projected.label }),
-              result: projected.result.contract,
-              type: "record" as const,
-            };
-          }
-
-          const projected = relationshipResults.find(({ id }) => id === detailSection.id);
-          if (projected === undefined) {
-            throw new Error(
-              `Missing selected-record detail result for section "${detailSection.id}".`,
-            );
-          }
-          return {
-            ...(projected.headingCreate === undefined
-              ? {}
-              : { headingCreate: projected.headingCreate.action }),
-            headingOperations: projected.headingOperations.map(({ control }) => control),
-            id: projected.id,
-            ...(projected.label === undefined ? {} : { label: projected.label }),
-            result: projected.result.contract,
-            type: "relationship" as const,
-          };
-        });
+            return [
+              {
+                ...(projected.headingCreate === undefined
+                  ? {}
+                  : { headingCreate: projected.headingCreate.action }),
+                headingOperations: projected.headingOperations.map(({ control }) => control),
+                id: projected.id,
+                ...(projected.label === undefined ? {} : { label: projected.label }),
+                result: projected.result.contract,
+                type: "relationship" as const,
+              },
+            ];
+          },
+        );
 
   return { recordIds, sections, selectedRecordId };
 }
@@ -1438,6 +1619,13 @@ export function generatedWorkspaceSelectedRecordDetailResultId(
   detailSectionId: string,
 ): string {
   return generatedWorkspaceScopedId(scope, "result", `selectedRecord:${detailSectionId}`);
+}
+
+export function generatedWorkspaceSelectedRecordDetailHierarchyId(
+  scope: GeneratedWorkspaceIdentityScope,
+  detailSectionId: string,
+): string {
+  return generatedWorkspaceScopedId(scope, "hierarchy", `selectedRecord:${detailSectionId}`);
 }
 
 export function generatedWorkspaceSelectedRecordDetailHeadingOperationId(

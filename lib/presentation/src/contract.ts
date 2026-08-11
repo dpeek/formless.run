@@ -1897,9 +1897,111 @@ export type WorkspaceSelectedRecordRelationshipSectionContract = {
   result: TableContract;
 };
 
+export type RelationshipHierarchyRecordResultIntent = {
+  hierarchyId: string;
+  intent: RecordResultIntent;
+  occurrenceId: string;
+  recordId: string;
+  resultId: string;
+  type: "relationshipHierarchyRecordResult";
+};
+
+export type RelationshipHierarchyOperationIntent = {
+  controlId: string;
+  hierarchyId: string;
+  intent: OperationPresentationIntent;
+  occurrenceId: string;
+  recordId: string;
+  type: "relationshipHierarchyOperation";
+};
+
+export type RelationshipHierarchyCreateIntent = {
+  hierarchyId: string;
+  intent: CreateIntent;
+  occurrenceId: string;
+  relationshipGroupId: string;
+  surfaceId: string;
+  type: "relationshipHierarchyCreate";
+};
+
+export type RelationshipHierarchyCreateFieldIntent = {
+  fieldId: string;
+  hierarchyId: string;
+  intent: FieldIntent;
+  occurrenceId: string;
+  relationshipGroupId: string;
+  surfaceId: string;
+  type: "relationshipHierarchyCreateField";
+};
+
+export type RelationshipHierarchyIntent =
+  | RelationshipHierarchyCreateFieldIntent
+  | RelationshipHierarchyCreateIntent
+  | RelationshipHierarchyOperationIntent
+  | RelationshipHierarchyRecordResultIntent;
+
+export type RelationshipHierarchyIntentHandler = (
+  intent: RelationshipHierarchyIntent,
+) => Promise<void> | void;
+
+export type RelationshipHierarchyOperationActionContract = {
+  control: OperationControlContract;
+  kind: "operationAction";
+};
+
+export type RelationshipHierarchyCreateActionContract = {
+  kind: "createAction";
+  relationshipGroupId: string;
+  surface: CreateSurfaceContract;
+};
+
+export type RelationshipHierarchyActionContract =
+  | RelationshipHierarchyCreateActionContract
+  | RelationshipHierarchyOperationActionContract;
+
+export type RelationshipHierarchyActionGroupContract = {
+  accessibilityLabel: string;
+  id: string;
+  items: readonly RelationshipHierarchyActionContract[];
+  kind: "relationshipHierarchyActions";
+};
+
+export type RelationshipHierarchyRelationshipGroupContract = {
+  id: string;
+  kind: "relationshipHierarchyRelationshipGroup";
+  label?: string;
+  nodes: readonly RelationshipHierarchyNodeContract[];
+};
+
+export type RelationshipHierarchyNodeContract = {
+  accessibilityLabel: string;
+  editor: RecordResultContract;
+  entityTypeLabel: string;
+  headerActions: RelationshipHierarchyActionGroupContract;
+  id: string;
+  kind: "relationshipHierarchyNode";
+  recordId: string;
+  relationshipGroups: readonly RelationshipHierarchyRelationshipGroupContract[];
+};
+
+export type RelationshipHierarchyContract = {
+  accessibilityLabel: string;
+  id: string;
+  kind: "relationshipHierarchy";
+  root: RelationshipHierarchyNodeContract;
+};
+
+export type WorkspaceSelectedRecordRelationshipHierarchySectionContract = {
+  hierarchy: RelationshipHierarchyContract;
+  id: string;
+  kind: "selectedRecordRelationshipHierarchySection";
+  label?: string;
+};
+
 export type WorkspaceSelectedRecordSectionContract =
   | WorkspaceSelectedRecordRecordSectionContract
-  | WorkspaceSelectedRecordRelationshipSectionContract;
+  | WorkspaceSelectedRecordRelationshipSectionContract
+  | WorkspaceSelectedRecordRelationshipHierarchySectionContract;
 
 export type WorkspaceSelectedRecordContract = {
   accessibilityLabel: string;
@@ -3184,6 +3286,14 @@ export type RecordResultReference<Role extends ResultReferenceRole = ResultRefer
   workspaceId: string;
 };
 
+export type RelationshipHierarchyReference = {
+  hierarchyId: string;
+  kind: "relationshipHierarchyReference";
+  role: "selectedDetail";
+  sectionId: string;
+  workspaceId: string;
+};
+
 export type MainResultReference =
   | ListResultReference
   | RecordResultReference<"mainResult">
@@ -3195,6 +3305,10 @@ export type ContextResultReference = RecordResultReference<"contextResult">;
 export type SelectedDetailResultReference =
   | RecordResultReference<"selectedDetailResult">
   | TableResultReference<"selectedDetailResult">;
+
+export type SelectedDetailReference =
+  | RelationshipHierarchyReference
+  | SelectedDetailResultReference;
 
 export type ResultReference =
   | ContextResultReference
@@ -3237,9 +3351,17 @@ export type WorkspaceSelectedRecordRelationshipSectionShellContract = Omit<
   result: TableResultReference<"selectedDetailResult">;
 };
 
+export type WorkspaceSelectedRecordRelationshipHierarchySectionShellContract = Omit<
+  WorkspaceSelectedRecordRelationshipHierarchySectionContract,
+  "hierarchy"
+> & {
+  hierarchy: RelationshipHierarchyReference;
+};
+
 export type WorkspaceSelectedRecordSectionShellContract =
   | WorkspaceSelectedRecordRecordSectionShellContract
-  | WorkspaceSelectedRecordRelationshipSectionShellContract;
+  | WorkspaceSelectedRecordRelationshipSectionShellContract
+  | WorkspaceSelectedRecordRelationshipHierarchySectionShellContract;
 
 export type WorkspaceSelectedRecordShellContract = Omit<
   WorkspaceSelectedRecordContract,
@@ -3275,6 +3397,7 @@ export type PresentationReference =
   | ListResultReference
   | ManagementManifestReference
   | RecordResultReference
+  | RelationshipHierarchyReference
   | ShellManifestReference
   | ShellNavigationSectionReference
   | TableResultReference
@@ -3374,6 +3497,12 @@ export type WorkspaceRecordResultIntent = WorkspaceIntentScope & {
   type: "workspaceRecordResult";
 };
 
+export type WorkspaceRelationshipHierarchyIntent = WorkspaceIntentScope & {
+  hierarchyId: string;
+  intent: RelationshipHierarchyIntent;
+  type: "workspaceRelationshipHierarchy";
+};
+
 export type WorkspaceTreeIntent = WorkspaceIntentScope & {
   intent: TreeIntent;
   resultId: string;
@@ -3389,6 +3518,7 @@ export type WorkspaceIntent =
   | WorkspaceOperationIntent
   | WorkspaceQuerySelectionIntent
   | WorkspaceRecordResultIntent
+  | WorkspaceRelationshipHierarchyIntent
   | WorkspaceSelectedRecordBackIntent
   | WorkspaceSelectedRecordSelectionIntent
   | WorkspaceTableIntent

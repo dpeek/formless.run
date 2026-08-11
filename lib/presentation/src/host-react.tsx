@@ -20,6 +20,7 @@ import type {
   DocumentThemeReference,
   ManagementIntentHandler,
   ManagementManifestReference,
+  RelationshipHierarchyReference,
   ResultReference,
   ShellIntentHandler,
   ShellManifestReference,
@@ -155,6 +156,10 @@ export function useWorkspaceSectionShell(reference: WorkspaceSectionShellReferen
 }
 
 export function useResult<Reference extends ResultReference>(reference: Reference) {
+  return usePresentationSnapshot(reference);
+}
+
+export function useRelationshipHierarchy(reference: RelationshipHierarchyReference) {
   return usePresentationSnapshot(reference);
 }
 

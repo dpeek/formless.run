@@ -69,6 +69,10 @@ import {
   selectGeneratedRecordResultRuntimeForIntent,
   selectGeneratedRecordResultTransitionRuntimeForFieldIntent,
 } from "./generated-record-result-foundation.ts";
+import type {
+  GeneratedRelationshipHierarchyCreateRuntime,
+  GeneratedRelationshipHierarchyRecordResultRuntime,
+} from "./generated-relationship-hierarchy-foundation.ts";
 import {
   executeGeneratedTableRuntimeOperation,
   rebaseGeneratedTableFieldContextState,
@@ -133,6 +137,7 @@ import {
 } from "./generated-write-failure.ts";
 
 const GENERATED_TREE_CREATE_FAILURE_MESSAGE = "Create failed. Try again.";
+const GENERATED_RELATIONSHIP_HIERARCHY_CREATE_FAILURE_MESSAGE = "Create failed. Try again.";
 
 export type GeneratedWorkspaceSectionExternalAction = {
   action: ActionTriggerContract;
@@ -277,6 +282,10 @@ export function useGeneratedWorkspaceRuntimeController({
   const [treeCreateErrorBySurfaceId, setTreeCreateErrorBySurfaceId] = useState<
     Record<string, string | undefined>
   >({});
+  const [
+    relationshipHierarchyCreateErrorBySurfaceId,
+    setRelationshipHierarchyCreateErrorBySurfaceId,
+  ] = useState<Record<string, string | undefined>>({});
   const [createFieldStateBySurfaceId, setCreateFieldStateBySurfaceId] = useState<
     Record<string, GeneratedTreeCreateFieldProjectionState | undefined>
   >({});
@@ -295,6 +304,7 @@ export function useGeneratedWorkspaceRuntimeController({
     createStateBySurfaceId,
     listStateByResultId,
     recordStateByResultId,
+    relationshipHierarchyCreateErrorBySurfaceId,
     schema,
     screen,
     sectionExternalActions,
@@ -321,6 +331,7 @@ export function useGeneratedWorkspaceRuntimeController({
     createStateBySurfaceId,
     listStateByResultId,
     recordStateByResultId,
+    relationshipHierarchyCreateErrorBySurfaceId,
     schema,
     screen,
     sectionExternalActions,
@@ -497,6 +508,126 @@ export function useGeneratedWorkspaceRuntimeController({
       return;
     }
 
+    if (resolved.kind === "relationshipHierarchyCreate") {
+      if (
+        intent.type !== "workspaceRelationshipHierarchy" ||
+        intent.intent.type !== "relationshipHierarchyCreate"
+      ) {
+        return;
+      }
+      await handleRelationshipHierarchyCreateIntent(resolved.create, intent.intent.intent);
+      return;
+    }
+
+    if (resolved.kind === "relationshipHierarchyCreateField") {
+      if (
+        intent.type !== "workspaceRelationshipHierarchy" ||
+        intent.intent.type !== "relationshipHierarchyCreateField"
+      ) {
+        return;
+      }
+      if (intent.intent.intent.type === "mediaFileSelect") {
+        await handleCreateMediaFileSelect(
+          resolved.create,
+          resolved.field.fieldName,
+          intent.intent.intent.file,
+        );
+        return;
+      }
+      if (intent.intent.intent.type !== "createDraftChange") {
+        return;
+      }
+      const current =
+        createStateBySurfaceId[resolved.create.surfaceId] ??
+        initialCreateState(resolved.create.operation);
+      const next = adaptGeneratedCreateDraftChange(intent.intent.intent, { state: current }).state;
+      setCreateStateBySurfaceId((states) => ({
+        ...states,
+        [resolved.create.surfaceId]: next,
+      }));
+      setRelationshipHierarchyCreateErrorBySurfaceId((errors) => ({
+        ...errors,
+        [resolved.create.surfaceId]: undefined,
+      }));
+      setCreateFieldStateBySurfaceId((states) => ({
+        ...states,
+        [resolved.create.surfaceId]: clearGeneratedCreateFieldError(
+          states[resolved.create.surfaceId],
+          resolved.field.fieldName,
+        ),
+      }));
+      return;
+    }
+
+    if (resolved.kind === "relationshipHierarchyField") {
+      if (
+        intent.type !== "workspaceRelationshipHierarchy" ||
+        intent.intent.type !== "relationshipHierarchyRecordResult" ||
+        intent.intent.intent.type !== "recordResultFieldIntent"
+      ) {
+        return;
+      }
+      const fieldIntent = intent.intent.intent.intent;
+      if (fieldIntent.type === "stateTransitionInvoke") {
+        const transitionRuntime = selectGeneratedRecordResultTransitionRuntimeForFieldIntent(
+          resolved.node.editor.foundation.runtimePlan,
+          fieldIntent,
+        );
+        if (
+          transitionRuntime !== undefined &&
+          !controller.isPending(transitionRuntime.binding.id) &&
+          transitionRuntime.binding.availability.state === "enabled"
+        ) {
+          await executeTransitionStateOperation({
+            binding: transitionRuntime.binding,
+            controller,
+            operation: transitionRuntime.operation,
+            recordId: transitionRuntime.recordId,
+            source: fieldIntent.source,
+          });
+        }
+        return;
+      }
+      await handleRecordResultFieldIntent(
+        resolved.node.editor,
+        intent.intent.resultId,
+        fieldIntent,
+      );
+      return;
+    }
+
+    if (resolved.kind === "relationshipHierarchyOperation") {
+      if (
+        intent.type !== "workspaceRelationshipHierarchy" ||
+        intent.intent.type !== "relationshipHierarchyOperation"
+      ) {
+        return;
+      }
+      const runtime = resolved.operation;
+      await handleGeneratedOperationIntent({
+        binding: runtime.binding,
+        confirmationOpen: confirmationOpenByControlId[runtime.binding.id] ?? false,
+        controller,
+        intent: intent.intent.intent,
+        invoke: (invokeIntent) =>
+          executeGeneratedOperationControl({
+            binding: runtime.binding,
+            callerInput: {
+              bindingId: runtime.binding.id,
+              recordId: resolved.node.recordId,
+              source: invokeIntent.invocationSource,
+            },
+            controller,
+          }),
+        onConfirmationOpenChange: (open) =>
+          setConfirmationOpenByControlId((current) => ({
+            ...current,
+            [runtime.binding.id]: open,
+          })),
+      });
+      return;
+    }
+
     if (resolved.kind === "querySelection") {
       onSelectQuery(resolved.section.section, resolved.query.queryName);
       return;
@@ -599,7 +730,7 @@ export function useGeneratedWorkspaceRuntimeController({
       }));
       setCreateFieldStateBySurfaceId((states) => ({
         ...states,
-        [resolved.runtime.surfaceId]: clearGeneratedTreeCreateFieldError(
+        [resolved.runtime.surfaceId]: clearGeneratedCreateFieldError(
           states[resolved.runtime.surfaceId],
           resolved.field.fieldName,
         ),
@@ -830,6 +961,84 @@ export function useGeneratedWorkspaceRuntimeController({
     }
   }
 
+  async function handleRelationshipHierarchyCreateIntent(
+    runtime: GeneratedRelationshipHierarchyCreateRuntime,
+    intent: CreateIntent,
+  ) {
+    if (intent.type === "createOpenChange") {
+      if (intent.open && runtime.surface.trigger.disabled) {
+        return;
+      }
+      setCreateOpenBySurfaceId((current) => ({
+        ...current,
+        [runtime.surfaceId]: intent.open,
+      }));
+      if (!intent.open) {
+        resetRelationshipHierarchyCreate(runtime);
+      }
+      return;
+    }
+
+    if (controller.isPending(runtime.binding.id)) {
+      return;
+    }
+
+    const current =
+      createStateBySurfaceId[runtime.surfaceId] ?? initialCreateState(runtime.operation);
+    const submitted = markGeneratedCreateDraftSessionSubmitted(current);
+    const session = selectGeneratedCreateDraftSession({
+      defaults: runtime.operation.defaults,
+      enabled: runtime.operation.enabled,
+      fields: runtime.operation.fields,
+      queryContext: runtime.queryContext,
+      state: submitted,
+      union: runtime.operation.union,
+    });
+    setCreateStateBySurfaceId((states) => ({ ...states, [runtime.surfaceId]: submitted }));
+    setRelationshipHierarchyCreateErrorBySurfaceId((errors) => ({
+      ...errors,
+      [runtime.surfaceId]: undefined,
+    }));
+    if (!session.canSubmit) {
+      return;
+    }
+
+    const result = await executeCreateSubmitOperation({
+      binding: runtime.binding,
+      controller,
+      entityLabel: runtime.operation.entity.label,
+      values: session.values,
+    });
+    if (result.type === "failed") {
+      setRelationshipHierarchyCreateErrorBySurfaceId((errors) => ({
+        ...errors,
+        [runtime.surfaceId]: GENERATED_RELATIONSHIP_HIERARCHY_CREATE_FAILURE_MESSAGE,
+      }));
+      return;
+    }
+
+    resetRelationshipHierarchyCreate(runtime);
+  }
+
+  function resetRelationshipHierarchyCreate(runtime: GeneratedRelationshipHierarchyCreateRuntime) {
+    setCreateOpenBySurfaceId((current) => ({
+      ...current,
+      [runtime.surfaceId]: false,
+    }));
+    setCreateStateBySurfaceId((current) => ({
+      ...current,
+      [runtime.surfaceId]: initialCreateState(runtime.operation),
+    }));
+    setRelationshipHierarchyCreateErrorBySurfaceId((current) => ({
+      ...current,
+      [runtime.surfaceId]: undefined,
+    }));
+    setCreateFieldStateBySurfaceId((current) => ({
+      ...current,
+      [runtime.surfaceId]: undefined,
+    }));
+  }
+
   async function handleTreeCreateIntent(
     runtime: GeneratedTreeChildCreateRuntime,
     intent: CreateIntent,
@@ -963,11 +1172,10 @@ export function useGeneratedWorkspaceRuntimeController({
 
     setCreateFieldStateBySurfaceId((states) => ({
       ...states,
-      [runtime.surfaceId]: updateGeneratedTreeCreateFieldState(
-        states[runtime.surfaceId],
-        fieldName,
-        { error: undefined, pending: true },
-      ),
+      [runtime.surfaceId]: updateGeneratedCreateFieldState(states[runtime.surfaceId], fieldName, {
+        error: undefined,
+        pending: true,
+      }),
     }));
     setSyncStatus({ code: "media-uploading", state: "syncing" });
 
@@ -995,11 +1203,10 @@ export function useGeneratedWorkspaceRuntimeController({
       const message = generatedMediaUploadFailureMessage(generatedMediaUploadFailure(error));
       setCreateFieldStateBySurfaceId((states) => ({
         ...states,
-        [runtime.surfaceId]: updateGeneratedTreeCreateFieldState(
-          states[runtime.surfaceId],
-          fieldName,
-          { error: message, pending: false },
-        ),
+        [runtime.surfaceId]: updateGeneratedCreateFieldState(states[runtime.surfaceId], fieldName, {
+          error: message,
+          pending: false,
+        }),
       }));
       setSyncStatus({ code: "media-upload-failed", state: "error" });
       return;
@@ -1007,11 +1214,10 @@ export function useGeneratedWorkspaceRuntimeController({
 
     setCreateFieldStateBySurfaceId((states) => ({
       ...states,
-      [runtime.surfaceId]: updateGeneratedTreeCreateFieldState(
-        states[runtime.surfaceId],
-        fieldName,
-        { error: undefined, pending: false },
-      ),
+      [runtime.surfaceId]: updateGeneratedCreateFieldState(states[runtime.surfaceId], fieldName, {
+        error: undefined,
+        pending: false,
+      }),
     }));
   }
 
@@ -1144,10 +1350,12 @@ export function useGeneratedWorkspaceRuntimeController({
   }
 
   async function handleRecordResultFieldIntent(
-    result: Extract<
-      Extract<ReturnType<typeof resolveGeneratedWorkspaceIntent>, { kind: "result" }>["result"],
-      { kind: "recordResult" }
-    >,
+    result:
+      | Extract<
+          Extract<ReturnType<typeof resolveGeneratedWorkspaceIntent>, { kind: "result" }>["result"],
+          { kind: "recordResult" }
+        >
+      | GeneratedRelationshipHierarchyRecordResultRuntime,
     resultId: string,
     fieldIntent: FieldIntent,
   ) {
@@ -2017,6 +2225,7 @@ function selectWorkspaceRuntimeFoundation({
   createStateBySurfaceId,
   listStateByResultId,
   recordStateByResultId,
+  relationshipHierarchyCreateErrorBySurfaceId,
   schema,
   screen,
   sectionExternalActions,
@@ -2044,6 +2253,7 @@ function selectWorkspaceRuntimeFoundation({
     >
   >;
   recordStateByResultId: Readonly<Record<string, GeneratedRecordResultRecordState | undefined>>;
+  relationshipHierarchyCreateErrorBySurfaceId: Readonly<Record<string, string | undefined>>;
   schema: ReturnType<typeof useSchema>;
   screen: HomeScreenModel;
   sectionExternalActions: Readonly<
@@ -2082,6 +2292,7 @@ function selectWorkspaceRuntimeFoundation({
         facts,
         listStateByResultId,
         recordStateByResultId,
+        relationshipHierarchyCreateErrorBySurfaceId,
         schema,
         sectionExternalActions: sectionExternalActions[facts.section.id] ?? [],
         snapshot,
@@ -2126,6 +2337,13 @@ function selectWorkspaceRuntimeFoundation({
     for (const detail of section.selectedRecordDetailRecordResults) {
       bindings.push(...detail.result.foundation.runtimePlan.operations.map((item) => item.binding));
     }
+    for (const hierarchy of section.selectedRecordDetailRelationshipHierarchies) {
+      for (const node of hierarchy.foundation.runtimePlan.nodes) {
+        bindings.push(...node.creates.map((create) => create.binding));
+        bindings.push(...node.editor.foundation.runtimePlan.operations.map((item) => item.binding));
+        bindings.push(...node.operations.map((operation) => operation.binding));
+      }
+    }
   }
 
   return {
@@ -2146,6 +2364,7 @@ function selectWorkspaceSectionRuntimeInput({
   facts,
   listStateByResultId,
   recordStateByResultId,
+  relationshipHierarchyCreateErrorBySurfaceId,
   schema,
   sectionExternalActions,
   snapshot,
@@ -2170,6 +2389,7 @@ function selectWorkspaceSectionRuntimeInput({
     >
   >;
   recordStateByResultId: Readonly<Record<string, GeneratedRecordResultRecordState | undefined>>;
+  relationshipHierarchyCreateErrorBySurfaceId: Readonly<Record<string, string | undefined>>;
   schema: ReturnType<typeof useSchema>;
   sectionExternalActions: readonly GeneratedWorkspaceSectionExternalAction[];
   snapshot: BrowserReplicaProjectionSnapshot;
@@ -2375,6 +2595,62 @@ function selectWorkspaceSectionRuntimeInput({
   };
   const selectedRecordDetail = facts.section.collection.detail;
   if (selectedRecordDetail !== undefined) {
+    input.selectedRecordDetailRelationshipHierarchies = Object.fromEntries(
+      selectedRecordDetail.sections.flatMap((section) =>
+        section.type !== "relationshipHierarchy"
+          ? []
+          : [
+              [
+                section.id,
+                {
+                  createActionOptions: (relationship) => {
+                    const operation = relationship.createAction;
+                    return {
+                      createErrorBySurfaceId: relationshipHierarchyCreateErrorBySurfaceId,
+                      createOpenBySurfaceId,
+                      createStateBySurfaceId,
+                      fieldStateBySurfaceId: createFieldStateBySurfaceId,
+                      mediaAssetOptionsByFieldName:
+                        operation === undefined
+                          ? {}
+                          : selectWorkspaceCreateMediaOptions(
+                              operation,
+                              mediaAssetOptionsByFieldKey,
+                            ),
+                      operationStateByExecutionKey,
+                      referenceOptionsByFieldName:
+                        operation === undefined
+                          ? {}
+                          : selectWorkspaceCreateReferenceOptions(operation, snapshot),
+                      schema,
+                    };
+                  },
+                  recordResultOptions: (node) => {
+                    const fields = collectRecordPresentationFields(
+                      node.result.recordFields,
+                      node.result.recordUnion,
+                    );
+                    return {
+                      confirmationOpenByControlId,
+                      mediaAssetOptionsByFieldName: selectWorkspaceRecordMediaOptions(
+                        fields,
+                        node.entityName,
+                        mediaAssetOptionsByFieldKey,
+                      ),
+                      operationStateByExecutionKey,
+                      referenceOptionsByFieldName: selectWorkspaceRecordReferenceOptions(
+                        fields,
+                        snapshot,
+                      ),
+                      schema,
+                    };
+                  },
+                  recordStateByResultId,
+                },
+              ] as const,
+            ],
+      ),
+    );
     input.selectedRecordDetailRecords = Object.fromEntries(
       selectedRecordDetail.sections.flatMap((section) => {
         if (section.type !== "record") {
@@ -2659,6 +2935,23 @@ function selectWorkspaceCreateMediaOptions(
   );
 }
 
+function selectWorkspaceCreateReferenceOptions(
+  operation: CreateHomeOperationConfig,
+  snapshot: BrowserReplicaProjectionSnapshot,
+) {
+  return Object.fromEntries(
+    collectCreatePresentationFields(operation.fields, operation.union).map((fieldConfig) => {
+      const field = fieldConfig.field;
+      return [
+        fieldConfig.fieldName,
+        field.type === "reference" && shouldUseAppReplicaReferenceOptions(field)
+          ? createReferenceOptionsSelector(field.to, field.displayField)(snapshot)
+          : [],
+      ];
+    }),
+  );
+}
+
 function selectWorkspaceRecordReferenceOptions(
   fields: readonly RecordFieldConfig[],
   snapshot: BrowserReplicaProjectionSnapshot,
@@ -2911,7 +3204,7 @@ function collectWorkspaceBindings(
   }
 }
 
-function updateGeneratedTreeCreateFieldState(
+function updateGeneratedCreateFieldState(
   current: GeneratedTreeCreateFieldProjectionState | undefined,
   fieldName: string,
   update: { error: string | undefined; pending: boolean },
@@ -2928,11 +3221,11 @@ function updateGeneratedTreeCreateFieldState(
   };
 }
 
-function clearGeneratedTreeCreateFieldError(
+function clearGeneratedCreateFieldError(
   current: GeneratedTreeCreateFieldProjectionState | undefined,
   fieldName: string,
 ): GeneratedTreeCreateFieldProjectionState {
-  return updateGeneratedTreeCreateFieldState(current, fieldName, {
+  return updateGeneratedCreateFieldState(current, fieldName, {
     error: undefined,
     pending: current?.pendingByFieldName[fieldName] ?? false,
   });
