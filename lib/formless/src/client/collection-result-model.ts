@@ -39,10 +39,6 @@ export function selectHomeResultModel(
       ...(tableResult.updateOperation === undefined
         ? {}
         : { updateOperation: tableResult.updateOperation }),
-      ...(tableResult.deleteOperation === undefined
-        ? {}
-        : { deleteOperation: tableResult.deleteOperation }),
-      transitionOperations: tableResult.transitionOperations,
       ...(tableResult.ordering === undefined ? {} : { ordering: tableResult.ordering }),
       ...(footer.length === 0 ? {} : { footer }),
     };

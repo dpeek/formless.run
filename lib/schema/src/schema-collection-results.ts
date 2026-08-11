@@ -776,8 +776,8 @@ function parseCollectionTableFooterSlot(
     (candidate) => tableFooterColumnName(candidate) === column,
   );
 
-  if (!tableColumn || tableColumn.display === "hidden") {
-    throw new Error(`${context} references unknown visible table column "${column}".`);
+  if (!tableColumn) {
+    throw new Error(`${context} references unknown table column "${column}".`);
   }
 
   const aggregateName = parseRequiredNonEmptyString(`${context} aggregate`, value.aggregate);

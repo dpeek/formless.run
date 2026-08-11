@@ -789,7 +789,6 @@ function tableResult(id: string): TableContract {
     accessibilityLabel: "Tasks table",
     columns: [],
     density: "default",
-    editing: { enabled: true },
     id,
     kind: "table",
     rows: [],

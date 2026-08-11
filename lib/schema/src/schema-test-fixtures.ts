@@ -15,8 +15,8 @@ export function taskSchema(overrides: Record<string, unknown> = {}) {
         key: "taskItem",
         entity: "task",
         fields: [
-          { field: "title", editor: "text", commit: "field-commit" },
-          { field: "done", editor: "boolean", commit: "immediate" },
+          { field: "title", editor: "text" },
+          { field: "done", editor: "boolean" },
         ],
       },
     ],
@@ -154,9 +154,9 @@ export function rateSchema(overrides: Record<string, unknown> = {}) {
         key: "rateItem",
         entity: "rate",
         fields: [
-          { field: "resource", editor: "reference", commit: "immediate" },
-          { field: "card", editor: "reference", commit: "immediate" },
-          { field: "cost", editor: "number", commit: "field-commit" },
+          { field: "resource", editor: "reference" },
+          { field: "card", editor: "reference" },
+          { field: "cost", editor: "number" },
         ],
       },
     ],

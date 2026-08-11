@@ -52,11 +52,10 @@ export const colorScenarioGroups = [
     projectField: projectCreateColorField,
   }),
   existingColorGroup("record"),
-  existingColorGroup("table-cell"),
   existingColorGroup("detail"),
 ] satisfies readonly FieldScenarioGroup[];
 
-function existingColorGroup(surface: Extract<FieldSurface, "detail" | "record" | "table-cell">) {
+function existingColorGroup(surface: Extract<FieldSurface, "detail" | "record">) {
   return projectScenarioGroup({
     id: `color-${surface}`,
     kind: "color",
@@ -87,7 +86,7 @@ function projectCreateColorField({ facets }: FieldScenarioProjectionContext) {
 }
 
 function projectExistingColorField(
-  surface: Extract<FieldSurface, "detail" | "record" | "table-cell">,
+  surface: Extract<FieldSurface, "detail" | "record">,
   { facets }: FieldScenarioProjectionContext,
 ) {
   const required = facets.requiredness === "required";
@@ -110,14 +109,14 @@ function projectExistingColorField(
   return facets.mode === "display"
     ? displayField({
         ...common,
-        density: surface === "table-cell" ? "compact" : "default",
+        density: "default",
         formatting: { displayValue: value },
         value: value || undefined,
       })
     : recordField({
         ...common,
         commit: "field-commit",
-        density: surface === "table-cell" ? "compact" : "default",
+        density: "default",
         drafts: recordDrafts({ recordValue: value || undefined }),
         formatting: { displayValue: value },
         rendererKind: "color",

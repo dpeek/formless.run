@@ -1420,7 +1420,7 @@ function screenAccessSchema(): AppSchemaSource {
       {
         key: "taskItem",
         entity: "task",
-        fields: [{ field: "title", editor: "text", commit: "field-commit" }],
+        fields: [{ field: "title", editor: "text" }],
       },
     ],
     tableViews: [],
@@ -1707,12 +1707,12 @@ function selectedRecordDetailSchema(
       {
         key: "noteItem",
         entity: "note",
-        fields: [{ field: "title", editor: "text", commit: "field-commit" }],
+        fields: [{ field: "title", editor: "text" }],
       },
       {
         key: "commentItem",
         entity: "comment",
-        fields: [{ field: "body", editor: "text", commit: "field-commit" }],
+        fields: [{ field: "body", editor: "text" }],
       },
       {
         key: "taskSummary",
@@ -1792,7 +1792,7 @@ function selectedRecordDetailSchema(
         key: "noteEdit",
         type: "edit",
         entity: "note",
-        fields: [{ field: "title", editor: "text", commit: "field-commit" }],
+        fields: [{ field: "title", editor: "text" }],
       },
     ],
     screens: [

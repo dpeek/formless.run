@@ -71,23 +71,20 @@ describe("task source schema", () => {
     expect(
       taskSourceSchema.itemViews.find((definition) => definition.key === "taskListItem")?.fields,
     ).toEqual([
-      { field: "title", editor: "text", commit: "field-commit" },
+      { field: "title", editor: "text" },
       {
         field: "dueDate",
         editor: "date",
-        commit: "field-commit",
         presentation: { visibility: "valueOrInteraction" },
       },
       {
         field: "priority",
         editor: "enum",
-        commit: "immediate",
         presentation: { list: "both", mode: "iconOnly", trigger: "icon" },
       },
       {
         field: "done",
         editor: "boolean",
-        commit: "immediate",
         presentation: { mode: "completion" },
       },
     ]);

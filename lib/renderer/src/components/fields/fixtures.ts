@@ -18,7 +18,6 @@ import { textScenarioGroups } from "./text-field.fixtures.ts";
 export const fieldSurfaceOptions = [
   { id: "create", label: "Create" },
   { id: "record", label: "Record" },
-  { id: "table-cell", label: "Table Cell" },
   { id: "detail", label: "Item Detail" },
   { id: "operation", label: "Operation" },
 ] satisfies readonly {

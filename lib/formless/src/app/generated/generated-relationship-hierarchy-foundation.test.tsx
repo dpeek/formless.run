@@ -1195,7 +1195,7 @@ function relationshipHierarchySchema(): AppSchema {
       {
         key: "adjustmentItem",
         entity: "adjustment",
-        fields: [{ field: "label", editor: "text", commit: "field-commit" }],
+        fields: [{ field: "label", editor: "text" }],
       },
     ],
     screens: rateSourceSchema.screens.map((screen) =>

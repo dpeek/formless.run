@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { sourceLikeRateSchema, sourceLikeSiteSchema } from "../test/schema-builders.ts";
+import { sourceLikeRateSchema } from "../test/schema-builders.ts";
 import { selectTableResultModel } from "./table-model.ts";
 
 describe("table model", () => {
@@ -15,134 +15,120 @@ describe("table model", () => {
     expect(result.columns.map((column) => column.key)).toEqual([
       "referenceField:resource.name",
       "field:cost",
-      "field:costUnit",
       "field:price",
       "computed:rateMargin",
     ]);
-  });
-  it("propagates field presentation metadata into table columns", () => {
-    const rateSourceSchema = sourceLikeRateSchema();
-    const rateTable = rateSourceSchema.tableViews.find(
-      (definition) => definition.key === "rateTable",
-    )!;
-    rateTable.columns = rateTable.columns.map((column) =>
-      column.type === "field" && column.field === "costUnit"
-        ? { ...column, presentation: { mode: "iconOnly" as const } }
-        : column,
-    );
-
-    const result = selectTableResultModel(
-      rateSourceSchema,
-      rateTable,
-      "rate",
-      rateSourceSchema.entities.find((definition) => definition.key === "rate")!,
-    );
-    const costUnitColumn = result.columns.find(
-      (column) => column.type === "field" && column.fieldName === "costUnit",
-    );
-
-    expect(costUnitColumn).toMatchObject({
-      type: "field",
-      fieldName: "costUnit",
-      presentation: { mode: "iconOnly" },
+    expect(result.columns.every((column) => column.display === "readOnly")).toBe(true);
+    expect(result.columns.find((column) => column.key === "field:cost")).toMatchObject({
+      valueUnit: { unitFieldName: "costUnit" },
     });
   });
 
-  it("selects table ordering, row operation controls, and edit-dialog facts", () => {
-    const siteSourceSchema = sourceLikeSiteSchema();
+  it("selects explicit ordering placements and all row operations in binding order", () => {
+    const rateSourceSchema = sourceLikeRateSchema();
+    const tableView = rateSourceSchema.tableViews.find(
+      (definition) => definition.key === "rateTable",
+    )!;
+    tableView.operations = [
+      { operation: "rate.update", label: "Edit rate" },
+      {
+        operation: "resource.update",
+        label: "Edit resource",
+        target: { kind: "reference", field: "resource" },
+      },
+    ];
+    tableView.ordering = {
+      field: "price",
+      scope: [{ kind: "field", field: "card" }],
+    };
+    tableView.columns = [
+      { type: "orderingHandle" },
+      ...tableView.columns,
+      { type: "operationControl", includeOrdering: true },
+    ];
+
     const result = selectTableResultModel(
-      siteSourceSchema,
-      siteSourceSchema.tableViews.find((definition) => definition.key === "blockPlacementTable")!,
-      "block-placement",
-      siteSourceSchema.entities.find((definition) => definition.key === "block-placement")!,
+      rateSourceSchema,
+      tableView,
+      "rate",
+      rateSourceSchema.entities.find((definition) => definition.key === "rate")!,
     );
     const operationColumn = result.columns.find((column) => column.type === "operationControl");
     expect(result.ordering).toMatchObject({
-      fieldName: "order",
-      scope: [
-        { kind: "field", fieldName: "parent" },
-        { kind: "field", fieldName: "slot" },
-      ],
+      fieldName: "price",
+      scope: [{ kind: "field", fieldName: "card" }],
       presentations: ["dragHandle", "moveMenu"],
     });
     expect(operationColumn).toMatchObject({
       type: "operationControl",
-      key: "operationControl:block.update,ordering",
+      key: "operationControl:rate.update,resource.update,ordering",
       controls: [
         {
-          type: "editRecord",
-          bindingName: "block.update",
-          operation: { canonicalKey: "block.update" },
-          target: { kind: "reference", fieldName: "block", entityName: "block" },
-          editView: { viewName: "blockEdit", entityName: "block" },
+          type: "static",
+          bindingName: "rate.update",
+          operation: { canonicalKey: "rate.update" },
         },
+        { type: "static", bindingName: "resource.update" },
       ],
       includeOrdering: true,
+      align: "end",
+      width: "xs",
     });
   });
 
   it("selects record links in declared column order independently from source fields", () => {
-    const siteSourceSchema = sourceLikeSiteSchema();
-    const tableView = siteSourceSchema.tableViews.find(
-      (definition) => definition.key === "blockPlacementTable",
+    const rateSourceSchema = sourceLikeRateSchema();
+    const tableView = rateSourceSchema.tableViews.find(
+      (definition) => definition.key === "rateTable",
     )!;
-    const operationColumnIndex = tableView.columns.findIndex(
-      (column) => column.type === "operationControl",
-    );
     tableView.links = [
       {
-        key: "openBlock",
-        label: "Open block",
+        key: "openResource",
+        label: "Open resource",
         target: "newTab",
         destination: {
           type: "url",
           base: "https://example.test/open",
           query: [
             {
-              name: "order",
-              source: { kind: "field", field: "order" },
-              missing: "disable",
-            },
-            {
-              name: "href",
+              name: "resource",
               source: {
                 kind: "referenceField",
-                referenceField: "block",
-                targetEntity: "block",
-                field: "href",
+                referenceField: "resource",
+                targetEntity: "resource",
+                field: "name",
               },
-              missing: "omit",
+              missing: "disable",
             },
           ],
         },
       },
     ];
-    tableView.columns.splice(operationColumnIndex, 0, {
+    tableView.columns.splice(1, 0, {
       type: "linkControl",
-      link: "openBlock",
+      link: "openResource",
       label: "Destination",
     });
 
     const result = selectTableResultModel(
-      siteSourceSchema,
+      rateSourceSchema,
       tableView,
-      "block-placement",
-      siteSourceSchema.entities.find((definition) => definition.key === "block-placement")!,
+      "rate",
+      rateSourceSchema.entities.find((definition) => definition.key === "rate")!,
     );
     const linkColumn = result.columns.find((column) => column.type === "linkControl");
 
     expect(result.columns.map((column) => column.key)).toEqual([
-      "orderingHandle",
-      "field:block",
-      "field:label",
-      "field:slot",
-      "linkControl:openBlock",
-      "operationControl:block.update,ordering",
+      "referenceField:resource.name",
+      "linkControl:openResource",
+      "field:cost",
+      "field:price",
+      "computed:rateMargin",
     ]);
     expect(linkColumn).toMatchObject({
       type: "linkControl",
-      key: "linkControl:openBlock",
-      linkName: "openBlock",
+      key: "linkControl:openResource",
+      linkName: "openResource",
       label: "Destination",
       headerLabel: "Destination",
       align: "end",
@@ -150,27 +136,19 @@ describe("table model", () => {
       display: "readOnly",
       format: "plain",
       link: {
-        key: "openBlock",
-        label: "Open block",
+        key: "openResource",
+        label: "Open resource",
         target: "newTab",
       },
     });
     expect(linkColumn?.link).toBe(tableView.links[0]);
     expect(
-      result.columns.some((column) => column.type === "field" && column.fieldName === "order"),
-    ).toBe(false);
-    expect(
       result.columns.some(
         (column) =>
           column.type === "referenceField" &&
-          column.sourceReferenceFieldName === "block" &&
-          column.fieldName === "href",
+          column.sourceReferenceFieldName === "resource" &&
+          column.fieldName === "name",
       ),
-    ).toBe(false);
-    expect(result.columns.at(-1)).toMatchObject({
-      type: "operationControl",
-      key: "operationControl:block.update,ordering",
-      controls: [{ bindingName: "block.update" }],
-    });
+    ).toBe(true);
   });
 });

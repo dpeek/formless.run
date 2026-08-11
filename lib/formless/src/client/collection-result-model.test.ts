@@ -88,7 +88,6 @@ describe("collection result model", () => {
     expect(result.columns.map((column) => column.key)).toEqual([
       "referenceField:resource.name",
       "field:cost",
-      "field:costUnit",
       "field:price",
       "computed:rateMargin",
     ]);

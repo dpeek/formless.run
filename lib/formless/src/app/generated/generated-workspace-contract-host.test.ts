@@ -804,7 +804,6 @@ function tableResult(): TableContract {
     accessibilityLabel: "Archived tasks",
     columns: [],
     density: "compact",
-    editing: { enabled: true },
     id: "table:archive",
     kind: "table",
     rows: [],

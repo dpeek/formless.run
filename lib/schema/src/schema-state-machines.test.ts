@@ -696,8 +696,8 @@ function stateMachineSchema(
         key: "taskItem",
         entity: "task",
         fields: [
-          { field: "title", editor: "text", commit: "field-commit" },
-          { field: "status", editor: "enum", commit: "immediate" },
+          { field: "title", editor: "text" },
+          { field: "status", editor: "enum" },
         ],
       },
     ],

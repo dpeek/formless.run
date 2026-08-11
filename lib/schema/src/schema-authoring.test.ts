@@ -176,7 +176,6 @@ function taskSource() {
           {
             field: "title",
             editor: "text",
-            commit: "field-commit",
           },
         ],
       },

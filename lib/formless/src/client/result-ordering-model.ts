@@ -1,10 +1,6 @@
-import type {
-  EntitySchema,
-  FieldSchema,
-  ResultOrderingPresentation,
-  ResultOrderingSchema,
-} from "@dpeek/formless-schema";
+import type { EntitySchema, FieldSchema, ResultOrderingSchema } from "@dpeek/formless-schema";
 
+export type ResultOrderingPresentation = "moveMenu" | "dragHandle";
 export type ResultOrderingScopeConfig = {
   kind: "field";
   fieldName: string;
@@ -25,6 +21,7 @@ export type ResultOrderingConfig = {
 export function selectResultOrderingConfig(
   ordering: ResultOrderingSchema | undefined,
   entity: EntitySchema,
+  presentations: ResultOrderingPresentation[] = ["moveMenu"],
 ): ResultOrderingConfig | undefined {
   if (!ordering) {
     return undefined;
@@ -49,6 +46,6 @@ export function selectResultOrderingConfig(
         field,
       };
     }),
-    presentations: ordering.presentations ?? ["moveMenu"],
+    presentations,
   };
 }

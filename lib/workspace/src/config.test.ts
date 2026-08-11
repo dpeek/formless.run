@@ -169,7 +169,7 @@ describe("Formless configuration", () => {
         {
           key: "workspaceNoteItem",
           entity: "workspace-note",
-          fields: [{ field: "body", editor: "text", commit: "field-commit" }],
+          fields: [{ field: "body", editor: "text" }],
         },
       ],
       views: [

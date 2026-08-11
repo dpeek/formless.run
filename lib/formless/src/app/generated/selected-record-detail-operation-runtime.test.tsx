@@ -501,7 +501,13 @@ describe("selected-record relationship heading operation runtime", () => {
         type: "update",
       }),
     );
-    fireEvent.click((await renderer.findAllByRole("button", { name: "Edit rate" }))[0]!);
+    const editMenuButton = required(
+      (await renderer.findAllByRole("button", { name: /^More options for Rate / })).find((button) =>
+        button.getAttribute("aria-label")?.includes(sourceRate.id),
+      ),
+    );
+    fireEvent.click(editMenuButton);
+    fireEvent.click(await renderer.findByRole("menuitem", { name: "Edit rate" }));
     const editDialog = await renderer.findByRole("dialog", { name: "Edit rate" });
     const costInput = within(editDialog).getByRole("textbox", { name: /^Cost/ });
     fireEvent.change(costInput, { target: { value: "600" } });
@@ -513,7 +519,7 @@ describe("selected-record relationship heading operation runtime", () => {
       "update",
       { input: { cost: 600 }, recordId: sourceRate.id },
     ]);
-    fireEvent.click(within(editDialog).getByRole("button", { name: "Close" }));
+    fireEvent.click(within(editDialog).getByRole("button", { name: "Done" }));
     await waitFor(() => expect(renderer.queryByRole("dialog", { name: "Edit rate" })).toBeNull());
     submitOperationMock.mockClear();
 
@@ -637,8 +643,6 @@ function selectedRecordHeadingSchema(): AppSchema {
               ...tableView.columns,
               {
                 type: "operationControl" as const,
-                operation: "rate.update",
-                label: "Actions",
               },
             ],
           }
@@ -662,12 +666,10 @@ function selectedRecordHeadingSchema(): AppSchema {
             field: "name",
             interaction: "display" as const,
             editor: "text" as const,
-            commit: "field-commit" as const,
           },
           {
             field: "marginMin",
             editor: "number" as const,
-            commit: "field-commit" as const,
           },
         ],
       },
@@ -702,12 +704,11 @@ function selectedRecordHeadingSchema(): AppSchema {
         type: "edit" as const,
         entity: "rate",
         fields: [
-          { field: "cost", editor: "number" as const, commit: "field-commit" as const },
+          { field: "cost", editor: "number" as const },
           {
             field: "price",
             interaction: "display" as const,
             editor: "number" as const,
-            commit: "field-commit" as const,
           },
         ],
       },
@@ -778,9 +779,7 @@ function selectedRecordRelationshipEditAction(controller: GeneratedWorkspaceRunt
   }
   const actions = relationship.result.rows.flatMap((row) =>
     row.cells.flatMap((cell) =>
-      cell.contents.flatMap((content) =>
-        content.kind === "actionGroup" ? [...content.primary, ...content.secondary] : [],
-      ),
+      cell.contents.flatMap((content) => (content.kind === "actionGroup" ? content.actions : [])),
     ),
   );
   const editAction = required(actions.find((action) => action.kind === "editAction"));

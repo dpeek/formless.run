@@ -16,7 +16,6 @@ import { mediaScenarioGroups } from "./media-field.fixtures.ts";
 const supportedMediaSurfaces = [
   { groupId: "media-create", surface: "create" },
   { groupId: "media-record", surface: "record" },
-  { groupId: "media-table-cell", surface: "table-cell" },
   { groupId: "media-detail", surface: "detail" },
 ] as const;
 
@@ -29,7 +28,7 @@ describe("Astryx media field conformance", () => {
     const variants = mediaScenarioGroups.flatMap((group) => group.variants);
 
     expect(new Set(variants.map(({ field }) => field.surface))).toEqual(
-      new Set<FieldSurface>(["create", "record", "table-cell", "detail"]),
+      new Set<FieldSurface>(["create", "record", "detail"]),
     );
     expect(variants.some(({ field }) => field.surface === "operation")).toBe(false);
 

@@ -29,7 +29,7 @@ const workspaceRecords = defineAppSchemaModule({
     {
       key: "workspaceRecordItem",
       entity: "workspace-record",
-      fields: [{ field: "label", editor: "text", commit: "field-commit" }],
+      fields: [{ field: "label", editor: "text" }],
     },
   ],
   views: [

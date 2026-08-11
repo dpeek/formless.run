@@ -22,7 +22,7 @@ import {
 } from "./fixture-helpers.ts";
 
 export type RecordFieldSurfaceFixture = {
-  id: "detail" | "record" | "table-cell";
+  id: "detail" | "record";
   label: string;
   records: readonly RecordFieldRecordFixture[];
 };
@@ -97,48 +97,6 @@ export function createRecordFieldSurfaceFixtures(): readonly RecordFieldSurfaceF
       id: "record",
       label: "Record",
       records: [{ id: recordId, fields: createRecordEditorFields() }],
-    },
-    {
-      id: "table-cell",
-      label: "Table cells",
-      records: [
-        {
-          id: recordId,
-          fields: createTableCellFields({
-            completed: false,
-            dueDate: "2026-07-24",
-            dueDateDisplay: "24 Jul 2026",
-            ownerId: "principal-dana",
-            priority: "high",
-            recordId,
-            title: "Prepare launch checklist",
-          }),
-        },
-        {
-          id: "task-review-domains",
-          fields: createTableCellFields({
-            completed: true,
-            dueDate: "2026-08-03",
-            dueDateDisplay: "3 Aug 2026",
-            ownerId: "principal-jordan",
-            priority: "normal",
-            recordId: "task-review-domains",
-            title: "Review custom domain mappings",
-          }),
-        },
-        {
-          id: "task-publish-contact-form",
-          fields: createTableCellFields({
-            completed: false,
-            dueDate: undefined,
-            dueDateDisplay: "—",
-            ownerId: "principal-archived",
-            priority: "low",
-            recordId: "task-publish-contact-form",
-            title: "Publish the contact form and subscription workflow",
-          }),
-        },
-      ],
     },
     {
       id: "detail",
@@ -268,98 +226,6 @@ function createRecordEditorFields(): readonly RecordFieldContract[] {
       occurrence: recordFieldOccurrence("record", recordId, "accent"),
       recordId,
       rendererKind: "color",
-    }),
-  ];
-}
-
-function createTableCellFields({
-  completed,
-  dueDate,
-  dueDateDisplay,
-  ownerId,
-  priority,
-  recordId,
-  title,
-}: {
-  completed: boolean;
-  dueDate: string | undefined;
-  dueDateDisplay: string;
-  ownerId: string;
-  priority: (typeof priorityField.values)[number]["key"];
-  recordId: string;
-  title: string;
-}): readonly (RecordFieldContract | DisplayFieldContract)[] {
-  return [
-    displayField({
-      fieldName: "title",
-      field: titleField,
-      editor: titleControl.editor,
-      control: titleControl,
-      density: "compact",
-      formatting: { displayValue: title },
-      labelVisibility: "hidden",
-      occurrence: recordFieldOccurrence("table-cell", recordId, "title"),
-      recordId,
-      surface: "table-cell",
-      value: title,
-    }),
-    recordField({
-      fieldName: "priority",
-      field: priorityField,
-      editor: priorityControl.editor,
-      control: priorityControl,
-      commit: "immediate",
-      density: "compact",
-      drafts: recordDrafts({ recordValue: priority }),
-      labelVisibility: "hidden",
-      occurrence: recordFieldOccurrence("table-cell", recordId, "priority"),
-      options: { enumOptions: enumOptions(priorityField) },
-      recordId,
-      rendererKind: "enum",
-      surface: "table-cell",
-    }),
-    recordField({
-      fieldName: "ownerId",
-      field: ownerField,
-      editor: ownerControl.editor,
-      control: ownerControl,
-      commit: "immediate",
-      density: "compact",
-      drafts: recordDrafts({ recordValue: ownerId }),
-      labelVisibility: "hidden",
-      occurrence: recordFieldOccurrence("table-cell", recordId, "ownerId"),
-      options: { referenceOptions: referenceOptions(owners) },
-      recordId,
-      reference: referenceEditorFacts(ownerField, ownerId, owners),
-      rendererKind: "reference",
-      surface: "table-cell",
-    }),
-    recordField({
-      fieldName: "completed",
-      field: completedField,
-      editor: completedControl.editor,
-      control: completedControl,
-      commit: "immediate",
-      density: "compact",
-      drafts: recordDrafts({ recordValue: completed }),
-      labelVisibility: "hidden",
-      occurrence: recordFieldOccurrence("table-cell", recordId, "completed"),
-      recordId,
-      rendererKind: "checkbox",
-      surface: "table-cell",
-    }),
-    displayField({
-      fieldName: "dueDate",
-      field: dueDateField,
-      editor: dueDateControl.editor,
-      control: dueDateControl,
-      density: "compact",
-      formatting: { displayValue: dueDateDisplay },
-      labelVisibility: "hidden",
-      occurrence: recordFieldOccurrence("table-cell", recordId, "dueDate"),
-      recordId,
-      surface: "table-cell",
-      value: dueDate,
     }),
   ];
 }

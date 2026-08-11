@@ -22,7 +22,7 @@ import type {
   TableColumnFormat,
 } from "@dpeek/formless-schema";
 
-export type FieldSurface = "create" | "record" | "table-cell" | "detail" | "operation";
+export type FieldSurface = "create" | "record" | "detail" | "operation";
 
 export type FieldMode = "display" | "editor";
 
@@ -537,7 +537,7 @@ export type RecordFieldDrafts = {
 };
 
 export type RecordFieldContract = BaseFieldContract & {
-  surface: "detail" | "record" | "table-cell";
+  surface: "detail" | "record";
   mode: "editor";
   commit: FieldCommitPolicy;
   density: FieldDensity;
@@ -708,7 +708,10 @@ export type OperationCountBadgeContract = {
 
 export type OperationInvokeIntent = {
   controlId: string;
-  invocationSource: Extract<OperationInvocationSource, "button" | "confirmationDialog">;
+  invocationSource: Extract<
+    OperationInvocationSource,
+    "button" | "confirmationDialog" | "menuItem"
+  >;
   type: "operationInvoke";
 };
 
@@ -1180,34 +1183,52 @@ export type TableValueStatus =
       message: string;
     };
 
-export type TableDisplayValueContract = {
+export type TableCellValuePresentation =
+  | {
+      kind: "boolean" | "computed" | "number" | "reference" | "text";
+    }
+  | {
+      kind: "color";
+      swatch: string;
+    }
+  | {
+      content: "icon" | "label";
+      kind: "enum" | "state";
+      value: EnumValuePresentation;
+    }
+  | {
+      kind: "icon";
+      source: string;
+    }
+  | {
+      kind: "markdown";
+    }
+  | {
+      kind: "media";
+      previewHref: string;
+    }
+  | {
+      kind: "temporal";
+      temporal: TemporalDisplay;
+    };
+
+export type TableCellValueContract = {
   accessibilityLabel: string;
   displayValue: string;
-  kind: "displayValue";
-  status: TableValueStatus;
+  kind: "cellValue";
+  presentation: TableCellValuePresentation;
   suffix?: string;
-  valueKind: "computed" | "reference" | "text";
 };
 
-export type TableFieldContentContract = {
-  field: FieldContract;
-  kind: "field";
-  source: "record" | "referencedRecord";
+export type TableInvalidCellValueContract = {
+  accessibilityLabel: string;
+  kind: "invalidValue";
 };
 
 export type TableUnavailableContentContract = {
   accessibilityLabel: string;
   kind: "unavailable";
   message: string;
-};
-
-export type TableActionInvokeIntent = {
-  actionId: string;
-  invocationSource: Extract<OperationInvocationSource, "button" | "menuItem">;
-  operationName?: string;
-  rowId: string;
-  tableId: string;
-  type: "tableActionInvoke";
 };
 
 export type TableEditDialogOpenChangeIntent = {
@@ -1226,19 +1247,9 @@ export type TableReorderIntent = {
   type: "tableReorder";
 };
 
-export type TableIntent =
-  | TableActionInvokeIntent
-  | TableEditDialogOpenChangeIntent
-  | TableReorderIntent;
+export type TableIntent = TableEditDialogOpenChangeIntent | TableReorderIntent;
 
 export type TableIntentHandler = (intent: TableIntent) => Promise<void> | void;
-
-export type TableInvokeActionContract = {
-  intent: TableActionInvokeIntent;
-  kind: "invokeAction";
-  role: "command" | "transition";
-  trigger: ButtonContract;
-};
 
 export type TableOperationActionContract = {
   control: OperationControlContract;
@@ -1247,7 +1258,6 @@ export type TableOperationActionContract = {
 };
 
 export type TableEditDialogAvailableTargetContract = {
-  actionGroup?: TableActionGroupContract;
   fieldSet: FieldSetContract;
   kind: "available";
 };
@@ -1267,6 +1277,7 @@ export type TableEditDialogContract = {
   target: TableEditDialogAvailableTargetContract | TableEditDialogUnavailableTargetContract;
   targetKind: "reference" | "row";
   title: string;
+  warning?: string;
 };
 
 export type TableEditActionContract = {
@@ -1278,22 +1289,21 @@ export type TableEditActionContract = {
 
 export type TableActionContract =
   | TableEditActionContract
-  | TableInvokeActionContract
-  | NativeLinkActionContract
-  | TableOperationActionContract;
+  | TableOperationActionContract
+  | TableOrderingActionContract;
 
 export type TableActionGroupContract = {
+  accessibilityLabel: string;
+  actions: readonly TableActionContract[];
   id: string;
   kind: "actionGroup";
-  primary: readonly TableActionContract[];
-  secondary: readonly TableActionContract[];
-  secondaryAccessibilityLabel: string;
 };
 
 export type TableOrderingActionContract = ActionControlState & {
   direction: TableReorderIntent["direction"];
   id: string;
   intent: TableReorderIntent;
+  kind: "orderingAction";
   label: string;
 };
 
@@ -1307,8 +1317,9 @@ export type TableOrderingContract = {
 
 export type TableCellContentContract =
   | TableActionGroupContract
-  | TableDisplayValueContract
-  | TableFieldContentContract
+  | TableCellValueContract
+  | TableInvalidCellValueContract
+  | NativeLinkActionContract
   | TableOrderingContract
   | TableUnavailableContentContract;
 
@@ -1319,22 +1330,11 @@ export type TableCellContract = {
   kind: "tableCell";
 };
 
-export type TableWarningContract = {
-  id: string;
-  items: readonly {
-    code: string;
-    message: string;
-  }[];
-  kind: "tableWarning";
-  title: string;
-};
-
 export type TableRowContract = {
   accessibilityLabel: string;
   cells: readonly TableCellContract[];
   id: string;
   kind: "tableRow";
-  warnings: readonly TableWarningContract[];
 };
 
 export type TableFooterCellContract =
@@ -1368,20 +1368,10 @@ export type TableEmptyStateContract = {
   title: string;
 };
 
-export type TableEditingAvailability =
-  | {
-      enabled: true;
-    }
-  | {
-      disabledReason: string;
-      enabled: false;
-    };
-
 export type TableContract = {
   accessibilityLabel: string;
   columns: readonly TableColumnContract[];
   density: TableDensity;
-  editing: TableEditingAvailability;
   emptyState?: TableEmptyStateContract;
   footer?: TableFooterContract;
   id: string;

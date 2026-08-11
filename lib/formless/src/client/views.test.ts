@@ -208,15 +208,6 @@ describe("home view model collections", () => {
             (column) => column.type === "field" && column.fieldName === "status",
           )
         : undefined;
-    const tableOperationColumn =
-      tableModel.result.type === "table"
-        ? tableModel.result.columns.find((column) => column.type === "operationControl")
-        : undefined;
-    const editControl =
-      tableOperationColumn?.type === "operationControl"
-        ? tableOperationColumn.controls.find((control) => control.type === "editRecord")
-        : undefined;
-
     expect(listStatus?.stateMachine).toMatchObject({
       fieldName: "status",
       machineName: "statusFlow",
@@ -227,11 +218,6 @@ describe("home view model collections", () => {
     expect(tableStatus?.type === "field" ? tableStatus.stateMachine?.machineName : undefined).toBe(
       "statusFlow",
     );
-    expect(
-      tableStatus?.type === "field"
-        ? tableStatus.stateTransitionOperations?.map((operation) => operation.operationName)
-        : [],
-    ).toEqual(["startTask", "completeTask"]);
     expect(listModel.result.type === "list" ? listModel.result.transitionOperations : []).toEqual([
       expect.objectContaining({
         operationName: "startTask",
@@ -252,43 +238,11 @@ describe("home view model collections", () => {
       recordModel.result.type === "record" ? recordModel.result.transitionOperations : [],
     ).toHaveLength(2);
     expect(
-      tableModel.result.type === "table" ? tableModel.result.transitionOperations : [],
-    ).toHaveLength(0);
-    expect(
       createOperation?.type === "create"
         ? createOperation.fields.find((field) => field.fieldName === "status")?.stateMachine
             ?.initialState
         : undefined,
     ).toBe("todo");
-    expect(
-      editControl?.type === "editRecord" ? editControl.editView.transitionOperations : [],
-    ).toHaveLength(2);
-  });
-
-  it("keeps table transition operations unpaired when matching state field columns are hidden or absent", () => {
-    const schema = lifecycleTaskSchema();
-    const hiddenTableModel = requiredCollectionModel(schema, "taskHiddenStatusTableHome");
-    const absentTableModel = requiredCollectionModel(schema, "taskAbsentStatusTableHome");
-    const hiddenStatus =
-      hiddenTableModel.result.type === "table"
-        ? hiddenTableModel.result.columns.find(
-            (column) => column.type === "field" && column.fieldName === "status",
-          )
-        : undefined;
-
-    expect(hiddenStatus?.type === "field" ? hiddenStatus.stateTransitionOperations : []).toBe(
-      undefined,
-    );
-    expect(
-      hiddenTableModel.result.type === "table"
-        ? hiddenTableModel.result.transitionOperations.map((operation) => operation.operationName)
-        : [],
-    ).toEqual(["startTask", "completeTask"]);
-    expect(
-      absentTableModel.result.type === "table"
-        ? absentTableModel.result.transitionOperations.map((operation) => operation.operationName)
-        : [],
-    ).toEqual(["startTask", "completeTask"]);
   });
 
   it("exposes render-ready union variant facts for item, create, and edit views", () => {
@@ -937,13 +891,7 @@ describe("home view model collections", () => {
       models[2]?.result.type === "table"
         ? models[2].result.columns.map((column) => column.key)
         : [],
-    ).toEqual([
-      "referenceField:resource.name",
-      "field:cost",
-      "field:costUnit",
-      "field:price",
-      "computed:rateMargin",
-    ]);
+    ).toEqual(["referenceField:resource.name", "field:cost", "field:price", "computed:rateMargin"]);
     expect(
       models[2]?.result.type === "table"
         ? findFieldTableColumn(models[2].result.columns, "cost")?.valueUnit
@@ -1037,47 +985,30 @@ describe("home view model collections", () => {
     ]);
   });
 
-  it("resolves rate-card table columns with labels, editors, and alignment", () => {
+  it("resolves read-only rate-card table columns with typed display facts", () => {
     const rateModel = selectCollectionModels(rateCardSchema).find(
       (model) => model.viewName === "rateHome",
     );
     const columns = rateModel?.result.type === "table" ? rateModel.result.columns : [];
 
-    expect(columns.map((column) => column.label)).toEqual([
-      "Role",
-      "Cost",
-      "Cost unit",
-      "Price",
-      "Margin",
-    ]);
-    expect(tableColumnEditors(columns)).toEqual(["text", "number", "enum", "number", null]);
-    expect(tableColumnCommits(columns)).toEqual([
-      "field-commit",
-      "field-commit",
-      "immediate",
-      "field-commit",
-      null,
-    ]);
+    expect(columns.map((column) => column.label)).toEqual(["Role", "Cost", "Price", "Margin"]);
     expect(columns.map((column) => column.align ?? "start")).toEqual([
       "start",
       "end",
-      "start",
       "end",
       "end",
     ]);
-    expect(columns.map((column) => column.width ?? "none")).toEqual(["lg", "sm", "xs", "sm", "sm"]);
+    expect(columns.map((column) => column.width ?? "none")).toEqual(["lg", "sm", "sm", "sm"]);
     expect(columns.map((column) => column.display)).toEqual([
-      "editor",
-      "editor",
-      "hidden",
-      "editor",
+      "readOnly",
+      "readOnly",
+      "readOnly",
       "readOnly",
     ]);
-    expect(columns.map((column) => column.suffix ?? "")).toEqual(["", "", "", "/ day", ""]);
+    expect(columns.map((column) => column.suffix ?? "")).toEqual(["", "", "/ day", ""]);
     expect(columns.map((column) => column.format)).toEqual([
       "plain",
       "number",
-      "plain",
       "currency",
       "percent",
     ]);
@@ -1139,12 +1070,7 @@ describe("home view model collections", () => {
               columns: [
                 ...rateCardSchema.tableViews.find((definition) => definition.key === "rateTable")!
                   .columns,
-                { type: "operationControl", operation: "rate.inspectRate" },
-                {
-                  type: "operationControl",
-                  operations: ["rate.inspectRate", "rate.blockedRate", "rate.hiddenRate"],
-                  label: "Rate operations",
-                },
+                { type: "operationControl" },
               ],
               key: "rateTable",
             }
@@ -1153,34 +1079,16 @@ describe("home view model collections", () => {
     });
     const rateModel = selectCollectionModels(schema).find((model) => model.viewName === "rateHome");
     const columns = rateModel?.result.type === "table" ? rateModel.result.columns : [];
-    const singleOperationColumn = columns.at(-2);
-    const multipleOperationColumn = columns.at(-1);
+    const operationColumn = columns.at(-1);
 
-    expect(singleOperationColumn).toMatchObject({
+    expect(operationColumn).toMatchObject({
       type: "operationControl",
-      key: "operationControl:rate.inspectRate",
+      key: "operationControl:rate.inspectRate,rate.blockedRate,rate.hiddenRate",
       label: "",
-      headerLabel: "Inspect rate",
+      headerLabel: "Actions",
       align: "end",
       width: "xs",
       display: "readOnly",
-      presentation: "button",
-      controls: [
-        {
-          bindingName: "rate.inspectRate",
-          operation: { canonicalKey: "rate.inspectRate" },
-          label: "Inspect rate",
-          variant: "default",
-          disabled: false,
-        },
-      ],
-    });
-    expect(multipleOperationColumn).toMatchObject({
-      type: "operationControl",
-      key: "operationControl:rate.inspectRate,rate.blockedRate,rate.hiddenRate",
-      label: "Rate operations",
-      headerLabel: "Rate operations",
-      presentation: "dropdown",
       controls: [
         {
           bindingName: "rate.inspectRate",
@@ -1219,7 +1127,7 @@ describe("home view model collections", () => {
               columns: [
                 ...rateCardSchema.tableViews.find((definition) => definition.key === "rateTable")!
                   .columns,
-                { type: "operationControl", operation: "resource.update" },
+                { type: "operationControl" },
               ],
               key: "rateTable",
             }
@@ -1232,8 +1140,8 @@ describe("home view model collections", () => {
           type: "edit",
           entity: "resource",
           fields: [
-            { field: "name", editor: "text", commit: "field-commit" },
-            { field: "unit", editor: "enum", commit: "immediate" },
+            { field: "name", editor: "text" },
+            { field: "unit", editor: "enum" },
           ],
         },
       ],
@@ -1268,7 +1176,7 @@ describe("home view model collections", () => {
     });
   });
 
-  it("resolves table ordering facts and auto-inserted move menus", () => {
+  it("resolves table ordering facts from an explicit operation-control placement", () => {
     const schema = rateCardSchemaWithOrdering();
     const rateModel = requiredCollectionModel(schema, "rateHome");
     const result = rateModel.result;
@@ -1290,7 +1198,6 @@ describe("home view model collections", () => {
       label: "",
       headerLabel: "Actions",
       controls: [],
-      presentation: "dropdown",
       includeOrdering: true,
       ordering: {
         fieldName: "sortOrder",
@@ -1302,7 +1209,7 @@ describe("home view model collections", () => {
     });
   });
 
-  it("auto-inserts ordering handles when drag handles are requested", () => {
+  it("resolves drag ordering from an explicit ordering-handle placement", () => {
     const schema = rateCardSchemaWithDragOrdering();
     const rateModel = requiredCollectionModel(schema, "rateHome");
     const result = rateModel.result;
@@ -1328,7 +1235,6 @@ describe("home view model collections", () => {
     const ordering = {
       field: "sortOrder",
       scope: [{ kind: "field" as const, field: "card" }],
-      presentations: ["moveMenu" as const],
     };
     const listSchema = rateCardSchemaWithRateHomeResult({
       type: "list",
@@ -1357,7 +1263,6 @@ describe("home view model collections", () => {
                 ordering: {
                   field: "order",
                   scope: [{ kind: "field", field: "parent" }],
-                  presentations: ["dragHandle"],
                 },
               },
               key: "siteCompositionHome",
@@ -1377,11 +1282,7 @@ describe("home view model collections", () => {
     expect(tableResult.type === "table" ? tableResult.ordering : undefined).toMatchObject({
       fieldName: "sortOrder",
       scope: [{ fieldName: "card" }],
-      presentations: ["moveMenu"],
-    });
-    expect(tableResult.type === "table" ? tableResult.columns.at(-1) : undefined).toMatchObject({
-      type: "operationControl",
-      key: "operationControl:ordering",
+      presentations: [],
     });
     expect(listResult.type === "list" ? listResult.updateOperation?.canonicalKey : undefined).toBe(
       "rate.update",
@@ -1676,11 +1577,9 @@ describe("home view model collections", () => {
       "contact-message": ["submit"],
       subscription: ["update", "subscribe"],
     });
-    expect(collectionOperationBindings).toMatchObject({
-      blockHome: ["block.create"],
-      pageCompositionHome: ["block-placement.create"],
-      navigationCompositionHome: ["block-placement.create"],
-      blockCompositionHome: ["block-placement.create"],
+    expect(collectionOperationBindings).toEqual({
+      siteSettingsHome: ["site.createStarter"],
+      siteCompositionHome: ["site.createStarter"],
     });
     expect(treeComposition).toEqual({
       createOperation: "block-placement.addTreeChild",
@@ -1731,7 +1630,7 @@ describe("home view model collections", () => {
         type: "referenceField",
         key: "referenceField:resource.name",
         label: "Role",
-        display: "editor",
+        display: "readOnly",
         suffix: null,
         format: "plain",
       },
@@ -1739,23 +1638,15 @@ describe("home view model collections", () => {
         type: "field",
         key: "field:cost",
         label: "Cost",
-        display: "editor",
+        display: "readOnly",
         suffix: null,
         format: "number",
       },
       {
         type: "field",
-        key: "field:costUnit",
-        label: "Cost unit",
-        display: "hidden",
-        suffix: null,
-        format: "plain",
-      },
-      {
-        type: "field",
         key: "field:price",
         label: "Price",
-        display: "editor",
+        display: "readOnly",
         suffix: "/ day",
         format: "currency",
       },
@@ -1869,7 +1760,7 @@ describe("home view model collections", () => {
     );
     expect("summary" in (rateModel?.collection ?? {})).toBe(false);
   });
-  it("characterizes rate value/unit editing over flat scalar fields", () => {
+  it("characterizes read-only rate value/unit display over flat scalar fields", () => {
     const rate = rateCardSchema.entities.find((definition) => definition.key === "rate")!;
     const rateModel = selectCollectionModels(rateCardSchema).find(
       (model) => model.viewName === "rateHome",
@@ -1901,7 +1792,7 @@ describe("home view model collections", () => {
     ).toMatchObject({
       editor: "number",
       format: "number",
-      display: "editor",
+      display: "readOnly",
       valueUnit: {
         unitFieldName: "costUnit",
         unitField: rate.fields.find((definition) => definition.key === "costUnit")!,
@@ -1912,17 +1803,14 @@ describe("home view model collections", () => {
     ).toBeUndefined();
     expect(
       columns.find((column) => column.type === "field" && column.fieldName === "costUnit"),
-    ).toMatchObject({
-      editor: "enum",
-      display: "hidden",
-    });
+    ).toBeUndefined();
     expect(
       columns.find((column) => column.type === "field" && column.fieldName === "price"),
     ).toMatchObject({
       editor: "number",
       suffix: "/ day",
       format: "currency",
-      display: "editor",
+      display: "readOnly",
     });
     expect(findFieldTableColumn(columns, "price")?.valueUnit).toBeUndefined();
     expect(
@@ -2094,7 +1982,6 @@ describe("home view model collections", () => {
         columns: [
           "referenceField:resource.name",
           "field:cost",
-          "field:costUnit",
           "field:price",
           "computed:rateMargin",
         ],
@@ -2202,16 +2089,6 @@ describe("home view model collections", () => {
       ],
     ]);
     expect(models.map((model) => model.result.type)).toEqual(["tree"]);
-    expect(requiredCollectionModel(siteSourceSchema, "blockHome").navigation.primary).toBe(false);
-    expect(
-      requiredCollectionModel(siteSourceSchema, "pageCompositionHome").navigation.primary,
-    ).toBe(false);
-    expect(
-      requiredCollectionModel(siteSourceSchema, "navigationCompositionHome").navigation.primary,
-    ).toBe(false);
-    expect(
-      requiredCollectionModel(siteSourceSchema, "blockCompositionHome").navigation.primary,
-    ).toBe(false);
   });
 
   it("exposes Site settings as a generated non-primary editor section", () => {
@@ -2336,312 +2213,6 @@ describe("home view model collections", () => {
         ],
       },
     ]);
-  });
-
-  it("resolves Site placement ordering controls", () => {
-    const placementModel = requiredCollectionModel(siteSourceSchema, "pageCompositionHome");
-    const columns = placementModel.result.type === "table" ? placementModel.result.columns : [];
-    expect(
-      siteSourceSchema.entities
-        .find((definition) => definition.key === "block-placement")!
-        .fields.find((definition) => definition.key === "order")!,
-    ).toMatchObject({
-      type: "number",
-      required: true,
-      default: 1000,
-      min: 0,
-    });
-    expect(
-      placementModel.result.type === "table" ? placementModel.result.ordering : undefined,
-    ).toMatchObject({
-      fieldName: "order",
-      scope: [{ fieldName: "parent" }, { fieldName: "slot" }],
-      presentations: ["dragHandle", "moveMenu"],
-    });
-    expect(
-      placementModel.result.type === "table"
-        ? placementModel.result.updateOperation?.canonicalKey
-        : undefined,
-    ).toBe("block-placement.update");
-    expect(
-      columns.map((column) => ({
-        type: column.type,
-        key: column.key,
-        label: column.label,
-        editor: tableColumnEditor(column),
-        commit: tableColumnCommit(column),
-        display: column.display,
-        align: column.align ?? null,
-        width: column.width ?? null,
-        format: column.format,
-      })),
-    ).toEqual([
-      {
-        type: "orderingHandle",
-        key: "orderingHandle",
-        label: "",
-        editor: null,
-        commit: null,
-        display: "readOnly",
-        align: "center",
-        width: "xs",
-        format: "plain",
-      },
-      {
-        type: "field",
-        key: "field:block",
-        label: "Child block",
-        editor: "reference",
-        commit: "immediate",
-        display: "editor",
-        align: null,
-        width: "lg",
-        format: "plain",
-      },
-      {
-        type: "field",
-        key: "field:label",
-        label: "Label",
-        editor: "text",
-        commit: "field-commit",
-        display: "editor",
-        align: null,
-        width: "md",
-        format: "plain",
-      },
-      {
-        type: "field",
-        key: "field:slot",
-        label: "Slot",
-        editor: "text",
-        commit: "field-commit",
-        display: "editor",
-        align: null,
-        width: "sm",
-        format: "plain",
-      },
-      {
-        type: "operationControl",
-        key: "operationControl:block.update,ordering",
-        label: "",
-        editor: null,
-        commit: null,
-        display: "readOnly",
-        align: "end",
-        width: "xs",
-        format: "plain",
-      },
-    ]);
-  });
-
-  it("resolves site content table columns and variant-aware create fields", () => {
-    const contentModel = selectCollectionModels(siteSourceSchema).find(
-      (model) => model.viewName === "blockHome",
-    );
-    const placementModel = selectCollectionModels(siteSourceSchema).find(
-      (model) => model.viewName === "pageCompositionHome",
-    );
-    const create = contentModel?.operations!.find((operation) => operation.type === "create");
-    const createVariantFields = Object.fromEntries(
-      create?.type === "create"
-        ? (create.union?.variants.map((variant) => [
-            variant.variantValue,
-            variant.presentation.fields.map((field) => field.fieldName),
-          ]) ?? [])
-        : [],
-    );
-    const editControl =
-      placementModel?.result.type === "table"
-        ? placementModel.result.columns
-            .flatMap((column) => (column.type === "operationControl" ? column.controls : []))
-            .find((control) => control.type === "editRecord")
-        : undefined;
-    const editVariantFields = Object.fromEntries(
-      editControl?.type === "editRecord"
-        ? (editControl.editView.union?.variants.map((variant) => [
-            variant.variantValue,
-            variant.presentation.type === "fields"
-              ? variant.presentation.fields.map((field) => [field.fieldName, field.editor])
-              : [],
-          ]) ?? [])
-        : [],
-    );
-
-    expect(contentModel?.queryTabs.map((tab) => tab.queryName)).toEqual([
-      "blockAll",
-      "blockPages",
-      "blockPosts",
-      "blockProjects",
-      "blockLinks",
-      "blockGroups",
-      "blockImages",
-    ]);
-    expect(
-      contentModel?.result.type === "table"
-        ? contentModel.result.columns.map((column) => column.key)
-        : [],
-    ).toEqual([
-      "field:type",
-      "field:label",
-      "field:body",
-      "field:href",
-      "field:mediaAssetId",
-      "field:date",
-      "field:icon",
-      "field:color",
-      "field:alignment",
-      "field:width",
-      "field:height",
-    ]);
-    expect(
-      contentModel?.result.type === "table" ? tableColumnEditors(contentModel.result.columns) : [],
-    ).toEqual([
-      "enum",
-      "text",
-      "markdown",
-      "href",
-      "media",
-      "date",
-      "icon",
-      "color",
-      "enum",
-      "number",
-      "number",
-    ]);
-    expect(create?.type === "create" ? create.fields.map((field) => field.fieldName) : []).toEqual([
-      "type",
-      "label",
-    ]);
-    expect(create?.type === "create" ? create.defaults : []).toMatchObject([
-      { fieldName: "site", value: { kind: "context", name: "site" } },
-    ]);
-    expect(create?.type === "create" ? create.union?.unionName : undefined).toBe("blockByType");
-    expect(createVariantFields).toMatchObject({
-      post: ["date", "body", "href"],
-      project: ["date", "body", "href"],
-      subscribeForm: ["body", "operationName", "buttonLabel"],
-      link: ["linkTargetMode", "linkTargetBlock", "href", "icon"],
-      markdown: ["body"],
-      feature: ["body", "alignment"],
-      image: ["mediaAssetId"],
-    });
-    expect(editVariantFields.image).toEqual([["mediaAssetId", "media"]]);
-    expect(createVariantFields.subscribeForm).not.toContain("operationKey");
-    expect(createVariantFields.subscribeForm).not.toContain("operationNotificationMode");
-  });
-  it("characterizes site authoring rich text fields as string-backed editor hints", () => {
-    const block = siteSourceSchema.entities.find((definition) => definition.key === "block")!;
-    const contentModel = selectCollectionModels(siteSourceSchema).find(
-      (model) => model.viewName === "blockHome",
-    );
-    const create = contentModel?.operations!.find((operation) => operation.type === "create");
-    const createEditors =
-      create?.type === "create"
-        ? Object.fromEntries(create.fields.map((field) => [field.fieldName, field.editor]))
-        : {};
-    const createVariantEditors = Object.fromEntries(
-      create?.type === "create"
-        ? (create.union?.variants.map((variant) => [
-            variant.variantValue,
-            Object.fromEntries(
-              variant.presentation.fields.map((field) => [field.fieldName, field.editor]),
-            ),
-          ]) ?? [])
-        : [],
-    );
-    const tableEditors =
-      contentModel?.result.type === "table"
-        ? Object.fromEntries(
-            contentModel.result.columns
-              .filter((column) => column.type === "field" || column.type === "referenceField")
-              .map((column) => [column.fieldName, column.editor]),
-          )
-        : {};
-    expect(block.fields.find((definition) => definition.key === "body")!).toMatchObject({
-      type: "text",
-      format: "markdown",
-    });
-    expect(block.fields.find((definition) => definition.key === "color")!).toMatchObject({
-      type: "text",
-      format: "color",
-    });
-    expect(block.fields.find((definition) => definition.key === "href")!).toMatchObject({
-      type: "text",
-      format: "href",
-    });
-    expect(block.fields.find((definition) => definition.key === "icon")!).toMatchObject({
-      type: "text",
-      format: "icon",
-    });
-    expect(block.fields.find((definition) => definition.key === "mediaAssetId")!).toMatchObject({
-      type: "text",
-    });
-    expect(block.fields.find((definition) => definition.key === "date")!).toMatchObject({
-      type: "date",
-    });
-    expect(createEditors).toMatchObject({
-      label: "text",
-      type: "enum",
-    });
-    expect(createVariantEditors).toMatchObject({
-      post: {
-        date: "date",
-      },
-      project: {
-        date: "date",
-      },
-      link: {
-        href: "href",
-        icon: "icon",
-      },
-      markdown: {
-        body: "markdown",
-      },
-      image: {
-        mediaAssetId: "media",
-      },
-    });
-    expect(tableEditors).toMatchObject({
-      label: "text",
-      body: "markdown",
-      href: "href",
-      mediaAssetId: "media",
-      date: "date",
-      icon: "icon",
-      color: "color",
-    });
-  });
-
-  it("resolves the site scoped block composition context", () => {
-    const compositionModel = selectCollectionModels(siteSourceSchema).find(
-      (model) => model.viewName === "blockCompositionHome",
-    );
-
-    expect(compositionModel?.context).toMatchObject({
-      name: "block",
-      entityName: "block",
-      queryName: "blockAll",
-      query: siteSourceSchema.queries.find((definition) => definition.key === "blockAll")
-        ?.expression,
-      labelField: "label",
-      presentation: "tabs",
-      relatedCollection: {
-        relationshipName: "blockPlacements",
-        relationship: {
-          kind: "toMany",
-          from: { entity: "block" },
-          to: { entity: "block-placement", field: "parent" },
-        },
-      },
-      itemViewName: "blockContextItem",
-      recordFields: [{ fieldName: "label" }],
-    });
-    expect(compositionModel?.operations[0]).toMatchObject({
-      type: "create",
-      label: "Add placement",
-      entityName: "block-placement",
-      defaults: [{ fieldName: "parent", value: { kind: "context", name: "block" } }],
-    });
   });
 
   it("selects screen models in schema order and filters primary screens", () => {
@@ -3325,8 +2896,8 @@ function rateCardSchemaWithOrdering(): AppSchema {
             ordering: {
               field: "sortOrder",
               scope: [{ kind: "field", field: "card" }],
-              presentations: ["moveMenu"],
             },
+            columns: [...rateTable.columns, { type: "operationControl", includeOrdering: true }],
             key: "rateTable",
           }
         : tableView,
@@ -3341,11 +2912,10 @@ function rateCardSchemaWithDragOrdering(): AppSchema {
       tableView.key === "rateTable"
         ? {
             ...tableView,
-            ordering: {
-              field: "sortOrder",
-              scope: [{ kind: "field", field: "card" }],
-              presentations: ["dragHandle"],
-            },
+            columns: [
+              { type: "orderingHandle" },
+              ...tableView.columns.filter((column) => column.type !== "operationControl"),
+            ],
             key: "rateTable",
           }
         : tableView,
@@ -3571,13 +3141,13 @@ function discriminatedTaskSchema(
       {
         key: "taskVariantItem",
         entity: "task",
-        fields: [{ field: "kind", editor: "enum", commit: "immediate" }],
+        fields: [{ field: "kind", editor: "enum" }],
         union: "taskByKind",
         variants: [
           {
             variant: "role",
             presentation: "fields",
-            fields: [{ field: "title", editor: "text", commit: "field-commit" }],
+            fields: [{ field: "title", editor: "text" }],
           },
           {
             variant: "stream",
@@ -3588,7 +3158,7 @@ function discriminatedTaskSchema(
         ],
         fallback: {
           presentation: "fields",
-          fields: [{ field: "kind", editor: "enum", commit: "immediate" }],
+          fields: [{ field: "kind", editor: "enum" }],
         },
       },
     ],
@@ -3604,10 +3174,7 @@ function discriminatedTaskSchema(
             editView: "taskEdit",
           },
         ],
-        columns: [
-          { type: "field", field: "title" },
-          { type: "operationControl", operation: "task.update" },
-        ],
+        columns: [{ type: "field", field: "title" }, { type: "operationControl" }],
       },
     ],
     views: [
@@ -3665,23 +3232,23 @@ function discriminatedTaskSchema(
         key: "taskEdit",
         type: "edit",
         entity: "task",
-        fields: [{ field: "kind", editor: "enum", commit: "immediate" }],
+        fields: [{ field: "kind", editor: "enum" }],
         union: "taskByKind",
         variants: [
           {
             variant: "role",
             presentation: "fields",
-            fields: [{ field: "title", editor: "text", commit: "field-commit" }],
+            fields: [{ field: "title", editor: "text" }],
           },
           {
             variant: "stream",
             presentation: "fields",
-            fields: [{ field: "done", editor: "boolean", commit: "immediate" }],
+            fields: [{ field: "done", editor: "boolean" }],
           },
         ],
         fallback: {
           presentation: "fields",
-          fields: [{ field: "kind", editor: "enum", commit: "immediate" }],
+          fields: [{ field: "kind", editor: "enum" }],
         },
       },
     ],
@@ -3765,8 +3332,8 @@ function systemMetadataUiSchema(): AppSchema {
         key: "taskItem",
         entity: "task",
         fields: [
-          { field: "title", editor: "text", commit: "field-commit" },
-          { field: "updatedAt", editor: "text", commit: "field-commit" },
+          { field: "title", editor: "text" },
+          { field: "updatedAt", editor: "text" },
         ],
       },
     ],
@@ -3782,10 +3349,7 @@ function systemMetadataUiSchema(): AppSchema {
             editView: "taskEdit",
           },
         ],
-        columns: [
-          { type: "field", field: "updatedAt", display: "editor" },
-          { type: "operationControl", operation: "task.update", label: "Actions" },
-        ],
+        columns: [{ type: "field", field: "updatedAt" }, { type: "operationControl" }],
       },
     ],
     views: [
@@ -3822,8 +3386,8 @@ function systemMetadataUiSchema(): AppSchema {
         type: "edit",
         entity: "task",
         fields: [
-          { field: "title", editor: "text", commit: "field-commit" },
-          { field: "updatedAt", editor: "text", commit: "field-commit" },
+          { field: "title", editor: "text" },
+          { field: "updatedAt", editor: "text" },
         ],
       },
     ],
@@ -4014,8 +3578,8 @@ function lifecycleTaskSchema() {
         key: "taskItem",
         entity: "task",
         fields: [
-          { field: "title", editor: "text", commit: "field-commit" },
-          { field: "status", editor: "enum", commit: "immediate" },
+          { field: "title", editor: "text" },
+          { field: "status", editor: "enum" },
         ],
       },
     ],
@@ -4026,7 +3590,7 @@ function lifecycleTaskSchema() {
         columns: [
           { type: "field", field: "title" },
           { type: "field", field: "status" },
-          { type: "operationControl", operation: "task.update" },
+          { type: "operationControl" },
         ],
         operations: [
           {
@@ -4035,14 +3599,6 @@ function lifecycleTaskSchema() {
             target: { kind: "row" },
             editView: "taskEdit",
           },
-        ],
-      },
-      {
-        key: "taskHiddenStatusTable",
-        entity: "task",
-        columns: [
-          { type: "field", field: "title" },
-          { type: "field", field: "status", display: "hidden" },
         ],
       },
       {
@@ -4081,15 +3637,6 @@ function lifecycleTaskSchema() {
         result: { type: "table", tableView: "taskTable" },
       },
       {
-        key: "taskHiddenStatusTableHome",
-        type: "collection",
-        label: "Task hidden status table",
-        entity: "task",
-        queries: [{ query: "taskAll" }],
-        defaultQuery: "taskAll",
-        result: { type: "table", tableView: "taskHiddenStatusTable" },
-      },
-      {
         key: "taskAbsentStatusTableHome",
         type: "collection",
         label: "Task absent status table",
@@ -4112,8 +3659,8 @@ function lifecycleTaskSchema() {
         type: "edit",
         entity: "task",
         fields: [
-          { field: "title", editor: "text", commit: "field-commit" },
-          { field: "status", editor: "enum", commit: "immediate" },
+          { field: "title", editor: "text" },
+          { field: "status", editor: "enum" },
         ],
       },
     ],

@@ -1,8 +1,5 @@
-import * as stylex from "@stylexjs/stylex";
 import { Text } from "@astryxdesign/core/Text";
-import { Tooltip } from "@astryxdesign/core/Tooltip";
 import { VStack } from "@astryxdesign/core/VStack";
-import { sizeVars } from "@astryxdesign/core/theme/tokens.stylex";
 import type {
   DisplayFieldContract,
   FieldContract,
@@ -56,20 +53,7 @@ export function FieldRenderer({
     renderer = <FieldEditor field={field} inputId={inputId} onIntent={onIntent} />;
   }
 
-  if (field.surface !== "table-cell") {
-    return renderer;
-  }
-
-  const frame = <div {...stylex.props(styles.tableCellFrame)}>{renderer}</div>;
-  const errorMessage = field.errors?.map((error) => error.message).join(" ");
-
-  return errorMessage ? (
-    <Tooltip content={errorMessage} focusTrigger="always" hasHoverIndication={false}>
-      {frame}
-    </Tooltip>
-  ) : (
-    frame
-  );
+  return renderer;
 }
 
 export function FieldSubmitFormAdapter({ field }: { field: FieldContract }) {
@@ -215,18 +199,6 @@ function fieldHasDisplayValue(field: DisplayFieldContract) {
 
   return field.formatting.displayValue !== undefined && field.formatting.displayValue.trim() !== "";
 }
-
-const styles = stylex.create({
-  tableCellFrame: {
-    alignItems: "center",
-    alignSelf: "start",
-    boxSizing: "border-box",
-    display: "flex",
-    minHeight: sizeVars["--size-element-sm"],
-    minWidth: 0,
-    width: "100%",
-  },
-});
 
 function editorRoute(
   field: EditorField,

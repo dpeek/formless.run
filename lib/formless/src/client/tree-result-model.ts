@@ -99,7 +99,7 @@ export function selectTreeResultModel(
   }
 
   const ordering =
-    selectResultOrderingConfig(result.ordering, entity) ??
+    selectResultOrderingConfig(result.ordering, entity, ["dragHandle"]) ??
     selectImplicitTreeOrderingFallback(entity, relationship);
   const childRecordUnion = selectRecordUnionPresentation(schema, childItemView, childEntity);
   const placementRecordUnion =

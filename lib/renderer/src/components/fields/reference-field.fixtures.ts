@@ -64,13 +64,10 @@ export const referenceScenarioGroups = [
     projectField: projectCreateReferenceField,
   }),
   projectExistingReferenceGroup("record"),
-  projectExistingReferenceGroup("table-cell"),
   projectExistingReferenceGroup("detail"),
 ] satisfies readonly FieldScenarioGroup[];
 
-function projectExistingReferenceGroup(
-  surface: Extract<FieldSurface, "detail" | "record" | "table-cell">,
-) {
+function projectExistingReferenceGroup(surface: Extract<FieldSurface, "detail" | "record">) {
   return projectScenarioGroup({
     id: `reference-${surface}`,
     kind: "reference",
@@ -103,7 +100,7 @@ function projectCreateReferenceField({ facets }: FieldScenarioProjectionContext)
 }
 
 function projectExistingReferenceField(
-  surface: Extract<FieldSurface, "detail" | "record" | "table-cell">,
+  surface: Extract<FieldSurface, "detail" | "record">,
   { facets }: FieldScenarioProjectionContext,
 ) {
   const required = facets.requiredness === "required";
@@ -136,7 +133,7 @@ function projectExistingReferenceField(
   return facets.mode === "display"
     ? displayField({
         ...common,
-        density: surface === "table-cell" ? "compact" : "default",
+        density: "default",
         formatting: { displayValue },
         reference: referenceDisplayFacts(value || undefined, ownerOptions),
         value: value || undefined,
@@ -144,7 +141,7 @@ function projectExistingReferenceField(
     : recordField({
         ...common,
         commit: "immediate",
-        density: surface === "table-cell" ? "compact" : "default",
+        density: "default",
         drafts: recordDrafts({ recordValue: value || undefined }),
         formatting: { displayValue },
         reference: referenceEditorFacts(field, value || undefined, ownerOptions),

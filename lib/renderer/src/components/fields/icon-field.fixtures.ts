@@ -53,11 +53,10 @@ export const iconScenarioGroups = [
     projectField: projectCreateIconField,
   }),
   existingIconGroup("record"),
-  existingIconGroup("table-cell"),
   existingIconGroup("detail"),
 ] satisfies readonly FieldScenarioGroup[];
 
-function existingIconGroup(surface: Extract<FieldSurface, "detail" | "record" | "table-cell">) {
+function existingIconGroup(surface: Extract<FieldSurface, "detail" | "record">) {
   return projectScenarioGroup({
     id: `source-icon-${surface}`,
     kind: "source-icon",
@@ -90,7 +89,7 @@ function projectCreateIconField({ facets }: FieldScenarioProjectionContext) {
 }
 
 function projectExistingIconField(
-  surface: Extract<FieldSurface, "detail" | "record" | "table-cell">,
+  surface: Extract<FieldSurface, "detail" | "record">,
   { facets }: FieldScenarioProjectionContext,
 ) {
   const required = facets.requiredness === "required";
@@ -114,14 +113,14 @@ function projectExistingIconField(
   return facets.mode === "display"
     ? displayField({
         ...common,
-        density: surface === "table-cell" ? "compact" : "default",
+        density: "default",
         formatting: { displayValue: value ? "Page icon" : "" },
         value: value || undefined,
       })
     : recordField({
         ...common,
         commit: "field-commit",
-        density: surface === "table-cell" ? "compact" : "default",
+        density: "default",
         drafts: recordDrafts({ recordValue: value || undefined }),
         formatting: { displayValue: value ? "Page icon" : "" },
         icon: iconPickerFacts(value),

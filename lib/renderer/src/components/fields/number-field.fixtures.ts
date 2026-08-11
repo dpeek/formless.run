@@ -90,7 +90,6 @@ export const numberScenarioGroups = [
     projectField: projectCreateNumberField,
   }),
   existingNumberGroup("record"),
-  existingNumberGroup("table-cell"),
   existingNumberGroup("detail"),
   projectScenarioGroup({
     id: "number-operation",
@@ -100,7 +99,7 @@ export const numberScenarioGroups = [
   }),
 ] satisfies readonly FieldScenarioGroup[];
 
-function existingNumberGroup(surface: Extract<FieldSurface, "detail" | "record" | "table-cell">) {
+function existingNumberGroup(surface: Extract<FieldSurface, "detail" | "record">) {
   return projectScenarioGroup({
     id: `number-${surface}`,
     kind: "number",
@@ -114,15 +113,12 @@ function existingNumberGroup(surface: Extract<FieldSurface, "detail" | "record" 
       unitStateAxis,
       unitRequirednessAxis,
     ],
-    include: (context) => existingNumberCombinationIsValid(surface, context),
+    include: existingNumberCombinationIsValid,
     projectField: (context) => projectExistingNumberField(surface, context),
   });
 }
 
-function existingNumberCombinationIsValid(
-  surface: Extract<FieldSurface, "detail" | "record" | "table-cell">,
-  { facets }: FieldScenarioProjectionContext,
-) {
+function existingNumberCombinationIsValid({ facets }: FieldScenarioProjectionContext) {
   const valueUnit = facets.composition === "value-unit";
 
   if (
@@ -140,7 +136,7 @@ function existingNumberCombinationIsValid(
     return false;
   }
 
-  if (facets.suffix === "suffix" && facets.mode === "editor" && surface !== "table-cell") {
+  if (facets.suffix === "suffix" && facets.mode === "editor") {
     return false;
   }
 
@@ -221,7 +217,7 @@ function projectOperationNumberField({ facets }: FieldScenarioProjectionContext)
 }
 
 function projectExistingNumberField(
-  surface: Extract<FieldSurface, "detail" | "record" | "table-cell">,
+  surface: Extract<FieldSurface, "detail" | "record">,
   { facets }: FieldScenarioProjectionContext,
 ) {
   const required = facets.requiredness === "required";
@@ -274,7 +270,7 @@ function projectExistingNumberField(
   if (facets.mode === "display") {
     return displayField({
       ...common,
-      density: surface === "table-cell" ? "compact" : "default",
+      density: "default",
       formatting: { displayValue, format, ...(suffix ? { suffix } : {}) },
       suffix,
       value,
@@ -284,7 +280,7 @@ function projectExistingNumberField(
   return recordField({
     ...common,
     commit: "field-commit",
-    density: surface === "table-cell" ? "compact" : "default",
+    density: "default",
     drafts: recordDrafts({
       draft,
       draftInput: numberDraftInput(facets.value, value, draft),

@@ -729,6 +729,50 @@ projections, operations, bindings, and adapters.
   placement do not redefine operation input, output, effect, access,
   idempotency, audit, or storage semantics
 
+### Requirement: Projection-Only Table Views
+
+The system SHALL define generated tables as read-only record projections with
+explicit row-level navigation, mutation, and ordering placements.
+
+#### Scenario: Declare display columns
+
+- GIVEN a table view declares field, reference-field, or computed columns
+- WHEN the table view is parsed
+- THEN each column selects display data plus optional label, width, alignment,
+  format, suffix, or read-only value-unit presentation facts
+- AND ordinary field and one-hop referenced-field columns remain display-only
+  regardless of whether their source entity fields are writable
+- AND a table column that should not be visible is omitted from the ordered
+  column declaration
+- AND table display columns carry no field editor, field commit, draft,
+  reference-item authoring, field-interaction, or visibility-mode choice
+
+#### Scenario: Declare one row operation menu
+
+- GIVEN a table exposes update, delete, command, transition, or other
+  record-scoped mutation controls
+- WHEN the table view is parsed
+- THEN every control comes from an ordered table `operations` binding
+- AND one `operationControl` column places all bound operations in one row
+  menu in binding declaration order
+- AND a binding may select the row record or one referenced record, an edit
+  view where applicable, a visible label, destructive semantics, and
+  display-safe availability
+- AND the table does not derive mutation controls merely because the entity
+  declares an available operation
+
+#### Scenario: Declare ordering affordances explicitly
+
+- GIVEN a table supports sparse-rank ordering
+- WHEN its table view is parsed
+- THEN one table `ordering` declaration identifies the rank field and optional
+  field scopes
+- AND an `orderingHandle` column places the drag handle independently
+- AND the `operationControl` column may include ordering move actions in the
+  same row menu
+- AND declared column placements determine the available ordering affordances
+  without a second ordering-presentation registry
+
 ### Requirement: Schema-Declared Record Links
 
 The system SHALL let presentation surfaces declare renderer-neutral record
@@ -1082,8 +1126,9 @@ interaction once as portable view schema.
 - AND generated record results, list fields, item views, edit views, and row
   edit dialogs that consume the binding do not expose draft, commit, patch,
   picker, upload, or transition interaction for that occurrence
-- AND neighboring editable bindings retain their declared editor, commit,
-  visibility, presentation, state-machine, validation, media, and union behavior
+- AND neighboring editable bindings retain their declared editor, derived
+  commit behavior, visibility, presentation, state-machine, validation, media,
+  and union behavior
 
 #### Scenario: Reject invalid view field interaction
 
@@ -1093,6 +1138,18 @@ interaction once as portable view schema.
 - THEN parsing fails before the view reaches generated UI
 - AND omission retains the ordinary editable behavior for writable entity
   fields
+
+#### Scenario: Derive existing-record field commit behavior
+
+- GIVEN an editable item- or edit-view field binding selects an editor for an
+  ordinary writable entity field
+- WHEN the complete schema is parsed
+- THEN field and editor behavior derive whether the runtime commits on change
+  or through an explicit field commit
+- AND the authored field binding does not choose a second commit policy that
+  can contradict the selected field and editor behavior
+- AND generated runtime and Presentation contracts retain the derived commit
+  mode needed to execute and render existing-record authoring
 
 ### Requirement: Item View Summary Presentation
 
@@ -1904,14 +1961,16 @@ public forms, automation, audit, and authorization.
 
 #### Scenario: Parse table operation bindings
 
-- GIVEN a table view needs row controls, edit dialogs, destructive controls, or
+- GIVEN a table view needs row edit, destructive, command, transition, or
   ordering controls
 - WHEN the table view is parsed
 - THEN table `operations` binding declarations bind canonical operation keys
-- AND `operationControl` columns reference those table operation bindings for
-  row-control placement
-- AND binding declarations may include placement, labels, ordering presentation,
-  target record selection, and disabled reasons
+- AND one `operationControl` column places every declared binding in the row's
+  More options menu
+- AND binding declarations may include labels, target record selection, edit
+  views, destructive semantics, and disabled reasons
+- AND ordering move actions join that menu only when the operation-control
+  placement includes ordering
 - AND operation control presentation contracts use operation terminology
 
 ### Requirement: State Machines

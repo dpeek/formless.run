@@ -1626,9 +1626,9 @@ function baseTaskSchema(overrides: Record<string, unknown> = {}) {
         key: "taskItem",
         entity: "task",
         fields: [
-          { field: "title", editor: "text", commit: "field-commit" },
-          { field: "done", editor: "boolean", commit: "immediate" },
-          { field: "dueDate", editor: "date", commit: "field-commit" },
+          { field: "title", editor: "text" },
+          { field: "done", editor: "boolean" },
+          { field: "dueDate", editor: "date" },
         ],
       },
     ],

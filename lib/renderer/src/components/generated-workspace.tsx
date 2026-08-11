@@ -864,15 +864,14 @@ function mapTableActionGroup(
   controlId: string,
   intent: OperationPresentationIntent,
 ) {
-  const mapAction = (action: (typeof actions.primary)[number]) =>
+  const mapAction = (action: (typeof actions.actions)[number]) =>
     action.kind === "operationAction" && action.control.id === controlId
       ? { ...action, control: applyFixtureOperationIntent(action.control, intent) }
       : action;
 
   return {
     ...actions,
-    primary: actions.primary.map(mapAction),
-    secondary: actions.secondary.map(mapAction),
+    actions: actions.actions.map(mapAction),
   };
 }
 

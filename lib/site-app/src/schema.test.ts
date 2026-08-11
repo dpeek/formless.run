@@ -90,22 +90,15 @@ describe("Site schema authoring", () => {
       "blockTreeNode",
       "blockPlacementTreeItem",
     ]);
-    expect(sitePresentationSchemaModule.tableViews?.map(({ key }) => key)).toEqual([
-      "blockTable",
-      "blockPlacementTable",
-    ]);
+    expect(sitePresentationSchemaModule).not.toHaveProperty("tableViews");
     expect(sitePresentationSchemaModule.views?.map(({ key }) => key)).toEqual([
       "siteSettingsHome",
-      "blockHome",
       "siteCompositionHome",
-      "pageCompositionHome",
-      "navigationCompositionHome",
       "blockCreate",
       "blockPageCreate",
       "blockPostCreate",
       "blockProjectCreate",
       "blockEdit",
-      "blockCompositionHome",
       "blockPlacementCreate",
     ]);
     expect(sitePresentationSchemaModule.screens?.map(({ key }) => key)).toEqual([

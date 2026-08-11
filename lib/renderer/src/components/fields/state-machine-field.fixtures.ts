@@ -93,12 +93,6 @@ const stateMachineRecordBase = stateMachineDisplayField({
   value: "open",
 });
 
-const stateMachineTableCellBase = stateMachineDisplayField({
-  recordId: "state-status-cell",
-  surface: "table-cell",
-  value: "open",
-});
-
 const stateMachineDetailBase = stateMachineDisplayField({
   recordId: "state-status-detail",
   surface: "detail",
@@ -135,22 +129,6 @@ export const stateMachineScenarioGroups = [
     finalizeField: finalizeRecordStateMachineField,
   }),
   composeScenarioGroup({
-    id: "state-machine-table-cell",
-    kind: "state-machine-enum",
-    surface: "table-cell",
-    base: stateMachineTableCellBase,
-    axes: [
-      composeScenarioAxis("value", "Value", [
-        scenarioOption("open", "Active", withStateValue("open")),
-        scenarioOption("done", "Terminal", withStateValue("done")),
-        scenarioOption("undeclared", "Undeclared", withStateValue("paused")),
-        scenarioOption("unset", "Unset", withStateValue("")),
-      ]),
-      stateMachineInteractionAxis,
-    ],
-    finalizeField: finalizeTableCellStateMachineField,
-  }),
-  composeScenarioGroup({
     id: "state-machine-detail",
     kind: "state-machine-enum",
     surface: "detail",
@@ -172,13 +150,6 @@ function finalizeRecordStateMachineField({ field, optionIds }: FieldScenarioComp
   return {
     ...field,
     recordId: `state-status-record-${optionIds.join("-")}`,
-  };
-}
-
-function finalizeTableCellStateMachineField({ field, optionIds }: FieldScenarioComposeContext) {
-  return {
-    ...field,
-    recordId: `state-status-cell-${optionIds.join("-")}`,
   };
 }
 
@@ -231,7 +202,7 @@ function stateMachineCreateField() {
 
 function stateMachineDisplayField(input: {
   recordId: string;
-  surface: "detail" | "record" | "table-cell";
+  surface: "detail" | "record";
   value: string;
 }) {
   const stateMachine = stateMachineField({
@@ -246,7 +217,7 @@ function stateMachineDisplayField(input: {
     editor: "enum",
     control: enumControl(stateStatusField),
     access: { kind: "stateMachine", writable: false },
-    density: input.surface === "table-cell" ? "compact" : "default",
+    density: "default",
     formatting: {
       displayValue: displayOption(stateStatusField, input.value),
       enumValuePresentation: stateValuePresentation(stateStatusField, input.value),

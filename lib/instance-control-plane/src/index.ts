@@ -227,12 +227,7 @@ export type InstanceControlPlaneRecordValuesByEntity = {
   route: InstanceControlPlaneRouteValues;
 };
 
-type InstanceControlPlaneTableField =
-  | string
-  | {
-      display?: "editor" | "hidden" | "readOnly";
-      field: string;
-    };
+type InstanceControlPlaneTableField = string;
 
 type InstanceControlPlaneViewField =
   | string
@@ -899,17 +894,17 @@ export const instanceControlPlanePresentationSchemaModule = defineAppSchemaModul
       ...tableView(
         "route",
         [
-          { field: "enabled", display: "editor" },
-          { field: "matchHost", display: "readOnly" },
-          { field: "matchPath", display: "readOnly" },
-          { field: "matchPrefix", display: "readOnly" },
-          { field: "kind", display: "readOnly" },
-          { field: "targetProfile", display: "readOnly" },
-          { field: "surface", display: "readOnly" },
-          { field: "access", display: "readOnly" },
-          { field: "toHost", display: "readOnly" },
-          { field: "toUrl", display: "readOnly" },
-          { field: "statusCode", display: "readOnly" },
+          "enabled",
+          "matchHost",
+          "matchPath",
+          "matchPrefix",
+          "kind",
+          "targetProfile",
+          "surface",
+          "access",
+          "toHost",
+          "toUrl",
+          "statusCode",
         ],
         {
           operations: [
@@ -920,7 +915,6 @@ export const instanceControlPlanePresentationSchemaModule = defineAppSchemaModul
               editView: "routeEdit",
             },
           ],
-          operationLabel: "Route operations",
         },
       ),
     },
@@ -2847,7 +2841,6 @@ function tableView(
   entity: InstanceControlPlaneEntityName,
   fields: InstanceControlPlaneTableField[],
   options: {
-    operationLabel?: string;
     operations?: NonNullable<AppSchema["tableViews"][number]["operations"]>;
   } = {},
 ) {
@@ -2861,24 +2854,15 @@ function tableView(
         : [
             {
               type: "operationControl",
-              label: options.operationLabel ?? "Actions",
-              operations: options.operations.map((operation) => operation.operation),
-              align: "end",
-              width: "xs",
-              presentation: "dropdown",
             } satisfies AppSchema["tableViews"][number]["columns"][number],
           ]),
     ],
   } satisfies Omit<AppSchema["tableViews"][number], "key">;
 }
 function tableFieldColumn(fieldInput: InstanceControlPlaneTableField) {
-  const field = typeof fieldInput === "string" ? fieldInput : fieldInput.field;
-  const display = typeof fieldInput === "string" ? "readOnly" : (fieldInput.display ?? "readOnly");
-
   return {
     type: "field",
-    field,
-    display,
+    field: fieldInput,
   } satisfies AppSchema["tableViews"][number]["columns"][number];
 }
 function createView(
@@ -2983,13 +2967,7 @@ function writeOperations(
   ] satisfies NonNullable<AppSchema["entities"][number]["operations"]>;
 }
 function viewField(editor: FieldEditor) {
-  return {
-    editor,
-    commit:
-      editor === "boolean" || editor === "enum" || editor === "reference"
-        ? "immediate"
-        : "field-commit",
-  } satisfies Omit<ViewFieldBindingSchema, "field">;
+  return { editor } satisfies Omit<ViewFieldBindingSchema, "field">;
 }
 function createField(editor: FieldEditor) {
   return { editor } satisfies Omit<

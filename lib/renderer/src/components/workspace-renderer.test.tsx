@@ -719,7 +719,6 @@ function tableResult(id: string): Extract<WorkspaceResultContract, { kind: "tabl
       },
     ],
     density: "compact",
-    editing: { enabled: true },
     emptyState: {
       description: "Create the first record.",
       id: `${id}:empty`,

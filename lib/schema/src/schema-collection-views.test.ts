@@ -272,7 +272,7 @@ function schemaWithNotes() {
       {
         key: "noteItem",
         entity: "note",
-        fields: [{ field: "title", editor: "text", commit: "field-commit" }],
+        fields: [{ field: "title", editor: "text" }],
       },
     ],
   };
@@ -376,7 +376,7 @@ function projectTaskSchema() {
       {
         key: "projectItem",
         entity: "project",
-        fields: [{ field: "name", editor: "text", commit: "field-commit" }],
+        fields: [{ field: "name", editor: "text" }],
       },
     ],
     views: [

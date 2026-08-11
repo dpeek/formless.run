@@ -72,8 +72,8 @@ import {
   type SelectGeneratedRecordResultFoundationOptions,
 } from "./generated-record-result-foundation.ts";
 import {
-  resolveGeneratedTableFieldIntent,
-  type GeneratedTableFieldIndex,
+  resolveGeneratedTableEditFieldIntent,
+  type GeneratedTableEditFieldIndex,
 } from "./generated-table-foundation.tsx";
 import {
   resolveGeneratedTreeChildVariantSelectionIntent,
@@ -141,7 +141,7 @@ export type GeneratedWorkspaceContextCreateFoundation = {
 };
 
 export type GeneratedWorkspaceTableFoundation = {
-  fieldsById: GeneratedTableFieldIndex;
+  editFieldsById: GeneratedTableEditFieldIndex;
   runtime: unknown;
   table: TableContract;
 };
@@ -276,7 +276,7 @@ type GeneratedWorkspaceNestedResultRuntime =
     }
   | {
       contract: TableContract;
-      fieldsById: GeneratedTableFieldIndex;
+      editFieldsById: GeneratedTableEditFieldIndex;
       kind: "table";
       runtime: unknown;
     }
@@ -869,7 +869,7 @@ export function resolveGeneratedWorkspaceIntent(
         : { field: field.field, kind: "field", result, section };
     }
     if (result?.kind === "table" && intent.contextId !== undefined) {
-      const field = resolveGeneratedTableFieldIntent(result.fieldsById, {
+      const field = resolveGeneratedTableEditFieldIntent(result.editFieldsById, {
         contextId: intent.contextId,
         fieldId: intent.fieldId,
         intent: intent.intent,
@@ -1290,7 +1290,7 @@ function selectGeneratedWorkspaceResult(
 
   return {
     contract: input.table.table,
-    fieldsById: input.table.fieldsById,
+    editFieldsById: input.table.editFieldsById,
     kind: "table",
     runtime: input.table.runtime,
   };
@@ -1485,7 +1485,7 @@ function selectGeneratedWorkspaceSelectedRecordDetailRelationshipResults(
       recordIds: relationshipFacts.recordIds,
       result: {
         contract: sectionInput.table.table,
-        fieldsById: sectionInput.table.fieldsById,
+        editFieldsById: sectionInput.table.editFieldsById,
         kind: "table" as const,
         runtime: sectionInput.table.runtime,
       },

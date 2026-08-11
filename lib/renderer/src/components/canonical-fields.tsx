@@ -623,8 +623,7 @@ function baseField({
     fieldId: fixtureFieldId({ ownerId, placementId: fieldName }),
     fieldName,
     label,
-    labelVisibility:
-      surface === "record" || surface === "table-cell" ? ("hidden" as const) : ("visible" as const),
+    labelVisibility: surface === "record" ? ("hidden" as const) : ("visible" as const),
     required: field.required,
     surface,
   };

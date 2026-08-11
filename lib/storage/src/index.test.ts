@@ -57,7 +57,7 @@ const appSchema = parseAppSchema({
     {
       key: "taskItem",
       entity: "task",
-      fields: [{ field: "title", editor: "text", commit: "field-commit" }],
+      fields: [{ field: "title", editor: "text" }],
     },
   ],
   tableViews: [],

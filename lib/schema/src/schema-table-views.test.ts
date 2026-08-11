@@ -5,12 +5,7 @@ import { parseAppSchema, parseTableViews, type AppSchema, type EntitySchema } fr
 describe("schema table views", () => {
   it("parses table columns, operation bindings, and ordering through the table parser", () => {
     const schema = tableParserSchema();
-    const tableViews = parseTableViews(
-      schema.tableViews,
-      schema.entities,
-      schema.itemViews,
-      schema.readModels,
-    );
+    const tableViews = parseTableViews(schema.tableViews, schema.entities, schema.readModels);
     expect(tableViews.find((definition) => definition.key === "rateTable")).toMatchObject({
       entity: "rate",
     });
@@ -35,8 +30,13 @@ describe("schema table views", () => {
             { kind: "field", field: "parent" },
             { kind: "field", field: "slot" },
           ],
-          presentations: ["dragHandle", "moveMenu"],
         },
+        columns: [
+          { type: "orderingHandle" },
+          { type: "field", field: "slot" },
+          { type: "referenceField", referenceField: "block", field: "label" },
+          { type: "operationControl", includeOrdering: true },
+        ],
       },
     );
   });
@@ -88,20 +88,15 @@ describe("schema table views", () => {
     const schema = tableParserSchema();
     schema.tableViews.find((definition) => definition.key === "rateTable")!.columns = [
       ...schema.tableViews.find((definition) => definition.key === "rateTable")!.columns,
-      { type: "field", field: "updatedAt", display: "editor" },
+      { type: "field", field: "updatedAt" },
       { type: "referenceField", referenceField: "resource", field: "createdAt" },
     ];
 
-    const tableViews = parseTableViews(
-      schema.tableViews,
-      schema.entities,
-      schema.itemViews,
-      schema.readModels,
-    );
+    const tableViews = parseTableViews(schema.tableViews, schema.entities, schema.readModels);
     expect(
       tableViews.find((definition) => definition.key === "rateTable")?.columns.slice(-2),
     ).toEqual([
-      { type: "field", field: "updatedAt", display: "editor" },
+      { type: "field", field: "updatedAt" },
       { type: "referenceField", referenceField: "resource", field: "createdAt" },
     ]);
   });
@@ -195,14 +190,14 @@ function tableParserSourceSchema() {
       {
         key: "blockItem",
         entity: "block",
-        fields: [{ field: "label", editor: "text", commit: "field-commit" }],
+        fields: [{ field: "label", editor: "text" }],
       },
       {
         key: "rateItem",
         entity: "rate",
         fields: [
-          { field: "resource", editor: "reference", commit: "immediate" },
-          { field: "cost", editor: "number", commit: "field-commit" },
+          { field: "resource", editor: "reference" },
+          { field: "cost", editor: "number" },
         ],
       },
     ],
@@ -235,13 +230,12 @@ function tableParserSourceSchema() {
             { kind: "field", field: "parent" },
             { kind: "field", field: "slot" },
           ],
-          presentations: ["dragHandle", "moveMenu"],
         },
         columns: [
           { type: "orderingHandle" },
           { type: "field", field: "slot" },
           { type: "referenceField", referenceField: "block", field: "label" },
-          { type: "operationControl", operation: "block.update", label: "Actions" },
+          { type: "operationControl", includeOrdering: true },
         ],
       },
     ],
@@ -268,7 +262,7 @@ function tableParserSourceSchema() {
         key: "blockEdit",
         type: "edit",
         entity: "block",
-        fields: [{ field: "label", editor: "text", commit: "field-commit" }],
+        fields: [{ field: "label", editor: "text" }],
       },
     ],
     screens: [

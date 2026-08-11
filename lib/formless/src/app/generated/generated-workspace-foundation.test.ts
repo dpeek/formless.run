@@ -9,11 +9,7 @@ import type {
 } from "@dpeek/formless-presentation/contract";
 import type { AppSchema } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
-import type {
-  GeneratedOperationControlBinding,
-  HomeScreenModel,
-  RecordFieldConfig,
-} from "../../client/views.ts";
+import type { GeneratedOperationControlBinding, HomeScreenModel } from "../../client/views.ts";
 import type { EntityOperationPresentationConfig } from "../../client/operation-presentation-model.ts";
 import {
   createGeneratedOperationController,
@@ -30,7 +26,6 @@ import {
 } from "../../test/schema-apps.ts";
 import { testSiteRecords } from "../../test/site-records.ts";
 import { projectGeneratedOperationControl } from "./operation-projection.ts";
-import { projectGeneratedRecordField } from "./field-projection.ts";
 import {
   generatedWorkspaceScopedId,
   projectGeneratedWorkspaceCreateIntent,
@@ -47,10 +42,7 @@ import {
   selectGeneratedRecordResultFoundation,
   type GeneratedRecordResultRecordState,
 } from "./generated-record-result-foundation.ts";
-import {
-  indexGeneratedTableFieldOccurrences,
-  selectGeneratedWorkspaceTableFoundation,
-} from "./generated-table-foundation.tsx";
+import { selectGeneratedWorkspaceTableFoundation } from "./generated-table-foundation.tsx";
 import {
   resolveGeneratedWorkspaceIntent,
   selectGeneratedWorkspaceFoundation,
@@ -384,64 +376,11 @@ describe("generated workspace foundation", () => {
       premiumRelationship.recordIds,
     );
 
-    const editableCell = required(
-      premiumRelationship.result.contract.rows[0]?.cells.find((cell) =>
-        cell.contents.some((content) => content.kind === "field"),
-      ),
-    );
-    const editableContent = required(
-      editableCell.contents.find((content) => content.kind === "field"),
-    );
-    if (editableContent.kind !== "field") {
-      throw new Error("Missing selected-record relationship field.");
-    }
-    const fieldRuntime = required(
-      premiumRelationship.result.fieldsById.get(editableContent.field.fieldId),
-    );
-    const fieldIntent = projectGeneratedWorkspaceFieldIntent(
-      premium.scope,
-      editableContent.field.fieldId,
-      {
-        fieldName: editableContent.field.fieldName,
-        fieldValue: { kind: "input", value: "1250" },
-        type: "recordDraftChange",
-      },
-      {
-        contextId: fieldRuntime.contextId,
-        recordId: fieldRuntime.recordId,
-        resultId: premiumRelationship.result.contract.id,
-      },
-    );
-    const runtimePlan = required(
-      selectGeneratedWorkspaceFoundation({
-        screen,
-        sectionSelection: { cards: { selectedRecordId: "rec_card_premium" } },
-        selectSectionFoundation: selectSelectedRecordDetailSectionFoundation,
-        snapshot,
-        today: "2026-08-10",
-      }),
-    ).runtimePlan;
-    expect(resolveGeneratedWorkspaceIntent(runtimePlan, fieldIntent)).toMatchObject({
-      field: {
-        fieldId: editableContent.field.fieldId,
-        recordId: fieldRuntime.recordId,
-      },
-      kind: "field",
-      result: { contract: { id: premiumRelationship.result.contract.id }, kind: "table" },
-    });
+    const firstRow = required(premiumRelationship.result.contract.rows[0]);
     expect(
-      resolveGeneratedWorkspaceIntent(runtimePlan, {
-        ...fieldIntent,
-        contextId: `${fieldRuntime.contextId}:stale`,
-      }),
-    ).toBeUndefined();
-    for (const staleIntent of [
-      { ...fieldIntent, fieldId: `${fieldIntent.fieldId}:stale` },
-      { ...fieldIntent, recordId: `${fieldRuntime.recordId}:stale` },
-      { ...fieldIntent, resultId: `${premiumRelationship.result.contract.id}:stale` },
-    ]) {
-      expect(resolveGeneratedWorkspaceIntent(runtimePlan, staleIntent)).toBeUndefined();
-    }
+      firstRow.cells.some((cell) => cell.contents.some((content) => content.kind === "cellValue")),
+    ).toBe(true);
+    expect(premiumRelationship.result.editFieldsById.size).toBe(0);
 
     const defaultRelationship = required(
       required(select("rec_card_default")).selectedRecordDetailRelationshipResults[0],
@@ -791,61 +730,12 @@ describe("generated workspace foundation", () => {
       ),
     ).toMatchObject({ kind: "result", result: { kind: "table" } });
 
-    const tableFieldContent = required(
-      fixture.table.rows[0]?.cells
-        .flatMap((cell) => cell.contents)
-        .find((content) => content.kind === "field"),
-    );
-    if (tableFieldContent.kind !== "field") {
-      throw new Error("Missing table field.");
-    }
-    const tableField = tableFieldContent.field;
-    const tableFieldContextId = required(
-      fixture.table.rows[0]?.cells.find((cell) =>
-        cell.contents.some((content) => content.kind === "field"),
+    expect(JSON.stringify(fixture.table)).not.toContain('"fieldId"');
+    expect(
+      fixture.table.rows[0]?.cells.some((cell) =>
+        cell.contents.some((content) => content.kind === "cellValue"),
       ),
-    ).id;
-    const tableFieldIntent = projectGeneratedWorkspaceFieldIntent(
-      plan.scope,
-      tableField.fieldId,
-      { fieldName: tableField.fieldName, type: "recordDraftRevert" },
-      {
-        contextId: tableFieldContextId,
-        recordId: tableField.recordId,
-        resultId: fixture.table.id,
-      },
-    );
-    expect(resolveGeneratedWorkspaceIntent(foundation.runtimePlan, tableFieldIntent)).toMatchObject(
-      {
-        field: { fieldId: tableField.fieldId },
-        kind: "field",
-        result: { kind: "table" },
-      },
-    );
-    expect(
-      resolveGeneratedWorkspaceIntent(foundation.runtimePlan, {
-        ...tableFieldIntent,
-        fieldId: `${tableField.fieldId}:stale`,
-      }),
-    ).toBeUndefined();
-    expect(
-      resolveGeneratedWorkspaceIntent(foundation.runtimePlan, {
-        ...tableFieldIntent,
-        contextId: `${tableFieldContextId}:other`,
-      }),
-    ).toBeUndefined();
-    expect(
-      resolveGeneratedWorkspaceIntent(foundation.runtimePlan, {
-        ...tableFieldIntent,
-        intent: { fieldName: `${tableField.fieldName}:other`, type: "recordDraftRevert" },
-      }),
-    ).toBeUndefined();
-    expect(
-      resolveGeneratedWorkspaceIntent(foundation.runtimePlan, {
-        ...tableFieldIntent,
-        recordId: `${tableField.recordId}:other`,
-      }),
-    ).toBeUndefined();
+    ).toBe(true);
 
     const detail = required(listDetail?.contextDetail);
     const field = required(detail.fields.find((field) => field.fieldName === "marginMin"));
@@ -1307,7 +1197,7 @@ function selectSelectedRecordDetailSectionFoundation(
           relationship.section.id,
           {
             table: {
-              fieldsById: table.fieldsById,
+              editFieldsById: table.editFieldsById,
               runtime: { kind: "table", runtimePlan: table.runtimePlan },
               table: table.table,
             },
@@ -1325,24 +1215,6 @@ function tableFoundation(id: string, recordIds: readonly string[]) {
   const columnId = `${id}:ordering-column`;
   const fieldColumnId = `${id}:cost-column`;
   const fieldCellId = `${id}:${rowId}:cost-cell`;
-  const fieldConfig = {
-    commit: "field-commit",
-    editor: "number",
-    field: { required: false, type: "number" },
-    fieldName: "cost",
-    label: "Cost",
-  } satisfies RecordFieldConfig;
-  const field = projectGeneratedRecordField({
-    canPatch: false,
-    fieldConfig,
-    occurrence: {
-      owner: { cellId: fieldCellId, kind: "tableCell", tableId: id },
-      placementId: fieldConfig.fieldName,
-    },
-    recordId: rowId,
-    recordValue: record.values.cost,
-    surface: "table-cell",
-  });
   const table: TableContract = {
     accessibilityLabel: "Rate records",
     columns: [
@@ -1370,7 +1242,6 @@ function tableFoundation(id: string, recordIds: readonly string[]) {
       },
     ],
     density: "default",
-    editing: { enabled: true },
     id,
     kind: "table",
     rows: [
@@ -1393,6 +1264,7 @@ function tableFoundation(id: string, recordIds: readonly string[]) {
                       tableId: id,
                       type: "tableReorder",
                     },
+                    kind: "orderingAction",
                     label: "Move down",
                   },
                 ],
@@ -1406,32 +1278,26 @@ function tableFoundation(id: string, recordIds: readonly string[]) {
           },
           {
             columnId: fieldColumnId,
-            contents: [{ field, kind: "field", source: "record" }],
+            contents: [
+              {
+                accessibilityLabel: `Cost: ${record.values.cost}`,
+                displayValue: String(record.values.cost),
+                kind: "cellValue",
+                presentation: { kind: "number" },
+              },
+            ],
             id: fieldCellId,
             kind: "tableCell",
           },
         ],
         id: rowId,
         kind: "tableRow",
-        warnings: [],
       },
     ],
   };
-  const fieldContexts = new Map([
-    [
-      fieldCellId,
-      {
-        entityName: record.entity,
-        fields: [fieldConfig],
-        id: fieldCellId,
-        record,
-        recordId: record.id,
-      },
-    ],
-  ]);
 
   return {
-    fieldsById: indexGeneratedTableFieldOccurrences(table, fieldContexts),
+    editFieldsById: new Map(),
     runtime: "table",
     table,
   };

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Card } from "@astryxdesign/core/Card";
-import { Grid } from "@astryxdesign/core/Grid";
 import { Heading } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import type { FieldIntentHandler } from "@dpeek/formless-presentation/contract";
@@ -77,26 +76,6 @@ function RecordFieldSet({
   onIntent: (recordId: string) => FieldIntentHandler;
   surface: RecordFieldSurfaceFixture;
 }) {
-  if (surface.id === "table-cell") {
-    return (
-      <VStack gap={2} width="100%">
-        {surface.records.map((record) => (
-          <Card key={record.id} padding={4} variant="muted">
-            <Grid columns={{ minWidth: 120, max: 5 }} gap={2} width="100%">
-              {record.fields.map((field) => (
-                <FieldRenderer
-                  key={scenarioFieldKey(field)}
-                  field={field}
-                  onIntent={onIntent(record.id)}
-                />
-              ))}
-            </Grid>
-          </Card>
-        ))}
-      </VStack>
-    );
-  }
-
   const record = surface.records[0];
 
   if (!record) {

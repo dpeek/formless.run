@@ -34,7 +34,7 @@ const schema: AppSchema = {
     {
       key: "noteItem",
       entity: "note",
-      fields: [{ field: "title", editor: "text", commit: "field-commit" }],
+      fields: [{ field: "title", editor: "text" }],
     },
   ],
   tableViews: [],

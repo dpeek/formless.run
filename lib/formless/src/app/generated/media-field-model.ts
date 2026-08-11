@@ -134,15 +134,6 @@ export function collectGeneratedWorkspaceMediaFields(
         if (column.type === "referenceField") {
           addFields(column.referencedEntityName, [column]);
         }
-        if (column.type === "field" && column.referenceItem) {
-          addFields(
-            column.referenceItem.entityName,
-            collectRecordPresentationFields(
-              column.referenceItem.recordFields,
-              column.referenceItem.recordUnion,
-            ),
-          );
-        }
         if (column.type === "operationControl") {
           for (const control of column.controls) {
             if (control.type === "editRecord") {

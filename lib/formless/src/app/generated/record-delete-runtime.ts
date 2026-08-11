@@ -6,6 +6,7 @@ import {
   projectRecordDeleteOperationControlBinding,
   type GeneratedOperationControlBinding,
   type GeneratedOperationController,
+  type GeneratedOperationCallerInput,
   type GeneratedOperationExecutionResult,
 } from "../../client/views.ts";
 import { executeGeneratedOperationControl } from "./operation-control-runtime.ts";
@@ -53,7 +54,7 @@ export async function executeRecordDeleteOperation({
   recordId: string;
   recordLabel: string;
   setStatus?: (status: SyncStatus) => void;
-  source?: "button" | "confirmationDialog";
+  source?: GeneratedOperationCallerInput["source"];
 }): Promise<GeneratedOperationExecutionResult> {
   return executeGeneratedOperationControl({
     binding,

@@ -75,9 +75,9 @@ import type {
 } from "./generated-relationship-hierarchy-foundation.ts";
 import {
   executeGeneratedTableRuntimeOperation,
-  rebaseGeneratedTableFieldContextState,
+  rebaseGeneratedTableEditContextState,
   selectGeneratedWorkspaceTableFoundation,
-  type GeneratedTableFieldContextState,
+  type GeneratedTableEditContextState,
   type GeneratedTableRuntimePlan,
 } from "./generated-table-foundation.tsx";
 import { mergeGeneratedWorkspaceRecordFieldState } from "./generated-workspace-field-state.ts";
@@ -261,11 +261,8 @@ export function useGeneratedWorkspaceRuntimeController({
       Readonly<Record<string, GeneratedListFieldAuthoringState | undefined>> | undefined
     >
   >({});
-  const [tableStateByResultId, setTableStateByResultId] = useState<
-    Record<
-      string,
-      Readonly<Record<string, GeneratedTableFieldContextState | undefined>> | undefined
-    >
+  const [tableEditStateByResultId, setTableEditStateByResultId] = useState<
+    Record<string, Readonly<Record<string, GeneratedTableEditContextState | undefined>> | undefined>
   >({});
   const [tableDialogOpenById, setTableDialogOpenById] = useState<
     Record<string, boolean | undefined>
@@ -311,7 +308,7 @@ export function useGeneratedWorkspaceRuntimeController({
     sectionSelection,
     snapshot,
     tableDialogOpenById,
-    tableStateByResultId,
+    tableEditStateByResultId,
     today,
     treeActiveChildVariantIdByCreationId,
     treeCreateErrorBySurfaceId,
@@ -338,7 +335,7 @@ export function useGeneratedWorkspaceRuntimeController({
     sectionSelection,
     snapshot,
     tableDialogOpenById,
-    tableStateByResultId,
+    tableEditStateByResultId,
     today,
     treeActiveChildVariantIdByCreationId,
     treeCreateErrorBySurfaceId,
@@ -885,7 +882,7 @@ export function useGeneratedWorkspaceRuntimeController({
         if (resolved.result.kind === "list") {
           await handleListFieldIntent(resolved.result, resolved.section, intent);
         } else if (resolved.result.kind === "table") {
-          await handleTableFieldIntent(resolved.result, resolved.section, intent);
+          await handleTableEditFieldIntent(resolved.result, resolved.section, intent);
         }
       }
       return;
@@ -1309,17 +1306,7 @@ export function useGeneratedWorkspaceRuntimeController({
         }));
         return;
       }
-      const runtime =
-        tableIntent.type === "tableReorder"
-          ? tableRuntime.runtimePlan.operations.find(
-              (candidate) =>
-                candidate.kind === "ordering" &&
-                candidate.recordId === tableIntent.rowId &&
-                candidate.item.direction === tableIntent.direction,
-            )
-          : "actionId" in tableIntent
-            ? tableRuntime.runtimePlan.operationById.get(tableIntent.actionId)
-            : undefined;
+      const runtime = tableRuntime.runtimePlan.operationById.get(tableIntent.actionId);
       if (runtime) {
         await executeGeneratedTableRuntimeOperation(runtime, controller, "menuItem");
       }
@@ -1851,36 +1838,19 @@ export function useGeneratedWorkspaceRuntimeController({
     }
   }
 
-  async function handleTableFieldIntent(
+  async function handleTableEditFieldIntent(
     result: Extract<NonNullable<GeneratedWorkspaceResolvedField["result"]>, { kind: "table" }>,
     _section: GeneratedWorkspaceResolvedField["section"],
     intent: Extract<WorkspaceIntent, { type: "workspaceField" }>,
   ) {
-    const runtime = result.runtime as GeneratedWorkspaceTableRuntime;
-    const fieldRuntime = result.fieldsById.get(intent.fieldId);
+    const fieldRuntime = result.editFieldsById.get(intent.fieldId);
     if (!fieldRuntime) {
       return;
     }
     const { context } = fieldRuntime;
-    if (intent.intent.type === "stateTransitionInvoke") {
-      const transitionIntent = intent.intent;
-      const transition = (runtime.runtimePlan.transitionsByContextId.get(context.id) ?? []).find(
-        (candidate) =>
-          candidate.recordId === transitionIntent.recordId &&
-          candidate.operation.operationName === transitionIntent.operationName,
-      );
-      if (transition) {
-        await executeGeneratedTableRuntimeOperation(
-          transition,
-          controller,
-          transitionIntent.source,
-        );
-      }
-      return;
-    }
-    const current = rebaseGeneratedTableFieldContextState(
+    const current = rebaseGeneratedTableEditContextState(
       context,
-      tableStateByResultId[result.contract.id]?.[context.id],
+      tableEditStateByResultId[result.contract.id]?.[context.id],
     );
     if (intent.intent.type === "mediaFileSelect") {
       const fieldName = intent.intent.fieldName;
@@ -1902,7 +1872,7 @@ export function useGeneratedWorkspaceRuntimeController({
         return;
       }
 
-      setTableStateByResultId((states) => ({
+      setTableEditStateByResultId((states) => ({
         ...states,
         [result.contract.id]: {
           ...states[result.contract.id],
@@ -1952,7 +1922,7 @@ export function useGeneratedWorkspaceRuntimeController({
           undefined,
           { autoSaveSource: "media-reference" },
         );
-        setTableStateByResultId((states) => ({
+        setTableEditStateByResultId((states) => ({
           ...states,
           [result.contract.id]: {
             ...states[result.contract.id],
@@ -1966,7 +1936,7 @@ export function useGeneratedWorkspaceRuntimeController({
         setSyncStatus({ code: "media-uploaded-and-synced", state: "idle" });
       } catch (error) {
         const message = generatedMediaUploadFailureMessage(generatedMediaUploadFailure(error));
-        setTableStateByResultId((states) => ({
+        setTableEditStateByResultId((states) => ({
           ...states,
           [result.contract.id]: {
             ...states[result.contract.id],
@@ -1988,7 +1958,7 @@ export function useGeneratedWorkspaceRuntimeController({
       context.union,
       intent.intent,
     );
-    setTableStateByResultId((states) => {
+    setTableEditStateByResultId((states) => {
       const queued = states[result.contract.id]?.[context.id] ?? current;
       const merged = mergeGeneratedWorkspaceRecordFieldState(queued, current, applied.state);
 
@@ -2006,7 +1976,7 @@ export function useGeneratedWorkspaceRuntimeController({
       return;
     }
     const committedPatch = applied.patch;
-    setTableStateByResultId((states) => ({
+    setTableEditStateByResultId((states) => ({
       ...states,
       [result.contract.id]: {
         ...states[result.contract.id],
@@ -2026,7 +1996,7 @@ export function useGeneratedWorkspaceRuntimeController({
         { input: committedPatch.patchValues, recordId: context.recordId },
         undefined,
       );
-      setTableStateByResultId((states) => ({
+      setTableEditStateByResultId((states) => ({
         ...states,
         [result.contract.id]: {
           ...states[result.contract.id],
@@ -2041,7 +2011,7 @@ export function useGeneratedWorkspaceRuntimeController({
       }));
     } catch (error) {
       const message = generatedRecordWriteFailureMessage(generatedRecordWriteFailure(error));
-      setTableStateByResultId((states) => ({
+      setTableEditStateByResultId((states) => ({
         ...states,
         [result.contract.id]: {
           ...states[result.contract.id],
@@ -2232,7 +2202,7 @@ function selectWorkspaceRuntimeFoundation({
   sectionSelection,
   snapshot,
   tableDialogOpenById,
-  tableStateByResultId,
+  tableEditStateByResultId,
   today,
   treeActiveChildVariantIdByCreationId,
   treeCreateErrorBySurfaceId,
@@ -2262,11 +2232,8 @@ function selectWorkspaceRuntimeFoundation({
   sectionSelection: Readonly<Record<string, GeneratedWorkspaceSectionSelection>>;
   snapshot: BrowserReplicaProjectionSnapshot;
   tableDialogOpenById: Readonly<Record<string, boolean | undefined>>;
-  tableStateByResultId: Readonly<
-    Record<
-      string,
-      Readonly<Record<string, GeneratedTableFieldContextState | undefined>> | undefined
-    >
+  tableEditStateByResultId: Readonly<
+    Record<string, Readonly<Record<string, GeneratedTableEditContextState | undefined>> | undefined>
   >;
   today: string;
   treeActiveChildVariantIdByCreationId: Readonly<Record<string, string | null | undefined>>;
@@ -2297,7 +2264,7 @@ function selectWorkspaceRuntimeFoundation({
         sectionExternalActions: sectionExternalActions[facts.section.id] ?? [],
         snapshot,
         tableDialogOpenById,
-        tableStateByResultId,
+        tableEditStateByResultId,
         treeActiveChildVariantIdByCreationId,
         treeCreateErrorBySurfaceId,
         createFieldStateBySurfaceId,
@@ -2369,7 +2336,7 @@ function selectWorkspaceSectionRuntimeInput({
   sectionExternalActions,
   snapshot,
   tableDialogOpenById,
-  tableStateByResultId,
+  tableEditStateByResultId,
   treeActiveChildVariantIdByCreationId,
   treeCreateErrorBySurfaceId,
   createFieldStateBySurfaceId,
@@ -2394,11 +2361,8 @@ function selectWorkspaceSectionRuntimeInput({
   sectionExternalActions: readonly GeneratedWorkspaceSectionExternalAction[];
   snapshot: BrowserReplicaProjectionSnapshot;
   tableDialogOpenById: Readonly<Record<string, boolean | undefined>>;
-  tableStateByResultId: Readonly<
-    Record<
-      string,
-      Readonly<Record<string, GeneratedTableFieldContextState | undefined>> | undefined
-    >
+  tableEditStateByResultId: Readonly<
+    Record<string, Readonly<Record<string, GeneratedTableEditContextState | undefined>> | undefined>
   >;
   treeActiveChildVariantIdByCreationId: Readonly<Record<string, string | null | undefined>>;
   treeCreateErrorBySurfaceId: Readonly<Record<string, string | undefined>>;
@@ -2692,7 +2656,7 @@ function selectWorkspaceSectionRuntimeInput({
           dialogOpenById: tableDialogOpenById,
           entity: section.entity,
           entityName: section.entityName,
-          fieldStateByContextId: tableStateByResultId[resultId],
+          editStateByContextId: tableEditStateByResultId[resultId],
           id: resultId,
           mediaAssetOptionsForField: (entityName, fieldName) =>
             generatedMediaAssetOptionsForField(mediaAssetOptionsByFieldKey, entityName, fieldName),
@@ -2767,7 +2731,7 @@ function selectWorkspaceSectionRuntimeInput({
                 }),
             headingOperations,
             table: {
-              fieldsById: table.fieldsById,
+              editFieldsById: table.editFieldsById,
               runtime: {
                 kind: "table",
                 runtimePlan: table.runtimePlan,
@@ -2865,7 +2829,7 @@ function selectWorkspaceSectionRuntimeInput({
       ...(input.emptyStatePrimaryAction === undefined
         ? {}
         : { emptyStateAction: input.emptyStatePrimaryAction.action }),
-      fieldStateByContextId: tableStateByResultId[facts.resultId],
+      editStateByContextId: tableEditStateByResultId[facts.resultId],
       id: facts.resultId,
       mediaAssetOptionsForField: (entityName, fieldName) =>
         generatedMediaAssetOptionsForField(mediaAssetOptionsByFieldKey, entityName, fieldName),
@@ -2878,7 +2842,7 @@ function selectWorkspaceSectionRuntimeInput({
       schema,
     });
     input.table = {
-      fieldsById: table.fieldsById,
+      editFieldsById: table.editFieldsById,
       runtime: {
         kind: "table",
         runtimePlan: table.runtimePlan,

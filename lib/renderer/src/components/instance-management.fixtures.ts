@@ -496,10 +496,6 @@ function managementTable(
     accessibilityLabel: label,
     columns,
     density: "default",
-    editing:
-      input.rowActions === undefined
-        ? { disabledReason: "Fixture records are read-only.", enabled: false }
-        : { enabled: true },
     ...(input.rows.length === 0
       ? {
           emptyState: {
@@ -530,7 +526,6 @@ function managementTable(
       ],
       id: `${resultId}:row:${row[0]}`,
       kind: "tableRow" as const,
-      warnings: [],
     })),
   };
 }
@@ -723,11 +718,10 @@ function routeRowActions(
   record: RouteFixtureRecord,
 ): TableActionGroupContract {
   return {
+    accessibilityLabel: `More options for ${record.matchPath}`,
+    actions: [routeEditAction(scope, record)],
     id: `${scope.collectionId}:result:row:${record.id}:actions`,
     kind: "actionGroup",
-    primary: [],
-    secondary: [routeEditAction(scope, record)],
-    secondaryAccessibilityLabel: `Route operations for ${record.matchPath}`,
   };
 }
 
@@ -912,14 +906,15 @@ function tableCell(rowId: string, column: TableColumnContract, displayValue: str
       {
         accessibilityLabel: `${column.label}: ${displayValue}`,
         displayValue,
-        kind: "displayValue" as const,
-        status: { kind: "ready" as const },
-        valueKind:
-          column.contentRole === "reference"
-            ? ("reference" as const)
-            : column.contentRole === "computed"
-              ? ("computed" as const)
-              : ("text" as const),
+        kind: "cellValue" as const,
+        presentation: {
+          kind:
+            column.contentRole === "reference"
+              ? ("reference" as const)
+              : column.contentRole === "computed"
+                ? ("computed" as const)
+                : ("text" as const),
+        },
       },
     ],
     id: `${rowId}:${column.id}`,

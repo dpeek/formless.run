@@ -1,29 +1,19 @@
-import {
-  getFieldTypeBehavior,
-  isFieldItemViewSchema,
-  parseEntityOperationKey,
-} from "@dpeek/formless-schema";
+import { getFieldTypeBehavior, parseEntityOperationKey } from "@dpeek/formless-schema";
 import type {
   AppSchema,
   CollectionTableFooterSlotSchema,
   EditViewSchema,
   EntitySchema,
   FieldSchema,
-  TableColumnDisplay,
-  ItemViewSchema,
   TableOperationBindingSchema,
   TableViewSchema,
 } from "@dpeek/formless-schema";
 import type {
   EditViewConfig,
-  FieldTableColumnConfig,
-  OperationControlTableColumnConfig,
-  OrderingHandleTableColumnConfig,
   RecordFieldConfig,
   TableColumnConfig,
   TableFooterSlotConfig,
   TableOperationControlConfig,
-  TransitionStateOperationConfig,
   ValueUnitFieldConfig,
 } from "./views.ts";
 import { selectAggregateSlot } from "./collection-shell-model.ts";
@@ -32,17 +22,22 @@ import {
   selectEntityOperationByKind,
   type EntityOperationPresentationConfig,
 } from "./operation-presentation-model.ts";
-import { selectResultOrderingConfig, type ResultOrderingConfig } from "./result-ordering-model.ts";
+import {
+  selectResultOrderingConfig,
+  type ResultOrderingConfig,
+  type ResultOrderingPresentation,
+} from "./result-ordering-model.ts";
 import { selectStateMachineField, selectTransitionStateOperations } from "./state-machine-model.ts";
 import { selectRecordUnionPresentation } from "./union-presentation-model.ts";
-import { selectAddressableRecordFieldConfig } from "./field-configs.ts";
+import {
+  selectAddressableRecordFieldConfig,
+  selectRecordFieldCommitPolicy,
+} from "./field-configs.ts";
 import { humanizeFieldName } from "./view-labels.ts";
 
 export type TableResultModel = {
   columns: TableColumnConfig[];
   updateOperation?: EditViewConfig["updateOperation"];
-  deleteOperation?: EditViewConfig["updateOperation"];
-  transitionOperations: TransitionStateOperationConfig[];
   ordering?: ResultOrderingConfig;
 };
 
@@ -72,79 +67,41 @@ export function selectTableResultModel(
   entity: EntitySchema,
   resultOrdering?: ResultOrderingConfig,
 ): TableResultModel {
-  const ordering = resultOrdering ?? selectResultOrderingConfig(tableView.ordering, entity);
-  const selectedColumns = selectTableColumns(schema, tableView, entity, ordering);
-  const selectedTransitionOperations = selectTransitionStateOperations(entityName, entity);
-  const { columns, transitionOperations } = pairVisibleStateMachineColumnTransitionOperations(
-    selectedColumns,
-    selectedTransitionOperations,
-  );
-  const updateOperation = selectEntityOperationByKind(entityName, entity, "update", "record");
-  const deleteOperation = selectEntityOperationByKind(entityName, entity, "delete", "record");
+  const selectedOrdering =
+    resultOrdering ?? selectResultOrderingConfig(tableView.ordering, entity, []);
+  const ordering = selectTableOrderingConfig(tableView, selectedOrdering);
+  const columns = selectTableColumns(schema, tableView, entity, ordering);
+  const updateOperation =
+    ordering === undefined
+      ? undefined
+      : selectEntityOperationByKind(entityName, entity, "update", "record");
 
   return {
     columns,
     ...(updateOperation === undefined ? {} : { updateOperation }),
-    ...(deleteOperation === undefined ? {} : { deleteOperation }),
-    transitionOperations,
     ...(ordering === undefined ? {} : { ordering }),
   };
 }
 
-function pairVisibleStateMachineColumnTransitionOperations(
-  columns: TableColumnConfig[],
-  transitionOperations: TransitionStateOperationConfig[],
-): Pick<TableResultModel, "columns" | "transitionOperations"> {
-  if (transitionOperations.length === 0) {
-    return { columns, transitionOperations };
+function selectTableOrderingConfig(
+  tableView: TableViewSchema,
+  ordering: ResultOrderingConfig | undefined,
+): ResultOrderingConfig | undefined {
+  if (ordering === undefined) {
+    return undefined;
   }
 
-  const pairedOperationNames = new Set<string>();
-  const pairedMachineFields = new Set<string>();
-  const pairedColumns = columns.map((column): TableColumnConfig => {
-    if (
-      column.type !== "field" ||
-      column.display === "hidden" ||
-      column.field.type !== "enum" ||
-      column.stateMachine === undefined
-    ) {
-      return column;
+  const presentations = tableView.columns.flatMap((column): ResultOrderingPresentation[] => {
+    if (column.type === "orderingHandle") {
+      return ["dragHandle"];
     }
-
-    const pairKey = `${column.stateMachine.machineName}:${column.fieldName}`;
-
-    if (pairedMachineFields.has(pairKey)) {
-      return column;
+    if (column.type === "operationControl" && column.includeOrdering === true) {
+      return ["moveMenu"];
     }
-
-    const operations = transitionOperations.filter(
-      (operation) =>
-        operation.machineName === column.stateMachine?.machineName &&
-        operation.fieldName === column.fieldName,
-    );
-
-    if (operations.length === 0) {
-      return column;
-    }
-
-    pairedMachineFields.add(pairKey);
-
-    for (const operation of operations) {
-      pairedOperationNames.add(operation.operationName);
-    }
-
-    return {
-      ...column,
-      stateTransitionOperations: operations,
-    };
+    return [];
   });
 
-  return {
-    columns: pairedColumns,
-    transitionOperations: transitionOperations.filter(
-      (operation) => !pairedOperationNames.has(operation.operationName),
-    ),
-  };
+  return { ...ordering, presentations };
 }
 
 function selectTableColumns(
@@ -177,7 +134,7 @@ function selectTableColumns(
           label: column.label ?? humanizeFieldName(column.computedValue),
           ...(column.align === undefined ? {} : { align: column.align }),
           ...(column.width === undefined ? {} : { width: column.width }),
-          display: column.display === "hidden" ? "hidden" : "readOnly",
+          display: "readOnly",
           ...(column.suffix === undefined ? {} : { suffix: column.suffix }),
           format: column.format ?? "plain",
         },
@@ -198,13 +155,6 @@ function selectTableColumns(
         selectedField.fieldRef.kind === "value"
           ? selectStateMachineField(referencedEntity, column.field)
           : undefined;
-      const referencedUpdateOperation = selectEntityOperationByKind(
-        sourceReferenceField.to,
-        referencedEntity,
-        "update",
-        "record",
-      );
-
       return [
         {
           type: "referenceField",
@@ -212,58 +162,40 @@ function selectTableColumns(
           sourceReferenceFieldName: column.referenceField,
           referencedEntityName: sourceReferenceField.to,
           referencedEntity,
-          ...(referencedUpdateOperation === undefined ? {} : { referencedUpdateOperation }),
           fieldName: column.field,
           fieldRef: selectedField.fieldRef,
           field: selectedField.field,
-          editor:
-            selectedField.writable && column.editor !== undefined
-              ? column.editor
-              : getFieldTypeBehavior(selectedField.field).defaultEditor,
-          commit:
-            selectedField.writable && column.commit !== undefined
-              ? column.commit
-              : getFieldTypeBehavior(selectedField.field).defaultCommit,
+          editor: getFieldTypeBehavior(selectedField.field).defaultEditor,
+          commit: getFieldTypeBehavior(selectedField.field).defaultCommit,
           writable: selectedField.writable,
           label: column.label ?? selectedField.label,
           ...(stateMachine === undefined ? {} : { stateMachine }),
           ...(column.align === undefined ? {} : { align: column.align }),
           ...(column.width === undefined ? {} : { width: column.width }),
-          display: selectFieldColumnDisplay(column.display, selectedField.writable, "editor"),
+          display: "readOnly",
           ...(column.suffix === undefined ? {} : { suffix: column.suffix }),
           format: column.format ?? "plain",
-          ...(selectedField.writable && column.presentation !== undefined
-            ? { presentation: column.presentation }
-            : {}),
         },
       ];
     }
 
     if (column.type === "operationControl") {
-      const bindingNames = operationControlBindingNames(column);
+      const bindingNames = (view.operations ?? []).map((binding) => binding.operation);
       const controls = selectTableOperationControlConfigs(schema, view, bindingNames);
-      const includeOrdering =
-        column.includeOrdering === true && ordering?.presentations.includes("moveMenu") === true;
-      const presentation =
-        column.presentation ?? (controls.length === 1 && !includeOrdering ? "button" : "dropdown");
-      const headerLabel =
-        column.label ??
-        (includeOrdering ? "Actions" : defaultOperationControlHeaderLabel(controls));
+      const includeOrdering = column.includeOrdering === true && ordering !== undefined;
 
       return [
         {
           type: "operationControl",
           key: `operationControl:${[...bindingNames, ...(includeOrdering ? ["ordering"] : [])].join(",")}`,
-          label: column.label ?? "",
-          headerLabel,
+          label: "",
+          headerLabel: "Actions",
           controls,
-          presentation,
           includeOrdering,
           ...(includeOrdering && ordering ? { ordering } : {}),
-          ...(column.align === undefined ? { align: "end" as const } : { align: column.align }),
-          ...(column.width === undefined ? { width: "xs" as const } : { width: column.width }),
-          display:
-            controls.length === 0 && !includeOrdering ? "hidden" : (column.display ?? "readOnly"),
+          align: "end",
+          width: "xs",
+          display: controls.length === 0 && !includeOrdering ? "hidden" : "readOnly",
           format: "plain",
         },
       ];
@@ -274,11 +206,11 @@ function selectTableColumns(
         {
           type: "orderingHandle",
           key: "orderingHandle",
-          label: column.label ?? "",
-          headerLabel: column.label ?? "Reorder",
-          ...(column.align === undefined ? { align: "center" as const } : { align: column.align }),
-          ...(column.width === undefined ? { width: "xs" as const } : { width: column.width }),
-          display: column.display ?? "readOnly",
+          label: "",
+          headerLabel: "Reorder",
+          align: "center",
+          width: "xs",
+          display: "readOnly",
           format: "plain",
         },
       ];
@@ -311,14 +243,7 @@ function selectTableColumns(
       selectedField.fieldRef.kind === "value"
         ? selectStateMachineField(entity, column.field)
         : undefined;
-    const referenceItem = selectReferenceItem(
-      schema,
-      selectedField.field,
-      column.referenceItemView,
-    );
-    const valueUnit = selectedField.writable
-      ? selectValueUnitField(entity, column.valueUnit?.unitField)
-      : undefined;
+    const valueUnit = selectValueUnitField(entity, column.valueUnit?.unitField);
 
     return [
       {
@@ -327,49 +252,22 @@ function selectTableColumns(
         fieldName: column.field,
         fieldRef: selectedField.fieldRef,
         field: selectedField.field,
-        editor:
-          selectedField.writable && column.editor !== undefined
-            ? column.editor
-            : getFieldTypeBehavior(selectedField.field).defaultEditor,
-        commit:
-          selectedField.writable && column.commit !== undefined
-            ? column.commit
-            : getFieldTypeBehavior(selectedField.field).defaultCommit,
+        editor: getFieldTypeBehavior(selectedField.field).defaultEditor,
+        commit: getFieldTypeBehavior(selectedField.field).defaultCommit,
         writable: selectedField.writable,
         label: column.label ?? selectedField.label,
         ...(stateMachine === undefined ? {} : { stateMachine }),
         ...(column.align === undefined ? {} : { align: column.align }),
         ...(column.width === undefined ? {} : { width: column.width }),
-        display: selectFieldColumnDisplay(
-          column.display,
-          selectedField.writable,
-          ordering?.fieldName === column.field ? "hidden" : "editor",
-        ),
+        display: "readOnly",
         ...(column.suffix === undefined ? {} : { suffix: column.suffix }),
         format: column.format ?? "plain",
-        ...(referenceItem === undefined ? {} : { referenceItem }),
         ...(valueUnit === undefined ? {} : { valueUnit }),
-        ...(selectedField.writable && column.presentation !== undefined
-          ? { presentation: column.presentation }
-          : {}),
       },
     ];
   });
 
-  const columnsWithOrderingHandle =
-    ordering?.presentations.includes("dragHandle") &&
-    !view.columns.some((column) => column.type === "orderingHandle")
-      ? [selectSyntheticOrderingHandleColumn(), ...columns]
-      : columns;
-
-  if (
-    ordering?.presentations.includes("moveMenu") &&
-    !view.columns.some((column) => column.type === "operationControl" && column.includeOrdering)
-  ) {
-    return [...columnsWithOrderingHandle, selectSyntheticOrderingMenuColumn(ordering)];
-  }
-
-  return columnsWithOrderingHandle;
+  return columns;
 }
 
 function tableFooterColumnName(column: TableColumnConfig) {
@@ -390,50 +288,6 @@ function tableFooterColumnName(column: TableColumnConfig) {
   }
 
   return `${column.sourceReferenceFieldName}.${column.fieldName}`;
-}
-
-function selectFieldColumnDisplay(
-  display: TableColumnDisplay | undefined,
-  writable: boolean,
-  defaultDisplay: TableColumnDisplay,
-) {
-  if (display === "hidden") {
-    return "hidden";
-  }
-
-  return writable ? (display ?? defaultDisplay) : "readOnly";
-}
-
-function selectSyntheticOrderingMenuColumn(
-  ordering: ResultOrderingConfig,
-): OperationControlTableColumnConfig {
-  return {
-    type: "operationControl",
-    key: "operationControl:ordering",
-    label: "",
-    headerLabel: "Actions",
-    controls: [],
-    presentation: "dropdown",
-    includeOrdering: true,
-    ordering,
-    align: "end",
-    width: "xs",
-    display: "readOnly",
-    format: "plain",
-  };
-}
-
-function selectSyntheticOrderingHandleColumn(): OrderingHandleTableColumnConfig {
-  return {
-    type: "orderingHandle",
-    key: "orderingHandle",
-    label: "",
-    headerLabel: "Reorder",
-    align: "center",
-    width: "xs",
-    display: "readOnly",
-    format: "plain",
-  };
 }
 
 function selectTableOperationControlConfigs(
@@ -467,6 +321,20 @@ function selectTableOperationControlConfigs(
         ? {}
         : { disabledReason: binding.availability.reason }),
     };
+
+    const operationEntity = schema.entities.find(
+      (definition) => definition.key === operation.entityName,
+    );
+    const transition = operationEntity
+      ? selectTransitionStateOperations(operation.entityName, operationEntity).find(
+          (candidate) => candidate.operationName === operation.operationName,
+        )
+      : undefined;
+
+    if (transition !== undefined) {
+      configs.push({ ...base, transition, type: "transition" });
+      continue;
+    }
 
     if (operation.operation.kind !== "update" || binding.editView === undefined) {
       configs.push({ ...base, type: "static" });
@@ -561,7 +429,6 @@ function selectEditViewConfig(schema: AppSchema, editViewName: string): EditView
     entity,
     ...(updateOperation === undefined ? {} : { updateOperation }),
     fields: selectEditFields(view, entity),
-    transitionOperations: selectTransitionStateOperations(view.entity, entity),
     ...(union === undefined ? {} : { union }),
   };
 }
@@ -580,7 +447,7 @@ function selectEditFields(view: EditViewSchema, entity: EntitySchema): RecordFie
       fieldRef: selectedField.fieldRef,
       field: selectedField.field,
       editor: viewField.editor,
-      commit: viewField.commit,
+      commit: selectRecordFieldCommitPolicy(selectedField.field, viewField.editor),
       writable,
       label: selectedField.label,
       ...(stateMachine === undefined ? {} : { stateMachine }),
@@ -589,52 +456,6 @@ function selectEditFields(view: EditViewSchema, entity: EntitySchema): RecordFie
     };
   });
 }
-function selectRecordFields(view: ItemViewSchema, entity: EntitySchema): RecordFieldConfig[] {
-  if (!isFieldItemViewSchema(view)) {
-    return [];
-  }
-  return view.fields.map((viewField) => {
-    const fieldName = viewField.field;
-    const selectedField = selectAddressableRecordFieldConfig(entity, fieldName);
-    const stateMachine =
-      viewField.interaction !== "display" && selectedField.fieldRef.kind === "value"
-        ? selectStateMachineField(entity, fieldName)
-        : undefined;
-    const writable = selectedField.writable && viewField.interaction !== "display";
-
-    return {
-      fieldName,
-      fieldRef: selectedField.fieldRef,
-      field: selectedField.field,
-      editor: viewField.editor,
-      commit: viewField.commit,
-      writable,
-      label: selectedField.label,
-      ...(stateMachine === undefined ? {} : { stateMachine }),
-      ...(viewField.visibleWhen === undefined ? {} : { visibleWhen: viewField.visibleWhen }),
-      ...(viewField.presentation !== undefined ? { presentation: viewField.presentation } : {}),
-    };
-  });
-}
-function operationControlBindingNames(
-  column: Extract<
-    TableViewSchema["columns"][number],
-    {
-      type: "operationControl";
-    }
-  >,
-): string[] {
-  return column.operation === undefined ? (column.operations ?? []) : [column.operation];
-}
-
-function defaultOperationControlHeaderLabel(controls: TableOperationControlConfig[]) {
-  if (controls.length === 1) {
-    return controls[0]?.label ?? "Operation";
-  }
-
-  return "Actions";
-}
-
 function selectValueUnitField(
   entity: EntitySchema,
   unitFieldName: string | undefined,
@@ -650,31 +471,5 @@ function selectValueUnitField(
   return {
     unitFieldName,
     unitField,
-  };
-}
-
-function selectReferenceItem(
-  schema: AppSchema,
-  field: FieldSchema,
-  itemViewName: string | undefined,
-): FieldTableColumnConfig["referenceItem"] | undefined {
-  if (itemViewName === undefined || field.type !== "reference") {
-    return undefined;
-  }
-  const entity = schema.entities.find((definition) => definition.key === field.to)!;
-  const itemView = schema.itemViews.find((definition) => definition.key === itemViewName)!;
-  if (!entity || !itemView) {
-    return undefined;
-  }
-  const recordUnion = selectRecordUnionPresentation(schema, itemView, entity);
-  const updateOperation = selectEntityOperationByKind(field.to, entity, "update", "record");
-
-  return {
-    itemViewName,
-    entityName: field.to,
-    entity,
-    recordFields: selectRecordFields(itemView, entity),
-    ...(updateOperation === undefined ? {} : { updateOperation }),
-    ...(recordUnion === undefined ? {} : { recordUnion }),
   };
 }

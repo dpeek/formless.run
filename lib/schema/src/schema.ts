@@ -68,12 +68,7 @@ export function parseAppSchema(value: unknown): AppSchema {
   const unionsByKey = definitionsToRecord(unions);
   const itemViews = parseItemViews(value.itemViews, entitiesWithOperationsByKey, unionsByKey);
   const itemViewsByKey = definitionsToRecord(itemViews);
-  const tableViews = parseTableViews(
-    value.tableViews,
-    entitiesWithOperations,
-    itemViews,
-    readModels,
-  );
+  const tableViews = parseTableViews(value.tableViews, entitiesWithOperations, readModels);
   const tableViewsByKey = definitionsToRecord(tableViews);
   const views = parseViews(
     value.views,

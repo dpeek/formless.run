@@ -695,18 +695,15 @@
       "fields": [
         {
           "field": "name",
-          "editor": "text",
-          "commit": "field-commit"
+          "editor": "text"
         },
         {
           "field": "kind",
-          "editor": "enum",
-          "commit": "immediate"
+          "editor": "enum"
         },
         {
           "field": "unit",
-          "editor": "enum",
-          "commit": "immediate"
+          "editor": "enum"
         }
       ]
     },
@@ -716,28 +713,23 @@
       "fields": [
         {
           "field": "name",
-          "editor": "text",
-          "commit": "field-commit"
+          "editor": "text"
         },
         {
           "field": "isDefault",
-          "editor": "boolean",
-          "commit": "immediate"
+          "editor": "boolean"
         },
         {
           "field": "marginMin",
-          "editor": "number",
-          "commit": "field-commit"
+          "editor": "number"
         },
         {
           "field": "marginMed",
-          "editor": "number",
-          "commit": "field-commit"
+          "editor": "number"
         },
         {
           "field": "marginMax",
-          "editor": "number",
-          "commit": "field-commit"
+          "editor": "number"
         }
       ]
     },
@@ -747,18 +739,15 @@
       "fields": [
         {
           "field": "marginMin",
-          "editor": "number",
-          "commit": "field-commit"
+          "editor": "number"
         },
         {
           "field": "marginMed",
-          "editor": "number",
-          "commit": "field-commit"
+          "editor": "number"
         },
         {
           "field": "marginMax",
-          "editor": "number",
-          "commit": "field-commit"
+          "editor": "number"
         }
       ]
     },
@@ -768,28 +757,23 @@
       "fields": [
         {
           "field": "resource",
-          "editor": "reference",
-          "commit": "immediate"
+          "editor": "reference"
         },
         {
           "field": "cost",
-          "editor": "number",
-          "commit": "field-commit"
+          "editor": "number"
         },
         {
           "field": "costUnit",
-          "editor": "enum",
-          "commit": "immediate"
+          "editor": "enum"
         },
         {
           "field": "price",
-          "editor": "number",
-          "commit": "field-commit"
+          "editor": "number"
         },
         {
           "field": "currency",
-          "editor": "enum",
-          "commit": "immediate"
+          "editor": "enum"
         }
       ]
     }
@@ -804,15 +788,11 @@
           "referenceField": "resource",
           "field": "name",
           "label": "Role",
-          "editor": "text",
-          "commit": "field-commit",
           "width": "lg"
         },
         {
           "type": "field",
           "field": "cost",
-          "editor": "number",
-          "commit": "field-commit",
           "align": "end",
           "width": "sm",
           "format": "number",
@@ -822,17 +802,7 @@
         },
         {
           "type": "field",
-          "field": "costUnit",
-          "editor": "enum",
-          "commit": "immediate",
-          "width": "xs",
-          "display": "hidden"
-        },
-        {
-          "type": "field",
           "field": "price",
-          "editor": "number",
-          "commit": "field-commit",
           "align": "end",
           "width": "sm",
           "suffix": "/ day",
@@ -844,7 +814,6 @@
           "label": "Margin",
           "align": "end",
           "width": "sm",
-          "display": "readOnly",
           "format": "percent"
         }
       ]

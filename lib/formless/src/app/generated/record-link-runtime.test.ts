@@ -4,6 +4,7 @@ import type {
   TableActionGroupContract,
   TableContract,
 } from "@dpeek/formless-presentation/contract";
+import type { KeyedDefinition, TableViewSchema } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type { TableCollectionResultModel } from "../../client/collection-result-model.ts";
 import { selectTableResultModel } from "../../client/table-model.ts";
@@ -14,50 +15,66 @@ import { selectGeneratedWorkspaceTableFoundation } from "./generated-table-found
 describe("generated table record links", () => {
   it("resolves row-scoped direct and referenced values without entering operation intents", () => {
     const schema = sourceLikeSiteSchema();
-    const tableView = schema.tableViews.find(
-      (definition) => definition.key === "blockPlacementTable",
-    )!;
-    const operationColumnIndex = tableView.columns.findIndex(
-      (column) => column.type === "operationControl",
-    );
-    tableView.links = [
-      {
-        key: "openBlock",
-        label: "Open block",
-        target: "newTab",
-        destination: {
-          type: "url",
-          base: "https://example.test/open?source=table",
-          query: [
-            {
-              name: "order",
-              source: { kind: "field", field: "order" },
-              missing: "disable",
-            },
-            {
-              name: "label",
-              source: { kind: "field", field: "label" },
-              missing: "disable",
-            },
-            {
-              name: "href",
-              source: {
-                kind: "referenceField",
-                referenceField: "block",
-                targetEntity: "block",
-                field: "href",
+    const tableView = {
+      key: "blockPlacementTable",
+      entity: "block-placement",
+      links: [
+        {
+          key: "openBlock",
+          label: "Open block",
+          target: "newTab",
+          destination: {
+            type: "url",
+            base: "https://example.test/open?source=table",
+            query: [
+              {
+                name: "order",
+                source: { kind: "field", field: "order" },
+                missing: "disable",
               },
-              missing: "disable",
-            },
-          ],
+              {
+                name: "label",
+                source: { kind: "field", field: "label" },
+                missing: "disable",
+              },
+              {
+                name: "href",
+                source: {
+                  kind: "referenceField",
+                  referenceField: "block",
+                  targetEntity: "block",
+                  field: "href",
+                },
+                missing: "disable",
+              },
+            ],
+          },
         },
+      ],
+      operations: [
+        {
+          operation: "block.update",
+          label: "Edit block",
+          target: { kind: "reference", field: "block" },
+          editView: "blockEdit",
+        },
+      ],
+      ordering: {
+        field: "order",
+        scope: [
+          { kind: "field", field: "parent" },
+          { kind: "field", field: "slot" },
+        ],
       },
-    ];
-    tableView.columns.splice(operationColumnIndex, 0, {
-      type: "linkControl",
-      link: "openBlock",
-      label: "Destination",
-    });
+      columns: [
+        { type: "orderingHandle" },
+        { type: "field", field: "block" },
+        { type: "field", field: "label" },
+        { type: "field", field: "slot" },
+        { type: "linkControl", link: "openBlock", label: "Destination" },
+        { type: "operationControl", includeOrdering: true },
+      ],
+    } satisfies KeyedDefinition<TableViewSchema>;
 
     const entityName = "block-placement";
     const entity = schema.entities.find((definition) => definition.key === entityName)!;
@@ -143,9 +160,33 @@ describe("generated table record links", () => {
       unavailableReason: "Link destination is unavailable.",
     });
     expect(unavailable).not.toHaveProperty("href");
-    expect(operationActions(table, availablePlacement.id).secondary).toEqual([
-      expect.objectContaining({ kind: "editAction" }),
-    ]);
+    expect(tableCellContent(table, availablePlacement.id, "field:block")).toMatchObject({
+      kind: "cellValue",
+      presentation: { kind: "reference" },
+    });
+    expect(tableCellContent(table, unavailablePlacement.id, "field:block")).toEqual({
+      accessibilityLabel: "Child block value is invalid or unavailable.",
+      kind: "invalidValue",
+    });
+    expect(
+      [...foundation.editFieldsById.values()].every(({ field }) => field.surface === "record"),
+    ).toBe(true);
+    expect(operationActions(table, availablePlacement.id)).toMatchObject({
+      accessibilityLabel: "More options for Hero & main",
+      actions: [
+        {
+          dialog: {
+            targetKind: "reference",
+            warning: "Updating this shared record may affect other records.",
+          },
+          kind: "editAction",
+        },
+        { direction: "top", kind: "orderingAction" },
+        { direction: "up", kind: "orderingAction" },
+        { direction: "down", kind: "orderingAction" },
+        { direction: "bottom", kind: "orderingAction" },
+      ],
+    });
   });
 });
 
@@ -154,11 +195,17 @@ function recordLinkAction(table: TableContract, rowId: string): NativeLinkAction
     .find((row) => row.id === rowId)
     ?.cells.find((cell) => cell.columnId === "linkControl:openBlock")?.contents[0];
 
-  if (content?.kind !== "actionGroup" || content.primary[0]?.kind !== "nativeLinkAction") {
+  if (content?.kind !== "nativeLinkAction") {
     throw new Error(`Missing record link action for row "${rowId}".`);
   }
 
-  return content.primary[0];
+  return content;
+}
+
+function tableCellContent(table: TableContract, rowId: string, columnId: string) {
+  return table.rows
+    .find((row) => row.id === rowId)
+    ?.cells.find((cell) => cell.columnId === columnId)?.contents[0];
 }
 
 function operationActions(table: TableContract, rowId: string): TableActionGroupContract {

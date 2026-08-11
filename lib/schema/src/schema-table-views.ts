@@ -9,55 +9,41 @@ import {
 import { parseOptionalResultOrdering } from "./schema-ordering.ts";
 import { parseRecordLinks } from "./schema-record-links.ts";
 import { isSystemFieldName } from "./fields.ts";
-import { isFieldCommitPolicy, isFieldEditor } from "./field-types.ts";
 import { formatEntityOperationKey, parseEntityOperationKey } from "./schema-operations.ts";
 import type {
   ComputedValueSchema,
   EntitySchema,
   FieldSchema,
-  ItemViewSchema,
   KeyedDefinition,
   LinkControlTableColumnSchema,
   RecordLinkSchema,
   ReadModelSchema,
   TableColumnAlign,
-  TableColumnDisplay,
   TableColumnFormat,
   TableColumnSchema,
   TableColumnWidth,
   TableEditRecordTargetSchema,
   TableOperationControlAvailabilitySchema,
-  TableOperationControlPresentation,
   TableOperationControlVariant,
   TableOperationBindingSchema,
   ResultOrderingSchema,
   TableViewSchema,
   ViewSchema,
 } from "./types.ts";
-import { parseFieldCommitPolicy, parseFieldEditor } from "./schema-view-field-parser.ts";
-import { parseOptionalFieldPresentation } from "./schema-view-fields.ts";
-
-const systemDisplayField = {
-  type: "text",
-  required: false,
-} satisfies FieldSchema;
 export function parseTableViews(
   value: unknown,
   entities: readonly KeyedDefinition<EntitySchema>[],
-  itemViews: readonly KeyedDefinition<ItemViewSchema>[],
   readModels?: ReadModelSchema,
 ): KeyedDefinition<TableViewSchema>[] {
   const entitiesByKey = definitionsToRecord(entities);
-  const itemViewsByKey = definitionsToRecord(itemViews);
   return parseKeyedDefinitionArray("Schema tableViews", value, (tableViewName, tableView) =>
-    parseTableView(tableViewName, tableView, entitiesByKey, itemViewsByKey, readModels),
+    parseTableView(tableViewName, tableView, entitiesByKey, readModels),
   );
 }
 function parseTableView(
   tableViewName: string,
   value: unknown,
   entities: Record<string, EntitySchema>,
-  itemViews: Record<string, ItemViewSchema>,
   readModels?: ReadModelSchema,
 ): TableViewSchema {
   if (!isRecord(value)) {
@@ -105,7 +91,6 @@ function parseTableView(
     entityName,
     value.columns,
     entity,
-    itemViews,
     entities,
     definitionsToRecord(readModels?.computedValues),
     links,
@@ -268,7 +253,6 @@ function parseTableColumns(
   entityName: string,
   value: unknown,
   entity: EntitySchema,
-  itemViews: Record<string, ItemViewSchema>,
   entities: Record<string, EntitySchema>,
   computedValues: Record<string, ComputedValueSchema>,
   links: KeyedDefinition<RecordLinkSchema>[] | undefined,
@@ -279,14 +263,13 @@ function parseTableColumns(
     throw new Error(`Table view "${tableViewName}" columns must be a non-empty array.`);
   }
 
-  return value.map((column, index) =>
+  const columns = value.map((column, index) =>
     parseTableColumn(
       tableViewName,
       entityName,
       index,
       column,
       entity,
-      itemViews,
       entities,
       computedValues,
       links,
@@ -294,6 +277,27 @@ function parseTableColumns(
       ordering,
     ),
   );
+
+  const operationControls = columns.filter((column) => column.type === "operationControl");
+  if (operationControls.length > 1) {
+    throw new Error(
+      `Table view "${tableViewName}" must declare at most one operationControl column.`,
+    );
+  }
+  if (operations !== undefined && operationControls.length === 0) {
+    throw new Error(
+      `Table view "${tableViewName}" operations require one operationControl column.`,
+    );
+  }
+
+  const orderingHandles = columns.filter((column) => column.type === "orderingHandle");
+  if (orderingHandles.length > 1) {
+    throw new Error(
+      `Table view "${tableViewName}" must declare at most one orderingHandle column.`,
+    );
+  }
+
+  return columns;
 }
 
 function parseTableColumn(
@@ -302,7 +306,6 @@ function parseTableColumn(
   index: number,
   value: unknown,
   entity: EntitySchema,
-  itemViews: Record<string, ItemViewSchema>,
   entities: Record<string, EntitySchema>,
   computedValues: Record<string, ComputedValueSchema>,
   links: KeyedDefinition<RecordLinkSchema>[] | undefined,
@@ -341,7 +344,7 @@ function parseTableColumn(
     );
   }
 
-  return parseFieldTableColumn(context, value, entityName, entity, itemViews);
+  return parseFieldTableColumn(context, value, entityName, entity);
 }
 
 function parseLinkControlTableColumn(
@@ -373,25 +376,12 @@ function parseFieldTableColumn(
   value: Record<string, unknown>,
   entityName: string,
   entity: EntitySchema,
-  itemViews: Record<string, ItemViewSchema>,
 ): TableColumnSchema {
   assertExactKeys(
     context,
     value,
     ["type", "field"],
-    [
-      "label",
-      "editor",
-      "commit",
-      "align",
-      "width",
-      "display",
-      "suffix",
-      "format",
-      "referenceItemView",
-      "valueUnit",
-      "presentation",
-    ],
+    ["label", "align", "width", "suffix", "format", "valueUnit"],
   );
 
   if (value.type !== "field") {
@@ -405,36 +395,14 @@ function parseFieldTableColumn(
   }
 
   const label = parseOptionalNonEmptyString(`${context} label`, value.label);
-  const editor =
-    value.editor === undefined
-      ? undefined
-      : field === undefined
-        ? parseSystemFieldEditor(`${context} field "${fieldName}"`, value.editor)
-        : parseFieldEditor(`${context} field "${fieldName}"`, value.editor, field);
-  const commit =
-    value.commit === undefined
-      ? undefined
-      : field === undefined
-        ? parseSystemFieldCommitPolicy(`${context} field "${fieldName}"`, value.commit)
-        : parseFieldCommitPolicy(`${context} field "${fieldName}"`, value.commit, field);
   const align = parseOptionalTableColumnAlign(`${context} align`, value.align);
   const width = parseOptionalTableColumnWidth(`${context} width`, value.width);
-  const display = parseOptionalTableColumnDisplay(`${context} display`, value.display);
   const suffix = parseOptionalNonEmptyString(`${context} suffix`, value.suffix);
   const format = parseOptionalTableColumnFormat(`${context} format`, value.format);
-  const referenceItemView =
-    field === undefined
-      ? undefined
-      : parseOptionalReferenceItemView(
-          `${context} referenceItemView`,
-          value.referenceItemView,
-          field,
-          itemViews,
-        );
   const valueUnit =
     field === undefined
       ? undefined
-      : parseOptionalValueUnitEditor(
+      : parseOptionalTableColumnValueUnit(
           `${context} valueUnit`,
           value.valueUnit,
           entityName,
@@ -442,26 +410,16 @@ function parseFieldTableColumn(
           field,
           entity,
         );
-  const presentation = parseOptionalFieldPresentation(
-    `${context} field "${fieldName}"`,
-    value.presentation,
-    field ?? systemDisplayField,
-  );
 
   return {
     type: "field",
     field: fieldName,
     ...(label === undefined ? {} : { label }),
-    ...(editor === undefined ? {} : { editor }),
-    ...(commit === undefined ? {} : { commit }),
     ...(align === undefined ? {} : { align }),
     ...(width === undefined ? {} : { width }),
-    ...(display === undefined ? {} : { display }),
     ...(suffix === undefined ? {} : { suffix }),
     ...(format === undefined ? {} : { format }),
-    ...(referenceItemView === undefined ? {} : { referenceItemView }),
     ...(valueUnit === undefined ? {} : { valueUnit }),
-    ...(presentation === undefined ? {} : { presentation }),
   };
 }
 
@@ -476,7 +434,7 @@ function parseReferenceFieldTableColumn(
     context,
     value,
     ["type", "referenceField", "field"],
-    ["label", "editor", "commit", "align", "width", "display", "suffix", "format", "presentation"],
+    ["label", "align", "width", "suffix", "format"],
   );
 
   const referenceFieldName = parseRequiredNonEmptyString(
@@ -510,98 +468,21 @@ function parseReferenceFieldTableColumn(
   }
 
   const label = parseOptionalNonEmptyString(`${context} label`, value.label);
-  const editor =
-    value.editor === undefined
-      ? undefined
-      : field === undefined
-        ? parseSystemFieldEditor(`${context} field "${sourceField.to}.${fieldName}"`, value.editor)
-        : parseFieldEditor(
-            `${context} field "${sourceField.to}.${fieldName}"`,
-            value.editor,
-            field,
-          );
-  const commit =
-    value.commit === undefined
-      ? undefined
-      : field === undefined
-        ? parseSystemFieldCommitPolicy(
-            `${context} field "${sourceField.to}.${fieldName}"`,
-            value.commit,
-          )
-        : parseFieldCommitPolicy(
-            `${context} field "${sourceField.to}.${fieldName}"`,
-            value.commit,
-            field,
-          );
   const align = parseOptionalTableColumnAlign(`${context} align`, value.align);
   const width = parseOptionalTableColumnWidth(`${context} width`, value.width);
-  const display = parseOptionalTableColumnDisplay(`${context} display`, value.display);
   const suffix = parseOptionalNonEmptyString(`${context} suffix`, value.suffix);
   const format = parseOptionalTableColumnFormat(`${context} format`, value.format);
-  const presentation = parseOptionalFieldPresentation(
-    `${context} field "${sourceField.to}.${fieldName}"`,
-    value.presentation,
-    field ?? systemDisplayField,
-  );
 
   return {
     type: "referenceField",
     referenceField: referenceFieldName,
     field: fieldName,
     ...(label === undefined ? {} : { label }),
-    ...(editor === undefined ? {} : { editor }),
-    ...(commit === undefined ? {} : { commit }),
     ...(align === undefined ? {} : { align }),
     ...(width === undefined ? {} : { width }),
-    ...(display === undefined ? {} : { display }),
     ...(suffix === undefined ? {} : { suffix }),
     ...(format === undefined ? {} : { format }),
-    ...(presentation === undefined ? {} : { presentation }),
   };
-}
-
-function parseSystemFieldEditor(context: string, value: unknown): undefined {
-  if (!isFieldEditor(value)) {
-    throw new Error(`${context} has unsupported editor "${formatUnknownValue(value)}".`);
-  }
-
-  return undefined;
-}
-
-function parseSystemFieldCommitPolicy(context: string, value: unknown): undefined {
-  if (!isFieldCommitPolicy(value)) {
-    throw new Error(`${context} has unsupported commit policy "${formatUnknownValue(value)}".`);
-  }
-
-  return undefined;
-}
-
-function formatUnknownValue(value: unknown) {
-  if (typeof value === "string") {
-    return value;
-  }
-
-  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
-    return `${value}`;
-  }
-
-  if (value === undefined) {
-    return "undefined";
-  }
-
-  if (value === null) {
-    return "null";
-  }
-
-  if (typeof value === "symbol") {
-    return value.description === undefined ? "Symbol()" : `Symbol(${value.description})`;
-  }
-
-  if (typeof value === "function") {
-    return "[function]";
-  }
-
-  return JSON.stringify(value) ?? "[object]";
 }
 
 function parseComputedTableColumn(
@@ -614,7 +495,7 @@ function parseComputedTableColumn(
     context,
     value,
     ["type", "computedValue"],
-    ["label", "align", "width", "display", "suffix", "format"],
+    ["label", "align", "width", "suffix", "format"],
   );
 
   const computedValueName = parseRequiredNonEmptyString(
@@ -636,12 +517,6 @@ function parseComputedTableColumn(
   const label = parseOptionalNonEmptyString(`${context} label`, value.label);
   const align = parseOptionalTableColumnAlign(`${context} align`, value.align);
   const width = parseOptionalTableColumnWidth(`${context} width`, value.width);
-  const display = parseOptionalTableColumnDisplay(`${context} display`, value.display);
-
-  if (display === "editor") {
-    throw new Error(`${context} computed columns must be read-only or hidden.`);
-  }
-
   const suffix = parseOptionalNonEmptyString(`${context} suffix`, value.suffix);
   const format = parseOptionalTableColumnFormat(`${context} format`, value.format);
 
@@ -651,7 +526,6 @@ function parseComputedTableColumn(
     ...(label === undefined ? {} : { label }),
     ...(align === undefined ? {} : { align }),
     ...(width === undefined ? {} : { width }),
-    ...(display === undefined ? {} : { display }),
     ...(suffix === undefined ? {} : { suffix }),
     ...(format === undefined ? {} : { format }),
   };
@@ -663,82 +537,21 @@ function parseOperationControlTableColumn(
   operations: TableOperationBindingSchema[] | undefined,
   ordering: ResultOrderingSchema | undefined,
 ): TableColumnSchema {
-  assertExactKeys(
-    context,
-    value,
-    ["type"],
-    [
-      "operation",
-      "operations",
-      "includeOrdering",
-      "label",
-      "align",
-      "width",
-      "display",
-      "presentation",
-    ],
-  );
+  assertExactKeys(context, value, ["type"], ["includeOrdering"]);
 
-  const parsedIncludeOrdering = parseOptionalBoolean(
-    `${context} includeOrdering`,
-    value.includeOrdering,
-  );
-  const includeOrdering =
-    parsedIncludeOrdering ??
-    (value.operation === undefined && value.operations === undefined && ordering !== undefined
-      ? true
-      : undefined);
+  const includeOrdering = parseOptionalBoolean(`${context} includeOrdering`, value.includeOrdering);
 
   if (includeOrdering && !ordering) {
     throw new Error(`${context} includeOrdering requires table ordering.`);
   }
 
-  const referencedOperations = parseOperationControlReferences(
-    context,
-    value.operation,
-    value.operations,
-    includeOrdering,
-  );
-
-  for (const operationKey of referencedOperations) {
-    if (!operations?.some((binding) => binding.operation === operationKey)) {
-      throw new Error(`${context} references unknown table operation "${operationKey}".`);
-    }
-  }
-
-  const label = parseOptionalNonEmptyString(`${context} label`, value.label);
-  const align = parseOptionalTableColumnAlign(`${context} align`, value.align);
-  const width = parseOptionalTableColumnWidth(`${context} width`, value.width);
-  const display = parseOptionalTableColumnDisplay(`${context} display`, value.display);
-
-  if (display === "editor") {
-    throw new Error(`${context} operationControl columns must be read-only or hidden.`);
-  }
-
-  const presentation = parseOptionalTableOperationControlPresentation(
-    `${context} presentation`,
-    value.presentation,
-  );
-
-  if (presentation === "button" && referencedOperations.length > 1) {
-    throw new Error(`${context} button presentation requires exactly one operation.`);
-  }
-
-  if (presentation === "button" && includeOrdering) {
-    throw new Error(`${context} button presentation cannot include ordering controls.`);
+  if (operations === undefined && includeOrdering !== true) {
+    throw new Error(`${context} requires table operations or includeOrdering.`);
   }
 
   return {
     type: "operationControl",
-    ...(value.operation === undefined
-      ? { operations: referencedOperations }
-      : { operation: referencedOperations[0] }),
     ...(includeOrdering === undefined ? {} : { includeOrdering }),
-    ...(label === undefined ? {} : { label }),
-    ...(align === undefined ? {} : { align }),
-    ...(width === undefined ? {} : { width }),
-    ...(display === undefined ? {} : { display }),
-    ...(presentation === undefined ? {} : { presentation }),
   };
 }
 
@@ -747,71 +560,13 @@ function parseOrderingHandleTableColumn(
   value: Record<string, unknown>,
   ordering: ResultOrderingSchema | undefined,
 ): TableColumnSchema {
-  assertExactKeys(context, value, ["type"], ["label", "align", "width", "display"]);
+  assertExactKeys(context, value, ["type"]);
 
   if (!ordering) {
     throw new Error(`${context} orderingHandle requires table ordering.`);
   }
 
-  if (!ordering.presentations?.includes("dragHandle")) {
-    throw new Error(`${context} orderingHandle requires dragHandle ordering presentation.`);
-  }
-
-  const label = parseOptionalNonEmptyString(`${context} label`, value.label);
-  const align = parseOptionalTableColumnAlign(`${context} align`, value.align);
-  const width = parseOptionalTableColumnWidth(`${context} width`, value.width);
-  const display = parseOptionalTableColumnDisplay(`${context} display`, value.display);
-
-  if (display === "editor") {
-    throw new Error(`${context} orderingHandle columns must be read-only or hidden.`);
-  }
-
-  return {
-    type: "orderingHandle",
-    ...(label === undefined ? {} : { label }),
-    ...(align === undefined ? {} : { align }),
-    ...(width === undefined ? {} : { width }),
-    ...(display === undefined ? {} : { display }),
-  };
-}
-
-function parseOperationControlReferences(
-  context: string,
-  operation: unknown,
-  operations: unknown,
-  allowEmpty: boolean | undefined,
-): string[] {
-  if (operation !== undefined && operations !== undefined) {
-    throw new Error(`${context} must use either operation or operations, not both.`);
-  }
-
-  if (operation !== undefined) {
-    return [formatEntityOperationKey(parseEntityOperationKey(`${context} operation`, operation))];
-  }
-
-  if (
-    (operations === undefined || (Array.isArray(operations) && operations.length === 0)) &&
-    allowEmpty
-  ) {
-    return [];
-  }
-
-  if (!Array.isArray(operations) || operations.length === 0) {
-    throw new Error(`${context} must reference at least one table operation.`);
-  }
-
-  const operationKeys = operations.map((candidate, index) =>
-    formatEntityOperationKey(parseEntityOperationKey(`${context} operations ${index}`, candidate)),
-  );
-  const duplicate = operationKeys.find(
-    (candidate, index) => operationKeys.indexOf(candidate) !== index,
-  );
-
-  if (duplicate) {
-    throw new Error(`${context} references duplicate table operation "${duplicate}".`);
-  }
-
-  return operationKeys;
+  return { type: "orderingHandle" };
 }
 
 export function assertTableOperationEditViews(
@@ -887,21 +642,6 @@ function parseOptionalTableColumnWidth(
   return value;
 }
 
-function parseOptionalTableColumnDisplay(
-  context: string,
-  value: unknown,
-): TableColumnDisplay | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (value !== "editor" && value !== "readOnly" && value !== "hidden") {
-    throw new Error(`${context} must be "editor", "readOnly", or "hidden".`);
-  }
-
-  return value;
-}
-
 export function parseOptionalTableColumnFormat(
   context: string,
   value: unknown,
@@ -927,21 +667,6 @@ function parseOptionalTableOperationControlVariant(
 
   if (value !== "default" && value !== "destructive") {
     throw new Error(`${context} must be "default" or "destructive".`);
-  }
-
-  return value;
-}
-
-function parseOptionalTableOperationControlPresentation(
-  context: string,
-  value: unknown,
-): TableOperationControlPresentation | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (value !== "button" && value !== "dropdown") {
-    throw new Error(`${context} must be "button" or "dropdown".`);
   }
 
   return value;
@@ -993,35 +718,7 @@ function parseTableOperationControlAvailabilityState(
   return value;
 }
 
-function parseOptionalReferenceItemView(
-  context: string,
-  value: unknown,
-  field: FieldSchema,
-  itemViews: Record<string, ItemViewSchema>,
-): string | undefined {
-  const itemViewName = parseOptionalNonEmptyString(context, value);
-
-  if (itemViewName === undefined) {
-    return undefined;
-  }
-
-  if (field.type !== "reference") {
-    throw new Error(`${context} requires a reference field.`);
-  }
-
-  const itemView = itemViews[itemViewName];
-  if (!itemView) {
-    throw new Error(`${context} references unknown item view "${itemViewName}".`);
-  }
-
-  if (itemView.entity !== field.to) {
-    throw new Error(`${context} "${itemViewName}" must use entity "${field.to}".`);
-  }
-
-  return itemViewName;
-}
-
-function parseOptionalValueUnitEditor(
+function parseOptionalTableColumnValueUnit(
   context: string,
   value: unknown,
   entityName: string,

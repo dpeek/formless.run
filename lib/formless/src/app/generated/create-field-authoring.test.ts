@@ -4,8 +4,6 @@ import type {
   CreateFieldConfig,
   CreateUnionPresentationConfig,
 } from "../../client/views.ts";
-import { selectCollectionModels } from "../../client/views.ts";
-import { siteSourceSchema } from "../../test/schema-apps.ts";
 import type { EntityUnionVariantSchema, FieldSchema } from "@dpeek/formless-schema";
 import { generatedFieldDraftInput } from "@dpeek/formless-schema";
 import {
@@ -17,44 +15,6 @@ import {
 } from "./create-field-authoring.ts";
 
 describe("generated create draft session", () => {
-  it("commits Site image creates as flat media asset ids", () => {
-    const contentModel = selectCollectionModels(siteSourceSchema).find(
-      (model) => model.viewName === "blockHome",
-    );
-    const create = contentModel?.operations!.find((operation) => operation.type === "create");
-    if (create?.type !== "create") {
-      throw new Error("Missing Site block create operation.");
-    }
-
-    const initialState = initialGeneratedCreateDraftSessionState({
-      defaults: create.defaults,
-      fields: create.fields,
-      union: create.union,
-    });
-    const imageState = nextSessionValue(
-      nextSessionValue(nextSessionValue(initialState, "type", "image"), "label", "Hero image"),
-      "mediaAssetId",
-      "hero.webp",
-    );
-    const session = selectGeneratedCreateDraftSession({
-      defaults: create.defaults,
-      enabled: true,
-      fields: create.fields,
-      queryContext: { today: "2026-08-06", values: { site: "site:primary" } },
-      state: imageState,
-      union: create.union,
-    });
-
-    expect(fieldNames(session.visibleFields)).toEqual(["type", "label", "mediaAssetId"]);
-    expect(session.values).toEqual({
-      site: "site:primary",
-      label: "Hero image",
-      mediaAssetId: "hero.webp",
-      type: "image",
-    });
-    expect(session.values).not.toHaveProperty("href");
-  });
-
   it("selects visible create fields from fixed discriminator defaults and draft values", () => {
     const defaults = [literalTypeDefault("link")];
     const fields = [createField("label", "text")];

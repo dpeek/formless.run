@@ -181,31 +181,47 @@ function withOrderingAvailability(
     cells: row.cells.map((cell) => ({
       ...cell,
       contents: cell.contents.map((content) => {
-        if (content.kind !== "ordering") {
-          return content;
+        if (content.kind === "ordering") {
+          return {
+            ...content,
+            actions: content.actions.map((action) =>
+              withOrderingActionAvailability(action, index, rowCount),
+            ),
+          };
         }
 
-        return {
-          ...content,
-          actions: content.actions.map((action) => {
-            const disabled =
-              (index === 0 && (action.direction === "top" || action.direction === "up")) ||
-              (index === rowCount - 1 &&
-                (action.direction === "bottom" || action.direction === "down"));
-            const { disabled: _disabled, disabledReason: _disabledReason, ...baseAction } = action;
-
-            return disabled
-              ? {
-                  ...baseAction,
-                  disabled: true,
-                  disabledReason: index === 0 ? "Already first" : "Already last",
-                }
-              : baseAction;
-          }),
-        };
+        return content.kind === "actionGroup"
+          ? {
+              ...content,
+              actions: content.actions.map((action) =>
+                action.kind === "orderingAction"
+                  ? withOrderingActionAvailability(action, index, rowCount)
+                  : action,
+              ),
+            }
+          : content;
       }),
     })),
   };
+}
+
+function withOrderingActionAvailability(
+  action: Extract<TableActionContract, { kind: "orderingAction" }>,
+  index: number,
+  rowCount: number,
+) {
+  const disabled =
+    (index === 0 && (action.direction === "top" || action.direction === "up")) ||
+    (index === rowCount - 1 && (action.direction === "bottom" || action.direction === "down"));
+  const { disabled: _disabled, disabledReason: _disabledReason, ...baseAction } = action;
+
+  return disabled
+    ? {
+        ...baseAction,
+        disabled: true,
+        disabledReason: index === 0 ? "Already first" : "Already last",
+      }
+    : baseAction;
 }
 
 function mapRowFields(
@@ -217,10 +233,6 @@ function mapRowFields(
     cells: row.cells.map((cell) => ({
       ...cell,
       contents: cell.contents.map((content) => {
-        if (content.kind === "field") {
-          return { ...content, field: update(content.field) };
-        }
-
         return content.kind === "actionGroup" ? mapActionGroupFields(content, update) : content;
       }),
     })),
@@ -233,8 +245,7 @@ function mapActionGroupFields(
 ): TableActionGroupContract {
   return {
     ...group,
-    primary: group.primary.map((action) => mapActionFields(action, update)),
-    secondary: group.secondary.map((action) => mapActionFields(action, update)),
+    actions: group.actions.map((action) => mapActionFields(action, update)),
   };
 }
 
@@ -254,9 +265,6 @@ function mapActionFields(
       ...action.dialog,
       target: {
         ...target,
-        ...(target.actionGroup
-          ? { actionGroup: mapActionGroupFields(target.actionGroup, update) }
-          : {}),
         fieldSet: {
           ...target.fieldSet,
           fields: target.fieldSet.fields.map(update),
@@ -297,8 +305,7 @@ function mapActionGroupActions(
 ): TableActionGroupContract {
   return {
     ...group,
-    primary: group.primary.map((action) => mapActionTree(action, update)),
-    secondary: group.secondary.map((action) => mapActionTree(action, update)),
+    actions: group.actions.map((action) => mapActionTree(action, update)),
   };
 }
 
@@ -306,25 +313,7 @@ function mapActionTree(
   action: TableActionContract,
   update: (action: TableActionContract) => TableActionContract,
 ): TableActionContract {
-  if (action.kind !== "editAction" || action.dialog.target.kind !== "available") {
-    return update(action);
-  }
-
-  const { target } = action.dialog;
-  const actionWithChildren = target.actionGroup
-    ? {
-        ...action,
-        dialog: {
-          ...action.dialog,
-          target: {
-            ...target,
-            actionGroup: mapActionGroupActions(target.actionGroup, update),
-          },
-        },
-      }
-    : action;
-
-  return update(actionWithChildren);
+  return update(action);
 }
 
 export function selectedTableFixture(fixtures: readonly TableFixture[], id: TableFixtureId) {

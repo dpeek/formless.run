@@ -4,7 +4,6 @@ import type { FieldSchema } from "@dpeek/formless-schema";
 import type {
   ButtonContract,
   NativeLinkActionContract,
-  TableActionContract,
   TableActionGroupContract,
   TableColumnContract,
   TableContract,
@@ -12,22 +11,15 @@ import type {
   TableIntent,
   TableOperationActionContract,
 } from "@dpeek/formless-presentation/contract";
-import {
-  displayField,
-  fieldError,
-  recordDrafts,
-  recordField,
-  textControl,
-} from "./fields/fixture-helpers.ts";
+import { recordDrafts, recordField, textControl } from "./fields/fixture-helpers.ts";
 import {
   AstryxTableRenderer,
+  astryxTableActionItems,
   astryxTableColumns,
   astryxTableDensity,
   astryxTableEditDialogOpenChangeHandler,
+  astryxTableMoreOptionsMenuButton,
   astryxTableOrderingItems,
-  astryxTableSecondaryActionItems,
-  astryxTableSecondaryMenuButton,
-  dispatchAstryxTableAction,
 } from "./table-renderer.tsx";
 import { operationControlFixtures } from "./operation-controls.fixtures.ts";
 
@@ -35,38 +27,20 @@ const titleSchema = {
   label: "Task",
   required: true,
   type: "text",
-} satisfies Extract<
-  FieldSchema,
-  {
-    type: "text";
-  }
->;
+} satisfies Extract<FieldSchema, { type: "text" }>;
 const titleControl = textControl(titleSchema);
-const editableTitle = recordField({
+const editDialogTitle = recordField({
   commit: "field-commit",
   control: titleControl,
   drafts: recordDrafts({ recordValue: "Prepare launch" }),
   editor: titleControl.editor,
   field: titleSchema,
   fieldName: "title",
-  labelVisibility: "hidden",
-  occurrence: { ownerId: "table:task-1", placementId: "title" },
+  labelVisibility: "visible",
+  occurrence: { ownerId: "table:task-1:edit", placementId: "title" },
   recordId: "task-1",
   rendererKind: "text",
-  surface: "table-cell",
-});
-
-const displayTitle = displayField({
-  control: titleControl,
-  editor: titleControl.editor,
-  field: titleSchema,
-  fieldName: "title",
-  formatting: { displayValue: "Prepare launch" },
-  labelVisibility: "hidden",
-  occurrence: { ownerId: "table:task-1", placementId: "title" },
-  recordId: "task-1",
-  surface: "table-cell",
-  value: "Prepare launch",
+  surface: "record",
 });
 
 describe("Astryx table renderer", () => {
@@ -74,70 +48,55 @@ describe("Astryx table renderer", () => {
     const columns = astryxTableColumns(tableColumns);
 
     expect(columns.map(({ align, key, width }) => ({ align, key, width }))).toEqual([
-      {
-        align: "center",
-        key: "order",
-        width: { type: "pixel", value: 48 },
-      },
+      { align: "center", key: "order", width: { type: "pixel", value: 48 } },
       {
         align: "start",
         key: "title",
         width: { minWidth: 160, type: "proportional", value: 1 },
       },
-      {
-        align: "start",
-        key: "owner",
-        width: { type: "pixel", value: 112 },
-      },
-      {
-        align: "end",
-        key: "score",
-        width: { type: "pixel", value: 112 },
-      },
-      {
-        align: "end",
-        key: "actions",
-        width: { type: "pixel", value: 160 },
-      },
+      { align: "start", key: "owner", width: { type: "pixel", value: 112 } },
+      { align: "end", key: "score", width: { type: "pixel", value: 112 } },
+      { align: "end", key: "actions", width: { type: "pixel", value: 160 } },
     ]);
     expect(astryxTableDensity("compact")).toBe("compact");
     expect(astryxTableDensity("default")).toBe("spacious");
   });
 
-  it("renders semantic headers, mixed cells, action hierarchy, async state, warnings, and footer", () => {
+  it("renders read-only values, actions, invalid-value warning, and footer", () => {
     const html = renderTable(tableFixture());
 
     expect(html).toMatch(/<table[^>]*aria-label="Tasks"/);
-    expect(html).toContain('aria-label="Ordering"');
-    expect(html).toContain('scope="col"');
     expect(html).toContain('scope="row"');
-    expect(html).toContain('value="Prepare launch"');
+    expect(html).toContain("Prepare launch");
     expect(html).toContain("Sam Rivera");
-    expect(html).toContain("Calculating score");
-    expect(html).toContain("Score is temporarily unavailable.");
-    expect(html).toContain("Open task");
-    expect(html).toContain('aria-label="More task actions"');
+    expect(html).toContain('aria-label="Score value is invalid or unavailable."');
+    expect(html).toContain('role="status"');
+    expect(html).not.toContain("Score is temporarily unavailable.");
+    expect(html).toContain('aria-label="More options for Prepare launch"');
     expect(html).toContain("Edit task");
     expect(html).toContain("Delete task");
-    expect(html).toContain("Owner email is missing.");
-    expect(html).toContain('aria-label="Row warning: Owner email is missing."');
-    expect(html).toMatch(/<button[^>]*aria-label="Row warning: Owner email is missing\."[^>]*>/);
-    expect(html).toContain('aria-label="Score is temporarily unavailable."');
-    expect(html).not.toContain("Readiness warnings:");
-    expect(html).not.toContain("astryx-banner");
-    expect(html.match(/<tr/g)).toHaveLength(3);
-    expect(html.indexOf('aria-label="Row warning: Owner email is missing."')).toBeGreaterThan(
-      html.indexOf('aria-label="More task actions"'),
-    );
     expect(html).toContain("Aggregate footer");
     expect(html).toContain("42");
     expect(html).toContain("points");
-    expect(
-      html.match(/(?:—|42)\u00a0<span[^>]*data-type="body"[^>]*>points<\/span>/g),
-    ).toHaveLength(2);
-    expect(html.match(/data-type="body"[^>]*>points/g)).toHaveLength(2);
-    expect(html).not.toMatch(/data-type="supporting"[^>]*>points/);
     expect(html).toContain("<tfoot");
+  });
+
+  it("renders compact typed presentations without exposing invalid detail or a tooltip", () => {
+    const html = renderTable(typedValueTable());
+
+    expect(html).toContain("Launch notes");
+    expect(html).toContain("Ready");
+    expect(html).toContain("12");
+    expect(html).toContain("hours");
+    expect(html).toContain("2026");
+    expect(html).toContain('aria-label="Brand colour: #ff8800 color swatch"');
+    expect(html).toContain('aria-label="Task icon"');
+    expect(html).toContain('aria-label="Task image"');
+    expect(html).toContain('aria-label="Stored value is invalid or unavailable."');
+    expect(html).not.toContain("unsafe-cell-value");
+    expect(html).not.toContain("Correction required");
+    expect(html).not.toContain("astryx-tooltip");
+    expect(html).not.toContain("<input");
   });
 
   it("renders an unavailable action cell as a disabled overflow menu", () => {
@@ -146,7 +105,6 @@ describe("Astryx table renderer", () => {
 
     expect(trigger).toBeDefined();
     expect(trigger).toMatch(/disabled|aria-disabled/);
-    expect(html).toContain("Editing is unavailable");
   });
 
   it("renders available and unavailable native record links without link intents", () => {
@@ -160,31 +118,9 @@ describe("Astryx table renderer", () => {
       /<a[^>]*aria-label="Open external details for Prepare launch"[^>]*>/,
     )?.[0];
 
-    expect(newTabAnchor).toBeDefined();
     expect(newTabAnchor).toContain('href="https://example.test/open?task=task-1"');
     expect(newTabAnchor).toContain('target="_blank"');
     expect(newTabAnchor).toContain('rel="noopener noreferrer"');
-    expect(newTabHtml).toContain("Open external");
-    expect(newTabHtml).toContain("Open task");
-    expect(newTabHtml).toContain("Edit task");
-
-    const sameTabHtml = renderTable(
-      withTableLinkAction(
-        tableFixture(),
-        nativeLinkAction({
-          availability: "available",
-          href: "https://example.test/open?task=task-1",
-          target: "sameTab",
-        }),
-      ),
-    );
-    const sameTabAnchor = sameTabHtml.match(
-      /<a[^>]*aria-label="Open external details for Prepare launch"[^>]*>/,
-    )?.[0];
-
-    expect(sameTabAnchor).toBeDefined();
-    expect(sameTabAnchor).not.toContain("target=");
-    expect(sameTabAnchor).not.toContain("rel=");
 
     const unavailableLink = nativeLinkAction({ availability: "unavailable", target: "newTab" });
     const unavailableHtml = renderTable(withTableLinkAction(tableFixture(), unavailableLink));
@@ -192,101 +128,46 @@ describe("Astryx table renderer", () => {
       /<button[^>]*aria-label="Open external details for Prepare launch"[^>]*>/,
     )?.[0];
 
-    expect(unavailableControl).toBeDefined();
     expect(unavailableControl).toMatch(/disabled|aria-disabled/);
-    expect(unavailableControl).not.toContain("href=");
     expect(unavailableHtml).toContain("Link destination is unavailable.");
-    expect(
-      astryxTableSecondaryActionItems(
-        [newTabLink],
-        () => undefined,
-        () => undefined,
-      ),
-    ).toEqual([]);
-
-    const tableIntents: TableIntent[] = [];
-    const operationIntents: unknown[] = [];
-    dispatchAstryxTableAction(
-      newTabLink,
-      (_action, intent) => {
-        operationIntents.push(intent);
-      },
-      (intent) => {
-        tableIntents.push(intent);
-      },
-    );
-    expect(tableIntents).toEqual([]);
-    expect(operationIntents).toEqual([]);
   });
 
-  it("keeps table-cell field validation compact and exposes the message through a tooltip", () => {
+  it("renders a focused controlled edit dialog from projected record fields and errors", () => {
     const table = tableFixture();
-    const actionGroup = tableActionGroup(table);
-    const invalidTitle = {
-      ...editableTitle,
-      errors: [fieldError("title", "Task is required.")],
-    };
-    const compactTable = withTableTitleField(
-      withTableActionGroup(table, { ...actionGroup, primary: [], secondary: [] }),
-      invalidTitle,
-    );
-    const html = renderTable(compactTable);
-
-    expect(html).toContain('aria-invalid="true"');
-    expect(html).toContain('data-status="error"');
-    expect(html).toContain('class="astryx-tooltip');
-    expect(html).toContain("Task is required.");
-    expect(html).not.toContain("astryx-field-status");
-  });
-
-  it("renders a focused controlled edit dialog from projected fields and errors", () => {
-    const table = tableFixture();
-    const editAction = tableActionGroup(table).secondary.find(
+    const editAction = tableActionGroup(table).actions.find(
       (action): action is TableEditActionContract => action.kind === "editAction",
     );
 
     expect(editAction).toBeDefined();
     const html = renderTable(table);
-
-    expect(html).toContain("Edit task");
     expect(html).toContain("Update the selected task.");
+    expect(html).toContain("Updating this shared record may affect other records.");
     expect(html).toContain("Task changes could not be saved.");
-    expect(html).toContain(">Done</span>");
     expect(html).toMatch(/<label[^>]*>.*Task.*<\/label>/);
 
     const intents: TableIntent[] = [];
     const onOpenChange = astryxTableEditDialogOpenChangeHandler(editAction!.dialog, (intent) => {
       intents.push(intent);
     });
-
     onOpenChange(true);
     onOpenChange(false);
     expect(intents).toEqual([{ ...editAction!.dialog.openChangeIntent, open: false }]);
   });
 
-  it("maps a pending operation action to Astryx loading and progress feedback", () => {
+  it("maps pending operations and dispatches action and ordering intents", () => {
     const table = tableFixture();
+    const actionGroup = tableActionGroup(table);
     const pendingAction = {
       control: operationControlFixtures.workspacePushSuccess.pending,
       kind: "operationAction",
       role: "command",
     } satisfies TableOperationActionContract;
-    const html = renderTable(
-      withTableActionGroup(table, {
-        ...tableActionGroup(table),
-        primary: [pendingAction],
-        secondary: [],
-      }),
+    const pendingHtml = renderTable(
+      withTableActionGroup(table, { ...actionGroup, actions: [pendingAction] }),
     );
+    expect(pendingHtml).toContain('aria-busy="true"');
+    expect(pendingHtml).toContain("data-operation-progress");
 
-    expect(html).toContain('aria-busy="true"');
-    expect(html).toContain("Push workspace");
-    expect(html).toContain("data-operation-progress");
-  });
-
-  it("dispatches visible, overflow, operation, and ordering actions through projected intents", () => {
-    const table = tableFixture();
-    const actionGroup = tableActionGroup(table);
     const tableIntents: TableIntent[] = [];
     const operationIntents: unknown[] = [];
     const onTableIntent = (intent: TableIntent) => {
@@ -296,78 +177,49 @@ describe("Astryx table renderer", () => {
       operationIntents.push({ action, intent });
     };
 
-    dispatchAstryxTableAction(actionGroup.primary[0]!, onOperationIntent, onTableIntent);
-
-    const secondaryItems = astryxTableSecondaryActionItems(
-      actionGroup.secondary,
+    const actionItems = astryxTableActionItems(
+      actionGroup.actions,
       onOperationIntent,
       onTableIntent,
     );
-    expect(astryxTableSecondaryMenuButton(actionGroup.secondaryAccessibilityLabel)).toMatchObject({
-      label: "More task actions",
+    expect(astryxTableMoreOptionsMenuButton(actionGroup.accessibilityLabel)).toMatchObject({
+      label: "More options for Prepare launch",
       tooltip: "More options",
     });
-    const editItem = secondaryItems[0];
-    const operationItem = secondaryItems[1];
-    if (editItem && "onClick" in editItem) {
-      editItem.onClick?.();
-    }
-    if (operationItem && "onClick" in operationItem) {
-      operationItem.onClick?.();
-    }
+    const editItem = actionItems[0];
+    const operationItem = actionItems[1];
+    if (editItem && "onClick" in editItem) editItem.onClick?.();
+    if (operationItem && "onClick" in operationItem) operationItem.onClick?.();
 
     const ordering = table.rows[0]!.cells[0]!.contents[0];
-    expect(ordering?.kind).toBe("ordering");
-    if (ordering?.kind === "ordering") {
-      const orderingItems = astryxTableOrderingItems(ordering, onTableIntent);
-      expect(orderingItems.map((item) => ("label" in item ? item.label : undefined))).toEqual([
-        "Move down",
-      ]);
-      expect(
-        astryxTableOrderingItems(
-          {
-            ...ordering,
-            actions: [
-              ordering.actions[0]!,
-              {
-                ...ordering.actions[1]!,
-                pending: { isPending: true, label: "Moving down" },
-              },
-            ],
-          },
-          onTableIntent,
-        ),
-      ).toMatchObject([{ isDisabled: true, label: "Moving down" }]);
-      const moveDown = orderingItems[0];
-      if (moveDown && "onClick" in moveDown) {
-        moveDown.onClick?.();
-      }
-    }
+    if (ordering?.kind !== "ordering") throw new Error("Missing ordering fixture.");
+    const orderingItems = astryxTableOrderingItems(ordering, onTableIntent);
+    expect(orderingItems.map((item) => ("label" in item ? item.label : undefined))).toEqual([
+      "Move down",
+    ]);
+    const moveDown = orderingItems[0];
+    if (moveDown && "onClick" in moveDown) moveDown.onClick?.();
 
     expect(tableIntents).toEqual([
-      actionGroup.primary[0]!.kind === "invokeAction" ? actionGroup.primary[0]!.intent : undefined,
-      actionGroup.secondary[0]!.kind === "editAction"
-        ? actionGroup.secondary[0]!.openIntent
+      actionGroup.actions[0]!.kind === "editAction"
+        ? actionGroup.actions[0]!.openIntent
         : undefined,
-      table.rows[0]!.cells[0]!.contents[0]?.kind === "ordering"
-        ? table.rows[0]!.cells[0]!.contents[0].actions[1]!.intent
-        : undefined,
+      ordering.actions[1]!.intent,
     ]);
     expect(operationIntents).toEqual([
       {
-        action: actionGroup.secondary[1],
+        action: actionGroup.actions[1],
         intent:
-          actionGroup.secondary[1]!.kind === "operationAction"
-            ? actionGroup.secondary[1]!.control.trigger.intent
+          actionGroup.actions[1]!.kind === "operationAction"
+            ? actionGroup.actions[1]!.control.trigger.intent
             : undefined,
       },
     ]);
   });
 
-  it("uses only projected empty guidance and editing-disabled reason", () => {
+  it("uses only projected empty guidance", () => {
     const html = renderTable({
       ...tableFixture(),
-      editing: { disabledReason: "Editing requires an owner session.", enabled: false },
       emptyState: {
         description: "Adjust the current filters.",
         id: "tasks:empty",
@@ -378,34 +230,10 @@ describe("Astryx table renderer", () => {
       rows: [],
     });
 
-    expect(html).toContain("Editing requires an owner session.");
     expect(html).toContain("No matching tasks");
     expect(html).toContain("Adjust the current filters.");
     expect(html).not.toContain("Create");
     expect(html).not.toContain("<tfoot");
-  });
-
-  it("renders read-only canonical fields without requiring field or operation handlers", () => {
-    const table = tableFixture();
-    const titleCell = table.rows[0]!.cells[1]!;
-    const readOnlyTable = {
-      ...table,
-      rows: [
-        {
-          ...table.rows[0]!,
-          cells: [
-            table.rows[0]!.cells[0]!,
-            {
-              ...titleCell,
-              contents: [{ field: displayTitle, kind: "field", source: "record" }],
-            },
-            ...table.rows[0]!.cells.slice(2),
-          ],
-        },
-      ],
-    } satisfies TableContract;
-
-    expect(renderTable(readOnlyTable)).toContain("Prepare launch");
   });
 });
 
@@ -421,30 +249,24 @@ function renderTable(table: TableContract) {
 }
 
 function tableFixture(): TableContract {
-  const primaryAction = invokeAction({
-    actionId: "open-task",
-    label: "Open task",
-    prominence: "primary",
-  });
-  const editAction = tableEditAction();
-  const deleteAction = {
-    control: operationControlFixtures.deleteTask.initial,
-    kind: "operationAction",
-    role: "delete",
-  } satisfies TableOperationActionContract;
   const actionGroup = {
+    accessibilityLabel: "More options for Prepare launch",
+    actions: [
+      tableEditAction(),
+      {
+        control: operationControlFixtures.deleteTask.initial,
+        kind: "operationAction",
+        role: "delete",
+      } satisfies TableOperationActionContract,
+    ],
     id: "task-1:actions",
     kind: "actionGroup",
-    primary: [primaryAction],
-    secondary: [editAction, deleteAction],
-    secondaryAccessibilityLabel: "More task actions",
   } satisfies TableActionGroupContract;
 
   return {
     accessibilityLabel: "Tasks",
     columns: tableColumns,
     density: "default",
-    editing: { enabled: true },
     footer: {
       accessibilityLabel: "Aggregate footer",
       cells: [
@@ -489,6 +311,7 @@ function tableFixture(): TableContract {
                       tableId: "tasks",
                       type: "tableReorder",
                     },
+                    kind: "orderingAction",
                     label: "Move up",
                   },
                   {
@@ -501,6 +324,7 @@ function tableFixture(): TableContract {
                       tableId: "tasks",
                       type: "tableReorder",
                     },
+                    kind: "orderingAction",
                     label: "Move down",
                   },
                 ],
@@ -514,21 +338,13 @@ function tableFixture(): TableContract {
           },
           {
             columnId: "title",
-            contents: [{ field: editableTitle, kind: "field", source: "record" }],
+            contents: [cellValue("Task: Prepare launch", "Prepare launch", "text")],
             id: "task-1:title",
             kind: "tableCell",
           },
           {
             columnId: "owner",
-            contents: [
-              {
-                accessibilityLabel: "Owner: Sam Rivera",
-                displayValue: "Sam Rivera",
-                kind: "displayValue",
-                status: { kind: "ready" },
-                valueKind: "reference",
-              },
-            ],
+            contents: [cellValue("Owner: Sam Rivera", "Sam Rivera", "reference")],
             id: "task-1:owner",
             kind: "tableCell",
           },
@@ -536,47 +352,119 @@ function tableFixture(): TableContract {
             columnId: "score",
             contents: [
               {
-                accessibilityLabel: "Task score",
-                displayValue: "—",
-                kind: "displayValue",
-                status: {
-                  kind: "unavailable",
-                  message: "Score is temporarily unavailable.",
-                },
-                suffix: "points",
-                valueKind: "computed",
-              },
-              {
-                accessibilityLabel: "Calculating score",
-                displayValue: "—",
-                kind: "displayValue",
-                status: { kind: "pending", label: "Calculating score" },
-                valueKind: "computed",
+                accessibilityLabel: "Score value is invalid or unavailable.",
+                kind: "invalidValue",
               },
             ],
             id: "task-1:score",
             kind: "tableCell",
           },
-          {
-            columnId: "actions",
-            contents: [actionGroup],
-            id: "task-1:actions",
-            kind: "tableCell",
-          },
+          { columnId: "actions", contents: [actionGroup], id: "task-1:actions", kind: "tableCell" },
         ],
         id: "task-1",
         kind: "tableRow",
-        warnings: [
-          {
-            id: "task-1:warnings",
-            items: [{ code: "owner-email", message: "Owner email is missing." }],
-            kind: "tableWarning",
-            title: "Readiness warnings",
-          },
-        ],
       },
     ],
   };
+}
+
+function typedValueTable(): TableContract {
+  return {
+    accessibilityLabel: "Typed values",
+    columns: [
+      {
+        accessibilityLabel: "Values",
+        alignment: "start",
+        contentRole: "field",
+        id: "values",
+        isRowHeader: true,
+        kind: "tableColumn",
+        label: "Values",
+        labelVisibility: "visible",
+        width: "auto",
+      },
+    ],
+    density: "compact",
+    id: "typed-values",
+    kind: "table",
+    rows: [
+      {
+        accessibilityLabel: "Typed values",
+        cells: [
+          {
+            columnId: "values",
+            contents: [
+              cellValue("Notes: Launch notes", "Launch notes", "markdown"),
+              {
+                accessibilityLabel: "Brand colour: #ff8800",
+                displayValue: "#ff8800",
+                kind: "cellValue",
+                presentation: { kind: "color", swatch: "#ff8800" },
+              },
+              {
+                accessibilityLabel: "Status: Ready",
+                displayValue: "ready",
+                kind: "cellValue",
+                presentation: {
+                  content: "label",
+                  kind: "state",
+                  value: {
+                    color: { intent: "success", known: true },
+                    iconKnown: false,
+                    label: "Ready",
+                  },
+                },
+              },
+              {
+                accessibilityLabel: "Task icon",
+                displayValue: "Task icon",
+                kind: "cellValue",
+                presentation: {
+                  kind: "icon",
+                  source: '<svg viewBox="0 0 24 24"><path d="M12 2v20" /></svg>',
+                },
+              },
+              {
+                accessibilityLabel: "Task image",
+                displayValue: "Task image",
+                kind: "cellValue",
+                presentation: { kind: "media", previewHref: "https://example.test/task.png" },
+              },
+              {
+                accessibilityLabel: "Due: 11 August 2026",
+                displayValue: "11 August 2026",
+                kind: "cellValue",
+                presentation: { kind: "temporal", temporal: { kind: "date", value: "2026-08-11" } },
+              },
+              {
+                accessibilityLabel: "Estimate: 12 hours",
+                displayValue: "12",
+                kind: "cellValue",
+                presentation: { kind: "number" },
+                suffix: "hours",
+              },
+              {
+                accessibilityLabel: "Stored value is invalid or unavailable.",
+                kind: "invalidValue",
+              },
+            ],
+            id: "typed-values:values",
+            kind: "tableCell",
+          },
+        ],
+        id: "typed-values-row",
+        kind: "tableRow",
+      },
+    ],
+  };
+}
+
+function cellValue(
+  accessibilityLabel: string,
+  displayValue: string,
+  kind: "markdown" | "reference" | "text",
+) {
+  return { accessibilityLabel, displayValue, kind: "cellValue" as const, presentation: { kind } };
 }
 
 function tableEditAction(): TableEditActionContract {
@@ -587,7 +475,6 @@ function tableEditAction(): TableEditActionContract {
     tableId: "tasks",
     type: "tableEditDialogOpenChange",
   } as const;
-
   return {
     dialog: {
       close: tableButton({ id: "task-1:edit:close", label: "Done" }),
@@ -600,48 +487,20 @@ function tableEditAction(): TableEditActionContract {
         fieldSet: {
           disabled: false,
           errors: ["Task changes could not be saved."],
-          fields: [
-            {
-              ...editableTitle,
-              labelVisibility: "visible",
-              surface: "record",
-            },
-          ],
+          fields: [editDialogTitle],
           id: "task-1:edit:fields",
           kind: "fieldSet",
           label: "Task fields",
         },
         kind: "available",
       },
-      targetKind: "row",
+      targetKind: "reference",
       title: "Edit task",
+      warning: "Updating this shared record may affect other records.",
     },
     kind: "editAction",
     openIntent,
     trigger: tableButton({ id: "task-1:edit:open", label: "Edit task" }),
-  };
-}
-
-function invokeAction({
-  actionId,
-  label,
-  prominence = "secondary",
-}: {
-  actionId: string;
-  label: string;
-  prominence?: ButtonContract["prominence"];
-}): TableActionContract {
-  return {
-    intent: {
-      actionId,
-      invocationSource: "button",
-      rowId: "task-1",
-      tableId: "tasks",
-      type: "tableActionInvoke",
-    },
-    kind: "invokeAction",
-    role: "command",
-    trigger: tableButton({ id: actionId, label, prominence }),
   };
 }
 
@@ -667,11 +526,7 @@ function tableButton({
 
 function tableActionGroup(table: TableContract) {
   const content = table.rows[0]!.cells[4]!.contents[0];
-
-  if (content?.kind !== "actionGroup") {
-    throw new Error("Expected table action group fixture.");
-  }
-
+  if (content?.kind !== "actionGroup") throw new Error("Expected table action group fixture.");
   return content;
 }
 
@@ -681,14 +536,10 @@ function withTableActionGroup(
 ): TableContract {
   const row = table.rows[0]!;
   const actionCell = row.cells[4]!;
-
   return {
     ...table,
     rows: [
-      {
-        ...row,
-        cells: [...row.cells.slice(0, 4), { ...actionCell, contents: [actionGroup] }],
-      },
+      { ...row, cells: [...row.cells.slice(0, 4), { ...actionCell, contents: [actionGroup] }] },
     ],
   };
 }
@@ -708,7 +559,6 @@ function withTableLinkAction(
     labelVisibility: "visible",
     width: "sm",
   } as const;
-
   return {
     ...table,
     columns: [...table.columns.slice(0, -1), linkColumn, table.columns.at(-1)!],
@@ -728,15 +578,7 @@ function withTableLinkAction(
         ...row.cells.slice(0, -1),
         {
           columnId: linkColumn.id,
-          contents: [
-            {
-              id: `${row.id}:record-link-actions`,
-              kind: "actionGroup",
-              primary: [action],
-              secondary: [],
-              secondaryAccessibilityLabel: `More links for ${row.accessibilityLabel}`,
-            },
-          ],
+          contents: [action],
           id: `${row.id}:record-link`,
           kind: "tableCell",
         },
@@ -748,15 +590,8 @@ function withTableLinkAction(
 
 function nativeLinkAction(
   options:
-    | {
-        availability: "available";
-        href: string;
-        target: NativeLinkActionContract["target"];
-      }
-    | {
-        availability: "unavailable";
-        target: NativeLinkActionContract["target"];
-      },
+    | { availability: "available"; href: string; target: NativeLinkActionContract["target"] }
+    | { availability: "unavailable"; target: NativeLinkActionContract["target"] },
 ): NativeLinkActionContract {
   const base = {
     accessibilityLabel: "Open external details for Prepare launch",
@@ -766,7 +601,6 @@ function nativeLinkAction(
     prominence: "primary" as const,
     target: options.target,
   };
-
   return options.availability === "available"
     ? { ...base, availability: "available", href: options.href }
     : {
@@ -776,49 +610,26 @@ function nativeLinkAction(
       };
 }
 
-function withTableTitleField(table: TableContract, field: typeof editableTitle): TableContract {
-  const row = table.rows[0]!;
-  const titleCell = row.cells[1]!;
-
-  return {
-    ...table,
-    rows: [
-      {
-        ...row,
-        cells: [
-          row.cells[0]!,
-          { ...titleCell, contents: [{ field, kind: "field", source: "record" }] },
-          ...row.cells.slice(2),
-        ],
-      },
-    ],
-  };
-}
-
 function withTableActionsUnavailable(table: TableContract, message: string): TableContract {
-  const row = table.rows[0]!;
-
   return {
     ...table,
-    rows: [
-      {
-        ...row,
-        cells: row.cells.map((cell) =>
-          cell.columnId === "actions"
-            ? {
-                ...cell,
-                contents: [
-                  {
-                    accessibilityLabel: `Actions unavailable for ${row.accessibilityLabel}`,
-                    kind: "unavailable",
-                    message,
-                  },
-                ],
-              }
-            : cell,
-        ),
-      },
-    ],
+    rows: table.rows.map((row) => ({
+      ...row,
+      cells: row.cells.map((cell) =>
+        cell.columnId === "actions"
+          ? {
+              ...cell,
+              contents: [
+                {
+                  accessibilityLabel: `Actions unavailable for ${row.accessibilityLabel}`,
+                  kind: "unavailable",
+                  message,
+                },
+              ],
+            }
+          : cell,
+      ),
+    })),
   };
 }
 

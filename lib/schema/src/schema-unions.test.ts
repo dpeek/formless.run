@@ -31,13 +31,13 @@ describe("schema unions", () => {
         {
           key: "taskItem",
           entity: "task",
-          fields: [{ field: "priority", editor: "enum", commit: "immediate" }],
+          fields: [{ field: "priority", editor: "enum" }],
           union: "taskByPriority",
           variants: [
             {
               variant: "normal",
               presentation: "fields",
-              fields: [{ field: "title", editor: "text", commit: "field-commit" }],
+              fields: [{ field: "title", editor: "text" }],
             },
             {
               variant: "high",
@@ -68,7 +68,7 @@ describe("schema unions", () => {
           key: "taskEdit",
           type: "edit",
           entity: "task",
-          fields: [{ field: "priority", editor: "enum", commit: "immediate" }],
+          fields: [{ field: "priority", editor: "enum" }],
           union: "taskByPriority",
           variants: unionFieldPresentations(true),
         },
@@ -116,7 +116,7 @@ describe("schema unions", () => {
           {
             key: "taskItem",
             entity: "task",
-            fields: [{ field: "title", editor: "text", commit: "field-commit" }],
+            fields: [{ field: "title", editor: "text" }],
             union: "missing",
             variants: [],
           },
@@ -159,7 +159,7 @@ function unionFieldPresentations(edit: boolean) {
       fields: [
         {
           field: "title",
-          ...(edit ? { editor: "text", commit: "field-commit" } : { editor: "text" }),
+          ...(edit ? { editor: "text" } : { editor: "text" }),
         },
       ],
     },
@@ -167,7 +167,7 @@ function unionFieldPresentations(edit: boolean) {
       variant: "high",
       presentation: "fields",
       fields: edit
-        ? [{ field: "dueDate", editor: "date", commit: "field-commit" }]
+        ? [{ field: "dueDate", editor: "date" }]
         : [{ field: "dueDate", editor: "date" }],
     },
   ];

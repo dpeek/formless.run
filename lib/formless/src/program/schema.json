@@ -4816,12 +4816,10 @@
       "entity": "task",
       "fields": [
         {
-          "commit": "field-commit",
           "editor": "text",
           "field": "title"
         },
         {
-          "commit": "field-commit",
           "editor": "date",
           "field": "dueDate",
           "presentation": {
@@ -4829,7 +4827,6 @@
           }
         },
         {
-          "commit": "immediate",
           "editor": "enum",
           "field": "priority",
           "presentation": {
@@ -4839,7 +4836,6 @@
           }
         },
         {
-          "commit": "immediate",
           "editor": "boolean",
           "field": "done",
           "presentation": {
@@ -4853,27 +4849,22 @@
       "entity": "site",
       "fields": [
         {
-          "commit": "field-commit",
           "editor": "text",
           "field": "label"
         },
         {
-          "commit": "field-commit",
           "editor": "textarea",
           "field": "description"
         },
         {
-          "commit": "field-commit",
           "editor": "icon",
           "field": "icon"
         },
         {
-          "commit": "immediate",
           "editor": "enum",
           "field": "initialThemeMode"
         },
         {
-          "commit": "immediate",
           "editor": "boolean",
           "field": "themeSwitchable"
         }
@@ -4884,7 +4875,6 @@
       "entity": "block",
       "fields": [
         {
-          "commit": "field-commit",
           "editor": "text",
           "field": "label"
         }
@@ -4895,7 +4885,6 @@
       "entity": "block",
       "fields": [
         {
-          "commit": "field-commit",
           "editor": "text",
           "field": "label"
         }
@@ -4907,7 +4896,6 @@
       "fallback": {
         "fields": [
           {
-            "commit": "field-commit",
             "editor": "text",
             "field": "label"
           }
@@ -4916,7 +4904,6 @@
       },
       "fields": [
         {
-          "commit": "field-commit",
           "editor": "text",
           "field": "label"
         }
@@ -4927,12 +4914,10 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "href",
               "field": "href"
             },
             {
-              "commit": "field-commit",
               "editor": "icon",
               "field": "icon"
             }
@@ -4943,17 +4928,14 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "date",
               "field": "date"
             },
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             },
             {
-              "commit": "field-commit",
               "editor": "href",
               "field": "href"
             }
@@ -4964,17 +4946,14 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "date",
               "field": "date"
             },
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             },
             {
-              "commit": "field-commit",
               "editor": "href",
               "field": "href"
             }
@@ -4985,12 +4964,10 @@
         {
           "fields": [
             {
-              "commit": "immediate",
               "editor": "enum",
               "field": "linkTargetMode"
             },
             {
-              "commit": "immediate",
               "editor": "reference",
               "field": "linkTargetBlock",
               "visibleWhen": {
@@ -4999,7 +4976,6 @@
               }
             },
             {
-              "commit": "field-commit",
               "editor": "href",
               "field": "href",
               "visibleWhen": {
@@ -5008,7 +4984,6 @@
               }
             },
             {
-              "commit": "field-commit",
               "editor": "icon",
               "field": "icon"
             }
@@ -5019,7 +4994,6 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             }
@@ -5030,7 +5004,6 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             }
@@ -5041,12 +5014,10 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             },
             {
-              "commit": "immediate",
               "editor": "enum",
               "field": "alignment"
             }
@@ -5057,7 +5028,6 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             }
@@ -5068,7 +5038,6 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             }
@@ -5079,17 +5048,14 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             },
             {
-              "commit": "field-commit",
               "editor": "icon",
               "field": "icon"
             },
             {
-              "commit": "field-commit",
               "editor": "color",
               "field": "color"
             }
@@ -5100,7 +5066,6 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             }
@@ -5111,12 +5076,10 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             },
             {
-              "commit": "field-commit",
               "editor": "color",
               "field": "color"
             }
@@ -5127,17 +5090,14 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "operationName"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "buttonLabel"
             }
@@ -5148,37 +5108,30 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "operationName"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "buttonLabel"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "successLabel"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "nameLabel"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "emailLabel"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "messageLabel"
             }
@@ -5189,32 +5142,26 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "operationKey"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "buttonLabel"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "successLabel"
             },
             {
-              "commit": "immediate",
               "editor": "enum",
               "field": "operationNotificationMode"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "operationNotificationReplyToField",
               "visibleWhen": {
@@ -5229,7 +5176,6 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "media",
               "field": "mediaAssetId"
             }
@@ -5244,7 +5190,6 @@
       "fallback": {
         "fields": [
           {
-            "commit": "field-commit",
             "editor": "text",
             "field": "label"
           }
@@ -5253,7 +5198,6 @@
       },
       "fields": [
         {
-          "commit": "field-commit",
           "editor": "text",
           "field": "label"
         }
@@ -5264,12 +5208,10 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "href",
               "field": "href"
             },
             {
-              "commit": "field-commit",
               "editor": "icon",
               "field": "icon"
             }
@@ -5300,17 +5242,14 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "date",
               "field": "date"
             },
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             },
             {
-              "commit": "field-commit",
               "editor": "href",
               "field": "href"
             }
@@ -5321,12 +5260,10 @@
         {
           "fields": [
             {
-              "commit": "immediate",
               "editor": "enum",
               "field": "linkTargetMode"
             },
             {
-              "commit": "immediate",
               "editor": "reference",
               "field": "linkTargetBlock",
               "visibleWhen": {
@@ -5335,7 +5272,6 @@
               }
             },
             {
-              "commit": "field-commit",
               "editor": "href",
               "field": "href",
               "visibleWhen": {
@@ -5344,7 +5280,6 @@
               }
             },
             {
-              "commit": "field-commit",
               "editor": "icon",
               "field": "icon"
             }
@@ -5355,7 +5290,6 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             }
@@ -5366,7 +5300,6 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             }
@@ -5377,12 +5310,10 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             },
             {
-              "commit": "immediate",
               "editor": "enum",
               "field": "alignment"
             }
@@ -5393,7 +5324,6 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             }
@@ -5404,7 +5334,6 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             }
@@ -5415,17 +5344,14 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             },
             {
-              "commit": "field-commit",
               "editor": "icon",
               "field": "icon"
             },
             {
-              "commit": "field-commit",
               "editor": "color",
               "field": "color"
             }
@@ -5436,7 +5362,6 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             }
@@ -5447,12 +5372,10 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             },
             {
-              "commit": "field-commit",
               "editor": "color",
               "field": "color"
             }
@@ -5463,17 +5386,14 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "operationName"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "buttonLabel"
             }
@@ -5484,37 +5404,30 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "operationName"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "buttonLabel"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "successLabel"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "nameLabel"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "emailLabel"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "messageLabel"
             }
@@ -5525,32 +5438,26 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "operationKey"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "buttonLabel"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "successLabel"
             },
             {
-              "commit": "immediate",
               "editor": "enum",
               "field": "operationNotificationMode"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "operationNotificationReplyToField",
               "visibleWhen": {
@@ -5565,7 +5472,6 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "media",
               "field": "mediaAssetId"
             }
@@ -5579,7 +5485,6 @@
       "entity": "block-placement",
       "fields": [
         {
-          "commit": "field-commit",
           "editor": "text",
           "field": "label"
         }
@@ -7264,67 +7169,51 @@
     {
       "columns": [
         {
-          "display": "editor",
           "field": "enabled",
           "type": "field"
         },
         {
-          "display": "readOnly",
           "field": "matchHost",
           "type": "field"
         },
         {
-          "display": "readOnly",
           "field": "matchPath",
           "type": "field"
         },
         {
-          "display": "readOnly",
           "field": "matchPrefix",
           "type": "field"
         },
         {
-          "display": "readOnly",
           "field": "kind",
           "type": "field"
         },
         {
-          "display": "readOnly",
           "field": "targetProfile",
           "type": "field"
         },
         {
-          "display": "readOnly",
           "field": "surface",
           "type": "field"
         },
         {
-          "display": "readOnly",
           "field": "access",
           "type": "field"
         },
         {
-          "display": "readOnly",
           "field": "toHost",
           "type": "field"
         },
         {
-          "display": "readOnly",
           "field": "toUrl",
           "type": "field"
         },
         {
-          "display": "readOnly",
           "field": "statusCode",
           "type": "field"
         },
         {
-          "align": "end",
-          "label": "Route operations",
-          "operations": ["route.update"],
-          "presentation": "dropdown",
-          "type": "operationControl",
-          "width": "xs"
+          "type": "operationControl"
         }
       ],
       "entity": "route",
@@ -7339,156 +7228,6 @@
           }
         }
       ]
-    },
-    {
-      "columns": [
-        {
-          "commit": "immediate",
-          "editor": "enum",
-          "field": "type",
-          "type": "field",
-          "width": "sm"
-        },
-        {
-          "commit": "field-commit",
-          "editor": "text",
-          "field": "label",
-          "type": "field",
-          "width": "lg"
-        },
-        {
-          "commit": "field-commit",
-          "editor": "markdown",
-          "field": "body",
-          "type": "field",
-          "width": "lg"
-        },
-        {
-          "commit": "field-commit",
-          "editor": "href",
-          "field": "href",
-          "type": "field",
-          "width": "md"
-        },
-        {
-          "commit": "field-commit",
-          "editor": "media",
-          "field": "mediaAssetId",
-          "type": "field",
-          "width": "md"
-        },
-        {
-          "commit": "field-commit",
-          "editor": "date",
-          "field": "date",
-          "type": "field",
-          "width": "sm"
-        },
-        {
-          "commit": "field-commit",
-          "editor": "icon",
-          "field": "icon",
-          "type": "field",
-          "width": "sm"
-        },
-        {
-          "commit": "field-commit",
-          "editor": "color",
-          "field": "color",
-          "type": "field",
-          "width": "sm"
-        },
-        {
-          "commit": "immediate",
-          "editor": "enum",
-          "field": "alignment",
-          "type": "field",
-          "width": "sm"
-        },
-        {
-          "align": "end",
-          "commit": "field-commit",
-          "editor": "number",
-          "field": "width",
-          "format": "number",
-          "type": "field",
-          "width": "xs"
-        },
-        {
-          "align": "end",
-          "commit": "field-commit",
-          "editor": "number",
-          "field": "height",
-          "format": "number",
-          "type": "field",
-          "width": "xs"
-        }
-      ],
-      "entity": "block",
-      "key": "blockTable"
-    },
-    {
-      "columns": [
-        {
-          "type": "orderingHandle",
-          "width": "xs"
-        },
-        {
-          "commit": "immediate",
-          "editor": "reference",
-          "field": "block",
-          "type": "field",
-          "width": "lg"
-        },
-        {
-          "commit": "field-commit",
-          "editor": "text",
-          "field": "label",
-          "type": "field",
-          "width": "md"
-        },
-        {
-          "commit": "field-commit",
-          "editor": "text",
-          "field": "slot",
-          "type": "field",
-          "width": "sm"
-        },
-        {
-          "align": "end",
-          "includeOrdering": true,
-          "operation": "block.update",
-          "type": "operationControl",
-          "width": "xs"
-        }
-      ],
-      "entity": "block-placement",
-      "key": "blockPlacementTable",
-      "operations": [
-        {
-          "editView": "blockEdit",
-          "label": "Edit block",
-          "operation": "block.update",
-          "target": {
-            "field": "block",
-            "kind": "reference"
-          }
-        }
-      ],
-      "ordering": {
-        "field": "order",
-        "presentations": ["dragHandle", "moveMenu"],
-        "scope": [
-          {
-            "field": "parent",
-            "kind": "field"
-          },
-          {
-            "field": "slot",
-            "kind": "field"
-          }
-        ]
-      }
     },
     {
       "columns": [
@@ -7846,27 +7585,22 @@
       "entity": "route",
       "fields": [
         {
-          "commit": "immediate",
           "editor": "boolean",
           "field": "enabled"
         },
         {
-          "commit": "field-commit",
           "editor": "text",
           "field": "matchHost"
         },
         {
-          "commit": "field-commit",
           "editor": "text",
           "field": "matchPath"
         },
         {
-          "commit": "field-commit",
           "editor": "text",
           "field": "matchPrefix"
         },
         {
-          "commit": "immediate",
           "editor": "enum",
           "field": "targetProfile",
           "visibleWhen": {
@@ -7875,7 +7609,6 @@
           }
         },
         {
-          "commit": "immediate",
           "editor": "enum",
           "field": "surface",
           "visibleWhen": {
@@ -7884,7 +7617,6 @@
           }
         },
         {
-          "commit": "immediate",
           "editor": "enum",
           "field": "access",
           "visibleWhen": {
@@ -7893,7 +7625,6 @@
           }
         },
         {
-          "commit": "field-commit",
           "editor": "text",
           "field": "toHost",
           "visibleWhen": {
@@ -7902,7 +7633,6 @@
           }
         },
         {
-          "commit": "field-commit",
           "editor": "href",
           "field": "toUrl",
           "visibleWhen": {
@@ -7911,7 +7641,6 @@
           }
         },
         {
-          "commit": "immediate",
           "editor": "enum",
           "field": "statusCode",
           "visibleWhen": {
@@ -7920,7 +7649,6 @@
           }
         },
         {
-          "commit": "immediate",
           "editor": "boolean",
           "field": "preservePath",
           "visibleWhen": {
@@ -7929,7 +7657,6 @@
           }
         },
         {
-          "commit": "immediate",
           "editor": "boolean",
           "field": "preserveQueryString",
           "visibleWhen": {
@@ -8061,76 +7788,6 @@
       "result": {
         "itemView": "siteSettingsForm",
         "type": "record"
-      },
-      "scope": {
-        "entity": "site",
-        "name": "site",
-        "query": "siteAll",
-        "selection": "singleton"
-      },
-      "type": "collection"
-    },
-    {
-      "defaultQuery": "blockAll",
-      "entity": "block",
-      "key": "blockHome",
-      "label": "Blocks",
-      "navigation": {
-        "primary": false
-      },
-      "operations": [
-        {
-          "createView": "blockCreate",
-          "operation": "block.create"
-        }
-      ],
-      "queries": [
-        {
-          "count": {
-            "type": "count"
-          },
-          "query": "blockAll"
-        },
-        {
-          "count": {
-            "type": "count"
-          },
-          "query": "blockPages"
-        },
-        {
-          "count": {
-            "type": "count"
-          },
-          "query": "blockPosts"
-        },
-        {
-          "count": {
-            "type": "count"
-          },
-          "query": "blockProjects"
-        },
-        {
-          "count": {
-            "type": "count"
-          },
-          "query": "blockLinks"
-        },
-        {
-          "count": {
-            "type": "count"
-          },
-          "query": "blockGroups"
-        },
-        {
-          "count": {
-            "type": "count"
-          },
-          "query": "blockImages"
-        }
-      ],
-      "result": {
-        "tableView": "blockTable",
-        "type": "table"
       },
       "scope": {
         "entity": "site",
@@ -8341,7 +7998,6 @@
         "maxDepth": 8,
         "ordering": {
           "field": "order",
-          "presentations": ["dragHandle"],
           "scope": [
             {
               "field": "parent",
@@ -8356,94 +8012,6 @@
         "presentation": "inlineEditor",
         "relationship": "blockPlacements",
         "type": "tree"
-      },
-      "scope": {
-        "entity": "site",
-        "name": "site",
-        "query": "siteAll",
-        "selection": "singleton"
-      },
-      "type": "collection"
-    },
-    {
-      "context": {
-        "entity": "block",
-        "itemView": "blockRootDetail",
-        "labelField": "label",
-        "name": "block",
-        "presentation": "listDetail",
-        "query": "blockPages",
-        "relationship": "blockPlacements"
-      },
-      "defaultQuery": "placementsForSelectedBlock",
-      "entity": "block-placement",
-      "key": "pageCompositionHome",
-      "label": "Pages",
-      "navigation": {
-        "primary": false
-      },
-      "operations": [
-        {
-          "createView": "blockPlacementCreate",
-          "label": "Add placement",
-          "operation": "block-placement.create"
-        }
-      ],
-      "queries": [
-        {
-          "count": {
-            "type": "count"
-          },
-          "query": "placementsForSelectedBlock"
-        }
-      ],
-      "result": {
-        "tableView": "blockPlacementTable",
-        "type": "table"
-      },
-      "scope": {
-        "entity": "site",
-        "name": "site",
-        "query": "siteAll",
-        "selection": "singleton"
-      },
-      "type": "collection"
-    },
-    {
-      "context": {
-        "entity": "block",
-        "itemView": "blockRootDetail",
-        "labelField": "label",
-        "name": "block",
-        "presentation": "listDetail",
-        "query": "blockNavigationRoots",
-        "relationship": "blockPlacements"
-      },
-      "defaultQuery": "placementsForSelectedBlock",
-      "entity": "block-placement",
-      "key": "navigationCompositionHome",
-      "label": "Navigation",
-      "navigation": {
-        "primary": false
-      },
-      "operations": [
-        {
-          "createView": "blockPlacementCreate",
-          "label": "Add placement",
-          "operation": "block-placement.create"
-        }
-      ],
-      "queries": [
-        {
-          "count": {
-            "type": "count"
-          },
-          "query": "placementsForSelectedBlock"
-        }
-      ],
-      "result": {
-        "tableView": "blockPlacementTable",
-        "type": "table"
       },
       "scope": {
         "entity": "site",
@@ -8858,7 +8426,6 @@
       "fallback": {
         "fields": [
           {
-            "commit": "field-commit",
             "editor": "text",
             "field": "label"
           }
@@ -8867,7 +8434,6 @@
       },
       "fields": [
         {
-          "commit": "field-commit",
           "editor": "text",
           "field": "label"
         }
@@ -8879,12 +8445,10 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "href",
               "field": "href"
             },
             {
-              "commit": "field-commit",
               "editor": "icon",
               "field": "icon"
             }
@@ -8895,17 +8459,14 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "date",
               "field": "date"
             },
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             },
             {
-              "commit": "field-commit",
               "editor": "href",
               "field": "href"
             }
@@ -8916,17 +8477,14 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "date",
               "field": "date"
             },
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             },
             {
-              "commit": "field-commit",
               "editor": "href",
               "field": "href"
             }
@@ -8937,12 +8495,10 @@
         {
           "fields": [
             {
-              "commit": "immediate",
               "editor": "enum",
               "field": "linkTargetMode"
             },
             {
-              "commit": "immediate",
               "editor": "reference",
               "field": "linkTargetBlock",
               "visibleWhen": {
@@ -8951,7 +8507,6 @@
               }
             },
             {
-              "commit": "field-commit",
               "editor": "href",
               "field": "href",
               "visibleWhen": {
@@ -8960,7 +8515,6 @@
               }
             },
             {
-              "commit": "field-commit",
               "editor": "icon",
               "field": "icon"
             }
@@ -8971,7 +8525,6 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             }
@@ -8982,7 +8535,6 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             }
@@ -8993,12 +8545,10 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             },
             {
-              "commit": "immediate",
               "editor": "enum",
               "field": "alignment"
             }
@@ -9009,7 +8559,6 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             }
@@ -9020,7 +8569,6 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             }
@@ -9031,17 +8579,14 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             },
             {
-              "commit": "field-commit",
               "editor": "icon",
               "field": "icon"
             },
             {
-              "commit": "field-commit",
               "editor": "color",
               "field": "color"
             }
@@ -9052,7 +8597,6 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             }
@@ -9063,12 +8607,10 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             },
             {
-              "commit": "field-commit",
               "editor": "color",
               "field": "color"
             }
@@ -9079,17 +8621,14 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "operationName"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "buttonLabel"
             }
@@ -9100,37 +8639,30 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "operationName"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "buttonLabel"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "successLabel"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "nameLabel"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "emailLabel"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "messageLabel"
             }
@@ -9141,32 +8673,26 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "markdown",
               "field": "body"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "operationKey"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "buttonLabel"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "successLabel"
             },
             {
-              "commit": "immediate",
               "editor": "enum",
               "field": "operationNotificationMode"
             },
             {
-              "commit": "field-commit",
               "editor": "text",
               "field": "operationNotificationReplyToField",
               "visibleWhen": {
@@ -9181,7 +8707,6 @@
         {
           "fields": [
             {
-              "commit": "field-commit",
               "editor": "media",
               "field": "mediaAssetId"
             }
@@ -9190,49 +8715,6 @@
           "variant": "image"
         }
       ]
-    },
-    {
-      "context": {
-        "entity": "block",
-        "itemView": "blockContextItem",
-        "labelField": "label",
-        "name": "block",
-        "query": "blockAll",
-        "relationship": "blockPlacements"
-      },
-      "defaultQuery": "placementsForSelectedBlock",
-      "entity": "block-placement",
-      "key": "blockCompositionHome",
-      "label": "Placements",
-      "navigation": {
-        "primary": false
-      },
-      "operations": [
-        {
-          "createView": "blockPlacementCreate",
-          "label": "Add placement",
-          "operation": "block-placement.create"
-        }
-      ],
-      "queries": [
-        {
-          "count": {
-            "type": "count"
-          },
-          "query": "placementsForSelectedBlock"
-        }
-      ],
-      "result": {
-        "tableView": "blockPlacementTable",
-        "type": "table"
-      },
-      "scope": {
-        "entity": "site",
-        "name": "site",
-        "query": "siteAll",
-        "selection": "singleton"
-      },
-      "type": "collection"
     },
     {
       "defaults": {

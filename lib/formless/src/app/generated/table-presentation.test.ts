@@ -2,7 +2,6 @@ import { describe, expect, it } from "vite-plus/test";
 
 import type { TableColumnConfig, TableFooterSlotConfig } from "../../client/views.ts";
 import type { FieldSchema } from "@dpeek/formless-schema";
-import { ORDERING_DND_TYPE } from "./ordering-ui.ts";
 import { selectGeneratedTablePresentation } from "./table-presentation.ts";
 
 describe("selectGeneratedTablePresentation", () => {
@@ -15,8 +14,6 @@ describe("selectGeneratedTablePresentation", () => {
     ];
 
     const presentation = selectGeneratedTablePresentation({
-      canDelete: true,
-      canPatch: true,
       columns,
       orderedRecordIds: ["task-2", "task-1"],
       query: { kind: "all" },
@@ -26,7 +23,6 @@ describe("selectGeneratedTablePresentation", () => {
       "orderingHandle",
       "field:title",
       "operationControl:archiveTask",
-      "__formless_delete",
     ]);
     expect(presentation.dataColumns.map((column) => column.column.key)).toEqual([
       "orderingHandle",
@@ -47,19 +43,12 @@ describe("selectGeneratedTablePresentation", () => {
       accessibleLabel: "Archive task",
       isVisuallyHidden: true,
     });
-    expect(presentation.delete?.labelFields.map((field) => field.fieldName)).toEqual(["title"]);
     expect(presentation.rows.map((row) => row.id)).toEqual(["task-2", "task-1"]);
     expect(presentation.rows[0]?.cells.map((cell) => cell.columnId)).toEqual([
       "orderingHandle",
       "field:title",
       "operationControl:archiveTask",
-      "__formless_delete",
     ]);
-    expect(presentation.rows[0]?.readinessWarning).toEqual({
-      id: "task-2:readiness-warning",
-      recordId: "task-2",
-      columnSpan: 4,
-    });
     expect(presentation.emptyState.visible).toBe(false);
   });
 
@@ -72,8 +61,6 @@ describe("selectGeneratedTablePresentation", () => {
     ];
 
     const activePresentation = selectGeneratedTablePresentation({
-      canDelete: true,
-      canPatch: true,
       columns: [cost, margin],
       footer,
       orderedRecordIds: ["rate-1"],
@@ -81,8 +68,6 @@ describe("selectGeneratedTablePresentation", () => {
       queryName: "ratesForSelectedCard",
     });
     const allQueriesPresentation = selectGeneratedTablePresentation({
-      canDelete: false,
-      canPatch: true,
       columns: [cost, margin],
       footer,
       orderedRecordIds: ["rate-1"],
@@ -95,7 +80,6 @@ describe("selectGeneratedTablePresentation", () => {
     expect(activePresentation.footer?.cells.map((cell) => cell.type)).toEqual([
       "aggregate",
       "empty",
-      "empty",
     ]);
     expect(
       activePresentation.footer?.cells.find((cell) => cell.type === "aggregate")?.columnId,
@@ -106,41 +90,10 @@ describe("selectGeneratedTablePresentation", () => {
     ]);
   });
 
-  it("maps ordering drag facts without changing record identity", () => {
-    const presentation = selectGeneratedTablePresentation({
-      canDelete: false,
-      canPatch: true,
-      columns: [fieldColumn("label", textField())],
-      orderedRecordIds: ["placement-1", "placement-2"],
-      orderingDragFacts: new Map([["placement-1", { index: 0, scopeKey: "page:root" }]]),
-      pendingDragRecordId: "placement-1",
-      query: { kind: "all" },
-    });
-
-    expect(presentation.rows[0]?.ordering).toEqual({
-      type: "drag",
-      disabled: true,
-      dragFact: { index: 0, scopeKey: "page:root" },
-      dragData: {
-        type: ORDERING_DND_TYPE,
-        recordId: "placement-1",
-        scopeKey: "page:root",
-      },
-      isPending: true,
-    });
-    expect(presentation.rows[1]?.ordering).toEqual({
-      type: "drag",
-      disabled: true,
-      isPending: false,
-    });
-  });
-
   it("keeps React Aria column ids unique when generated columns share schema keys", () => {
     const firstMargin = computedColumn("rateMargin");
     const secondMargin = computedColumn("rateMargin");
     const presentation = selectGeneratedTablePresentation({
-      canDelete: false,
-      canPatch: true,
       columns: [firstMargin, secondMargin],
       footer: [aggregateFooterSlot("selectedCardAverageMargin", "computed:rateMargin", "rates")],
       orderedRecordIds: ["rate-1"],
@@ -158,25 +111,19 @@ describe("selectGeneratedTablePresentation", () => {
     expect(presentation.footer?.cells.map((cell) => cell.type)).toEqual(["aggregate", "aggregate"]);
   });
 
-  it("surfaces empty and disabled-editing presentation state", () => {
+  it("surfaces empty presentation state independently of patch availability", () => {
     const presentation = selectGeneratedTablePresentation({
-      canDelete: false,
-      canPatch: false,
       columns: [fieldColumn("title", textField())],
       orderedRecordIds: ["task-1"],
       query: { kind: "all" },
     });
     const emptyPresentation = selectGeneratedTablePresentation({
-      canDelete: false,
-      canPatch: false,
       columns: [fieldColumn("title", textField())],
       orderedRecordIds: [],
       query: { kind: "all" },
     });
 
-    expect(presentation.editingDisabled).toBe(true);
     expect(presentation.emptyState.visible).toBe(false);
-    expect(emptyPresentation.editingDisabled).toBe(false);
     expect(emptyPresentation.emptyState).toEqual({
       visible: true,
       message: "No records yet.",
@@ -269,7 +216,6 @@ function operationControlColumn(
         disabled: false,
       },
     ],
-    presentation: "button",
     includeOrdering: false,
     align: "end",
     width: "xs",

@@ -799,7 +799,7 @@ selection, reads, evaluation, operation execution, and effects.
   record-result, and tree-result intents
 - AND a workspace field envelope carries the exact projected field occurrence
   id rather than deriving identity from its schema field name, operation input
-  name, record id, table context id, or another containing contract id
+  name, record id, or another containing contract id
 - AND generated runtime selects the current typed surface or result field index
   by that occurrence id and verifies its field or input name, record identity,
   and owning surface, result, or context identity before applying the nested
@@ -814,12 +814,10 @@ selection, reads, evaluation, operation execution, and effects.
   error, pending, icon dialog, or confirmation state from the previous record
 - AND runtime verifies selected-record, detail-section, relationship-result,
   relationship-hierarchy occurrence, relationship group, heading-operation,
-  heading-create-surface, result, record, field, table, and table-field-context
+  heading-create-surface, result, record, field, table, and operation-control
   identity against the latest screen projection before applying a nested intent
-- AND selected-record relationship results resolve independently of an optional
-  table field-context id, while the table field resolver validates that context
-  before applying draft, commit, transition, picker, upload, or other table
-  field intents
+- AND table display cells carry no draft, commit, transition, picker, upload,
+  media, reference-option, or other field-authoring intent route
 - AND nested result and control ids remain unique when one screen repeats the
   same view, item view, entity, or query in multiple sections
 - AND renderers do not evaluate queries or aggregates, select context fallback,
@@ -1489,22 +1487,75 @@ code owns record selection, authoring state, operation execution, and effects.
 
 ### Requirement: Table Surfaces
 
-The system SHALL render generated table results with field, reference-field,
-computed, record-link-control, operation-control, and ordering-handle columns.
+The system SHALL render generated tables as read-only record projections with
+explicit row links, one row operation menu, and explicit ordering affordances.
+
+#### Scenario: Render read-only table cells
+
+- GIVEN a generated table contains field, referenced-field, computed, or
+  system-field columns
+- WHEN generated UI projects each row
+- THEN every data cell renders in compact display mode without a visible field
+  label, field-level error text, edit control, draft, commit, or revert behavior
+- AND text, long text, Markdown, booleans, dates, datetimes, numbers, enums,
+  colours, icons, media, references, state-machine values, computed values, and
+  value-unit pairs retain their supported read-only formatting
+- AND references use display labels, enums use declared presentation, colours
+  use swatches, icons use safe resolved sources, media and images use
+  thumbnails, and dates and numbers use their declared display formats
+- AND state-machine fields display current state without embedding transition
+  controls in the cell
+
+#### Scenario: Render a uniform invalid-cell warning
+
+- GIVEN a table cell's stored value is invalid, its reference is missing, or
+  its value cannot be presented safely
+- WHEN the cell renders
+- THEN the cell displays the existing uniform orange warning icon instead of an
+  authoring control or unsafe value
+- AND the warning carries concise accessible text identifying an invalid or
+  unavailable value
+- AND neither the Presentation contract nor the Renderer exposes a tooltip,
+  detailed validation reason, raw unsafe content, or field-level correction
+  message for that table cell
 
 #### Scenario: Table operation dialog
 
-- GIVEN a table row operation opens an edit dialog
-- WHEN the user edits fields and closes with Done
-- THEN edits submit through the declared update operation and field editors
-- AND active union variant fields can render in row and reference-field dialogs
+- GIVEN an explicitly bound table update operation targets the row record or a
+  referenced record and opens an edit dialog
+- WHEN the dialog renders
+- THEN its fields use the declared edit view and existing-record field
+  authoring behavior outside the table-cell projection
+- AND active union variant fields can render for either target
+- AND a referenced-record dialog clearly warns that updating the shared record
+  may affect other records
+
+#### Scenario: Render one More options menu
+
+- GIVEN a table row has explicitly bound update, delete, command, transition,
+  or move operations
+- WHEN the row renders
+- THEN one operation-control cell exposes every available row operation through
+  one trigger whose accessible name is `More options for <row label>` and whose
+  visible tooltip is `More options`
+- AND no row operation renders as an inline button or as a state-machine cell
+  control
+- AND menu order follows declared table operation order with ordering move
+  actions composed into the same menu when explicitly placed
+- AND unavailable or pending operations retain their projected state, and
+  destructive operations retain their confirmation and feedback behavior
+- AND a schema-declared `linkControl` remains an independent native-link column
+  rather than joining the operation menu
 
 #### Scenario: Table ordering and aggregates
 
 - GIVEN a table result declares ordering and aggregate footer slots
 - WHEN the table renders and the user moves rows
 - THEN aggregate footers display read-model values
-- AND move menus or drag drops patch sparse numeric ranks
+- AND an explicitly placed drag handle remains separate from the More options
+  menu while explicitly placed move actions render inside that menu
+- AND either affordance patches sparse numeric ranks through the same ordering
+  effect
 
 ### Requirement: Record Link Presentation
 
@@ -1547,8 +1598,8 @@ reference resolution, structured URL construction, and availability.
 - WHEN generated UI selects row controls
 - THEN each `linkControl` renders its one referenced link as a visible primary
   row action in its own table column
-- AND operation-control columns continue to place edit, command, destructive,
-  transition, delete, or ordering operations independently
+- AND the table's one operation-control column places edit, command,
+  destructive, transition, delete, or ordering operations independently
 - AND a row may contain both link-control and operation-control columns in
   declared column order
 - AND current record links are not placed in secondary action overflow menus,
@@ -1561,29 +1612,28 @@ reference resolution, structured URL construction, and availability.
 
 The system SHALL project complete generated table results through a controlled
 renderer-neutral Presentation table contract while generated runtime code owns
-record reads, authoring state, operation execution, and ordering effects.
+record reads, operation execution, and ordering effects.
 
 #### Scenario: Project complete table result
 
 - GIVEN generated UI selects a table result model
 - WHEN generated runtime prepares the table for the Formless Renderer
 - THEN it projects a stable table id, accessible label, density, semantic column
-  definitions, ordered rows, cells, empty state, editing availability, readiness
-  warnings, and aggregate footer values
+  definitions, ordered rows, display cells, empty state, and aggregate footer
+  values
 - AND each column carries a stable id, visible and accessible header labels,
   semantic width, alignment, row-header status, and content role without
   renderer component props, presentation classes, or React components
-- AND cell content composes projected field contracts, display-safe computed or
-  referenced values, record-link and operation action groups, state
-  transitions, delete controls, and ordering controls as applicable
-- AND an inline field occurrence is scoped by its table cell while a dialog
-  field occurrence is scoped by its edit field set, and table draft context ids
-  remain separate from field occurrence ids
-- AND ordinary and specialized table fields cross their applicable Presentation
-  field contract boundaries before entering the table renderer
+- AND data-cell content composes compact display-field facts, display-safe
+  computed values, or one uniform invalid-value warning
+- AND cells carry no field authoring session, draft map, field occurrence intent
+  index, table field-context id, commit policy, editor control, option picker,
+  media authoring state, patch resolver, or field intent
+- AND row interaction content consists only of independent native record links,
+  one operation action group, and explicitly placed ordering controls
 - AND generated runtime retains query evaluation, record and system-field
   reads, reference resolution, structured record-link URL resolution, computed
-  and aggregate evaluation, readiness selection, draft sessions, media effects,
+  and aggregate evaluation, display formatting, safe-value resolution,
   operation controllers, ordering plans, sync feedback, and local auto-save
   behavior
 - AND the table contract does not expose `StoredRecord`, `TableColumnConfig`,
@@ -1593,10 +1643,11 @@ record reads, authoring state, operation execution, and ordering effects.
 
 #### Scenario: Project table actions dialogs links and ordering intents
 
-- GIVEN a table row exposes a native record link, edit, command, destructive,
-  transition, delete, or ordering control
+- GIVEN a table row exposes an independent native record link or explicitly
+  bound update, command, destructive, transition, delete, or ordering control
 - WHEN generated runtime prepares row interaction data
-- THEN the table contract carries explicit primary and secondary action groups,
+- THEN each `linkControl` carries one native record-link action in its own cell
+- AND one row operation action group carries the ordered menu actions,
   availability and disabled reasons, controlled confirmation or edit-dialog
   state, projected edit fields, empty or unavailable target state, and semantic
   invocation and open-change intents
@@ -1612,24 +1663,24 @@ record reads, authoring state, operation execution, and ordering effects.
 - AND generated runtime resolves row and reference targets, selects active union
   fields, resolves patch input, calculates ordering moves, invokes operations,
   and closes controlled dialogs only according to operation results
-- AND renderers may choose an accessible action-menu or direct-control
-  interaction that preserves the projected capability
+- AND runtime does not synthesize update, delete, transition, or ordering
+  controls from entity operation availability without the matching table
+  binding and column placement
 
 #### Scenario: Formless Renderer consumes the table contract
 
 - GIVEN production generated tables publish complete renderer-neutral contracts
 - WHEN generated runtime projects a complete table result
 - THEN the Formless Renderer table entrypoint renders only the projected table,
-  native link, nested field, operation, dialog, warning, and footer contracts
+  native link, display-field, operation, dialog, warning, and footer contracts
   and dispatches only their applicable intents
 - AND production table paths for field, reference-field, computed,
-  link-control, operation-control, state-transition, ordering-handle, delete,
-  edit-dialog, readiness-warning, empty-state, and aggregate-footer behavior
+  link-control, operation-control, ordering-handle, edit-dialog, invalid-cell,
+  empty-state, and aggregate-footer behavior
   cross that adapter boundary
 - AND the presentation adapter does not read records, resolve references,
-  construct link URLs, evaluate computed values, own draft sessions, build
-  operation input, calculate rank patches, execute operations, or update sync
-  state
+  construct link URLs, evaluate computed values, build operation input,
+  calculate rank patches, execute operations, or update sync state
 - AND production table rendering does not use raw model callbacks or React-node
   slots to bypass the renderer-neutral table contract
 - AND production mounts table presentation through the root Formless Renderer
@@ -1639,22 +1690,22 @@ record reads, authoring state, operation execution, and ordering effects.
 
 - GIVEN runtime publishes the complete production table contract
 - WHEN the selected renderer implements that contract in `lib/renderer`
-- THEN it uses package table, field, action, menu, dialog, empty-state, status, and
-  feedback primitives without importing generated runtime
+- THEN it uses package table, display-field, action, menu, dialog, empty-state,
+  status, and feedback primitives without importing generated runtime
 - AND table columns use explicit renderer-owned widths, spacious default table
-  density, top-aligned cells, wrapping content appropriate for mixed display
-  and controlled editor cells, and non-wrapping value and suffix pairs
+  density, top-aligned compact display cells, appropriate wrapping, and
+  non-wrapping value and suffix pairs
 - AND an available primary record-link action renders as a native link with its
   projected target and security relationship while an unavailable link renders
   disabled without an href
-- AND primary row actions stay visible where projected while secondary and
-  ordering actions use an accessible overflow interaction
-- AND secondary-action overflow triggers retain their projected accessible name
-  while their visible tooltip reads `More options`
+- AND every row operation and placed ordering move action renders in one
+  accessible More options menu while no operation renders as an inline button
+- AND the trigger keeps its contextual projected accessible name while its
+  visible tooltip reads `More options`
 - AND ordering menus omit structurally disabled boundary actions such as moves
   above the first row or below the last row while retaining pending actions
-- AND row warnings use trailing icon-button triggers whose tooltip contains the
-  projected warning item messages
+- AND an invalid or unavailable cell renders one orange warning icon with
+  concise accessible text and no tooltip or detailed validation reason
 - AND edit dialogs use a focused form-purpose composition, controlled projected
   form fields with visible labels, start-aligned content, and explicit close
   behavior
@@ -1669,15 +1720,14 @@ record reads, authoring state, operation execution, and ordering effects.
 
 - GIVEN runtime publishes complete production table contracts
 - WHEN table UX is evaluated with package-local renderer fixtures
-- THEN data-only fixtures use the same contract shapes to cover editable and
-  read-only fields, references, computed values, available and unavailable
-  native record links, state transitions, row actions, destructive confirmation,
-  record editing, ordering, readiness warnings, aggregate footers, empty state,
-  editing-disabled state, and pending or invalid cells
+- THEN data-only fixtures use the same contract shapes to cover read-only field
+  kinds, references, computed values, available and unavailable native record
+  links, one row operation menu, destructive confirmation, row and referenced
+  record dialogs, ordering, aggregate footers, empty state, and invalid cells
 - AND a dedicated table layout renders the subscribed table renderer with its
   production contract shape
-- AND package-local fixture state may simulate field, action, dialog, and
-  reorder intents for UX review but does not import generated runtime, storage,
+- AND package-local fixture state may simulate action, dialog, and reorder
+  intents for UX review but does not import generated runtime, storage,
   browser replica, operation controllers, ordering plans, sync, or app targets
 - AND collection tabs, context selection, summaries, collection toolbars, list,
   record results, public Site rendering, and shell navigation remain owned by
@@ -1730,8 +1780,8 @@ The system SHALL render generated field displays and editors from field behavior
   `updatedAt`, or `deletedAt`
 - AND it uses the same display formatting and layout pipeline as schema value
   fields
-- AND it treats the field as read-only regardless of table display metadata,
-  field editor metadata, or operation availability
+- AND it treats the field as read-only regardless of field editor metadata or
+  operation availability
 
 #### Scenario: Identity reference field fallback
 
@@ -1751,15 +1801,16 @@ The system SHALL render generated field displays and editors from field behavior
 
 #### Scenario: Presentation field contract boundary
 
-- GIVEN generated UI renders create forms, record editors, table cells, detail
-  fields, Site block authoring fields, or public operation input fields through
-  the Formless Renderer field entrypoint
+- GIVEN generated UI renders create forms, record editors, detail fields, Site
+  block authoring fields, public operation input fields, or table display cells
+  through Formless Renderer field presentation
 - WHEN the foundation model prepares field data for the view layer
-- THEN it projects each renderable field as `FieldContract` data with a stable
-  field id, field or input name, label, required state, surface, density, access
-  mode, editor or display kind, draft value, committed display value, options,
-  presentation metadata, commit policy, pending state, and display-safe field
-  error
+- THEN authoring surfaces project applicable `FieldContract` data with stable
+  occurrence identity, access, editor, draft, commit, pending, option,
+  presentation, and display-safe error facts
+- AND table cells project only the compact display facts needed to render the
+  current value, formatting, reference label, enum presentation, colour swatch,
+  icon, media thumbnail, or uniform invalid-value warning
 - AND hidden fields are omitted before they reach the renderer, except hidden
   literal create defaults remain foundation-owned operation input
 - AND shared view bindings that declare display interaction project ordinary
@@ -1775,8 +1826,9 @@ The system SHALL render generated field displays and editors from field behavior
 - AND renderers do not use schema-shaped facts to parse schemas, select fields,
   validate values, load data, resolve reference or media options, execute
   operations, infer route policy, or infer write policy
-- AND renderers receive only projected field data and intent callbacks such as
-  draft change, commit, revert, picker open, or upload file
+- AND renderers receive only projected field data and applicable intent
+  callbacks such as draft change, commit, revert, picker open, or upload file
+- AND table display cells receive no field intent callback
 - AND field renderer implementations remain controlled value components whose
   core contract does not require browser form names, hidden inputs, or
   `FormData` extraction
@@ -1792,8 +1844,8 @@ The system SHALL render generated field displays and editors from field behavior
 
 #### Scenario: Resolve exact field occurrence identity
 
-- GIVEN the same schema field or operation input can be rendered for different
-  records, results, surfaces, cells, dialogs, forms, or other placements
+- GIVEN the same authored schema field or operation input can be rendered for
+  different records, results, surfaces, dialogs, forms, or other placements
 - WHEN generated runtime projects those fields through `FieldContract`
 - THEN every projected field carries a required opaque `fieldId` identifying
   exactly one occurrence within its published root contract graph
@@ -1804,9 +1856,8 @@ The system SHALL render generated field displays and editors from field behavior
   contain the same semantic field more than once
 - AND unchanged logical placements retain their `fieldId` across draft, value,
   pending, error, ordering, and reactive contract publication changes
-- AND occurrences in different records, results, surfaces, table cells, edit
-  field sets, or operation forms have different ids even when their field or
-  input names match
+- AND occurrences in different records, results, surfaces, edit field sets, or
+  operation forms have different ids even when their field or input names match
 - AND array indexes, mutable values, draft state, pending state, and renderer
   order do not contribute to field occurrence identity
 - AND renderers and intent adapters consume and forward the projected
@@ -1815,9 +1866,9 @@ The system SHALL render generated field displays and editors from field behavior
   duplicate ids when constructing that index, and verifies the resolved field
   or input name plus applicable record, result, surface, and context identity
 - AND a stale, mismatched, cross-owner, or unknown occurrence id has no effect
-- AND runtime does not accept a field or input name, table context id,
-  record-result placement id, arbitrary nested object id, or recursive contract
-  match as a field occurrence id
+- AND runtime does not accept a field or input name, record-result placement id,
+  arbitrary nested object id, or recursive contract match as a field occurrence
+  id
 
 #### Scenario: Common Presentation contract foundation
 
@@ -1941,20 +1992,24 @@ operation execution.
 
 #### Scenario: Project ordinary record editor and display fields
 
-- GIVEN a generated record-result, list, or table surface renders an ordinary
-  writable or read-only field
+- GIVEN a generated record-result or list surface renders an ordinary writable
+  or read-only field, or a table renders an ordinary display field
 - WHEN generated runtime prepares that field for the Formless Renderer
-- THEN it projects a `RecordFieldContract` or `DisplayFieldContract` with a
-  stable field id, record id, access mode, committed value, controlled draft,
-  display formatting, density, label visibility, pending state, display-safe
-  errors, projected options, commit policy, and field intents
+- THEN record and list authoring projects a `RecordFieldContract`, read-only
+  record and list presentation projects a `DisplayFieldContract`, and a table
+  projects only compact display facts without an addressable field occurrence
+- AND authored fields retain stable field id, record id, access mode, committed
+  value, controlled draft, display formatting, density, label visibility,
+  pending state, display-safe errors, projected options, derived commit policy,
+  and field intents as applicable
 - AND ordinary fields include text, long text, number, value-unit, date,
   datetime, boolean, non-state-machine enum, reference, markdown, and color
   fields whose authoring does not require media upload or icon-picker effects
-- AND generated runtime retains browser replica reads, record and system-field
-  value resolution, reference option loading, active union and `visibleWhen`
-  selection, draft sessions, patch resolution, operation execution, sync
-  feedback, and local auto-save behavior
+- AND generated runtime retains browser replica reads plus record, system-field,
+  reference-label, formatting, and safe-display resolution for every surface
+- AND reference option loading, active union and `visibleWhen` selection, draft
+  sessions, patch resolution, operation execution, sync feedback, and local
+  auto-save behavior remain limited to authoring surfaces
 - AND missing reference ids, invalid number drafts, unknown or alpha color text,
   read-only and system fields, compact fields, heading fields, and visible-label
   detail fields remain explicit projected facts instead of renderer inference
@@ -1987,8 +2042,10 @@ operation execution.
 - THEN the Formless Renderer field entrypoint renders only the projected field
   contract and dispatches field intents without reading records, loading
   options, resolving patches, invoking operations, or updating sync state
-- AND list, table, and record-result call sites retain their editing, read-only
-  display, commit, failure, specialized-field, and missing-reference behavior
+- AND list and record-result call sites retain their editing, read-only display,
+  derived commit, failure, specialized-field, and missing-reference behavior
+- AND table call sites reuse read-only display presentation without dispatching
+  field intents
 - AND collection context detail and tree-builder field composition retain their
   owning record-result and tree-result contract boundaries
 - AND production mounts field presentation through the root Formless Renderer
@@ -2058,9 +2115,11 @@ operation execution.
   slice
 - WHEN the slice renders one coherent record workflow and one public operation
   form workflow
-- THEN create form fields, record edit fields, table-cell fields, detail or
-  read-only fields, and public-action form fields are composed from the same
-  projected `FieldContract`
+- THEN create form fields, record edit fields, detail or read-only fields, and
+  public-action form fields are composed from the same projected
+  `FieldContract`
+- AND table-cell presentation reuses the same read-only value formatting and
+  visual display primitives through its smaller intent-free cell contract
 - AND a package-local generated foundation fixture owns shared draft state,
   validation errors, pending state, baseline values, commit, revert, missing
   reference fallback, and submit readiness for the slice
@@ -2214,8 +2273,8 @@ The system SHALL honor generated create, edit, `visibleWhen`, create default, un
 
 #### Scenario: Non-writable fields stay out of authoring
 
-- GIVEN a generated create form, edit form, inline table editor, or row edit
-  dialog resolves field configs
+- GIVEN a generated create form, edit form, or table row operation dialog
+  resolves field configs
 - WHEN a field is a record system field or otherwise non-writable
 - THEN generated UI does not render a user-editable control for that field
 - AND generated UI does not include that field in operation input
@@ -2235,8 +2294,13 @@ The system SHALL honor generated create, edit, `visibleWhen`, create default, un
 #### Scenario: Delete control availability
 
 - GIVEN an entity delete policy is enabled
-- WHEN records render in collection contexts, list rows, table rows, or tree child nodes
-- THEN delete controls can render with destructive confirmation
+- WHEN records render in collection contexts, list rows, table rows, or tree
+  child nodes
+- THEN collection, list, and tree delete controls can render according to their
+  owning placement rules
+- AND a table delete control renders only through an explicit table operation
+  binding and its one operation-control menu
+- AND rendered delete controls retain destructive confirmation
 - AND tree placement removal stays separate from child record deletion
 
 ### Requirement: Operation Presentation
@@ -2252,8 +2316,10 @@ entity operations and view operation bindings.
 - THEN generated UI asks for available operations for the entity and current
   scope
 - AND collection-scoped operations can render in collection toolbars
-- AND record-scoped operations can render in record menus, table row controls,
-  list rows, tree nodes, or detail operation controls
+- AND record-scoped operations can render in record menus, list rows, tree
+  nodes, or detail operation controls according to those surface placements
+- AND table rows render only operations explicitly bound and placed by the
+  table view
 - AND operations hidden from the browser actor are not rendered as controls
 
 #### Scenario: Bind operation placement from view schema
@@ -2537,11 +2603,15 @@ entity operations and view operation bindings.
 
 #### Scenario: Table controls bind operations directly
 
-- GIVEN a generated table renders row edit, destructive, command, or ordering
-  controls
+- GIVEN a generated table declares row update, delete, command, transition, or
+  ordering controls
 - WHEN the table model is selected
-- THEN table controls are selected from table `operations` bindings referenced
-  by `operationControl` columns and available record-scoped operations
+- THEN record mutation controls are selected only from the table's ordered
+  `operations` bindings and placed by its one `operationControl` column
+- AND table operation selection does not synthesize controls from otherwise
+  available entity update, delete, command, or transition operations
+- AND ordering controls require table ordering plus an explicit ordering-handle
+  or operation-control placement
 - AND edit dialogs, disabled reasons, destructive presentation, ordering menus,
   and reference-target editing remain presentation facts on the operation
   binding
@@ -2613,6 +2683,8 @@ status fields.
   handlers
 - WHEN the record's current state allows one or more transitions
 - THEN generated UI renders controls for the valid transition operations
+- AND a table renders those controls only when its operations binding and
+  operation-control placement explicitly include them
 - AND invalid transition operations are hidden or disabled with schema-derived
   reasons
 - AND submitting a transition invokes the matching operation through the normal
@@ -2634,19 +2706,18 @@ status fields.
 #### Scenario: Render table state transition menu
 
 - GIVEN a generated table includes a visible enum field owned by a state machine
-- AND the table entity has record-scoped transition-state operations targeting
-  that machine
+- AND the table explicitly binds record-scoped transition-state operations
+  targeting that machine in its operation-control placement
 - WHEN generated UI renders the state-machine field cell for a row
-- THEN the current state is rendered as one cell control using the enum label and
-  presentation metadata
-- AND opening the control shows only transition operations valid for the row's
-  current state
+- THEN the cell displays the current state using the enum label and presentation
+  metadata without an inline control
+- AND the row's More options menu shows only explicitly bound transition
+  operations valid for the current state
 - AND selecting a transition invokes the matching operation through the normal
-  Authority operation boundary
-- AND generated UI does not add a separate lifecycle transition utility column
-  for transition operations paired with a visible state-machine field column
-- AND generated UI may keep separate lifecycle transition controls when the
-  matching state-machine field is hidden or absent from the table
+  Authority operation boundary with its availability, pending, confirmation,
+  result, and effect behavior
+- AND no transition control is synthesized from the visible state field or the
+  entity operation registry
 
 #### Scenario: Render record-detail state transition menu
 
@@ -2669,8 +2740,8 @@ status fields.
 
 #### Scenario: Protect machine-owned field editors
 
-- GIVEN a generated create, edit, table, or detail surface includes a field owned
-  by a state machine
+- GIVEN a generated create, edit, or detail surface includes a field owned by a
+  state machine, or a table displays that field
 - WHEN the surface renders existing records
 - THEN generated UI treats the field as read-only outside transition controls
 - AND create forms allow the initial state behavior declared by the schema

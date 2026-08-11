@@ -150,20 +150,6 @@ export const enumScenarioGroups = [
     projectField: projectRecordEnumField,
   }),
   projectScenarioGroup({
-    id: "enum-table-cell",
-    kind: "enum",
-    axes: [
-      enumModeAxis,
-      enumRequirednessAxis,
-      enumValueAxis,
-      enumPresentationAxis,
-      enumTriggerAxis,
-      enumListAxis,
-    ],
-    include: enumPresentationCombinationIsValid,
-    projectField: projectTableCellEnumField,
-  }),
-  projectScenarioGroup({
     id: "enum-detail",
     kind: "enum",
     axes: [enumModeAxis, enumRequirednessAxis, enumValueAxis, enumPresentationAxis],
@@ -200,21 +186,6 @@ function projectRecordEnumField({ facets }: FieldScenarioProjectionContext) {
   return facets.mode === "display"
     ? displayEnumField({ presentation, required, surface: "record", value: displayValue })
     : recordEnumField({ presentation, required, value });
-}
-
-function projectTableCellEnumField({ facets }: FieldScenarioProjectionContext) {
-  const presentation = enumPresentation(facets.presentation, facets.trigger, facets.list);
-  const required = facets.requiredness === "required";
-  const value = enumRecordValue(facets.value, facets.trigger, facets.list);
-
-  return facets.mode === "display"
-    ? displayEnumField({ presentation, required, surface: "table-cell", value })
-    : recordEnumField({
-        presentation,
-        required,
-        surface: "table-cell",
-        value,
-      });
 }
 
 function projectDetailEnumField({ facets }: FieldScenarioProjectionContext) {
@@ -317,7 +288,7 @@ function recordEnumField({
 }: {
   presentation?: FieldContract["presentation"];
   required?: boolean;
-  surface?: Extract<FieldSurface, "detail" | "record" | "table-cell">;
+  surface?: Extract<FieldSurface, "detail" | "record">;
   value: string;
 }) {
   const field = required ? statusField : optionalStatusField;
@@ -329,7 +300,7 @@ function recordEnumField({
     editor: "enum",
     control: enumControl(field),
     commit: "immediate",
-    density: surface === "table-cell" ? "compact" : "default",
+    density: "default",
     drafts: recordDrafts({
       draft: value,
       draftInput: { kind: "input", value },
@@ -360,7 +331,7 @@ function displayEnumField({
 }: {
   presentation?: FieldContract["presentation"];
   required?: boolean;
-  surface: Extract<FieldSurface, "detail" | "record" | "table-cell">;
+  surface: Extract<FieldSurface, "detail" | "record">;
   value: string;
 }) {
   const field = required ? statusField : optionalStatusField;
@@ -375,7 +346,7 @@ function displayEnumField({
       displayValue: displayOption(field, value),
       enumValuePresentation: value === "" ? undefined : enumValuePresentation(field, value),
     },
-    density: surface === "table-cell" ? "compact" : "default",
+    density: "default",
     labelVisibility: surface === "detail" ? "visible" : "hidden",
     options: { enumOptions: options },
     occurrence: {

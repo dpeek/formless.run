@@ -59,7 +59,6 @@ export const dateScenarioGroups = [
     include: datePresentationCombinationIsValid,
     projectField: (context) => projectExistingDateField("record", context),
   }),
-  existingDateGroup("table-cell"),
   projectScenarioGroup({
     id: "date-detail",
     kind: "date",
@@ -74,15 +73,6 @@ export const dateScenarioGroups = [
     projectField: projectOperationDateField,
   }),
 ] satisfies readonly FieldScenarioGroup[];
-
-function existingDateGroup(surface: Extract<FieldSurface, "table-cell">) {
-  return projectScenarioGroup({
-    id: `date-${surface}`,
-    kind: "date",
-    axes: [modeAxis, requirednessAxis, valueAxis],
-    projectField: (context) => projectExistingDateField(surface, context),
-  });
-}
 
 function datePresentationCombinationIsValid({ facets }: FieldScenarioProjectionContext) {
   return (
@@ -174,7 +164,7 @@ function projectDetailDateField(context: FieldScenarioProjectionContext) {
 }
 
 function projectExistingDateField(
-  surface: Extract<FieldSurface, "detail" | "record" | "table-cell">,
+  surface: Extract<FieldSurface, "detail" | "record">,
   { facets }: FieldScenarioProjectionContext,
 ) {
   const required = facets.requiredness === "required";
@@ -197,7 +187,7 @@ function projectExistingDateField(
   return facets.mode === "display"
     ? displayField({
         ...common,
-        density: surface === "table-cell" ? "compact" : "default",
+        density: "default",
         formatting: {
           displayValue: value ? "Jul 8, 2026" : "",
           ...(value ? { temporal: { kind: "date" as const, value } } : {}),
@@ -207,7 +197,7 @@ function projectExistingDateField(
     : recordField({
         ...common,
         commit: "field-commit",
-        density: surface === "table-cell" ? "compact" : "default",
+        density: "default",
         drafts: recordDrafts({ recordValue: value || undefined }),
         formatting: { displayValue: value ? "Jul 8, 2026" : "" },
         presentation:

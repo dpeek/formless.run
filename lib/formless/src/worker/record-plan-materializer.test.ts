@@ -607,7 +607,7 @@ function materializerSchema(
       {
         key: "taskListItem",
         entity: "task",
-        fields: [{ field: "title", editor: "text", commit: "field-commit" }],
+        fields: [{ field: "title", editor: "text" }],
       },
     ],
     tableViews: [],

@@ -197,13 +197,7 @@ function FieldPreview({
   );
 
   return (
-    <div
-      {...stylex.props(
-        styles.preview,
-        field.surface === "table-cell" && styles.previewTableCell,
-        field.surface === "detail" && styles.previewDetail,
-      )}
-    >
+    <div {...stylex.props(styles.preview, field.surface === "detail" && styles.previewDetail)}>
       {field.mode === "editor" && field.commit === "submit" ? (
         <form
           noValidate
@@ -687,9 +681,6 @@ const styles = stylex.create({
   preview: {
     width: "100%",
     maxWidth: 760,
-  },
-  previewTableCell: {
-    maxWidth: 320,
   },
   previewDetail: {
     maxWidth: 560,

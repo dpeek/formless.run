@@ -151,7 +151,6 @@ export const mediaScenarioGroups = [
     include: mediaRecordCombinationIsValid,
     projectField: (context) => projectExistingMediaField("record", context),
   }),
-  existingMediaGroup("table-cell"),
   existingMediaGroup("detail"),
 ] satisfies readonly FieldScenarioGroup[];
 
@@ -165,7 +164,7 @@ function createMediaGroup() {
   });
 }
 
-function existingMediaGroup(surface: Extract<FieldSurface, "detail" | "table-cell">) {
+function existingMediaGroup(surface: Extract<FieldSurface, "detail">) {
   return projectScenarioGroup({
     id: `media-${surface}`,
     kind: "media",
@@ -242,7 +241,7 @@ function projectCreateMediaField({ facets }: FieldScenarioProjectionContext) {
 }
 
 function projectExistingMediaField(
-  surface: Extract<FieldSurface, "detail" | "record" | "table-cell">,
+  surface: Extract<FieldSurface, "detail" | "record">,
   { facets }: FieldScenarioProjectionContext,
 ) {
   const required = facets.requiredness === "required";
@@ -283,7 +282,7 @@ function projectExistingMediaField(
     ? displayField({
         ...common,
         control: textControl(field, { editor: "media", controlKind: "media" }),
-        density: surface === "table-cell" ? "compact" : "default",
+        density: "default",
         formatting: { displayValue: value },
         media: {
           ...(documentOption === undefined
@@ -311,7 +310,7 @@ function projectExistingMediaField(
         ...common,
         control: textControl(field, { editor: "media", controlKind: "media" }),
         commit: "field-commit",
-        density: surface === "table-cell" ? "compact" : "default",
+        density: "default",
         drafts: recordDrafts({ recordValue: value || undefined }),
         formatting: { displayValue: value },
         media: {

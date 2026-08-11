@@ -127,7 +127,7 @@ function ValueUnitSelector({
   field: Extract<
     EditorField,
     {
-      surface: "detail" | "record" | "table-cell";
+      surface: "detail" | "record";
     }
   >;
   onIntent: FieldIntentHandler | undefined;

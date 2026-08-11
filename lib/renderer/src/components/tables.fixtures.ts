@@ -5,6 +5,7 @@ import type {
   NativeLinkActionContract,
   TableActionContract,
   TableActionGroupContract,
+  TableCellValueContract,
   TableColumnContract,
   TableContract,
   TableEditActionContract,
@@ -26,7 +27,7 @@ import {
 } from "./fields/fixture-helpers.ts";
 import { operationControlFixtures } from "./operation-controls.fixtures.ts";
 
-export type TableFixtureId = "active" | "editing-disabled" | "empty";
+export type TableFixtureId = "active" | "empty";
 
 export type TableFixture = {
   id: TableFixtureId;
@@ -66,10 +67,6 @@ const statusMachine = {
   terminal: ["done"],
   transitions: [{ key: "complete", from: ["open"], label: "Complete", to: "done" }],
 } satisfies StateMachineSchema;
-const statusOperationNames = {
-  complete: "tasks.complete",
-};
-
 const tableColumns = [
   {
     accessibilityLabel: "Ordering",
@@ -169,11 +166,6 @@ export function createTableFixtures(): TableFixture[] {
       label: "Empty",
       table: emptyTableFixture(),
     },
-    {
-      id: "editing-disabled",
-      label: "Read-only",
-      table: editingDisabledTableFixture(),
-    },
   ];
 }
 
@@ -190,8 +182,6 @@ function activeTableFixture(): TableContract {
       score: { kind: "ready", value: "18" },
       status: "open",
       title: "Prepare launch checklist",
-      titleMode: "editable",
-      warning: "Owner email is missing.",
     }),
     taskRow({
       canEdit: false,
@@ -201,10 +191,9 @@ function activeTableFixture(): TableContract {
       owner: "Mina Patel",
       rowCount: 3,
       rowId: "task-2",
-      score: { kind: "pending" },
+      score: { kind: "ready", value: "12" },
       status: "open",
       title: "Review release copy",
-      titleMode: "readOnly",
     }),
     taskRow({
       canEdit: true,
@@ -217,7 +206,6 @@ function activeTableFixture(): TableContract {
       score: { kind: "invalid" },
       status: "done",
       title: "Publish release notes",
-      titleMode: "editable",
     }),
   ];
 
@@ -225,7 +213,6 @@ function activeTableFixture(): TableContract {
     accessibilityLabel: "Tasks",
     columns: tableColumnsWithRecordLink,
     density: "default",
-    editing: { enabled: true },
     footer: taskFooter("18"),
     id: "tasks",
     kind: "table",
@@ -238,7 +225,6 @@ function emptyTableFixture(): TableContract {
     accessibilityLabel: "Empty tasks",
     columns: tableColumnsWithRecordLink,
     density: "default",
-    editing: { enabled: true },
     emptyState: {
       description: "Adjust the current filters to see more tasks.",
       id: "tasks:empty",
@@ -248,36 +234,6 @@ function emptyTableFixture(): TableContract {
     id: "tasks",
     kind: "table",
     rows: [],
-  };
-}
-
-function editingDisabledTableFixture(): TableContract {
-  return {
-    accessibilityLabel: "Read-only tasks",
-    columns: tableColumnsWithRecordLink,
-    density: "default",
-    editing: {
-      disabledReason: "Editing requires an owner session.",
-      enabled: false,
-    },
-    footer: taskFooter("18"),
-    id: "tasks",
-    kind: "table",
-    rows: [
-      taskRow({
-        canEdit: false,
-        canOrder: false,
-        canDelete: false,
-        index: 0,
-        owner: "Sam Rivera",
-        rowCount: 1,
-        rowId: "task-read-only",
-        score: { kind: "ready", value: "18" },
-        status: "done",
-        title: "Prepare launch",
-        titleMode: "readOnly",
-      }),
-    ],
   };
 }
 
@@ -294,22 +250,15 @@ type TaskRowInput = {
         kind: "invalid";
       }
     | {
-        kind: "pending";
-      }
-    | {
         kind: "ready";
         value: string;
       };
   status: "done" | "open";
   title: string;
-  titleMode: "editable" | "readOnly";
-  warning?: string;
 };
 
 function taskRow(input: TaskRowInput): TableRowContract {
-  const title = taskTitleField(input);
-  const status = taskStatusField(input);
-  const actions = taskActions(input, title, status);
+  const actions = taskActions(input, taskDialogFields(input));
 
   return {
     accessibilityLabel: input.title,
@@ -330,13 +279,13 @@ function taskRow(input: TaskRowInput): TableRowContract {
       },
       {
         columnId: "title",
-        contents: [{ field: title, kind: "field", source: "record" }],
+        contents: [taskTitleValue(input)],
         id: `${input.rowId}:title`,
         kind: "tableCell",
       },
       {
         columnId: "status",
-        contents: [{ field: status, kind: "field", source: "record" }],
+        contents: [taskStatusValue(input)],
         id: `${input.rowId}:status`,
         kind: "tableCell",
       },
@@ -346,9 +295,8 @@ function taskRow(input: TaskRowInput): TableRowContract {
           {
             accessibilityLabel: `Owner: ${input.owner}`,
             displayValue: input.owner,
-            kind: "displayValue",
-            status: { kind: "ready" },
-            valueKind: "reference",
+            kind: "cellValue",
+            presentation: { kind: "reference" },
           },
         ],
         id: `${input.rowId}:owner`,
@@ -362,22 +310,14 @@ function taskRow(input: TaskRowInput): TableRowContract {
       },
       {
         columnId: recordLinkColumn.id,
-        contents: [
-          {
-            id: `${input.rowId}:record-link-actions`,
-            kind: "actionGroup",
-            primary: [taskRecordLink(input)],
-            secondary: [],
-            secondaryAccessibilityLabel: `More links for ${input.title}`,
-          },
-        ],
+        contents: [taskRecordLink(input)],
         id: `${input.rowId}:record-link`,
         kind: "tableCell",
       },
       {
         columnId: "actions",
         contents:
-          actions.primary.length > 0 || actions.secondary.length > 0
+          actions.actions.length > 0
             ? [actions]
             : [
                 {
@@ -392,111 +332,43 @@ function taskRow(input: TaskRowInput): TableRowContract {
     ],
     id: input.rowId,
     kind: "tableRow",
-    warnings: input.warning
-      ? [
-          {
-            id: `${input.rowId}:readiness`,
-            items: [{ code: "owner-email", message: input.warning }],
-            kind: "tableWarning",
-            title: "Readiness warnings",
-          },
-        ]
-      : [],
   };
 }
 
-function taskTitleField(input: Pick<TaskRowInput, "rowId" | "title" | "titleMode">) {
-  const common = {
-    control: titleControl,
-    editor: titleControl.editor,
-    field: titleSchema,
-    fieldName: "title",
-    labelVisibility: "hidden" as const,
-    occurrence: { ownerId: `table:${input.rowId}`, placementId: "title" },
-    recordId: input.rowId,
-    surface: "table-cell" as const,
+function taskTitleValue(input: Pick<TaskRowInput, "title">): TableCellValueContract {
+  return {
+    accessibilityLabel: `Task: ${input.title}`,
+    displayValue: input.title,
+    kind: "cellValue",
+    presentation: { kind: "text" },
   };
-
-  return input.titleMode === "editable"
-    ? recordField({
-        ...common,
-        commit: "field-commit",
-        density: "compact",
-        drafts: recordDrafts({ recordValue: input.title }),
-        rendererKind: "text",
-      })
-    : displayField({
-        ...common,
-        density: "compact",
-        formatting: { displayValue: input.title },
-        value: input.title,
-      });
 }
 
-function taskStatusField(input: Pick<TaskRowInput, "canEdit" | "rowId" | "status">) {
-  const machine = stateMachineField({
-    fieldName: "status",
-    machine: statusMachine,
-    machineName: "taskWorkflow",
-  });
+function taskStatusValue(input: Pick<TaskRowInput, "status">): TableCellValueContract {
+  const value = enumValuePresentation(statusSchema, input.status);
 
-  return displayField({
-    access: { kind: "stateMachine", writable: false },
-    control: enumControl(statusSchema),
-    density: "compact",
-    editor: "enum",
-    field: statusSchema,
-    fieldName: "status",
-    formatting: {
-      displayValue: statusSchema.values.find((definition) => definition.key === input.status)!
-        .label,
-      enumValuePresentation: enumValuePresentation(statusSchema, input.status),
-    },
-    labelVisibility: "hidden",
-    options: { enumOptions: enumOptions(statusSchema) },
-    occurrence: { ownerId: `table:${input.rowId}`, placementId: "status" },
-    recordId: input.rowId,
-    stateMachine: machine,
-    stateMachineFacts: stateMachineFacts({
-      currentValue: input.status,
-      field: statusSchema,
-      interaction: input.canEdit && input.status === "open" ? "transitions" : "display",
-      operationNames: statusOperationNames,
-      stateMachine: machine,
-    }),
-    surface: "table-cell",
-    value: input.status,
-  });
+  return {
+    accessibilityLabel: `Status: ${value.label}`,
+    displayValue: value.label,
+    kind: "cellValue",
+    presentation: { content: "label", kind: "state", value },
+  };
 }
 
 function taskScore(input: Pick<TaskRowInput, "score" | "title">) {
-  if (input.score.kind === "pending") {
-    return {
-      accessibilityLabel: `${input.title} score`,
-      displayValue: "—",
-      kind: "displayValue",
-      status: { kind: "pending", label: "Calculating score" },
-      valueKind: "computed",
-    } as const;
-  }
-
   if (input.score.kind === "invalid") {
     return {
-      accessibilityLabel: `${input.title} score`,
-      displayValue: "—",
-      kind: "displayValue",
-      status: { kind: "invalid", message: "Score input is invalid." },
-      valueKind: "computed",
+      accessibilityLabel: "Score value is invalid or unavailable.",
+      kind: "invalidValue",
     } as const;
   }
 
   return {
     accessibilityLabel: `${input.title} score: ${input.score.value} points`,
     displayValue: input.score.value,
-    kind: "displayValue",
-    status: { kind: "ready" },
+    kind: "cellValue",
+    presentation: { kind: "computed" },
     suffix: "points",
-    valueKind: "computed",
   } as const;
 }
 
@@ -554,6 +426,7 @@ function taskOrdering(input: TaskRowInput): TableOrderingContract {
           tableId: "tasks",
           type: "tableReorder",
         },
+        kind: "orderingAction" as const,
         label,
       };
     }),
@@ -563,27 +436,78 @@ function taskOrdering(input: TaskRowInput): TableOrderingContract {
   };
 }
 
-function taskActions(input: TaskRowInput, title: FieldContract, status: FieldContract) {
-  const secondary: TableActionContract[] = [];
+function taskDialogFields(input: TaskRowInput): readonly FieldContract[] {
+  const machine = stateMachineField({
+    fieldName: "status",
+    machine: statusMachine,
+    machineName: "taskWorkflow",
+  });
+
+  return [
+    recordField({
+      commit: "field-commit",
+      control: titleControl,
+      drafts: recordDrafts({ recordValue: input.title }),
+      editor: titleControl.editor,
+      field: titleSchema,
+      fieldName: "title",
+      labelVisibility: "visible",
+      occurrence: { ownerId: `dialog:${input.rowId}`, placementId: "title" },
+      recordId: input.rowId,
+      rendererKind: "text",
+      surface: "record",
+    }),
+    displayField({
+      access: { kind: "stateMachine", writable: false },
+      control: enumControl(statusSchema),
+      editor: "enum",
+      field: statusSchema,
+      fieldName: "status",
+      formatting: {
+        displayValue: statusSchema.values.find((definition) => definition.key === input.status)!
+          .label,
+        enumValuePresentation: enumValuePresentation(statusSchema, input.status),
+      },
+      labelVisibility: "visible",
+      options: { enumOptions: enumOptions(statusSchema) },
+      occurrence: { ownerId: `dialog:${input.rowId}`, placementId: "status" },
+      recordId: input.rowId,
+      stateMachine: machine,
+      stateMachineFacts: stateMachineFacts({
+        currentValue: input.status,
+        field: statusSchema,
+        interaction: "display",
+        operationNames: {},
+        stateMachine: machine,
+      }),
+      surface: "record",
+      value: input.status,
+    }),
+  ];
+}
+
+function taskActions(input: TaskRowInput, fields: readonly FieldContract[]) {
+  const actions: TableActionContract[] = [];
 
   if (input.canEdit) {
-    secondary.push(editTaskAction(input, [title, status]));
+    actions.push(editTaskAction(input, fields));
   }
 
   if (input.canDelete) {
-    secondary.push({
+    actions.push({
       control: operationControlFixtures.deleteTask.initial,
       kind: "operationAction",
       role: "delete",
     } satisfies TableOperationActionContract);
   }
 
+  actions.push(...taskOrdering(input).actions);
+
   return {
+    accessibilityLabel: `More options for ${input.title}`,
+    actions,
     id: `${input.rowId}:actions`,
     kind: "actionGroup",
-    primary: [],
-    secondary,
-    secondaryAccessibilityLabel: `More actions for ${input.title}`,
   } satisfies TableActionGroupContract;
 }
 

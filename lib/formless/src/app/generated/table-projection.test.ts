@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
 import type { EntitySchema, FieldSchema } from "@dpeek/formless-schema";
 import type {
-  TableContract,
   OperationControlContract,
   TableActionGroupContract,
+  TableContract,
 } from "@dpeek/formless-presentation/contract";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type {
@@ -16,39 +16,25 @@ import { projectGeneratedOperationControl } from "./operation-projection.ts";
 import { projectGeneratedRecordField } from "./field-projection.ts";
 import {
   projectGeneratedTableActionGroup,
+  projectGeneratedTableContract,
   projectGeneratedTableDisplayValue,
   projectGeneratedTableEditAction,
-  projectGeneratedTableFieldContent,
-  projectGeneratedTableContract,
-  projectGeneratedTableInvokeAction,
+  projectGeneratedTableInvalidValue,
   projectGeneratedTableOperationAction,
   projectGeneratedTableOrdering,
 } from "./table-projection.ts";
 import {
-  indexGeneratedTableFieldOccurrences,
-  resolveGeneratedTableFieldIntent,
+  indexGeneratedTableEditFields,
+  resolveGeneratedTableEditFieldIntent,
 } from "./generated-table-foundation.tsx";
 import { selectGeneratedTablePresentation } from "./table-presentation.ts";
 
 describe("generated Formless UI table projection", () => {
-  it("indexes cell and dialog occurrences separately and rejects mismatches and collisions", () => {
+  it("indexes only explicit edit-dialog fields and rejects mismatched intents", () => {
     const tableId = "table-test";
-    const cellId = "task-1:title";
     const fieldSetId = "task-1:edit-dialog:fields";
-    const record = {
-      createdAt: "2026-07-16T00:00:00.000Z",
-      entity: "task",
-      id: "task-1",
-      updatedAt: "2026-07-16T00:00:00.000Z",
-      values: { title: "Prepare launch" },
-    } satisfies StoredRecord;
-    const fieldConfig = {
-      commit: "field-commit",
-      editor: "text",
-      field: textField(),
-      fieldName: "title",
-    } satisfies RecordFieldConfig;
-    const inlineField = recordField("title", textField(), "text", "Prepare launch", record.id);
+    const record = taskRecord();
+    const fieldConfig = recordFieldConfig();
     const dialogField = projectGeneratedRecordField({
       canPatch: true,
       fieldConfig,
@@ -58,7 +44,7 @@ describe("generated Formless UI table projection", () => {
       },
       recordId: record.id,
       recordValue: record.values.title,
-      surface: "table-cell",
+      surface: "record",
     });
     const editAction = projectGeneratedTableEditAction({
       actionId: "task-1:edit",
@@ -72,72 +58,14 @@ describe("generated Formless UI table projection", () => {
       targetKind: "row",
       title: "Edit task",
     });
-    const table: TableContract = {
-      accessibilityLabel: "Tasks",
-      columns: [
-        {
-          accessibilityLabel: "Title",
-          alignment: "start",
-          contentRole: "field",
-          id: "title",
-          isRowHeader: true,
-          kind: "tableColumn",
-          label: "Title",
-          labelVisibility: "visible",
-          width: "lg",
-        },
-        {
-          accessibilityLabel: "Actions",
-          alignment: "end",
-          contentRole: "actions",
-          id: "actions",
-          isRowHeader: false,
-          kind: "tableColumn",
-          label: "Actions",
-          labelVisibility: "visible",
-          width: "sm",
-        },
-      ],
-      density: "compact",
-      editing: { enabled: true },
-      id: tableId,
-      kind: "table",
-      rows: [
-        {
-          accessibilityLabel: "Prepare launch",
-          cells: [
-            {
-              columnId: "title",
-              contents: [projectGeneratedTableFieldContent(inlineField)],
-              id: cellId,
-              kind: "tableCell",
-            },
-            {
-              columnId: "actions",
-              contents: [
-                actionGroup("task-1:actions", [{ action: editAction, placement: "primary" }]),
-              ],
-              id: "task-1:actions-cell",
-              kind: "tableCell",
-            },
-          ],
-          id: record.id,
-          kind: "tableRow",
-          warnings: [],
-        },
-      ],
-    };
+    const table = singleRowTable(tableId, [
+      projectGeneratedTableDisplayValue({
+        accessibilityLabel: "Title: Prepare launch",
+        displayValue: "Prepare launch",
+      }),
+      actionGroup("task-1:actions", [editAction]),
+    ]);
     const contexts = new Map([
-      [
-        cellId,
-        {
-          entityName: record.entity,
-          fields: [fieldConfig],
-          id: cellId,
-          record,
-          recordId: record.id,
-        },
-      ],
       [
         fieldSetId,
         {
@@ -149,96 +77,61 @@ describe("generated Formless UI table projection", () => {
         },
       ],
     ]);
-    const index = indexGeneratedTableFieldOccurrences(table, contexts);
+    const index = indexGeneratedTableEditFields(table, contexts);
     const intent = { fieldName: "title", type: "recordDraftRevert" } as const;
 
-    expect(index.get(inlineField.fieldId)).toMatchObject({ contextId: cellId, placement: "cell" });
-    expect(index.get(dialogField.fieldId)).toMatchObject({
-      contextId: fieldSetId,
-      placement: "dialog",
-    });
+    expect(index.size).toBe(1);
+    expect(index.get(dialogField.fieldId)).toMatchObject({ contextId: fieldSetId });
     expect(
-      resolveGeneratedTableFieldIntent(index, {
-        contextId: cellId,
-        fieldId: inlineField.fieldId,
-        intent,
-        recordId: record.id,
-        tableId,
-      }),
-    ).toMatchObject({ fieldId: inlineField.fieldId });
-    expect(
-      resolveGeneratedTableFieldIntent(index, {
+      resolveGeneratedTableEditFieldIntent(index, {
         contextId: fieldSetId,
-        fieldId: inlineField.fieldId,
+        fieldId: dialogField.fieldId,
+        intent,
+        recordId: record.id,
+        tableId,
+      }),
+    ).toMatchObject({ fieldId: dialogField.fieldId });
+    expect(
+      resolveGeneratedTableEditFieldIntent(index, {
+        contextId: "task-1:title",
+        fieldId: dialogField.fieldId,
         intent,
         recordId: record.id,
         tableId,
       }),
     ).toBeUndefined();
-    expect(
-      resolveGeneratedTableFieldIntent(index, {
-        contextId: cellId,
-        fieldId: inlineField.fieldId,
-        intent: { fieldName: "other", type: "recordDraftRevert" },
-        recordId: record.id,
-        tableId,
-      }),
-    ).toBeUndefined();
-    expect(() =>
-      indexGeneratedTableFieldOccurrences(
-        {
-          ...table,
-          rows: table.rows.map((row) => ({
-            ...row,
-            cells: row.cells.map((cell) =>
-              cell.id === cellId
-                ? {
-                    ...cell,
-                    contents: [...cell.contents, projectGeneratedTableFieldContent(inlineField)],
-                  }
-                : cell,
-            ),
-          })),
-        },
-        contexts,
-      ),
-    ).toThrow(`duplicate field occurrence "${inlineField.fieldId}"`);
   });
 
-  it("projects semantic columns and ordered ordinary, specialized, reference, and computed cells", () => {
-    const presentation = tablePresentation({ canDelete: false, canPatch: true });
-    const title = recordField("title", textField(), "text", "Prepare launch");
-    const icon = recordField("icon", iconField(), "icon", iconSource);
-    const reference = recordField("name", textField(), "text", "Dana", "principal-1");
-    const ordering = tableOrdering("task-2", false);
+  it("projects semantic columns and ordered read-only cell values", () => {
     const contract = projectGeneratedTableContract({
       accessibilityLabel: "Tasks records",
       footerValuesByColumnId: {
         "computed:estimate": { displayValue: "8 hours", suffix: "hours" },
       },
       id: "tasks:active",
-      presentation,
+      presentation: tablePresentation(),
       rowsByRecordId: {
         "task-1": {
           accessibilityLabel: "Prepare launch",
           contentsByColumnId: {
             orderingHandle: [tableOrdering("task-1", false)],
-            "field:title": [projectGeneratedTableFieldContent(title)],
-            "field:icon": [projectGeneratedTableFieldContent(icon)],
+            "field:title": [cellValue("Title: Prepare launch", "Prepare launch")],
+            "field:icon": [
+              {
+                accessibilityLabel: "Icon: task",
+                displayValue: "task",
+                kind: "cellValue",
+                presentation: { kind: "icon", source: iconSource },
+              },
+            ],
             "referenceField:owner": [
-              projectGeneratedTableDisplayValue({
-                accessibilityLabel: "Owner unavailable",
-                displayValue: "",
-                status: { kind: "unavailable", message: "Referenced owner unavailable." },
-                valueKind: "reference",
-              }),
+              projectGeneratedTableInvalidValue("Owner value is invalid or unavailable."),
             ],
             "computed:estimate": [
               projectGeneratedTableDisplayValue({
                 accessibilityLabel: "Estimate: 8 hours",
                 displayValue: "8",
                 suffix: "hours",
-                valueKind: "computed",
               }),
             ],
           },
@@ -246,22 +139,28 @@ describe("generated Formless UI table projection", () => {
         "task-2": {
           accessibilityLabel: "Review launch",
           contentsByColumnId: {
-            orderingHandle: [ordering],
-            "field:title": [projectGeneratedTableFieldContent(title)],
-            "field:icon": [projectGeneratedTableFieldContent(icon)],
+            orderingHandle: [tableOrdering("task-2", false)],
+            "field:title": [cellValue("Title: Review launch", "Review launch")],
+            "field:icon": [
+              {
+                accessibilityLabel: "Icon: task",
+                displayValue: "task",
+                kind: "cellValue",
+                presentation: { kind: "icon", source: iconSource },
+              },
+            ],
             "referenceField:owner": [
-              projectGeneratedTableFieldContent(reference, "referencedRecord"),
+              {
+                accessibilityLabel: "Owner: Dana",
+                displayValue: "Dana",
+                kind: "cellValue",
+                presentation: { kind: "reference" },
+              },
             ],
             "computed:estimate": [
-              projectGeneratedTableDisplayValue({
-                accessibilityLabel: "Estimate: calculating",
-                displayValue: "",
-                status: { kind: "pending", label: "Calculating estimate" },
-                valueKind: "computed",
-              }),
+              projectGeneratedTableInvalidValue("Estimate value is invalid or unavailable."),
             ],
           },
-          readinessWarnings: [{ code: "owner", message: "Assign an owner." }],
         },
       },
     });
@@ -276,111 +175,52 @@ describe("generated Formless UI table projection", () => {
         { alignment: "end", contentRole: "computed", label: "Estimate" },
       ],
       density: "compact",
-      editing: { enabled: true },
       id: "tasks:active",
       kind: "table",
       rows: [{ id: "task-2" }, { id: "task-1" }],
     });
-    expect(contract.rows[0]?.cells[1]?.contents[0]).toMatchObject({
-      field: { mode: "editor", rendererKind: "text", surface: "table-cell" },
-      kind: "field",
-      source: "record",
-    });
+    expect(contract.rows[0]?.cells[1]?.contents[0]).toEqual(
+      cellValue("Title: Review launch", "Review launch"),
+    );
     expect(contract.rows[0]?.cells[2]?.contents[0]).toMatchObject({
-      field: { icon: { valueMode: "svgSource" }, rendererKind: "icon" },
-      kind: "field",
+      kind: "cellValue",
+      presentation: { kind: "icon", source: iconSource },
     });
     expect(contract.rows[0]?.cells[3]?.contents[0]).toMatchObject({
-      field: { formatting: { displayValue: "Dana" }, surface: "table-cell" },
-      kind: "field",
-      source: "referencedRecord",
+      displayValue: "Dana",
+      presentation: { kind: "reference" },
     });
-    expect(contract.rows[1]?.cells[3]?.contents[0]).toMatchObject({
-      status: { kind: "unavailable", message: "Referenced owner unavailable." },
-      valueKind: "reference",
+    expect(contract.rows[1]?.cells[3]?.contents[0]).toEqual({
+      accessibilityLabel: "Owner value is invalid or unavailable.",
+      kind: "invalidValue",
     });
-    expect(contract.rows[0]?.warnings).toEqual([
-      {
-        id: "task-2:readiness-warning",
-        items: [{ code: "owner", message: "Assign an owner." }],
-        kind: "tableWarning",
-        title: "Readiness warnings",
-      },
-    ]);
-    expect(JSON.stringify(contract)).not.toContain('"plan"');
-    expect(JSON.stringify(contract)).not.toContain('"rank"');
+    expect(JSON.stringify(contract)).not.toContain('"fieldId"');
+    expect(JSON.stringify(contract)).not.toContain('"warnings"');
   });
 
-  it("projects action hierarchy, controlled dialogs, deletion, transitions, and ordering intents", () => {
-    const presentation = tablePresentation({
-      canDelete: true,
-      canPatch: true,
-      includeOperations: true,
-    });
+  it("projects one ordered action group with dialogs, destructive controls, and ordering", () => {
+    const presentation = tablePresentation({ includeOperations: true });
     const command = operationControl(commandBinding(), false);
     const deletion = operationControl(deleteBinding(), true);
-    const dialogTransition = projectGeneratedTableInvokeAction({
-      actionId: "task-2:complete",
-      invocationSource: "button",
-      label: "Complete",
-      operationName: "completeTask",
-      role: "transition",
-      rowId: "task-2",
-      tableId: "tasks:active",
-    });
     const edit = projectGeneratedTableEditAction({
-      actionGroup: actionGroup("task-2:dialog-actions", [
-        { action: dialogTransition, placement: "primary" },
-      ]),
       actionId: "task-2:edit",
-      description: "Task",
       dialogId: "task-2:edit-dialog",
-      fields: [recordField("title", textField(), "text", "Review launch")],
+      fields: [dialogRecordField()],
       label: "Edit task",
       open: true,
       rowId: "task-2",
       tableId: "tasks:active",
       target: { editingEnabled: true, kind: "available" },
-      targetKind: "row",
-      title: "Edit task",
-    });
-    const unavailableReferenceEdit = projectGeneratedTableEditAction({
-      actionId: "task-1:edit-owner",
-      dialogId: "task-1:edit-owner-dialog",
-      label: "Edit shared owner",
-      open: true,
-      rowId: "task-1",
-      tableId: "tasks:active",
-      target: { kind: "unavailable", message: "Record unavailable." },
       targetKind: "reference",
-      title: "Shared owner",
+      title: "Edit task",
+      warning: "Updating this shared record may affect other records.",
     });
+    const orderingActions = tableOrdering("task-2", true).actions;
     const rowActions = actionGroup("task-2:actions", [
-      {
-        action: projectGeneratedTableOperationAction(command, "command"),
-        placement: "primary",
-      },
-      { action: edit, placement: "secondary" },
-      {
-        action: projectGeneratedTableInvokeAction({
-          actionId: "task-2:archive",
-          disabled: true,
-          disabledReason: "Task must be complete",
-          invocationSource: "menuItem",
-          label: "Archive",
-          operationName: "archiveTask",
-          role: "transition",
-          rowId: "task-2",
-          tableId: "tasks:active",
-        }),
-        placement: "secondary",
-      },
-    ]);
-    const deleteActions = actionGroup("task-2:delete-actions", [
-      {
-        action: projectGeneratedTableOperationAction(deletion, "delete"),
-        placement: "secondary",
-      },
+      projectGeneratedTableOperationAction(command, "command"),
+      edit,
+      projectGeneratedTableOperationAction(deletion, "delete"),
+      ...orderingActions,
     ]);
     const contract = projectGeneratedTableContract({
       accessibilityLabel: "Tasks records",
@@ -390,29 +230,15 @@ describe("generated Formless UI table projection", () => {
         "task-1": {
           contentsByColumnId: {
             orderingHandle: [tableOrdering("task-1", false)],
-            "field:title": [
-              projectGeneratedTableFieldContent(
-                recordField("title", textField(), "text", "Prepare launch"),
-              ),
-            ],
-            "operationControl:actions": [
-              actionGroup("task-1:actions", [
-                { action: unavailableReferenceEdit, placement: "secondary" },
-              ]),
-            ],
-            __formless_delete: [deleteActions],
+            "field:title": [cellValue("Title: Prepare launch", "Prepare launch")],
+            "operationControl:actions": [rowActions],
           },
         },
         "task-2": {
           contentsByColumnId: {
             orderingHandle: [tableOrdering("task-2", true)],
-            "field:title": [
-              projectGeneratedTableFieldContent(
-                recordField("title", textField(), "text", "Review launch"),
-              ),
-            ],
+            "field:title": [cellValue("Title: Review launch", "Review launch")],
             "operationControl:actions": [rowActions],
-            __formless_delete: [deleteActions],
           },
         },
       },
@@ -421,81 +247,51 @@ describe("generated Formless UI table projection", () => {
       (cell) => cell.columnId === "operationControl:actions",
     )?.contents[0] as TableActionGroupContract;
     const projectedOrdering = contract.rows[0]?.cells[0]?.contents[0];
-    const projectedDelete = contract.rows[0]?.cells.find(
-      (cell) => cell.columnId === "__formless_delete",
-    )?.contents[0] as TableActionGroupContract;
-
-    expect(projectedActions.primary[0]).toMatchObject({
-      control: { kind: "operationControl", trigger: { prominence: "primary" } },
+    expect(projectedActions).toMatchObject({
+      accessibilityLabel: "More options for task",
+    });
+    expect(projectedActions.actions[0]).toMatchObject({
+      control: {
+        kind: "operationControl",
+        trigger: {
+          intent: { invocationSource: "menuItem" },
+          prominence: "primary",
+        },
+      },
       kind: "operationAction",
       role: "command",
     });
-    expect(projectedActions.secondary).toMatchObject([
-      {
-        dialog: {
-          open: true,
-          openChangeIntent: { open: false, type: "tableEditDialogOpenChange" },
-          target: {
-            actionGroup: { primary: [{ role: "transition" }] },
-            fieldSet: {
-              disabled: false,
-              fields: [{ labelVisibility: "visible", surface: "record" }],
-            },
-            kind: "available",
-          },
+    expect(projectedActions.actions[1]).toMatchObject({
+      dialog: {
+        open: true,
+        warning: "Updating this shared record may affect other records.",
+        target: {
+          fieldSet: { fields: [{ labelVisibility: "visible", surface: "record" }] },
+          kind: "available",
         },
-        openIntent: { open: true, type: "tableEditDialogOpenChange" },
       },
-      {
-        intent: {
-          invocationSource: "menuItem",
-          operationName: "archiveTask",
-          type: "tableActionInvoke",
-        },
-        trigger: { disabled: true, disabledReason: "Task must be complete" },
-      },
-    ]);
+      openIntent: { open: true, type: "tableEditDialogOpenChange" },
+    });
     expect(projectedOrdering).toMatchObject({
-      actions: [
-        {
-          direction: "top",
-          intent: { direction: "top", type: "tableReorder" },
-        },
-        {
-          direction: "down",
-          intent: { direction: "down", type: "tableReorder" },
-        },
-      ],
+      actions: [{ direction: "top" }, { direction: "down" }],
       affordance: "reorder",
       pending: true,
     });
-    expect(projectedDelete.secondary[0]).toMatchObject({
-      control: {
-        confirmation: {
-          closeIntent: { open: false, type: "operationConfirmationOpenChange" },
-          open: true,
-        },
-      },
+    expect(projectedActions.actions[2]).toMatchObject({
+      control: { confirmation: { open: true } },
       role: "delete",
     });
-    const unavailableEdit = contract.rows[1]?.cells.find(
-      (cell) => cell.columnId === "operationControl:actions",
-    )?.contents[0] as TableActionGroupContract;
-    expect(unavailableEdit.secondary[0]).toMatchObject({
-      dialog: {
-        target: { kind: "unavailable", message: "Record unavailable." },
-        targetKind: "reference",
-      },
-    });
+    expect(projectedActions.actions.slice(3)).toMatchObject([
+      { direction: "top", kind: "orderingAction" },
+      { direction: "down", kind: "orderingAction" },
+    ]);
     expect(JSON.stringify(contract)).not.toContain("executionKey");
     expect(JSON.stringify(contract)).not.toContain("canonicalOperationKey");
   });
 
-  it("projects editing-disabled, empty, footer, invalid, and visible fallback states", () => {
-    const disabledPresentation = tablePresentation({ canDelete: false, canPatch: false });
-    const disabled = projectGeneratedTableContract({
+  it("projects empty, footer, invalid, and visible fallback states", () => {
+    const populated = projectGeneratedTableContract({
       accessibilityLabel: "Tasks records",
-      editingDisabledReason: "Task updates are unavailable.",
       footerValuesByColumnId: {
         "computed:estimate": {
           displayValue: "Invalid",
@@ -503,18 +299,11 @@ describe("generated Formless UI table projection", () => {
         },
       },
       id: "tasks:active",
-      presentation: disabledPresentation,
+      presentation: tablePresentation(),
       rowsByRecordId: {
         "task-1": { contentsByColumnId: {} },
         "task-2": { contentsByColumnId: {} },
       },
-    });
-    const emptyPresentation = selectGeneratedTablePresentation({
-      canDelete: false,
-      canPatch: false,
-      columns: [fieldColumn("title", textField(), { width: "lg" })],
-      orderedRecordIds: [],
-      query: { kind: "all" },
     });
     const empty = projectGeneratedTableContract({
       accessibilityLabel: "Tasks records",
@@ -525,26 +314,24 @@ describe("generated Formless UI table projection", () => {
       },
       emptyStateDescription: "Create a task to get started.",
       id: "tasks:empty",
-      presentation: emptyPresentation,
+      presentation: selectGeneratedTablePresentation({
+        columns: [fieldColumn("title", textField(), { width: "lg" })],
+        orderedRecordIds: [],
+        query: { kind: "all" },
+      }),
       rowsByRecordId: {},
     });
 
-    expect(disabled.editing).toEqual({
-      disabledReason: "Task updates are unavailable.",
-      enabled: false,
+    expect(populated.rows[0]?.cells[1]?.contents[0]).toEqual({
+      accessibilityLabel: "Title value is invalid or unavailable.",
+      kind: "invalidValue",
     });
-    expect(disabled.rows[0]?.cells[0]?.contents[0]).toEqual({
-      accessibilityLabel: "Reorder unavailable",
-      kind: "unavailable",
-      message: "Cell unavailable.",
-    });
-    expect(disabled.footer?.cells.at(-1)).toMatchObject({
+    expect(populated.footer?.cells.at(-1)).toMatchObject({
       displayValue: "Invalid",
       kind: "aggregateFooterCell",
       status: { kind: "invalid", message: "Estimate could not be evaluated." },
     });
     expect(empty).toMatchObject({
-      editing: { enabled: true },
       emptyState: {
         action: { control: { id: commandBinding().id }, role: "command" },
         description: "Create a task to get started.",
@@ -556,28 +343,72 @@ describe("generated Formless UI table projection", () => {
   });
 });
 
+function singleRowTable(
+  tableId: string,
+  contents: TableContract["rows"][number]["cells"][number]["contents"],
+): TableContract {
+  return {
+    accessibilityLabel: "Tasks",
+    columns: [
+      {
+        accessibilityLabel: "Title",
+        alignment: "start",
+        contentRole: "field",
+        id: "title",
+        isRowHeader: true,
+        kind: "tableColumn",
+        label: "Title",
+        labelVisibility: "visible",
+        width: "lg",
+      },
+      {
+        accessibilityLabel: "Actions",
+        alignment: "end",
+        contentRole: "actions",
+        id: "actions",
+        isRowHeader: false,
+        kind: "tableColumn",
+        label: "Actions",
+        labelVisibility: "visible",
+        width: "sm",
+      },
+    ],
+    density: "compact",
+    id: tableId,
+    kind: "table",
+    rows: [
+      {
+        accessibilityLabel: "Prepare launch",
+        cells: [
+          { columnId: "title", contents: [contents[0]!], id: "task-1:title", kind: "tableCell" },
+          {
+            columnId: "actions",
+            contents: [contents[1]!],
+            id: "task-1:actions",
+            kind: "tableCell",
+          },
+        ],
+        id: "task-1",
+        kind: "tableRow",
+      },
+    ],
+  };
+}
+
 function tablePresentation({
-  canDelete,
-  canPatch,
   includeOperations = false,
 }: {
-  canDelete: boolean;
-  canPatch: boolean;
   includeOperations?: boolean;
-}) {
-  const columns: TableColumnConfig[] = [
-    orderingColumn(),
-    fieldColumn("title", textField(), { width: "lg" }),
-    fieldColumn("icon", iconField()),
-    referenceFieldColumn(),
-    computedColumn(),
-    ...(includeOperations ? [operationColumn()] : []),
-  ];
-
+} = {}) {
   return selectGeneratedTablePresentation({
-    canDelete,
-    canPatch,
-    columns,
+    columns: [
+      orderingColumn(),
+      fieldColumn("title", textField(), { width: "lg" }),
+      fieldColumn("icon", iconField()),
+      referenceFieldColumn(),
+      computedColumn(),
+      ...(includeOperations ? [operationColumn()] : []),
+    ],
     footer: [aggregateFooter()],
     orderedRecordIds: ["task-2", "task-1"],
     query: { kind: "all" },
@@ -587,45 +418,32 @@ function tablePresentation({
 function fieldColumn(
   fieldName: string,
   field: FieldSchema,
-  options: Partial<
-    Extract<
-      TableColumnConfig,
-      {
-        type: "field";
-      }
-    >
-  > = {},
-): Extract<
-  TableColumnConfig,
-  {
-    type: "field";
-  }
-> {
+  options: Partial<Extract<TableColumnConfig, { type: "field" }>> = {},
+): Extract<TableColumnConfig, { type: "field" }> {
   return {
     commit: "field-commit",
-    display: "editor",
+    display: "readOnly",
     editor: fieldName === "icon" ? "icon" : "text",
     field,
     fieldName,
+    fieldRef: { kind: "value", name: fieldName },
     format: "plain",
     key: `field:${fieldName}`,
     label: fieldName === "icon" ? "Icon" : "Title",
     type: "field",
+    writable: true,
     ...options,
   };
 }
-function referenceFieldColumn(): Extract<
-  TableColumnConfig,
-  {
-    type: "referenceField";
-  }
-> {
+
+function referenceFieldColumn(): Extract<TableColumnConfig, { type: "referenceField" }> {
   return {
     commit: "field-commit",
     display: "readOnly",
     editor: "text",
     field: textField(),
     fieldName: "name",
+    fieldRef: { kind: "value", name: "name" },
     format: "plain",
     key: "referenceField:owner",
     label: "Owner",
@@ -633,14 +451,11 @@ function referenceFieldColumn(): Extract<
     referencedEntityName: "principal",
     sourceReferenceFieldName: "owner",
     type: "referenceField",
+    writable: true,
   };
 }
-function computedColumn(): Extract<
-  TableColumnConfig,
-  {
-    type: "computed";
-  }
-> {
+
+function computedColumn(): Extract<TableColumnConfig, { type: "computed" }> {
   return {
     align: "end",
     computedValue: {
@@ -657,12 +472,8 @@ function computedColumn(): Extract<
     type: "computed",
   };
 }
-function operationColumn(): Extract<
-  TableColumnConfig,
-  {
-    type: "operationControl";
-  }
-> {
+
+function operationColumn(): Extract<TableColumnConfig, { type: "operationControl" }> {
   return {
     align: "end",
     controls: [],
@@ -672,17 +483,12 @@ function operationColumn(): Extract<
     includeOrdering: true,
     key: "operationControl:actions",
     label: "",
-    presentation: "dropdown",
     type: "operationControl",
     width: "xs",
   };
 }
-function orderingColumn(): Extract<
-  TableColumnConfig,
-  {
-    type: "orderingHandle";
-  }
-> {
+
+function orderingColumn(): Extract<TableColumnConfig, { type: "orderingHandle" }> {
   return {
     align: "center",
     display: "readOnly",
@@ -697,11 +503,7 @@ function orderingColumn(): Extract<
 
 function aggregateFooter(): TableFooterSlotConfig {
   return {
-    aggregate: {
-      function: "sum",
-      query: "active",
-      value: { field: "estimate", kind: "field" },
-    },
+    aggregate: { function: "sum", query: "active", value: { field: "estimate", kind: "field" } },
     aggregateName: "totalEstimate",
     columnKey: "computed:estimate",
     computedValues: {},
@@ -713,31 +515,53 @@ function aggregateFooter(): TableFooterSlotConfig {
   };
 }
 
-function recordField(
-  fieldName: string,
-  field: FieldSchema,
-  editor: "icon" | "text",
-  value: string,
-  recordId = "task-2",
-) {
+function dialogRecordField() {
   return projectGeneratedRecordField({
     canPatch: true,
-    density: "compact",
-    fieldConfig: {
-      commit: "field-commit",
-      editor,
-      field,
-      fieldName,
-      label: fieldName === "name" ? "Owner" : undefined,
-    },
+    fieldConfig: recordFieldConfig(),
     occurrence: {
-      owner: { cellId: `${recordId}:${fieldName}`, kind: "tableCell", tableId: "table-test" },
-      placementId: fieldName,
+      owner: {
+        fieldSetId: "task-2:edit-dialog:fields",
+        kind: "tableEditFieldSet",
+        tableId: "tasks:active",
+      },
+      placementId: "title",
     },
-    recordId,
-    recordValue: value,
-    surface: "table-cell",
+    recordId: "task-2",
+    recordValue: "Review launch",
+    surface: "record",
   });
+}
+
+function recordFieldConfig(): RecordFieldConfig {
+  return {
+    commit: "field-commit",
+    editor: "text",
+    field: textField(),
+    fieldName: "title",
+    fieldRef: { kind: "value", name: "title" },
+    label: "Title",
+    writable: true,
+  };
+}
+
+function taskRecord(): StoredRecord {
+  return {
+    createdAt: "2026-07-16T00:00:00.000Z",
+    entity: "task",
+    id: "task-1",
+    updatedAt: "2026-07-16T00:00:00.000Z",
+    values: { title: "Prepare launch" },
+  };
+}
+
+function cellValue(accessibilityLabel: string, displayValue: string) {
+  return {
+    accessibilityLabel,
+    displayValue,
+    kind: "cellValue" as const,
+    presentation: { kind: "text" as const },
+  };
 }
 
 function operationControl(
@@ -826,9 +650,9 @@ function actionGroup(
   actions: Parameters<typeof projectGeneratedTableActionGroup>[0]["actions"],
 ) {
   return projectGeneratedTableActionGroup({
+    accessibilityLabel: "More options for task",
     actions,
     id,
-    secondaryAccessibilityLabel: "More task actions",
   });
 }
 

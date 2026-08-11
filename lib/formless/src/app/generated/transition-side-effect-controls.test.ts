@@ -2,6 +2,8 @@ import { describe, expect, it } from "vite-plus/test";
 import { parseAppSchema, type AppSchema, type CollectionViewSchema } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import { selectHomeResultModel } from "../../client/collection-result-model.ts";
+import type { TableCollectionResultModel } from "../../client/collection-result-model.ts";
+import { selectTableResultModel } from "../../client/table-model.ts";
 import {
   createGeneratedOperationController,
   type GeneratedOperationAuthoritySubmitter,
@@ -11,15 +13,12 @@ import type {
   OperationInvocationResponse,
 } from "../../shared/operation-invocation.ts";
 import type { ChangeRow } from "../../shared/protocol.ts";
-import {
-  executeGeneratedTableRuntimeOperation,
-  selectGeneratedWorkspaceTableFoundation,
-} from "./generated-table-foundation.tsx";
+import { selectGeneratedWorkspaceTableFoundation } from "./generated-table-foundation.tsx";
 import { selectGeneratedRecordResultFoundation } from "./generated-record-result-foundation.ts";
 import { executeTransitionStateOperation } from "./state-machine-operation-runtime.ts";
 
 describe("generated transition side-effect controls", () => {
-  it("keeps table-row and record-detail controls classified by transition and current state", () => {
+  it("projects only explicitly bound table transitions while state cells stay read-only", () => {
     const fixture = transitionControlFixture();
     const projectionController = createGeneratedOperationController({ bindings: [] });
     const table = selectGeneratedWorkspaceTableFoundation({
@@ -38,61 +37,106 @@ describe("generated transition side-effect controls", () => {
       (operation) => operation.kind === "transition",
     );
 
-    expect(
-      rowTransitions.map((runtime) => ({
-        availability: runtime.binding.availability,
-        bindingKind: runtime.binding.kind,
-        inputKind: runtime.binding.input.kind,
-        recordId: runtime.recordId,
-        runtimeKind: runtime.kind,
-      })),
-    ).toEqual([
+    expect(rowTransitions).toEqual([]);
+    const tableStatusValues = table.table.rows.map((row) =>
+      row.cells
+        .find((cell) => cell.columnId === "field:status")
+        ?.contents.find((content) => content.kind === "cellValue"),
+    );
+    expect(tableStatusValues).toMatchObject([
+      { kind: "cellValue", presentation: { kind: "state" } },
+      { kind: "cellValue", presentation: { kind: "state" } },
+    ]);
+    expect(table.editFieldsById.size).toBe(0);
+    expect(JSON.stringify(table.table)).not.toContain("stateMachineFacts");
+
+    const explicitView = {
+      ...fixture.schema.tableViews.find((definition) => definition.key === "intakeTable")!,
+      key: "intakeActionTable",
+      operations: [{ operation: "intake.convert", label: "Convert intake" }],
+      columns: [
+        { type: "field", field: "title" } as const,
+        { type: "field", field: "status" } as const,
+        { type: "operationControl" } as const,
+      ],
+    };
+    const explicitResult = {
+      ...selectTableResultModel(fixture.schema, explicitView, "intake", fixture.entity),
+      tableViewName: explicitView.key,
+      type: "table",
+    } satisfies TableCollectionResultModel;
+    const baseExplicit = selectGeneratedWorkspaceTableFoundation({
+      controller: projectionController,
+      entity: fixture.entity,
+      entityName: "intake",
+      id: "intakes:actions",
+      query: fixture.query.expression,
+      queryName: "intakeAll",
+      recordIds: [fixture.pending.id, fixture.converted.id],
+      recordsById: fixture.recordsById,
+      result: explicitResult,
+      schema: fixture.schema,
+    });
+    const explicitController = createGeneratedOperationController({
+      bindings: baseExplicit.runtimePlan.operations.map((operation) => operation.binding),
+    });
+    const explicit = selectGeneratedWorkspaceTableFoundation({
+      controller: explicitController,
+      entity: fixture.entity,
+      entityName: "intake",
+      id: "intakes:actions",
+      query: fixture.query.expression,
+      queryName: "intakeAll",
+      recordIds: [fixture.pending.id, fixture.converted.id],
+      recordsById: fixture.recordsById,
+      result: explicitResult,
+      schema: fixture.schema,
+    });
+    const explicitTransitions = explicit.runtimePlan.operations.filter(
+      (operation) => operation.kind === "transition",
+    );
+
+    expect(explicitTransitions).toMatchObject([
       {
-        availability: { state: "enabled" },
-        bindingKind: "stateTransition",
-        inputKind: "stateTransition",
+        binding: {
+          availability: { state: "enabled" },
+          input: { kind: "stateTransition", transitionName: "convert" },
+          label: "Convert intake",
+        },
+        kind: "transition",
         recordId: "intake-pending",
-        runtimeKind: "transition",
       },
       {
-        availability: { state: "disabled", reason: "Requires Pending." },
-        bindingKind: "stateTransition",
-        inputKind: "stateTransition",
+        binding: {
+          availability: { state: "disabled" },
+          label: "Convert intake",
+        },
+        kind: "transition",
         recordId: "intake-converted",
-        runtimeKind: "transition",
       },
     ]);
-    expect(
-      Object.fromEntries(
-        [...table.fieldsById.values()]
-          .filter((runtime) => runtime.fieldConfig.fieldName === "status")
-          .map((runtime) => {
-            const interaction = runtime.field.stateMachineFacts?.interaction;
-            return [
-              runtime.recordId,
-              interaction?.kind === "transitions"
-                ? interaction.transitions[0]?.availability
-                : undefined,
-            ];
-          }),
-      ),
-    ).toEqual({
-      "intake-converted": {
-        disabledReason: "Requires Pending.",
-        valid: false,
+    const explicitActionGroups = explicit.table.rows.map(
+      (row) =>
+        row.cells.find((cell) => cell.columnId === "operationControl:intake.convert")?.contents[0],
+    );
+    expect(explicitActionGroups).toMatchObject([
+      {
+        accessibilityLabel: "More options for Intake intake-pending",
+        actions: [{ kind: "operationAction", role: "transition" }],
+        kind: "actionGroup",
       },
-      "intake-pending": { valid: true },
-    });
-    expect(rowTransitions[0]?.operation.operation.operation.effect).toMatchObject({
-      handler: "transition-state",
-      config: {
-        sideEffects: {
-          type: "recordPlan",
-          steps: [{ entity: "order", kind: "create", name: "createOrder" }],
-        },
+      {
+        accessibilityLabel: "More options for Intake intake-converted",
+        actions: [
+          {
+            control: { trigger: { disabled: true } },
+            kind: "operationAction",
+            role: "transition",
+          },
+        ],
+        kind: "actionGroup",
       },
-    });
-
+    ]);
     const detail = selectGeneratedRecordResultFoundation({
       entity: fixture.entity,
       entityName: "intake",
@@ -120,6 +164,15 @@ describe("generated transition side-effect controls", () => {
       kind: "transition",
       recordId: "intake-pending",
     });
+    expect(detailTransition?.operation.operation.operation.effect).toMatchObject({
+      handler: "transition-state",
+      config: {
+        sideEffects: {
+          type: "recordPlan",
+          steps: [{ entity: "order", kind: "create", name: "createOrder" }],
+        },
+      },
+    });
     const detailStatus = detail.recordResult.fields.find((field) => field.fieldName === "status");
     expect(detailStatus?.stateMachineFacts?.interaction).toMatchObject({
       kind: "transitions",
@@ -133,24 +186,8 @@ describe("generated transition side-effect controls", () => {
     expect(detail.recordResult.actions.primary).toEqual([]);
   });
 
-  it("returns side-effect create ids for committed row and replayed detail invocations", async () => {
+  it("returns side-effect create ids for replayed detail invocations", async () => {
     const fixture = transitionControlFixture();
-    const projectionController = createGeneratedOperationController({ bindings: [] });
-    const table = selectGeneratedWorkspaceTableFoundation({
-      controller: projectionController,
-      entity: fixture.entity,
-      entityName: "intake",
-      id: "intakes:table",
-      query: fixture.query.expression,
-      queryName: "intakeAll",
-      recordIds: [fixture.pending.id],
-      recordsById: fixture.recordsById,
-      result: fixture.tableResult,
-      schema: fixture.schema,
-    });
-    const rowTransition = table.runtimePlan.operations!.find(
-      (operation) => operation.kind === "transition",
-    );
     const detail = selectGeneratedRecordResultFoundation({
       entity: fixture.entity,
       entityName: "intake",
@@ -163,36 +200,11 @@ describe("generated transition side-effect controls", () => {
     const detailTransition = detail.runtimePlan.operations!.find(
       (operation) => operation.kind === "transition",
     );
-    if (rowTransition?.kind !== "transition" || detailTransition?.kind !== "transition") {
-      throw new Error("Missing generated transition controls.");
+    if (detailTransition?.kind !== "transition") {
+      throw new Error("Missing generated detail transition control.");
     }
 
     const output = transitionCommandOutput();
-    const rowSubmit = captureAuthoritySubmitter(operationResponse(output));
-    const rowController = createGeneratedOperationController({
-      bindings: [rowTransition.binding],
-      submitAuthorityOperation: rowSubmit.submit,
-    });
-
-    await expect(
-      executeGeneratedTableRuntimeOperation(rowTransition, rowController, "menuItem"),
-    ).resolves.toEqual({
-      affectedCount: 2,
-      createdRecordIds: ["order-1"],
-      output,
-      type: "committed",
-    });
-    expect(rowSubmit.calls).toEqual([
-      {
-        entityName: "intake",
-        operationName: "convert",
-        request: {
-          recordId: "intake-pending",
-          source: { protocol: "generated-ui", surface: "menuItem" },
-        },
-      },
-    ]);
-
     const detailSubmit = captureAuthoritySubmitter(operationResponse(output, "replayed"));
     const detailController = createGeneratedOperationController({
       bindings: [detailTransition.binding],
@@ -363,8 +375,8 @@ function transitionSideEffectSchema() {
         key: "intakeItem",
         entity: "intake",
         fields: [
-          { field: "title", editor: "text", commit: "field-commit" },
-          { field: "status", editor: "enum", commit: "immediate" },
+          { field: "title", editor: "text" },
+          { field: "status", editor: "enum" },
         ],
       },
     ],

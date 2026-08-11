@@ -915,7 +915,7 @@ function fixtureEnumEditorFacts({
   field: FieldSchema;
   presentation?: FieldContract["presentation"];
   style: "plain" | "rich";
-  surface: "create" | "detail" | "operation" | "record" | "table-cell";
+  surface: "create" | "detail" | "operation" | "record";
   value: FieldValue | undefined;
 }): EnumFacts | undefined {
   if (field.type !== "enum") {

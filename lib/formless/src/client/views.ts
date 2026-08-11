@@ -23,10 +23,8 @@ import type {
   WorkspaceScreenSchema,
   ToManyRelationshipSchema,
   TableColumnAlign,
-  TableColumnDisplay,
   TableColumnFormat,
   TableColumnWidth,
-  TableOperationControlPresentation,
   TableOperationControlVariant,
   ViewSchema,
 } from "@dpeek/formless-schema";
@@ -192,6 +190,7 @@ export type ListSummaryPresentationConfig = {
     subtitle?: ListSummaryFieldConfig;
   };
 };
+export type TableColumnDisplay = "editor" | "readOnly" | "hidden";
 export type TableColumnBaseConfig = {
   key: string;
   label: string;
@@ -205,15 +204,6 @@ export type TableColumnBaseConfig = {
 export type FieldTableColumnConfig = RecordFieldConfig &
   TableColumnBaseConfig & {
     type: "field";
-    stateTransitionOperations?: TransitionStateOperationConfig[];
-    referenceItem?: {
-      itemViewName: string;
-      entityName: string;
-      entity: EntitySchema;
-      recordFields: RecordFieldConfig[];
-      updateOperation?: EntityOperationPresentationConfig;
-      recordUnion?: RecordUnionPresentationConfig;
-    };
   };
 
 export type ReferenceFieldTableColumnConfig = RecordFieldConfig &
@@ -222,7 +212,6 @@ export type ReferenceFieldTableColumnConfig = RecordFieldConfig &
     sourceReferenceFieldName: string;
     referencedEntityName: string;
     referencedEntity: EntitySchema;
-    referencedUpdateOperation?: EntityOperationPresentationConfig;
   };
 
 export type ComputedTableColumnConfig = TableColumnBaseConfig & {
@@ -251,6 +240,11 @@ export type StaticTableOperationControlConfig = TableOperationControlBaseConfig 
   type: "static";
 };
 
+export type TransitionTableOperationControlConfig = TableOperationControlBaseConfig & {
+  type: "transition";
+  transition: TransitionStateOperationConfig;
+};
+
 export type EditRecordTableOperationControlConfig = TableOperationControlBaseConfig & {
   type: "editRecord";
   target: TableEditRecordTargetConfig;
@@ -259,6 +253,7 @@ export type EditRecordTableOperationControlConfig = TableOperationControlBaseCon
 
 export type TableOperationControlConfig =
   | StaticTableOperationControlConfig
+  | TransitionTableOperationControlConfig
   | EditRecordTableOperationControlConfig;
 
 export type TableEditRecordTargetConfig =
@@ -286,7 +281,6 @@ export type EditViewConfig = {
   entity: EntitySchema;
   updateOperation?: EntityOperationPresentationConfig;
   fields: RecordFieldConfig[];
-  transitionOperations: TransitionStateOperationConfig[];
   union?: RecordUnionPresentationConfig;
 };
 
@@ -296,7 +290,6 @@ export type OperationControlTableColumnConfig = TableColumnBaseConfig & {
   type: "operationControl";
   headerLabel: string;
   controls: TableOperationControlConfig[];
-  presentation: TableOperationControlPresentation;
   includeOrdering: boolean;
   ordering?: ResultOrderingConfig;
 };
@@ -472,8 +465,6 @@ export type HomeResultConfig =
       tableViewName: string;
       columns: TableColumnConfig[];
       updateOperation?: EntityOperationPresentationConfig;
-      deleteOperation?: EntityOperationPresentationConfig;
-      transitionOperations: TransitionStateOperationConfig[];
       ordering?: ResultOrderingConfig;
       footer?: TableFooterSlotConfig[];
     }

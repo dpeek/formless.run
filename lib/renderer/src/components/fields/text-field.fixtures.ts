@@ -80,17 +80,14 @@ export const textScenarioGroups = [
     include: textRecordCombinationIsValid,
     projectField: projectTextRecordField,
   }),
-  scalarTextExistingGroup("text", "table-cell"),
   scalarTextExistingGroup("text", "detail"),
   scalarTextOperationGroup("text"),
   scalarTextCreateGroup("long-text"),
   scalarTextExistingGroup("long-text", "record"),
-  scalarTextExistingGroup("long-text", "table-cell"),
   scalarTextExistingGroup("long-text", "detail"),
   scalarTextOperationGroup("long-text"),
   scalarTextCreateGroup("markdown"),
   scalarTextExistingGroup("markdown", "record"),
-  scalarTextExistingGroup("markdown", "table-cell"),
   scalarTextExistingGroup("markdown", "detail"),
 ] satisfies readonly FieldScenarioGroup[];
 
@@ -105,7 +102,7 @@ function scalarTextCreateGroup(kind: Extract<FieldKindKey, "long-text" | "markdo
 
 function scalarTextExistingGroup(
   kind: Extract<FieldKindKey, "long-text" | "markdown" | "text">,
-  surface: Extract<FieldSurface, "detail" | "record" | "table-cell">,
+  surface: Extract<FieldSurface, "detail" | "record">,
 ) {
   return projectScenarioGroup({
     id: `${kind}-${surface}`,
@@ -174,7 +171,7 @@ function projectCreateTextField(
   const required = facets.requiredness === "required";
   const field = textField(kind, required);
   const value = facets.value === "known" ? textValue(kind) : "";
-  const control = textFieldControl(kind, field, "create");
+  const control = textFieldControl(kind, field);
 
   return createField({
     fieldName: textFieldName(kind),
@@ -200,7 +197,7 @@ function projectOperationTextField(
   const format = kind === "text" ? textOperationFormat(facets.format) : "plain";
   const field = kind === "text" ? operationTextField(required, format) : textField(kind, required);
   const value = operationTextValue(kind, format, facets.value);
-  const control = textFieldControl(kind, field, "operation");
+  const control = textFieldControl(kind, field);
   const fieldName = kind === "text" ? operationTextFieldName(format) : textFieldName(kind);
   const errors =
     kind === "long-text" && required && facets.value === "unset"
@@ -283,7 +280,7 @@ function operationTextValue(
 
 function projectExistingTextField(
   kind: Extract<FieldKindKey, "long-text" | "markdown" | "text">,
-  surface: Extract<FieldSurface, "detail" | "record" | "table-cell">,
+  surface: Extract<FieldSurface, "detail" | "record">,
   { facets }: FieldScenarioProjectionContext,
   presentation: "default" | "heading" | "suffix" = "default",
 ) {
@@ -292,8 +289,8 @@ function projectExistingTextField(
   const value = facets.value === "known" ? textValue(kind) : "";
   const displayValue = value;
   const labelVisibility = surface === "detail" ? ("visible" as const) : ("hidden" as const);
-  const density = surface === "table-cell" ? ("compact" as const) : ("default" as const);
-  const control = textFieldControl(kind, field, facets.mode === "display" ? "display" : surface);
+  const density = "default" as const;
+  const control = textFieldControl(kind, field);
   const common = {
     fieldName: textFieldName(kind),
     field,
@@ -325,7 +322,7 @@ function projectExistingTextField(
     drafts: recordDrafts({ recordValue: value || undefined }),
     formatting: { displayValue },
     presentationMode: presentation === "heading" ? "heading" : "default",
-    rendererKind: textRendererKind(kind, surface, presentation),
+    rendererKind: textRendererKind(kind, presentation),
   });
 }
 
@@ -350,7 +347,6 @@ function textFieldControl(
       type: "text";
     }
   >,
-  surface: FieldSurface | "display",
 ) {
   if (kind === "long-text") {
     return textControl(field, { editor: "textarea", controlKind: "textarea" });
@@ -359,7 +355,7 @@ function textFieldControl(
   if (kind === "markdown") {
     return textControl(field, {
       editor: "markdown",
-      controlKind: surface === "table-cell" ? "textarea" : "markdown",
+      controlKind: "markdown",
     });
   }
 
@@ -368,10 +364,9 @@ function textFieldControl(
 
 function textRendererKind(
   kind: Extract<FieldKindKey, "long-text" | "markdown" | "text">,
-  surface: Extract<FieldSurface, "detail" | "record" | "table-cell">,
   presentation: "default" | "heading" | "suffix",
 ): RecordFieldRendererKind {
-  if (kind === "long-text" || (kind === "markdown" && surface === "table-cell")) {
+  if (kind === "long-text") {
     return "textarea";
   }
 

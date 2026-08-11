@@ -133,14 +133,6 @@ function schemaMediaFields(schema: AppSchema): Map<string, MediaField> {
     }
   }
 
-  for (const tableView of schema.tableViews) {
-    for (const column of tableView.columns) {
-      if (column.type === "field" && column.editor === "media") {
-        addMediaEditorField(fields, schema, tableView.entity, column.field);
-      }
-    }
-  }
-
   for (const view of schema.views) {
     if (view.type === "collection") {
       continue;

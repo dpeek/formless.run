@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import type { AppSchema, CollectionViewSchema } from "@dpeek/formless-schema";
+import type { AppSchema, CollectionViewSchema, TableViewSchema } from "@dpeek/formless-schema";
 import { sourceLikeSiteSchema, sourceLikeTaskSchema } from "../test/schema-builders.ts";
 import { selectHomeCollectionShell } from "./collection-shell-model.ts";
 import {
@@ -115,35 +115,26 @@ describe("generated operation control model", () => {
   });
   it("omits hidden table controls and projects disabled destructive confirmations", () => {
     const schema = sourceLikeSiteSchema();
-    const tableView = schema.tableViews.find(
-      (definition) => definition.key === "blockPlacementTable",
-    )!;
-    tableView.operations = [
-      {
-        operation: "block.update",
-        label: "Edit block",
-        availability: { state: "hidden" },
-        target: { kind: "reference", field: "block" },
-        editView: "blockEdit",
-      },
-      {
-        operation: "block.delete",
-        label: "Delete block",
-        variant: "destructive",
-        availability: { state: "disabled", reason: "Locked by publish" },
-        target: { kind: "reference", field: "block" },
-      },
-    ];
-    tableView.columns = tableView.columns.map((column) =>
-      column.type === "operationControl"
-        ? {
-            type: "operationControl",
-            operations: ["block.update", "block.delete"],
-            align: "end",
-            width: "xs",
-          }
-        : column,
-    );
+    const tableView = {
+      entity: "block-placement",
+      operations: [
+        {
+          operation: "block.update",
+          label: "Edit block",
+          availability: { state: "hidden" },
+          target: { kind: "reference", field: "block" },
+          editView: "blockEdit",
+        },
+        {
+          operation: "block.delete",
+          label: "Delete block",
+          variant: "destructive",
+          availability: { state: "disabled", reason: "Locked by publish" },
+          target: { kind: "reference", field: "block" },
+        },
+      ],
+      columns: [{ type: "operationControl" }],
+    } satisfies TableViewSchema;
 
     const result = selectTableResultModel(
       schema,

@@ -15,10 +15,7 @@ import type {
 } from "../../client/views.ts";
 import type { EntityOperationPresentationConfig } from "../../client/operation-presentation-model.ts";
 import type { TransitionStateOperationConfig } from "../../client/state-machine-model.ts";
-import type {
-  DisplayFieldContract,
-  RecordFieldContract,
-} from "@dpeek/formless-presentation/contract";
+import type { RecordFieldContract } from "@dpeek/formless-presentation/contract";
 import { resolveIconCatalogSvg } from "../../shared/icon-catalog.ts";
 import {
   initialGeneratedCreateDraftSessionState,
@@ -32,11 +29,6 @@ import {
   selectGeneratedOperationDraftSession,
 } from "./operation-field-authoring.ts";
 import {
-  initialGeneratedUpdateDraftSessionState,
-  nextGeneratedUpdateDraftSessionState,
-  selectGeneratedUpdateDraftSession,
-} from "./record-field-authoring.ts";
-import {
   projectGeneratedCreateFields,
   projectGeneratedCreateField,
   projectGeneratedCreateSession,
@@ -47,9 +39,6 @@ import {
   projectGeneratedOperationField,
   projectGeneratedOperationSession,
   projectGeneratedRecordField,
-  projectGeneratedRecordFields,
-  projectGeneratedRecordSession,
-  selectValueUnitCommit,
 } from "./field-projection.ts";
 import type { GeneratedOperationInputFieldConfig } from "./operation-field-authoring.ts";
 
@@ -95,10 +84,6 @@ describe("generated field projection", () => {
       },
       {
         owner: { kind: "recordResult" as const, resultId: "result-a", recordId: "record-a" },
-        placementId: "title",
-      },
-      {
-        owner: { kind: "tableCell" as const, tableId: "table-a", cellId: "cell-a" },
         placementId: "title",
       },
       {
@@ -429,247 +414,6 @@ describe("generated field projection", () => {
     });
   });
 
-  it("projects update fields without flattening draft, renderer, option, media, or access facts", () => {
-    const recordFields = [
-      recordField("title", fields.title, "text"),
-      recordField("cost", fields.cost, "number", {
-        format: "currency",
-        valueUnit: {
-          unitFieldName: "costUnit",
-          unitField: fields.costUnit,
-        },
-      }),
-      recordField("owner", fields.owner, "reference", { commit: "immediate" }),
-      recordField("hero", fields.image, "media"),
-      recordField("priority", fields.priority, "enum", { commit: "immediate" }),
-      {
-        ...recordField("status", fields.status, "enum", { commit: "immediate" }),
-        stateMachine,
-      },
-      recordField("updatedAt", fields.systemText, "text", {
-        fieldRef: { kind: "system", name: "updatedAt" },
-        writable: false,
-      }),
-      recordField("summary", fields.systemText, "text", { writable: false }),
-    ];
-    const draftValues: Array<[string, GeneratedFieldDraftInput]> = [
-      ["title", { kind: "input", value: "Edited title" }],
-      ["cost", { kind: "value", value: 13 }],
-      ["priority", { kind: "input", value: "urgent" }],
-    ];
-    const state = draftValues.reduce(
-      (nextState, [fieldName, fieldValue]) =>
-        nextGeneratedUpdateDraftSessionState({
-          fieldName: String(fieldName),
-          fieldValue,
-          state: nextState,
-        }),
-      initialGeneratedUpdateDraftSessionState({
-        baselineValues: recordValues,
-        fields: recordFields,
-      }),
-    );
-    const session = selectGeneratedUpdateDraftSession({ fields: recordFields, state });
-    const projectedSession = projectGeneratedRecordSession({ session, state });
-    const projected = projectGeneratedRecordFields({
-      canPatch: true,
-      density: "compact",
-      entityName: "task",
-      editorDraftByFieldName: { cost: "$13." },
-      errorsByFieldName: { title: "Save failed." },
-      mediaAssetOptionsByFieldName: {
-        hero: [
-          { height: 360, href: "/media/hero.webp", id: "hero.webp", label: "Hero", width: 640 },
-        ],
-      },
-      owner: { kind: "tableCell", tableId: "projection-test", cellId: "task-1" },
-      pendingByFieldName: { hero: true },
-      pendingLabelByFieldName: { hero: "Uploading" },
-      recordId: "task-1",
-      referenceOptionsByFieldName: { owner: [] },
-      schema: blockSchema,
-      session,
-      state,
-      surface: "table-cell",
-      transitionOperationsByFieldName: { status: transitionOperations },
-      unitDraftInputByFieldName: { cost: { kind: "input", value: "hour" } },
-    });
-    const byName = Object.fromEntries(projected.map((field) => [field.fieldName, field]));
-    const title = asRecordField(byName.title);
-    const cost = asRecordField(byName.cost);
-    const owner = asRecordField(byName.owner);
-    const hero = asRecordField(byName.hero);
-    const priority = asRecordField(byName.priority);
-    const status = asDisplayField(byName.status);
-    const updatedAt = asDisplayField(byName.updatedAt);
-    const summary = asDisplayField(byName.summary);
-
-    expect(projectedSession).toMatchObject({
-      values: {
-        cost: 13,
-        priority: "urgent",
-        title: "Edited title",
-      },
-      visibleFieldNames: [
-        "title",
-        "cost",
-        "owner",
-        "hero",
-        "priority",
-        "status",
-        "updatedAt",
-        "summary",
-      ],
-    });
-    expect(title).toMatchObject({
-      access: { kind: "editable", canPatch: true },
-      commit: "field-commit",
-      control: { controlKind: "text" },
-      density: "compact",
-      drafts: {
-        draft: "Edited title",
-        draftInput: { kind: "input", value: "Edited title" },
-        recordValue: "Committed title",
-      },
-      errors: [{ fieldName: "title", message: "Save failed." }],
-      formatting: { displayValue: "Committed title" },
-      mode: "editor",
-      rendererKind: "text",
-      surface: "table-cell",
-      value: "Committed title",
-    });
-    expect(cost).toMatchObject({
-      control: { controlKind: "number" },
-      drafts: {
-        draft: "$13.",
-        draftInput: { kind: "value", value: 13 },
-        recordValue: 12.5,
-        unitDraft: "hour",
-        unitDraftInput: { kind: "input", value: "hour" },
-        unitRecordValue: "day",
-      },
-      rendererKind: "value-unit",
-      valueUnit: {
-        clearable: true,
-        options: [
-          { label: "Day", status: "declared", value: "day" },
-          { label: "Hour", status: "declared", value: "hour" },
-        ],
-        required: false,
-        unitFieldName: "costUnit",
-      },
-    });
-    expect(selectValueUnitCommit(cost)).toEqual({
-      fieldDraftInput: { kind: "value", value: 13 },
-      unitDraftInput: { kind: "input", value: "hour" },
-    });
-    expect(owner).toMatchObject({
-      commit: "immediate",
-      options: {
-        referenceOptions: [],
-      },
-      reference: {
-        clearable: true,
-        kind: "editor",
-        valueStatus: { kind: "missing", value: "missing-owner" },
-      },
-      rendererKind: "reference",
-    });
-    expect(hero).toMatchObject({
-      media: {
-        accept: "image/jpeg,image/png,image/webp,image/gif",
-        fileSelectEnabled: true,
-        maxSize: 5 * 1024 * 1024,
-        previewHref: "/media/hero.webp",
-        selectedAssetId: "hero.webp",
-        mediaPreviewHref: "/media/hero.webp",
-        uploadEnabled: true,
-        uploadPatchFields: {
-          heightFieldName: "height",
-          mediaAssetFieldName: "hero",
-          widthFieldName: "width",
-        },
-      },
-      options: {
-        mediaAssetOptions: [
-          { height: 360, href: "/media/hero.webp", id: "hero.webp", label: "Hero", width: 640 },
-        ],
-      },
-      pending: { isPending: true, label: "Uploading" },
-      rendererKind: "media",
-    });
-    expect(priority).toMatchObject({
-      enum: {
-        clearable: true,
-        kind: "editor",
-        listContent: "label",
-        style: "plain",
-        triggerContent: "label",
-        valueStatus: { kind: "undeclared", value: "urgent" },
-      },
-      options: {
-        enumOptions: [
-          {
-            label: "High",
-            presentation: {
-              color: { intent: "danger", known: true, token: "priority.high" },
-              icon: { kind: "svg" },
-              iconKnown: true,
-              iconToken: "priority-marker",
-            },
-            status: "declared",
-            value: "high",
-          },
-          {
-            label: "Low",
-            presentation: {
-              color: { intent: "success", known: true, token: "priority.low" },
-            },
-            status: "declared",
-            value: "low",
-          },
-        ],
-      },
-    });
-    expect(status).toMatchObject({
-      access: { kind: "stateMachine" },
-      density: "compact",
-      formatting: {
-        displayValue: "Archived",
-        enumValuePresentation: { label: "Archived" },
-      },
-      mode: "display",
-      labelVisibility: "hidden",
-      stateMachineFacts: {
-        currentValue: "archived",
-        interaction: {
-          invocationSource: "menuItem",
-          kind: "transitions",
-          transitions: [
-            { availability: { valid: false, disabledReason: "Requires New." } },
-            { availability: { valid: false, disabledReason: "Requires New." } },
-          ],
-        },
-        terminal: true,
-        valueStatus: { kind: "declared", value: "archived" },
-      },
-      value: "archived",
-    });
-    expect(updatedAt).toMatchObject({
-      access: { kind: "system", fieldRef: { kind: "system", name: "updatedAt" } },
-      density: "compact",
-      mode: "display",
-      value: "2026-07-09T00:00:00.000Z",
-    });
-    expect(summary).toMatchObject({
-      access: { kind: "readOnly" },
-      density: "compact",
-      formatting: { displayValue: "Locked" },
-      mode: "display",
-      value: "Locked",
-    });
-  });
-
   it("keeps invalid record drafts separate from committed heading display facts", () => {
     const field = asRecordField(
       projectGeneratedRecordField({
@@ -821,17 +565,13 @@ describe("generated field projection", () => {
         schema,
       }),
     );
-    const missingTable = asRecordField(
+    const missingRecord = asRecordField(
       projectGeneratedRecordField({
         canPatch: true,
         fieldConfig: recordField("icon", strictField, "icon"),
-        occurrence: {
-          owner: { cellId: "icon", kind: "tableCell", tableId: "mode-aware-table" },
-          placementId: "icon",
-        },
+        occurrence: recordOccurrence("icon", "mode-aware-record-missing"),
         recordValue: "retired-icon",
         schema,
-        surface: "table-cell",
       }),
     );
     const display = projectGeneratedDisplayField({
@@ -880,7 +620,7 @@ describe("generated field projection", () => {
       selection: { kind: "legacySource", source: legacySource },
       valueMode: "iconIdWithSvgFallback",
     });
-    expect(missingTable.icon).toMatchObject({
+    expect(missingRecord.icon).toMatchObject({
       previewSource: "",
       selection: { id: "retired-icon", kind: "missingId" },
       valueMode: "iconId",
@@ -1005,17 +745,6 @@ describe("generated field projection", () => {
       surface: "record",
       transitionOperations,
     });
-    const tableStateDisplay = projectGeneratedDisplayField({
-      density: "compact",
-      fieldConfig: {
-        ...recordField("status", fields.status, "enum"),
-        stateMachine,
-      },
-      occurrence: recordOccurrence("status", "state-table"),
-      recordValue: "new",
-      surface: "table-cell",
-      transitionOperations,
-    });
     const dateDisplay = projectGeneratedDisplayField({
       fieldConfig: recordField("dueDate", fields.dueDate, "date"),
       occurrence: recordOccurrence("dueDate", "date"),
@@ -1099,18 +828,6 @@ describe("generated field projection", () => {
         },
       },
       surface: "record",
-    });
-    expect(tableStateDisplay).toMatchObject({
-      density: "compact",
-      labelVisibility: "hidden",
-      stateMachineFacts: {
-        interaction: {
-          invocationSource: "menuItem",
-          kind: "transitions",
-          transitions: [{ availability: { valid: true } }, { availability: { valid: true } }],
-        },
-      },
-      surface: "table-cell",
     });
   });
 
@@ -1394,14 +1111,6 @@ function asRecordField(field: unknown): RecordFieldContract {
   return field as RecordFieldContract;
 }
 
-function asDisplayField(field: unknown): DisplayFieldContract {
-  if (field === undefined || (field as DisplayFieldContract).mode !== "display") {
-    throw new Error("Expected display field.");
-  }
-
-  return field as DisplayFieldContract;
-}
-
 function createField(
   fieldName: string,
   field: FieldSchema,
@@ -1561,17 +1270,6 @@ const transitionOperations = [
     stateMachine.machine.transitions.find((definition) => definition.key === "reopen")!,
   ),
 ];
-const recordValues = {
-  cost: 12.5,
-  costUnit: "day",
-  hero: "hero.webp",
-  owner: "missing-owner",
-  priority: "normal",
-  status: "archived",
-  summary: "Locked",
-  title: "Committed title",
-  updatedAt: "2026-07-09T00:00:00.000Z",
-};
 const blockSchema = {
   version: 1,
   entities: [

@@ -10,7 +10,10 @@ import type {
   ItemViewSchema,
   ItemViewVariantPresentationSchema,
 } from "@dpeek/formless-schema";
-import { selectAddressableRecordFieldConfig } from "./field-configs.ts";
+import {
+  selectAddressableRecordFieldConfig,
+  selectRecordFieldCommitPolicy,
+} from "./field-configs.ts";
 import type {
   CreateFallbackPresentationConfig,
   CreateUnionPresentationConfig,
@@ -147,7 +150,7 @@ function selectRecordVariantPresentation(
         fieldRef: selectedField.fieldRef,
         field: selectedField.field,
         editor: viewField.editor,
-        commit: viewField.commit,
+        commit: selectRecordFieldCommitPolicy(selectedField.field, viewField.editor),
         writable,
         label: selectedField.label,
         ...(viewField.visibleWhen === undefined ? {} : { visibleWhen: viewField.visibleWhen }),

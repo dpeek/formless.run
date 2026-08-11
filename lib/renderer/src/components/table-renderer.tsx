@@ -8,7 +8,6 @@ import { FieldStatus } from "@astryxdesign/core/FieldStatus";
 import { FormLayout } from "@astryxdesign/core/FormLayout";
 import { HStack } from "@astryxdesign/core/HStack";
 import { Icon } from "@astryxdesign/core/Icon";
-import { IconButton } from "@astryxdesign/core/IconButton";
 import { Layout, LayoutContent, LayoutFooter } from "@astryxdesign/core/Layout";
 import { MoreMenu } from "@astryxdesign/core/MoreMenu";
 import { Spinner } from "@astryxdesign/core/Spinner";
@@ -27,6 +26,7 @@ import {
   type TableDensity,
 } from "@astryxdesign/core/Table";
 import { Text } from "@astryxdesign/core/Text";
+import { Timestamp } from "@astryxdesign/core/Timestamp";
 import { Tooltip } from "@astryxdesign/core/Tooltip";
 import { VisuallyHidden } from "@astryxdesign/core/VisuallyHidden";
 import { VStack } from "@astryxdesign/core/VStack";
@@ -48,10 +48,10 @@ import type {
   OperationPresentationIntent,
   TableActionContract,
   TableActionGroupContract,
+  TableCellValueContract,
   TableCellContentContract,
   TableColumnContract,
   TableContract,
-  TableDisplayValueContract,
   TableEditActionContract,
   TableEditDialogContract,
   TableFooterCellContract,
@@ -61,12 +61,21 @@ import type {
   TableValueStatus,
 } from "@dpeek/formless-presentation/contract";
 import { AstryxCreateSurfaceRenderer } from "./create-renderer.tsx";
+import { ColorValueDisplay, MarkdownFieldDisplay } from "./field-primitives.tsx";
 import { FieldRenderer } from "./fields/field-renderer.tsx";
+import {
+  enumValuePresentationToSelectorVisualOption,
+  hasSelectorOptionVisual,
+  selectorOptionVisual,
+} from "./fields/field-options.tsx";
+import { IconPreview } from "./icon-preview.tsx";
+import { MediaValueDisplay } from "./media-input.tsx";
 import {
   AstryxOperationButton,
   AstryxOperationButtonWithProgress,
   AstryxOperationDestructiveConfirmation,
   AstryxOperationFeedback,
+  AstryxOperationProgress,
   operationIcon,
 } from "./operation-renderer.tsx";
 
@@ -116,11 +125,6 @@ export function AstryxTableRenderer({
 
   return (
     <VStack as="section" aria-label={table.accessibilityLabel} gap={2} width="100%">
-      {table.editing.enabled ? null : (
-        <Text color="secondary" display="block" role="status" type="supporting">
-          {table.editing.disabledReason}
-        </Text>
-      )}
       <Table<AstryxTableRowData>
         columns={columns}
         density={astryxTableDensity(table.density)}
@@ -166,7 +170,6 @@ export function AstryxTableRenderer({
                         onCreateFieldIntent={onCreateFieldIntent}
                         onCreateIntent={onCreateIntent}
                         onOperationIntent={onOperationIntent}
-                        onTableIntent={onTableIntent}
                       />
                     ) : undefined
                   }
@@ -231,13 +234,11 @@ function AstryxTableEmptyStatePrimaryAction({
   onCreateFieldIntent,
   onCreateIntent,
   onOperationIntent,
-  onTableIntent,
 }: {
   action: CollectionEmptyStatePrimaryActionContract;
   onCreateFieldIntent: CreateFieldIntentHandler;
   onCreateIntent: CreateIntentHandler;
   onOperationIntent: AstryxTableOperationIntentHandler;
-  onTableIntent: TableIntentHandler;
 }) {
   return action.kind === "createAction" ? (
     <AstryxCreateSurfaceRenderer
@@ -246,11 +247,7 @@ function AstryxTableEmptyStatePrimaryAction({
       surface={action.surface}
     />
   ) : (
-    <AstryxTablePrimaryAction
-      action={action}
-      onOperationIntent={onOperationIntent}
-      onTableIntent={onTableIntent}
-    />
+    <AstryxTablePrimaryAction action={action} onOperationIntent={onOperationIntent} />
   );
 }
 
@@ -274,7 +271,7 @@ function AstryxTableRows({
   return (
     <>
       <TableRow aria-label={row.accessibilityLabel}>
-        {columns.map((column, columnIndex) => {
+        {columns.map((column) => {
           const cell = requiredAstryxTableCell(row.cells, column.id);
           const content = (
             <HStack
@@ -289,16 +286,12 @@ function AstryxTableRows({
                 <AstryxTableCellContent
                   content={item}
                   contentRole={column.contentRole}
-                  contextId={cell.id}
                   key={astryxTableContentKey(item, index)}
                   onFieldIntent={onFieldIntent}
                   onOperationIntent={onOperationIntent}
                   onTableIntent={onTableIntent}
                 />
               ))}
-              {columnIndex === columns.length - 1 ? (
-                <AstryxTableRowWarningIndicator warnings={row.warnings} />
-              ) : null}
             </HStack>
           );
           const columnHeaderId = astryxTableColumnHeaderId(tableId, column.id);
@@ -328,58 +321,25 @@ function AstryxTableRows({
   );
 }
 
-function AstryxTableRowWarningIndicator({
-  warnings,
-}: {
-  warnings: TableContract["rows"][number]["warnings"];
-}) {
-  if (warnings.length === 0) {
-    return null;
-  }
-
-  const message = warnings
-    .flatMap((warning) => warning.items.map((item) => item.message))
-    .join(" ");
-
-  return (
-    <IconButton
-      icon={<Icon color="warning" icon="warning" size="sm" />}
-      label={`Row warning: ${message}`}
-      size="sm"
-      tooltip={message}
-      variant="ghost"
-    />
-  );
-}
-
 function AstryxTableCellContent({
   content,
   contentRole,
-  contextId,
   onFieldIntent,
   onOperationIntent,
   onTableIntent,
 }: {
   content: TableCellContentContract;
   contentRole: TableColumnContract["contentRole"];
-  contextId: string;
   onFieldIntent: AstryxTableFieldIntentHandler;
   onOperationIntent: AstryxTableOperationIntentHandler;
   onTableIntent: TableIntentHandler;
 }) {
-  if (content.kind === "field") {
-    return (
-      <FieldRenderer
-        field={content.field}
-        onIntent={(intent) =>
-          onFieldIntent(contextId, content.field.fieldId, content.field.recordId, intent)
-        }
-      />
-    );
+  if (content.kind === "cellValue") {
+    return <AstryxTableCellValue value={content} />;
   }
 
-  if (content.kind === "displayValue") {
-    return <AstryxTableDisplayValue value={content} />;
+  if (content.kind === "invalidValue") {
+    return <AstryxTableInvalidValue accessibilityLabel={content.accessibilityLabel} />;
   }
 
   if (content.kind === "unavailable") {
@@ -411,6 +371,10 @@ function AstryxTableCellContent({
     return <AstryxTableOrdering onTableIntent={onTableIntent} ordering={content} />;
   }
 
+  if (content.kind === "nativeLinkAction") {
+    return <AstryxNativeLinkAction action={content} />;
+  }
+
   return (
     <AstryxTableActionGroup
       actionGroup={content}
@@ -421,21 +385,92 @@ function AstryxTableCellContent({
   );
 }
 
-function AstryxTableDisplayValue({ value }: { value: TableDisplayValueContract }) {
-  return (
-    <VStack aria-label={value.accessibilityLabel} gap={0.5} width="100%">
-      <HStack align="center" gap={0.5} wrap="wrap">
-        {value.status.kind === "pending" ? (
-          <Spinner
-            aria-label={value.status.label ?? value.accessibilityLabel}
-            shade="subtle"
-            size="sm"
-          />
-        ) : null}
-        <AstryxTableValueText displayValue={value.displayValue} suffix={value.suffix} />
-        <AstryxTableValueStatus status={value.status} />
+function AstryxTableCellValue({ value }: { value: TableCellValueContract }) {
+  const presentation = value.presentation;
+
+  if (presentation.kind === "markdown") {
+    return <MarkdownFieldDisplay density="compact" value={value.displayValue} />;
+  }
+
+  if (presentation.kind === "color") {
+    return (
+      <ColorValueDisplay
+        density="compact"
+        label={value.accessibilityLabel}
+        swatchValue={presentation.swatch}
+      />
+    );
+  }
+
+  if (presentation.kind === "icon") {
+    return (
+      <IconPreview label={value.accessibilityLabel} size="compact" source={presentation.source} />
+    );
+  }
+
+  if (presentation.kind === "media") {
+    return (
+      <MediaValueDisplay
+        density="compact"
+        label={value.accessibilityLabel}
+        previewUrl={presentation.previewHref}
+        value={presentation.previewHref}
+      />
+    );
+  }
+
+  if (presentation.kind === "enum" || presentation.kind === "state") {
+    const option = enumValuePresentationToSelectorVisualOption(
+      presentation.value,
+      value.displayValue,
+    );
+    const showVisual = presentation.content === "icon" && hasSelectorOptionVisual(option);
+
+    return (
+      <HStack aria-label={showVisual ? value.accessibilityLabel : undefined} align="center" gap={1}>
+        {showVisual ? selectorOptionVisual(option) : null}
+        {showVisual ? <VisuallyHidden>{value.accessibilityLabel}</VisuallyHidden> : null}
+        {showVisual ? null : (
+          <AstryxTableValueText displayValue={presentation.value.label} suffix={value.suffix} />
+        )}
       </HStack>
-    </VStack>
+    );
+  }
+
+  if (presentation.kind === "temporal") {
+    const temporal = presentation.temporal;
+    return (
+      <HStack aria-label={value.accessibilityLabel} align="center" gap={1} wrap="wrap">
+        <Timestamp
+          format={temporal.kind === "date" ? "date" : "date_time"}
+          type="body"
+          value={temporal.kind === "date" ? `${temporal.value}T00:00:00` : temporal.value}
+        />
+        {value.suffix ? (
+          <Text color="secondary" textWrap="nowrap" type="body">
+            {value.suffix}
+          </Text>
+        ) : null}
+      </HStack>
+    );
+  }
+
+  return (
+    <div aria-label={value.accessibilityLabel}>
+      <AstryxTableValueText displayValue={value.displayValue} suffix={value.suffix} />
+    </div>
+  );
+}
+
+function AstryxTableInvalidValue({ accessibilityLabel }: { accessibilityLabel: string }) {
+  return (
+    <span
+      aria-label={accessibilityLabel}
+      role="status"
+      {...stylex.props(styles.issueIndicator, styles.warningIndicator)}
+    >
+      <Icon color="warning" icon="warning" size="sm" />
+    </span>
   );
 }
 
@@ -505,34 +540,23 @@ function AstryxTableActionGroup({
   onOperationIntent: AstryxTableOperationIntentHandler;
   onTableIntent: TableIntentHandler;
 }) {
-  const actions = [...actionGroup.primary, ...actionGroup.secondary];
-  const secondaryItems = astryxTableSecondaryActionItems(
-    actionGroup.secondary,
-    onOperationIntent,
-    onTableIntent,
+  const items = astryxTableActionItems(actionGroup.actions, onOperationIntent, onTableIntent);
+  const isPending = actionGroup.actions.some(
+    (action) =>
+      action.kind === "operationAction" && Boolean(action.control.trigger.pending?.isPending),
   );
 
   return (
     <>
-      <HStack align="center" gap={1} wrap="wrap">
-        {actionGroup.primary.map((action) => (
-          <AstryxTablePrimaryAction
-            action={action}
-            key={astryxTableActionId(action)}
-            onOperationIntent={onOperationIntent}
-            onTableIntent={onTableIntent}
-          />
-        ))}
-        {secondaryItems.length > 0 ? (
-          <DropdownMenu
-            button={astryxTableSecondaryMenuButton(actionGroup.secondaryAccessibilityLabel)}
-            className={stableClassName("more-menu")}
-            hasChevron={false}
-            items={secondaryItems}
-          />
-        ) : null}
-      </HStack>
-      {actions.map((action) => (
+      {items.length > 0 ? (
+        <DropdownMenu
+          button={astryxTableMoreOptionsMenuButton(actionGroup.accessibilityLabel, isPending)}
+          className={stableClassName("more-menu")}
+          hasChevron={false}
+          items={items}
+        />
+      ) : null}
+      {actionGroup.actions.map((action) => (
         <AstryxTableActionEffects
           action={action}
           key={`${astryxTableActionId(action)}:effects`}
@@ -548,50 +572,20 @@ function AstryxTableActionGroup({
 function AstryxTablePrimaryAction({
   action,
   onOperationIntent,
-  onTableIntent,
 }: {
-  action: TableActionContract;
+  action: TableOperationActionContract;
   onOperationIntent: AstryxTableOperationIntentHandler;
-  onTableIntent: TableIntentHandler;
 }) {
-  if (action.kind === "nativeLinkAction") {
-    return <AstryxNativeLinkAction action={action} />;
-  }
+  const onIntent = (intent: OperationPresentationIntent) => onOperationIntent(action, intent);
 
-  if (action.kind === "operationAction") {
-    const onIntent = (intent: OperationPresentationIntent) => onOperationIntent(action, intent);
-
-    return action.control.progress ? (
-      <AstryxOperationButtonWithProgress
-        button={action.control.trigger}
-        onIntent={onIntent}
-        progress={action.control.progress}
-      />
-    ) : (
-      <AstryxOperationButton button={action.control.trigger} onIntent={onIntent} />
-    );
-  }
-
-  const button = action.trigger;
-
-  return (
-    <Button
-      icon={astryxTableButtonIcon(button)}
-      isDisabled={astryxTableButtonDisabled(button)}
-      isIconOnly={button.content.kind === "iconOnly"}
-      isLoading={Boolean(button.pending?.isPending)}
-      label={button.accessibilityLabel}
-      onClick={() => dispatchAstryxTableAction(action, onOperationIntent, onTableIntent)}
-      size={button.density === "compact" ? "sm" : "md"}
-      tooltip={
-        button.disabledReason ??
-        (button.content.kind === "iconOnly" ? button.accessibilityLabel : undefined)
-      }
-      type={button.type}
-      variant={astryxTableButtonVariant(button.prominence)}
-    >
-      {button.content.kind === "iconOnly" ? undefined : astryxTableButtonLabel(button)}
-    </Button>
+  return action.control.progress ? (
+    <AstryxOperationButtonWithProgress
+      button={action.control.trigger}
+      onIntent={onIntent}
+      progress={action.control.progress}
+    />
+  ) : (
+    <AstryxOperationButton button={action.control.trigger} onIntent={onIntent} />
   );
 }
 
@@ -634,6 +628,9 @@ function AstryxTableActionEffects({
             onIntent={(intent) => onOperationIntent(action, intent)}
           />
         ) : null}
+        {action.control.progress && action.control.trigger.pending?.isPending ? (
+          <AstryxOperationProgress progress={action.control.progress} />
+        ) : null}
         <AstryxOperationFeedback feedback={action.control.feedback} />
       </>
     );
@@ -643,7 +640,6 @@ function AstryxTableActionEffects({
     <AstryxTableEditDialog
       action={action}
       onFieldIntent={onFieldIntent}
-      onOperationIntent={onOperationIntent}
       onTableIntent={onTableIntent}
     />
   ) : null;
@@ -652,12 +648,10 @@ function AstryxTableActionEffects({
 function AstryxTableEditDialog({
   action,
   onFieldIntent,
-  onOperationIntent,
   onTableIntent,
 }: {
   action: TableEditActionContract;
   onFieldIntent: AstryxTableFieldIntentHandler;
-  onOperationIntent: AstryxTableOperationIntentHandler;
   onTableIntent: TableIntentHandler;
 }) {
   const { dialog } = action;
@@ -686,6 +680,9 @@ function AstryxTableEditDialog({
               <FieldStatus message={target.message} type="warning" variant="detached" />
             ) : (
               <VStack gap={3}>
+                {dialog.warning ? (
+                  <FieldStatus message={dialog.warning} type="warning" variant="detached" />
+                ) : null}
                 {target.fieldSet.disabledReason ? (
                   <Text color="secondary" display="block" role="status" type="supporting">
                     {target.fieldSet.disabledReason}
@@ -712,14 +709,6 @@ function AstryxTableEditDialog({
                 {target.fieldSet.errors?.map((error) => (
                   <FieldStatus key={error} message={error} type="error" variant="detached" />
                 ))}
-                {target.actionGroup ? (
-                  <AstryxTableActionGroup
-                    actionGroup={target.actionGroup}
-                    onFieldIntent={onFieldIntent}
-                    onOperationIntent={onOperationIntent}
-                    onTableIntent={onTableIntent}
-                  />
-                ) : null}
               </VStack>
             )}
           </LayoutContent>
@@ -822,14 +811,24 @@ export function astryxTableDensity(density: TableContract["density"]): TableDens
   return density === "compact" ? "compact" : "spacious";
 }
 
-export function astryxTableSecondaryActionItems(
+export function astryxTableActionItems(
   actions: readonly TableActionContract[],
   onOperationIntent: AstryxTableOperationIntentHandler,
   onTableIntent: TableIntentHandler,
 ): DropdownMenuOption[] {
   return actions.flatMap((action): DropdownMenuOption[] => {
-    if (action.kind === "nativeLinkAction") {
-      return [];
+    if (action.kind === "orderingAction") {
+      if (action.disabled && !action.pending?.isPending) {
+        return [];
+      }
+
+      return [
+        {
+          isDisabled: astryxTableOrderingActionDisabled(action),
+          label: action.pending?.label ?? action.label,
+          onClick: () => dispatchAstryxTableAction(action, onOperationIntent, onTableIntent),
+        },
+      ];
     }
 
     const button = astryxTableActionButton(action);
@@ -845,10 +844,11 @@ export function astryxTableSecondaryActionItems(
   });
 }
 
-export function astryxTableSecondaryMenuButton(label: string) {
+export function astryxTableMoreOptionsMenuButton(label: string, isPending = false) {
   return {
     icon: <Icon color="inherit" icon="moreHorizontal" size="sm" />,
     isIconOnly: true,
+    isLoading: isPending,
     label,
     size: "sm" as const,
     tooltip: "More options",
@@ -861,7 +861,7 @@ export function astryxTableOrderingItems(
   onTableIntent: TableIntentHandler,
 ): DropdownMenuOption[] {
   return ordering.actions
-    .filter((action) => !action.disabled)
+    .filter((action) => !action.disabled || action.pending?.isPending)
     .map((action) => ({
       isDisabled: astryxTableOrderingActionDisabled(action),
       label: action.pending?.label ?? action.label,
@@ -889,7 +889,10 @@ export function dispatchAstryxTableAction(
   onOperationIntent: AstryxTableOperationIntentHandler,
   onTableIntent: TableIntentHandler,
 ) {
-  if (action.kind === "nativeLinkAction") {
+  if (action.kind === "orderingAction") {
+    if (!astryxTableOrderingActionDisabled(action)) {
+      void onTableIntent(action.intent);
+    }
     return;
   }
 
@@ -904,7 +907,7 @@ export function dispatchAstryxTableAction(
     return;
   }
 
-  void onTableIntent(action.kind === "editAction" ? action.openIntent : action.intent);
+  void onTableIntent(action.openIntent);
 }
 
 export function astryxTableButtonVariant(prominence: ButtonContract["prominence"]): ButtonVariant {
@@ -940,8 +943,8 @@ function astryxTableCellStyle(
 }
 
 function astryxTableActionButton(action: TableActionContract) {
-  if (action.kind === "nativeLinkAction") {
-    throw new Error("Native links do not expose table action buttons.");
+  if (action.kind === "orderingAction") {
+    throw new Error("Ordering actions do not expose table action buttons.");
   }
 
   return action.kind === "operationAction" ? action.control.trigger : action.trigger;
@@ -976,7 +979,7 @@ function astryxTableOrderingActionDisabled(action: TableOrderingContract["action
 }
 
 function astryxTableActionId(action: TableActionContract) {
-  if (action.kind === "nativeLinkAction") {
+  if (action.kind === "orderingAction") {
     return action.id;
   }
 
@@ -984,11 +987,11 @@ function astryxTableActionId(action: TableActionContract) {
 }
 
 function astryxTableContentKey(content: TableCellContentContract, index: number) {
-  if (content.kind === "field") {
-    return content.field.fieldId;
+  if (content.kind === "actionGroup") {
+    return content.id;
   }
 
-  if (content.kind === "actionGroup") {
+  if (content.kind === "nativeLinkAction") {
     return content.id;
   }
 
@@ -1045,7 +1048,6 @@ const styles = stylex.create({
   issueIndicator: {
     alignItems: "center",
     borderRadius: radiusVars["--radius-element"],
-    cursor: "help",
     display: "inline-flex",
     flexShrink: 0,
     justifyContent: "center",

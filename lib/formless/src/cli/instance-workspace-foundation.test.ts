@@ -121,7 +121,7 @@ describe("TypeScript workspace configuration", () => {
         {
           key: "verificationItem",
           entity: "verification",
-          fields: [{ field: "reference", editor: "text", commit: "field-commit" }],
+          fields: [{ field: "reference", editor: "text" }],
         },
       ],
       views: [

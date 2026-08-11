@@ -1,26 +1,25 @@
 import type {
   ButtonContract,
   CollectionEmptyStatePrimaryActionContract,
+  DisplayFieldContract,
   FieldContract,
   NativeLinkActionContract,
   OperationControlContract,
   SemanticIconId,
   TableActionContract,
   TableActionGroupContract,
+  TableCellValueContract,
   TableCellContentContract,
   TableColumnContentRole,
   TableColumnContract,
   TableContract,
-  TableDisplayValueContract,
   TableEditActionContract,
-  TableFieldContentContract,
-  TableInvokeActionContract,
+  TableInvalidCellValueContract,
   TableOperationActionContract,
   TableOrderingContract,
   TableRowContract,
   TableValueStatus,
 } from "@dpeek/formless-presentation/contract";
-import type { RecordReadinessWarning } from "../../client/readiness.ts";
 import type { OrderingMoveMenuItem } from "./ordering-ui.ts";
 import type {
   GeneratedTableColumnPresentation,
@@ -31,7 +30,6 @@ import type {
 export type GeneratedTableRowProjectionFacts = {
   accessibilityLabel?: string;
   contentsByColumnId: Readonly<Record<string, readonly TableCellContentContract[] | undefined>>;
-  readinessWarnings?: readonly RecordReadinessWarning[];
 };
 
 export type GeneratedTableFooterValueProjection = {
@@ -43,7 +41,6 @@ export type GeneratedTableFooterValueProjection = {
 export type ProjectGeneratedTableContractOptions = {
   accessibilityLabel: string;
   density?: TableContract["density"];
-  editingDisabledReason?: string;
   emptyStateAction?: CollectionEmptyStatePrimaryActionContract;
   emptyStateDescription?: string;
   footerValuesByColumnId?: Readonly<
@@ -52,27 +49,6 @@ export type ProjectGeneratedTableContractOptions = {
   id: string;
   presentation: GeneratedTablePresentation;
   rowsByRecordId: Readonly<Record<string, GeneratedTableRowProjectionFacts | undefined>>;
-};
-
-export type GeneratedTablePlacedAction = {
-  action: TableActionContract;
-  placement: "primary" | "secondary";
-};
-
-export type ProjectGeneratedTableInvokeActionOptions = {
-  actionId: string;
-  disabled?: boolean;
-  disabledReason?: string;
-  icon?: SemanticIconId;
-  invocationSource: "button" | "menuItem";
-  label: string;
-  operationName?: string;
-  pending?: boolean;
-  pendingLabel?: string;
-  prominence?: ButtonContract["prominence"];
-  role: TableInvokeActionContract["role"];
-  rowId: string;
-  tableId: string;
 };
 
 export type ProjectGeneratedNativeLinkActionOptions = {
@@ -93,7 +69,6 @@ export type ProjectGeneratedNativeLinkActionOptions = {
 };
 
 export type ProjectGeneratedTableEditActionOptions = {
-  actionGroup?: TableActionGroupContract;
   actionId: string;
   description?: string;
   dialogId: string;
@@ -117,6 +92,7 @@ export type ProjectGeneratedTableEditActionOptions = {
       };
   targetKind: "reference" | "row";
   title: string;
+  warning?: string;
 };
 
 export type ProjectGeneratedTableOrderingOptions = {
@@ -130,7 +106,6 @@ export type ProjectGeneratedTableOrderingOptions = {
 export function projectGeneratedTableContract({
   accessibilityLabel,
   density = "compact",
-  editingDisabledReason = "Editing is disabled.",
   emptyStateAction,
   emptyStateDescription,
   footerValuesByColumnId = {},
@@ -140,7 +115,6 @@ export function projectGeneratedTableContract({
 }: ProjectGeneratedTableContractOptions): TableContract {
   const rows = presentation.rows.map((row): TableRowContract => {
     const facts = rowsByRecordId[row.recordId];
-    const readinessWarnings = facts?.readinessWarnings ?? [];
 
     return {
       accessibilityLabel: facts?.accessibilityLabel ?? row.recordId,
@@ -152,17 +126,6 @@ export function projectGeneratedTableContract({
       })),
       id: row.id,
       kind: "tableRow",
-      warnings:
-        readinessWarnings.length === 0
-          ? []
-          : [
-              {
-                id: row.readinessWarning.id,
-                items: readinessWarnings.map(({ code, message }) => ({ code, message })),
-                kind: "tableWarning",
-                title: "Readiness warnings",
-              },
-            ],
     };
   });
 
@@ -170,9 +133,6 @@ export function projectGeneratedTableContract({
     accessibilityLabel,
     columns: presentation.columns.map(projectTableColumn),
     density,
-    editing: presentation.editingDisabled
-      ? { disabledReason: editingDisabledReason, enabled: false }
-      : { enabled: true },
     ...(presentation.emptyState.visible
       ? {
           emptyState: {
@@ -202,53 +162,118 @@ export function projectGeneratedTableContract({
   };
 }
 
-export function projectGeneratedTableFieldContent(
-  field: FieldContract,
-  source: TableFieldContentContract["source"] = "record",
-): TableFieldContentContract {
+export function projectGeneratedTableCellValue(
+  field: DisplayFieldContract,
+  suffix = field.formatting.suffix ?? field.suffix,
+): TableCellValueContract {
+  const displayValue = field.formatting.displayValue || "—";
+
   return {
-    field,
-    kind: "field",
-    source,
+    accessibilityLabel: `${field.label}: ${displayValue}`,
+    displayValue,
+    kind: "cellValue",
+    presentation: tableCellValuePresentation(field),
+    ...(suffix === undefined || suffix === "" ? {} : { suffix }),
   };
 }
 
 export function projectGeneratedTableDisplayValue({
   accessibilityLabel,
   displayValue,
-  status = { kind: "ready" },
   suffix,
-  valueKind,
-}: Omit<TableDisplayValueContract, "kind" | "status"> & {
-  status?: TableValueStatus;
-}): TableDisplayValueContract {
+}: {
+  accessibilityLabel: string;
+  displayValue: string;
+  suffix?: string;
+}): TableCellValueContract {
   return {
     accessibilityLabel,
     displayValue,
-    kind: "displayValue",
-    status,
+    kind: "cellValue",
+    presentation: { kind: "computed" },
     ...(suffix === undefined ? {} : { suffix }),
-    valueKind,
   };
 }
 
+export function projectGeneratedTableInvalidValue(
+  accessibilityLabel: string,
+): TableInvalidCellValueContract {
+  return {
+    accessibilityLabel,
+    kind: "invalidValue",
+  };
+}
+
+function tableCellValuePresentation(
+  field: DisplayFieldContract,
+): TableCellValueContract["presentation"] {
+  if (field.stateMachineFacts !== undefined && field.formatting.enumValuePresentation) {
+    return {
+      content: field.enum?.kind === "display" ? field.enum.content : "label",
+      kind: "state",
+      value: field.formatting.enumValuePresentation,
+    };
+  }
+
+  if (field.control.kind === "date" || field.formatting.temporal !== undefined) {
+    return field.formatting.temporal === undefined
+      ? { kind: "text" }
+      : { kind: "temporal", temporal: field.formatting.temporal };
+  }
+
+  if (field.control.kind === "number") {
+    return { kind: "number" };
+  }
+
+  if (field.control.kind === "boolean") {
+    return { kind: "boolean" };
+  }
+
+  if (field.control.kind === "enum" && field.formatting.enumValuePresentation) {
+    return {
+      content: field.enum?.kind === "display" ? field.enum.content : "label",
+      kind: "enum",
+      value: field.formatting.enumValuePresentation,
+    };
+  }
+
+  if (field.control.kind === "reference") {
+    return { kind: "reference" };
+  }
+
+  if (field.control.controlKind === "color" && field.color?.swatch.kind === "hex") {
+    return { kind: "color", swatch: field.color.swatch.value };
+  }
+
+  if (field.control.controlKind === "media" && field.media?.previewHref) {
+    return { kind: "media", previewHref: field.media.previewHref };
+  }
+
+  if (field.control.controlKind === "markdown") {
+    return { kind: "markdown" };
+  }
+
+  if (field.control.controlKind === "icon" && field.icon?.previewSource) {
+    return { kind: "icon", source: field.icon.previewSource };
+  }
+
+  return { kind: "text" };
+}
+
 export function projectGeneratedTableActionGroup({
+  accessibilityLabel,
   actions,
   id,
-  secondaryAccessibilityLabel,
 }: {
-  actions: readonly GeneratedTablePlacedAction[];
+  accessibilityLabel: string;
+  actions: readonly TableActionContract[];
   id: string;
-  secondaryAccessibilityLabel: string;
 }): TableActionGroupContract {
   return {
+    accessibilityLabel,
+    actions,
     id,
     kind: "actionGroup",
-    primary: actions.filter(({ placement }) => placement === "primary").map(({ action }) => action),
-    secondary: actions
-      .filter(({ placement }) => placement === "secondary")
-      .map(({ action }) => action),
-    secondaryAccessibilityLabel,
   };
 }
 
@@ -256,8 +281,16 @@ export function projectGeneratedTableOperationAction(
   control: OperationControlContract,
   role: TableOperationActionContract["role"],
 ): TableOperationActionContract {
+  const trigger =
+    control.trigger.intent.type === "operationInvoke"
+      ? {
+          ...control.trigger,
+          intent: { ...control.trigger.intent, invocationSource: "menuItem" as const },
+        }
+      : control.trigger;
+
   return {
-    control,
+    control: { ...control, trigger },
     kind: "operationAction",
     role,
   };
@@ -289,47 +322,7 @@ export function projectGeneratedNativeLinkAction({
       };
 }
 
-export function projectGeneratedTableInvokeAction({
-  actionId,
-  disabled = false,
-  disabledReason,
-  icon,
-  invocationSource,
-  label,
-  operationName,
-  pending = false,
-  pendingLabel,
-  prominence = "secondary",
-  role,
-  rowId,
-  tableId,
-}: ProjectGeneratedTableInvokeActionOptions): TableInvokeActionContract {
-  return {
-    intent: {
-      actionId,
-      invocationSource,
-      ...(operationName === undefined ? {} : { operationName }),
-      rowId,
-      tableId,
-      type: "tableActionInvoke",
-    },
-    kind: "invokeAction",
-    role,
-    trigger: tableActionButton({
-      actionId,
-      disabled: disabled || pending,
-      disabledReason: pending ? (pendingLabel ?? "Action in progress") : disabledReason,
-      icon,
-      label,
-      pending,
-      pendingLabel,
-      prominence,
-    }),
-  };
-}
-
 export function projectGeneratedTableEditAction({
-  actionGroup,
   actionId,
   description,
   dialogId,
@@ -344,6 +337,7 @@ export function projectGeneratedTableEditAction({
   target,
   targetKind,
   title,
+  warning,
 }: ProjectGeneratedTableEditActionOptions): TableEditActionContract {
   const openIntent = {
     dialogId,
@@ -373,7 +367,6 @@ export function projectGeneratedTableEditAction({
         target.kind === "unavailable"
           ? target
           : {
-              ...(actionGroup === undefined ? {} : { actionGroup }),
               fieldSet: {
                 disabled: !target.editingEnabled,
                 ...(!target.editingEnabled && target.disabledReason !== undefined
@@ -388,6 +381,7 @@ export function projectGeneratedTableEditAction({
             },
       targetKind,
       title,
+      ...(warning === undefined ? {} : { warning }),
     },
     kind: "editAction",
     openIntent,
@@ -439,6 +433,7 @@ export function projectGeneratedTableOrdering({
           tableId,
           type: "tableReorder",
         },
+        kind: "orderingAction" as const,
         label: item.label,
         ...(pending ? { pending: { isPending: true, label: "Ordering in progress" } } : {}),
       };
@@ -450,38 +445,21 @@ export function projectGeneratedTableOrdering({
 }
 
 function projectTableColumn(column: GeneratedTableColumnPresentation): TableColumnContract {
-  const columnConfig = column.type === "data" ? column.column : undefined;
-
+  const columnConfig = column.column;
   return {
     accessibilityLabel: column.header.accessibleLabel,
-    alignment:
-      column.type === "delete" || column.type === "transition"
-        ? "end"
-        : (columnConfig?.align ?? "start"),
+    alignment: columnConfig.align ?? "start",
     contentRole: tableColumnContentRole(column),
     id: column.id,
     isRowHeader: column.isRowHeader,
     kind: "tableColumn",
     label: column.header.label,
     labelVisibility: column.header.isVisuallyHidden ? "hidden" : "visible",
-    width:
-      column.type === "delete"
-        ? "xs"
-        : column.type === "transition"
-          ? "md"
-          : (columnConfig?.width ?? "auto"),
+    width: columnConfig.width ?? "auto",
   };
 }
 
 function tableColumnContentRole(column: GeneratedTableColumnPresentation): TableColumnContentRole {
-  if (column.type === "delete") {
-    return "delete";
-  }
-
-  if (column.type === "transition") {
-    return "actions";
-  }
-
   if (column.column.type === "computed") {
     return "computed";
   }
@@ -509,6 +487,16 @@ function tableColumnContentRole(column: GeneratedTableColumnPresentation): Table
 }
 
 function missingCellContent(column: GeneratedTableColumnPresentation) {
+  if (
+    column.column.type === "field" ||
+    column.column.type === "referenceField" ||
+    column.column.type === "computed"
+  ) {
+    return projectGeneratedTableInvalidValue(
+      `${column.header.accessibleLabel} value is invalid or unavailable.`,
+    );
+  }
+
   return {
     accessibilityLabel: `${column.header.accessibleLabel} unavailable`,
     kind: "unavailable" as const,
@@ -553,17 +541,13 @@ function tableActionButton({
   disabledReason,
   icon,
   label,
-  pending = false,
-  pendingLabel,
   prominence,
 }: {
   actionId: string;
   disabled: boolean;
   disabledReason?: string;
-  icon?: ProjectGeneratedTableInvokeActionOptions["icon"];
+  icon?: SemanticIconId;
   label: string;
-  pending?: boolean;
-  pendingLabel?: string;
   prominence: ButtonContract["prominence"];
 }): ButtonContract {
   return tableButton({
@@ -573,9 +557,6 @@ function tableActionButton({
     ...(disabled ? { disabled: true } : {}),
     ...(disabledReason === undefined ? {} : { disabledReason }),
     id: actionId,
-    ...(pending
-      ? { pending: { isPending: true, ...(pendingLabel ? { label: pendingLabel } : {}) } }
-      : {}),
     prominence,
   });
 }

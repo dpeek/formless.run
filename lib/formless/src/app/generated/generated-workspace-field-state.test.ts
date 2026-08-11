@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
-  createGeneratedTableFieldContextState,
-  rebaseGeneratedTableFieldContextState,
-  type GeneratedTableFieldContext,
+  createGeneratedTableEditContextState,
+  rebaseGeneratedTableEditContextState,
+  type GeneratedTableEditContext,
 } from "./generated-table-foundation.tsx";
 import { mergeGeneratedWorkspaceRecordFieldState } from "./generated-workspace-field-state.ts";
 
@@ -25,9 +25,9 @@ describe("generated workspace field state", () => {
 
   it("rebases stale table authoring state from the latest replica record", () => {
     const original = taskContext("2026-07-15T00:00:00.000Z", false);
-    const stale = createGeneratedTableFieldContextState(original);
+    const stale = createGeneratedTableEditContextState(original);
     const updated = taskContext("2026-07-16T00:00:00.000Z", true);
-    const rebased = rebaseGeneratedTableFieldContextState(updated, stale);
+    const rebased = rebaseGeneratedTableEditContextState(updated, stale);
 
     expect(rebased).not.toBe(stale);
     expect(rebased.baselineUpdatedAt).toBe(updated.record.updatedAt);
@@ -35,7 +35,7 @@ describe("generated workspace field state", () => {
   });
 });
 
-function taskContext(updatedAt: string, done: boolean): GeneratedTableFieldContext {
+function taskContext(updatedAt: string, done: boolean): GeneratedTableEditContext {
   return {
     entityName: "task",
     fields: [],

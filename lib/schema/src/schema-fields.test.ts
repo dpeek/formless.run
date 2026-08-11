@@ -65,7 +65,6 @@ describe("schema fields", () => {
             {
               field: "priority",
               editor: "enum",
-              commit: "immediate",
               presentation: { list: "both", mode: "iconOnly", trigger: "icon" },
             },
           ],
@@ -157,7 +156,6 @@ describe("schema fields", () => {
               {
                 field: "title",
                 editor: "text",
-                commit: "field-commit",
                 presentation: { mode: "iconOnly" },
               },
             ],

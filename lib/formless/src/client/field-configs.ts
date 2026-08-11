@@ -1,8 +1,11 @@
 import {
   findAddressableField,
   getEntityFieldCatalog,
+  getFieldTypeBehavior,
   isSystemFieldName,
   type EntitySchema,
+  type FieldCommitPolicy,
+  type FieldEditor,
   type FieldRef,
   type FieldSchema,
 } from "@dpeek/formless-schema";
@@ -50,4 +53,15 @@ export function selectAddressableRecordFieldConfig(
     writable: false,
     label: catalogField?.label ?? fieldName,
   };
+}
+
+export function selectRecordFieldCommitPolicy(
+  field: FieldSchema,
+  editor: FieldEditor,
+): FieldCommitPolicy {
+  const behavior = getFieldTypeBehavior(field);
+  if (!behavior.editors.includes(editor)) {
+    throw new Error(`Editor "${editor}" is not valid for field type "${field.type}".`);
+  }
+  return behavior.defaultCommit;
 }

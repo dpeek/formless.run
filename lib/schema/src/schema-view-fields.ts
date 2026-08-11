@@ -4,9 +4,9 @@ import {
   isRecord,
   parseRequiredNonEmptyString,
 } from "./schema-parse-helpers.ts";
-import { parseFieldCommitPolicy, parseFieldEditor } from "./schema-view-field-parser.ts";
+import { parseFieldEditor } from "./schema-view-field-parser.ts";
 import { isSystemFieldName } from "./fields.ts";
-import { getFieldTypeBehavior, isFieldCommitPolicy, isFieldEditor } from "./field-types.ts";
+import { getFieldTypeBehavior, isFieldEditor } from "./field-types.ts";
 import type {
   CreateViewFieldSchema,
   CreateViewFieldBindingSchema,
@@ -53,14 +53,7 @@ function parseListViewField(
   if (!isRecord(value)) {
     throw new Error(`View field "${viewName}.${fieldName}" must be an object.`);
   }
-  const allowedKeys = new Set([
-    "field",
-    "interaction",
-    "editor",
-    "commit",
-    "visibleWhen",
-    "presentation",
-  ]);
+  const allowedKeys = new Set(["field", "interaction", "editor", "visibleWhen", "presentation"]);
   for (const key of Object.keys(value)) {
     if (!allowedKeys.has(key)) {
       throw new Error(`View field "${viewName}.${fieldName}" has unsupported key "${key}".`);
@@ -93,20 +86,8 @@ function parseListViewField(
             : value.editor,
           field,
         );
-  const commit =
-    field === undefined
-      ? parseSystemFieldCommitPolicy(context, value.commit)
-      : parseFieldCommitPolicy(
-          context,
-          interaction === "display" && value.commit === undefined
-            ? getFieldTypeBehavior(field).defaultCommit
-            : value.commit,
-          field,
-        );
-
   return {
     editor,
-    commit,
     ...(interaction === undefined ? {} : { interaction }),
     ...(visibleWhen === undefined ? {} : { visibleWhen }),
     ...(presentation === undefined ? {} : { presentation }),
@@ -188,18 +169,6 @@ function parseSystemFieldEditor(context: string, value: unknown): "text" {
   }
 
   return "text";
-}
-
-function parseSystemFieldCommitPolicy(context: string, value: unknown): "field-commit" {
-  if (value === undefined) {
-    return "field-commit";
-  }
-
-  if (!isFieldCommitPolicy(value)) {
-    throw new Error(`${context} has unsupported commit policy "${formatUnknownValue(value)}".`);
-  }
-
-  return "field-commit";
 }
 
 export function parseOptionalFieldPresentation(

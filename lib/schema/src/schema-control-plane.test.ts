@@ -166,8 +166,8 @@ function controlPlaneTaskSchema() {
         key: "taskItem",
         entity: "task",
         fields: [
-          { field: "title", editor: "text", commit: "field-commit" },
-          { field: "done", editor: "boolean", commit: "immediate" },
+          { field: "title", editor: "text" },
+          { field: "done", editor: "boolean" },
         ],
       },
     ],

@@ -50,7 +50,6 @@ export const booleanScenarioGroups = [
     projectField: projectCreateBooleanField,
   }),
   existingBooleanGroup("record"),
-  existingBooleanGroup("table-cell"),
   existingBooleanGroup("detail"),
   projectScenarioGroup({
     id: "boolean-operation",
@@ -60,7 +59,7 @@ export const booleanScenarioGroups = [
   }),
 ] satisfies readonly FieldScenarioGroup[];
 
-function existingBooleanGroup(surface: Extract<FieldSurface, "detail" | "record" | "table-cell">) {
+function existingBooleanGroup(surface: Extract<FieldSurface, "detail" | "record">) {
   return projectScenarioGroup({
     id: `boolean-${surface}`,
     kind: "boolean",
@@ -114,7 +113,7 @@ function projectOperationBooleanField({ facets }: FieldScenarioProjectionContext
 }
 
 function projectExistingBooleanField(
-  surface: Extract<FieldSurface, "detail" | "record" | "table-cell">,
+  surface: Extract<FieldSurface, "detail" | "record">,
   { facets }: FieldScenarioProjectionContext,
 ) {
   const required = facets.requiredness === "required";
@@ -137,14 +136,14 @@ function projectExistingBooleanField(
   return facets.mode === "display"
     ? displayField({
         ...common,
-        density: surface === "table-cell" ? "compact" : "default",
+        density: "default",
         formatting: { displayValue: value === undefined ? "" : value ? "Yes" : "No" },
         value,
       })
     : recordField({
         ...common,
         commit: "immediate",
-        density: surface === "table-cell" ? "compact" : "default",
+        density: "default",
         drafts: recordDrafts({ recordValue: value }),
         formatting: { displayValue: value ? "Yes" : "No" },
         rendererKind: "checkbox",

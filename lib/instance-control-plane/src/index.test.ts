@@ -763,7 +763,7 @@ describe("instance control-plane schema contracts", () => {
       schema.entities.find((definition) => definition.key === "deploy-drift-report")!,
     ).toBeUndefined();
   });
-  it("marks generated route editor fields by ownership", () => {
+  it("projects route fields and binds editing through one table operation placement", () => {
     const schema = instanceControlPlaneSchema;
     const routeTable = schema.tableViews.find((definition) => definition.key === "routeTable")!;
     const routesScreen = schema.screens.find(
@@ -796,18 +796,18 @@ describe("instance control-plane schema contracts", () => {
       editView: "routeEdit",
     });
     expect(routeTable?.columns).toMatchObject([
-      { field: "enabled", display: "editor" },
-      { field: "matchHost", display: "readOnly" },
-      { field: "matchPath", display: "readOnly" },
-      { field: "matchPrefix", display: "readOnly" },
-      { field: "kind", display: "readOnly" },
-      { field: "targetProfile", display: "readOnly" },
-      { field: "surface", display: "readOnly" },
-      { field: "access", display: "readOnly" },
-      { field: "toHost", display: "readOnly" },
-      { field: "toUrl", display: "readOnly" },
-      { field: "statusCode", display: "readOnly" },
-      { type: "operationControl", operations: ["route.update"] },
+      { field: "enabled" },
+      { field: "matchHost" },
+      { field: "matchPath" },
+      { field: "matchPrefix" },
+      { field: "kind" },
+      { field: "targetProfile" },
+      { field: "surface" },
+      { field: "access" },
+      { field: "toHost" },
+      { field: "toUrl" },
+      { field: "statusCode" },
+      { type: "operationControl" },
     ]);
     expect(routeCreateFields).not.toContain("deploymentConfig");
     expect(routeEditFields).not.toContain("deploymentConfig");

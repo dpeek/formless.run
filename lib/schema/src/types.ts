@@ -438,7 +438,6 @@ export type FieldPresentationSchema = {
 
 export type ViewFieldSchema = {
   editor: FieldEditor;
-  commit: FieldCommitPolicy;
   visibleWhen?: FieldVisibilityConditionSchema;
   presentation?: FieldPresentationSchema;
 };
@@ -451,12 +450,9 @@ export type CreateViewFieldSchema = {
 
 export type TableColumnAlign = "start" | "center" | "end";
 export type TableColumnWidth = "xs" | "sm" | "md" | "lg";
-export type TableColumnDisplay = "editor" | "readOnly" | "hidden";
 export type TableColumnFormat = "plain" | "number" | "currency" | "percent";
 export type TableOperationControlVariant = "default" | "destructive";
 export type TableOperationControlAvailabilityState = "visible" | "hidden" | "disabled";
-export type TableOperationControlPresentation = "button" | "dropdown";
-export type ResultOrderingPresentation = "moveMenu" | "dragHandle";
 
 export type RecordLinkTarget = "sameTab" | "newTab";
 export type RecordLinkMissingBehavior = "disable" | "omit";
@@ -537,10 +533,9 @@ export type ResultOrderingScopeSchema = {
 export type ResultOrderingSchema = {
   field: string;
   scope?: ResultOrderingScopeSchema[];
-  presentations?: ResultOrderingPresentation[];
 };
 
-export type ValueUnitEditorSchema = {
+export type TableColumnValueUnitSchema = {
   unitField: string;
 };
 
@@ -548,16 +543,11 @@ export type FieldTableColumnSchema = {
   type: "field";
   field: string;
   label?: string;
-  editor?: FieldEditor;
-  commit?: FieldCommitPolicy;
   align?: TableColumnAlign;
   width?: TableColumnWidth;
-  display?: TableColumnDisplay;
   suffix?: string;
   format?: TableColumnFormat;
-  referenceItemView?: string;
-  valueUnit?: ValueUnitEditorSchema;
-  presentation?: FieldPresentationSchema;
+  valueUnit?: TableColumnValueUnitSchema;
 };
 
 export type ReferenceFieldTableColumnSchema = {
@@ -565,14 +555,10 @@ export type ReferenceFieldTableColumnSchema = {
   referenceField: string;
   field: string;
   label?: string;
-  editor?: FieldEditor;
-  commit?: FieldCommitPolicy;
   align?: TableColumnAlign;
   width?: TableColumnWidth;
-  display?: TableColumnDisplay;
   suffix?: string;
   format?: TableColumnFormat;
-  presentation?: FieldPresentationSchema;
 };
 
 export type ComputedTableColumnSchema = {
@@ -581,29 +567,17 @@ export type ComputedTableColumnSchema = {
   label?: string;
   align?: TableColumnAlign;
   width?: TableColumnWidth;
-  display?: TableColumnDisplay;
   suffix?: string;
   format?: TableColumnFormat;
 };
 
 export type OperationControlTableColumnSchema = {
   type: "operationControl";
-  operation?: string;
-  operations?: string[];
   includeOrdering?: boolean;
-  label?: string;
-  align?: TableColumnAlign;
-  width?: TableColumnWidth;
-  display?: TableColumnDisplay;
-  presentation?: TableOperationControlPresentation;
 };
 
 export type OrderingHandleTableColumnSchema = {
   type: "orderingHandle";
-  label?: string;
-  align?: TableColumnAlign;
-  width?: TableColumnWidth;
-  display?: TableColumnDisplay;
 };
 
 export type LinkControlTableColumnSchema = {
@@ -703,9 +677,8 @@ export type ViewFieldBindingSchema = ViewFieldSchema & {
   field: string;
   interaction?: "edit" | "display";
 };
-export type ViewFieldBindingSchemaSource = Omit<ViewFieldBindingSchema, "editor" | "commit"> & {
+export type ViewFieldBindingSchemaSource = Omit<ViewFieldBindingSchema, "editor"> & {
   editor?: FieldEditor;
-  commit?: FieldCommitPolicy;
 };
 export type CreateViewFieldBindingSchema = CreateViewFieldSchema & {
   field: string;

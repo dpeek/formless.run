@@ -234,7 +234,6 @@ describe("App schema module authoring", () => {
             {
               field: "title",
               editor: "text",
-              commit: "field-commit",
             },
           ],
         },
@@ -547,7 +546,6 @@ function taskPresentationModule() {
           {
             field: "title",
             editor: "text",
-            commit: "field-commit",
           },
         ],
       },
@@ -603,7 +601,7 @@ function runtimeRecordsModule(options: { runtime?: boolean } = {}) {
       {
         key: "managedItem",
         entity: "managed",
-        fields: [{ field: "name", editor: "text", commit: "field-commit" }],
+        fields: [{ field: "name", editor: "text" }],
       },
     ],
     views: [

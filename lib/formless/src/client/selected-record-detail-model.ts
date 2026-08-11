@@ -180,10 +180,6 @@ export function selectHomeSelectedRecordDetail(
           ...(tableResult.updateOperation === undefined
             ? {}
             : { updateOperation: tableResult.updateOperation }),
-          ...(tableResult.deleteOperation === undefined
-            ? {}
-            : { deleteOperation: tableResult.deleteOperation }),
-          transitionOperations: tableResult.transitionOperations,
           ...(tableResult.ordering === undefined ? {} : { ordering: tableResult.ordering }),
         },
         ...(section.createAction === undefined

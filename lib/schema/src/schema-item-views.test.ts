@@ -147,7 +147,7 @@ describe("schema item views", () => {
     );
   });
 
-  it("parses field editors, commit policies, and presentation metadata", () => {
+  it("parses field editors and presentation metadata", () => {
     const schema = parseAppSchema({
       ...taskSchema(),
       itemViews: [
@@ -155,17 +155,15 @@ describe("schema item views", () => {
           key: "taskItem",
           entity: "task",
           fields: [
-            { field: "title", editor: "text", commit: "field-commit" },
+            { field: "title", editor: "text" },
             {
               field: "done",
               editor: "boolean",
-              commit: "immediate",
               presentation: { mode: "completion" },
             },
             {
               field: "dueDate",
               editor: "date",
-              commit: "field-commit",
               presentation: { visibility: "valueOrInteraction" },
             },
           ],
@@ -173,17 +171,15 @@ describe("schema item views", () => {
       ],
     });
     expect(schema.itemViews.find((definition) => definition.key === "taskItem")!.fields).toEqual([
-      { field: "title", editor: "text", commit: "field-commit" },
+      { field: "title", editor: "text" },
       {
         field: "done",
         editor: "boolean",
-        commit: "immediate",
         presentation: { mode: "completion" },
       },
       {
         field: "dueDate",
         editor: "date",
-        commit: "field-commit",
         presentation: { visibility: "valueOrInteraction" },
       },
     ]);
@@ -195,7 +191,6 @@ describe("schema item views", () => {
       field: "dueDate",
       interaction: "edit" as const,
       editor: "date" as const,
-      commit: "field-commit" as const,
     };
     const schema = parseAppSchema({
       ...taskSchema(),
@@ -218,11 +213,11 @@ describe("schema item views", () => {
     });
 
     expect(schema.itemViews[0]?.fields).toEqual([
-      { ...displayTitle, editor: "text", commit: "field-commit" },
+      { ...displayTitle, editor: "text" },
       editableDueDate,
     ]);
     expect(schema.views.find((view) => view.key === "taskEdit")).toMatchObject({
-      fields: [{ ...displayTitle, editor: "text", commit: "field-commit" }, editableDueDate],
+      fields: [{ ...displayTitle, editor: "text" }, editableDueDate],
       type: "edit",
     });
     expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
@@ -239,7 +234,7 @@ describe("schema item views", () => {
       'View field "taskItem.title" has unsupported interaction "disabled".',
     );
   });
-  it("rejects unknown fields and incompatible commit policies", () => {
+  it("rejects unknown fields", () => {
     expect(() =>
       parseAppSchema({
         ...taskSchema(),
@@ -247,22 +242,10 @@ describe("schema item views", () => {
           {
             key: "taskItem",
             entity: "task",
-            fields: [{ field: "missing", editor: "text", commit: "field-commit" }],
+            fields: [{ field: "missing", editor: "text" }],
           },
         ],
       }),
     ).toThrow('references unknown field "task.missing"');
-    expect(() =>
-      parseAppSchema({
-        ...taskSchema(),
-        itemViews: [
-          {
-            key: "taskItem",
-            entity: "task",
-            fields: [{ field: "done", editor: "boolean", commit: "field-commit" }],
-          },
-        ],
-      }),
-    ).toThrow("boolean fields must commit immediately");
   });
 });

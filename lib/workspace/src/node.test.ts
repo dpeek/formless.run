@@ -85,7 +85,7 @@ const workspaceTestSchema = parseAppSchema({
     {
       key: "routeItem",
       entity: "route",
-      fields: [{ field: "enabled", editor: "boolean", commit: "immediate" }],
+      fields: [{ field: "enabled", editor: "boolean" }],
     },
   ],
   tableViews: [],

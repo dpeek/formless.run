@@ -64,7 +64,7 @@ export function fieldStatus(field: FieldContract): FieldStatusInput | undefined 
 
   return {
     type: "error",
-    ...(field.surface === "table-cell" ? {} : { message: error.message }),
+    message: error.message,
   };
 }
 

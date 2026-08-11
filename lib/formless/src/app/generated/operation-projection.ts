@@ -6,6 +6,7 @@ import type {
   OperationControlContract,
   OperationExecutionStatus,
   OperationFeedbackEventContract,
+  OperationPresentationIntent,
   OperationProgressContract,
   OperationProgressStepContract,
 } from "@dpeek/formless-presentation/contract";
@@ -22,6 +23,7 @@ export type GeneratedOperationButtonPresentation = {
   content: ButtonContent;
   density: OperationButtonContract["density"];
   disabledReason?: string;
+  invocationSource?: "button" | "menuItem";
   pendingLabel?: string;
   prominence: OperationButtonContract["prominence"];
 };
@@ -76,11 +78,11 @@ export function projectGeneratedOperationControl({
     copy: feedbackCopy,
     progress,
   });
-  const triggerIntent =
+  const triggerIntent: OperationPresentationIntent =
     binding.confirmation === undefined
       ? {
           controlId: binding.id,
-          invocationSource: "button" as const,
+          invocationSource: presentation.invocationSource ?? ("button" as const),
           type: "operationInvoke" as const,
         }
       : {

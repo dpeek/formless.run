@@ -4,12 +4,7 @@ import {
   isRecord,
   parseRequiredNonEmptyString,
 } from "./schema-parse-helpers.ts";
-import type {
-  EntitySchema,
-  ResultOrderingPresentation,
-  ResultOrderingSchema,
-  ResultOrderingScopeSchema,
-} from "./types.ts";
+import type { EntitySchema, ResultOrderingSchema, ResultOrderingScopeSchema } from "./types.ts";
 
 export function parseOptionalResultOrdering(
   context: string,
@@ -24,7 +19,7 @@ export function parseOptionalResultOrdering(
   if (!isRecord(value)) {
     throw new Error(`${context} must be an object.`);
   }
-  assertExactKeys(context, value, ["field"], ["scope", "presentations"]);
+  assertExactKeys(context, value, ["field"], ["scope"]);
   const fieldName = parseRequiredNonEmptyString(`${context} field`, value.field);
   const field = definitionsToRecord(entity.fields)[fieldName];
   if (!field) {
@@ -40,12 +35,10 @@ export function parseOptionalResultOrdering(
   }
 
   const scope = parseOptionalResultOrderingScope(context, value.scope, entityName, entity);
-  const presentations = parseOptionalResultOrderingPresentations(context, value.presentations);
 
   return {
     field: fieldName,
     ...(scope === undefined ? {} : { scope }),
-    ...(presentations === undefined ? {} : { presentations }),
   };
 }
 
@@ -54,9 +47,7 @@ export function resultOrderingsAreEquivalent(
   right: ResultOrderingSchema,
 ) {
   return (
-    left.field === right.field &&
-    resultOrderingScopeKey(left) === resultOrderingScopeKey(right) &&
-    resultOrderingPresentationsKey(left) === resultOrderingPresentationsKey(right)
+    left.field === right.field && resultOrderingScopeKey(left) === resultOrderingScopeKey(right)
   );
 }
 
@@ -109,47 +100,6 @@ function parseResultOrderingScopeField(
   }
   return { kind: "field", field: fieldName };
 }
-function parseOptionalResultOrderingPresentations(
-  context: string,
-  value: unknown,
-): ResultOrderingPresentation[] | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (!Array.isArray(value) || value.length === 0) {
-    throw new Error(`${context} presentations must be a non-empty array.`);
-  }
-
-  const presentations = value.map((candidate, index) =>
-    parseResultOrderingPresentation(`${context} presentations ${index}`, candidate),
-  );
-  const duplicate = presentations.find(
-    (candidate, index) => presentations.indexOf(candidate) !== index,
-  );
-
-  if (duplicate) {
-    throw new Error(`${context} presentations references duplicate "${duplicate}".`);
-  }
-
-  return presentations;
-}
-
-function parseResultOrderingPresentation(
-  context: string,
-  value: unknown,
-): ResultOrderingPresentation {
-  if (value === "moveMenu" || value === "dragHandle") {
-    return value;
-  }
-
-  throw new Error(`${context} must be "moveMenu" or "dragHandle".`);
-}
-
 function resultOrderingScopeKey(ordering: ResultOrderingSchema) {
   return JSON.stringify((ordering.scope ?? []).map((scope) => scope.field));
-}
-
-function resultOrderingPresentationsKey(ordering: ResultOrderingSchema) {
-  return JSON.stringify(ordering.presentations ?? ["moveMenu"]);
 }

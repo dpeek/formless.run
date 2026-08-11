@@ -11,12 +11,10 @@ export const tasksPresentationSchemaModule = defineAppSchemaModule({
         {
           field: "title",
           editor: "text",
-          commit: "field-commit",
         },
         {
           field: "dueDate",
           editor: "date",
-          commit: "field-commit",
           presentation: {
             visibility: "valueOrInteraction",
           },
@@ -24,7 +22,6 @@ export const tasksPresentationSchemaModule = defineAppSchemaModule({
         {
           field: "priority",
           editor: "enum",
-          commit: "immediate",
           presentation: {
             list: "both",
             mode: "iconOnly",
@@ -34,7 +31,6 @@ export const tasksPresentationSchemaModule = defineAppSchemaModule({
         {
           field: "done",
           editor: "boolean",
-          commit: "immediate",
           presentation: {
             mode: "completion",
           },

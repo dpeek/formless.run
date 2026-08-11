@@ -1467,9 +1467,7 @@ function workspaceTableActionRecordId(
   return table.rows.find((row) =>
     row.cells.some((cell) =>
       cell.contents.some(
-        (content) =>
-          content.kind === "actionGroup" &&
-          [...content.primary, ...content.secondary].includes(action),
+        (content) => content.kind === "actionGroup" && content.actions.includes(action),
       ),
     ),
   )?.id;

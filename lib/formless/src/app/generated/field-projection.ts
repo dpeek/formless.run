@@ -133,11 +133,6 @@ export type GeneratedFieldOwner =
       ownerId: string;
     }
   | {
-      cellId: string;
-      kind: "tableCell";
-      tableId: string;
-    }
-  | {
       fieldSetId: string;
       kind: "tableEditFieldSet";
       tableId: string;
@@ -252,7 +247,7 @@ export type ProjectGeneratedRecordFieldsOptions = ProjectGeneratedRecordSessionO
   schema?: AppSchema | null;
   showLabel?: boolean;
   showLabelByFieldName?: Readonly<Record<string, boolean | undefined>>;
-  surface?: Extract<FieldSurface, "detail" | "record" | "table-cell">;
+  surface?: Extract<FieldSurface, "detail" | "record">;
   transitionOperationsByFieldName?: Readonly<
     Record<string, readonly TransitionStateOperationConfig[]>
   >;
@@ -284,7 +279,7 @@ export type ProjectGeneratedRecordFieldOptions = {
   referenceOptions?: readonly GeneratedReferenceOption[];
   schema?: AppSchema | null;
   showLabel?: boolean;
-  surface?: Extract<FieldSurface, "detail" | "record" | "table-cell">;
+  surface?: Extract<FieldSurface, "detail" | "record">;
   transitionOperations?: readonly TransitionStateOperationConfig[];
   unitDraft?: string;
   unitDraftInput?: GeneratedFieldDraftInput;
@@ -355,8 +350,6 @@ export function projectGeneratedFieldId({ owner, placementId }: GeneratedFieldOc
         return [owner.resultId, owner.recordId];
       case "standalone":
         return [owner.ownerId];
-      case "tableCell":
-        return [owner.tableId, owner.cellId];
       case "tableEditFieldSet":
         return [owner.tableId, owner.fieldSetId];
     }
@@ -846,7 +839,7 @@ export function projectGeneratedRecordField({
       fieldConfig,
       fieldId: projectGeneratedFieldId(occurrence),
       label,
-      labelVisibility: showLabel && surface !== "table-cell" ? "visible" : "hidden",
+      labelVisibility: showLabel ? "visible" : "hidden",
       options: projectFieldOptions({
         field,
         includeIconOptions: control.controlKind === "icon",
@@ -936,10 +929,7 @@ export function projectGeneratedDisplayField({
       fieldConfig,
       fieldId: projectGeneratedFieldId(occurrence),
       label,
-      labelVisibility:
-        surface === "table-cell" || (surface === "record" && showLabel !== true)
-          ? "hidden"
-          : "visible",
+      labelVisibility: surface === "record" && showLabel !== true ? "hidden" : "visible",
       options: projectFieldOptions({
         field: fieldConfig.field,
         includeIconOptions: control.controlKind === "icon",
@@ -1861,7 +1851,7 @@ function projectEnumEditorFacts({
   field: FieldSchema;
   presentation?: FieldContract["presentation"];
   style: "plain" | "rich";
-  surface: "create" | "detail" | "operation" | "record" | "table-cell";
+  surface: "create" | "detail" | "operation" | "record";
   value: FieldValue | undefined;
 }): EnumFacts | undefined {
   if (field.type !== "enum") {

@@ -637,7 +637,7 @@ function publicOperationSchema(operations: Record<string, EntityOperationSchema>
       {
         key: "requestItem",
         entity: "request",
-        fields: [{ field: "name", editor: "text", commit: "field-commit" }],
+        fields: [{ field: "name", editor: "text" }],
       },
     ],
     tableViews: [],

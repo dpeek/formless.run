@@ -373,7 +373,7 @@ function publicLookupSchema(
       {
         key: "certificateItem",
         entity: "certificate",
-        fields: [{ field: "published", editor: "boolean", commit: "immediate" }],
+        fields: [{ field: "published", editor: "boolean" }],
       },
     ],
     tableViews: [],

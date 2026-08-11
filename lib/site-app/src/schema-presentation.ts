@@ -18,27 +18,22 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
         {
           field: "label",
           editor: "text",
-          commit: "field-commit",
         },
         {
           field: "description",
           editor: "textarea",
-          commit: "field-commit",
         },
         {
           field: "icon",
           editor: "icon",
-          commit: "field-commit",
         },
         {
           field: "initialThemeMode",
           editor: "enum",
-          commit: "immediate",
         },
         {
           field: "themeSwitchable",
           editor: "boolean",
-          commit: "immediate",
         },
       ],
     },
@@ -49,7 +44,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
         {
           field: "label",
           editor: "text",
-          commit: "field-commit",
         },
       ],
     },
@@ -60,7 +54,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
         {
           field: "label",
           editor: "text",
-          commit: "field-commit",
         },
       ],
     },
@@ -71,7 +64,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
         {
           field: "label",
           editor: "text",
-          commit: "field-commit",
         },
       ],
       union: "blockByType",
@@ -83,12 +75,10 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "href",
               editor: "href",
-              commit: "field-commit",
             },
             {
               field: "icon",
               editor: "icon",
-              commit: "field-commit",
             },
           ],
         },
@@ -99,17 +89,14 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "date",
               editor: "date",
-              commit: "field-commit",
             },
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
             {
               field: "href",
               editor: "href",
-              commit: "field-commit",
             },
           ],
         },
@@ -120,17 +107,14 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "date",
               editor: "date",
-              commit: "field-commit",
             },
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
             {
               field: "href",
               editor: "href",
-              commit: "field-commit",
             },
           ],
         },
@@ -141,12 +125,10 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "linkTargetMode",
               editor: "enum",
-              commit: "immediate",
             },
             {
               field: "linkTargetBlock",
               editor: "reference",
-              commit: "immediate",
               visibleWhen: {
                 field: "linkTargetMode",
                 values: ["internal"],
@@ -155,7 +137,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "href",
               editor: "href",
-              commit: "field-commit",
               visibleWhen: {
                 field: "linkTargetMode",
                 values: ["", "external"],
@@ -164,7 +145,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "icon",
               editor: "icon",
-              commit: "field-commit",
             },
           ],
         },
@@ -175,7 +155,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
           ],
         },
@@ -186,7 +165,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
           ],
         },
@@ -197,12 +175,10 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
             {
               field: "alignment",
               editor: "enum",
-              commit: "immediate",
             },
           ],
         },
@@ -213,7 +189,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
           ],
         },
@@ -224,7 +199,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
           ],
         },
@@ -235,17 +209,14 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
             {
               field: "icon",
               editor: "icon",
-              commit: "field-commit",
             },
             {
               field: "color",
               editor: "color",
-              commit: "field-commit",
             },
           ],
         },
@@ -256,7 +227,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
           ],
         },
@@ -267,12 +237,10 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
             {
               field: "color",
               editor: "color",
-              commit: "field-commit",
             },
           ],
         },
@@ -283,17 +251,14 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
             {
               field: "operationName",
               editor: "text",
-              commit: "field-commit",
             },
             {
               field: "buttonLabel",
               editor: "text",
-              commit: "field-commit",
             },
           ],
         },
@@ -304,37 +269,30 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
             {
               field: "operationName",
               editor: "text",
-              commit: "field-commit",
             },
             {
               field: "buttonLabel",
               editor: "text",
-              commit: "field-commit",
             },
             {
               field: "successLabel",
               editor: "text",
-              commit: "field-commit",
             },
             {
               field: "nameLabel",
               editor: "text",
-              commit: "field-commit",
             },
             {
               field: "emailLabel",
               editor: "text",
-              commit: "field-commit",
             },
             {
               field: "messageLabel",
               editor: "text",
-              commit: "field-commit",
             },
           ],
         },
@@ -345,32 +303,26 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
             {
               field: "operationKey",
               editor: "text",
-              commit: "field-commit",
             },
             {
               field: "buttonLabel",
               editor: "text",
-              commit: "field-commit",
             },
             {
               field: "successLabel",
               editor: "text",
-              commit: "field-commit",
             },
             {
               field: "operationNotificationMode",
               editor: "enum",
-              commit: "immediate",
             },
             {
               field: "operationNotificationReplyToField",
               editor: "text",
-              commit: "field-commit",
               visibleWhen: {
                 field: "operationNotificationMode",
                 values: ["email"],
@@ -385,7 +337,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "mediaAssetId",
               editor: "media",
-              commit: "field-commit",
             },
           ],
         },
@@ -396,7 +347,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
           {
             field: "label",
             editor: "text",
-            commit: "field-commit",
           },
         ],
       },
@@ -408,7 +358,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
         {
           field: "label",
           editor: "text",
-          commit: "field-commit",
         },
       ],
       union: "blockByType",
@@ -420,12 +369,10 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "href",
               editor: "href",
-              commit: "field-commit",
             },
             {
               field: "icon",
               editor: "icon",
-              commit: "field-commit",
             },
           ],
         },
@@ -456,17 +403,14 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "date",
               editor: "date",
-              commit: "field-commit",
             },
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
             {
               field: "href",
               editor: "href",
-              commit: "field-commit",
             },
           ],
         },
@@ -477,12 +421,10 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "linkTargetMode",
               editor: "enum",
-              commit: "immediate",
             },
             {
               field: "linkTargetBlock",
               editor: "reference",
-              commit: "immediate",
               visibleWhen: {
                 field: "linkTargetMode",
                 values: ["internal"],
@@ -491,7 +433,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "href",
               editor: "href",
-              commit: "field-commit",
               visibleWhen: {
                 field: "linkTargetMode",
                 values: ["", "external"],
@@ -500,7 +441,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "icon",
               editor: "icon",
-              commit: "field-commit",
             },
           ],
         },
@@ -511,7 +451,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
           ],
         },
@@ -522,7 +461,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
           ],
         },
@@ -533,12 +471,10 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
             {
               field: "alignment",
               editor: "enum",
-              commit: "immediate",
             },
           ],
         },
@@ -549,7 +485,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
           ],
         },
@@ -560,7 +495,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
           ],
         },
@@ -571,17 +505,14 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
             {
               field: "icon",
               editor: "icon",
-              commit: "field-commit",
             },
             {
               field: "color",
               editor: "color",
-              commit: "field-commit",
             },
           ],
         },
@@ -592,7 +523,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
           ],
         },
@@ -603,12 +533,10 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
             {
               field: "color",
               editor: "color",
-              commit: "field-commit",
             },
           ],
         },
@@ -619,17 +547,14 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
             {
               field: "operationName",
               editor: "text",
-              commit: "field-commit",
             },
             {
               field: "buttonLabel",
               editor: "text",
-              commit: "field-commit",
             },
           ],
         },
@@ -640,37 +565,30 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
             {
               field: "operationName",
               editor: "text",
-              commit: "field-commit",
             },
             {
               field: "buttonLabel",
               editor: "text",
-              commit: "field-commit",
             },
             {
               field: "successLabel",
               editor: "text",
-              commit: "field-commit",
             },
             {
               field: "nameLabel",
               editor: "text",
-              commit: "field-commit",
             },
             {
               field: "emailLabel",
               editor: "text",
-              commit: "field-commit",
             },
             {
               field: "messageLabel",
               editor: "text",
-              commit: "field-commit",
             },
           ],
         },
@@ -681,32 +599,26 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
             {
               field: "operationKey",
               editor: "text",
-              commit: "field-commit",
             },
             {
               field: "buttonLabel",
               editor: "text",
-              commit: "field-commit",
             },
             {
               field: "successLabel",
               editor: "text",
-              commit: "field-commit",
             },
             {
               field: "operationNotificationMode",
               editor: "enum",
-              commit: "immediate",
             },
             {
               field: "operationNotificationReplyToField",
               editor: "text",
-              commit: "field-commit",
               visibleWhen: {
                 field: "operationNotificationMode",
                 values: ["email"],
@@ -721,7 +633,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "mediaAssetId",
               editor: "media",
-              commit: "field-commit",
             },
           ],
         },
@@ -732,7 +643,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
           {
             field: "label",
             editor: "text",
-            commit: "field-commit",
           },
         ],
       },
@@ -744,159 +654,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
         {
           field: "label",
           editor: "text",
-          commit: "field-commit",
-        },
-      ],
-    },
-  ],
-  tableViews: [
-    {
-      key: "blockTable",
-      entity: "block",
-      columns: [
-        {
-          type: "field",
-          field: "type",
-          editor: "enum",
-          commit: "immediate",
-          width: "sm",
-        },
-        {
-          type: "field",
-          field: "label",
-          editor: "text",
-          commit: "field-commit",
-          width: "lg",
-        },
-        {
-          type: "field",
-          field: "body",
-          editor: "markdown",
-          commit: "field-commit",
-          width: "lg",
-        },
-        {
-          type: "field",
-          field: "href",
-          editor: "href",
-          commit: "field-commit",
-          width: "md",
-        },
-        {
-          type: "field",
-          field: "mediaAssetId",
-          editor: "media",
-          commit: "field-commit",
-          width: "md",
-        },
-        {
-          type: "field",
-          field: "date",
-          editor: "date",
-          commit: "field-commit",
-          width: "sm",
-        },
-        {
-          type: "field",
-          field: "icon",
-          editor: "icon",
-          commit: "field-commit",
-          width: "sm",
-        },
-        {
-          type: "field",
-          field: "color",
-          editor: "color",
-          commit: "field-commit",
-          width: "sm",
-        },
-        {
-          type: "field",
-          field: "alignment",
-          editor: "enum",
-          commit: "immediate",
-          width: "sm",
-        },
-        {
-          type: "field",
-          field: "width",
-          editor: "number",
-          commit: "field-commit",
-          align: "end",
-          width: "xs",
-          format: "number",
-        },
-        {
-          type: "field",
-          field: "height",
-          editor: "number",
-          commit: "field-commit",
-          align: "end",
-          width: "xs",
-          format: "number",
-        },
-      ],
-    },
-    {
-      key: "blockPlacementTable",
-      entity: "block-placement",
-      operations: [
-        {
-          operation: "block.update",
-          label: "Edit block",
-          target: {
-            kind: "reference",
-            field: "block",
-          },
-          editView: "blockEdit",
-        },
-      ],
-      ordering: {
-        field: "order",
-        scope: [
-          {
-            kind: "field",
-            field: "parent",
-          },
-          {
-            kind: "field",
-            field: "slot",
-          },
-        ],
-        presentations: ["dragHandle", "moveMenu"],
-      },
-      columns: [
-        {
-          type: "orderingHandle",
-          width: "xs",
-        },
-        {
-          type: "field",
-          field: "block",
-          editor: "reference",
-          commit: "immediate",
-          width: "lg",
-        },
-        {
-          type: "field",
-          field: "label",
-          editor: "text",
-          commit: "field-commit",
-          width: "md",
-        },
-        {
-          type: "field",
-          field: "slot",
-          editor: "text",
-          commit: "field-commit",
-          width: "sm",
-        },
-        {
-          type: "operationControl",
-          operation: "block.update",
-          includeOrdering: true,
-          width: "xs",
-          align: "end",
         },
       ],
     },
@@ -926,71 +683,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
           operation: "site.createStarter",
           placement: "emptyStatePrimary",
           label: "Create your first site",
-        },
-      ],
-    },
-    {
-      key: "blockHome",
-      type: "collection",
-      label: "Blocks",
-      entity: "block",
-      navigation: {
-        primary: false,
-      },
-      scope: singletonSiteScope,
-      queries: [
-        {
-          query: "blockAll",
-          count: {
-            type: "count",
-          },
-        },
-        {
-          query: "blockPages",
-          count: {
-            type: "count",
-          },
-        },
-        {
-          query: "blockPosts",
-          count: {
-            type: "count",
-          },
-        },
-        {
-          query: "blockProjects",
-          count: {
-            type: "count",
-          },
-        },
-        {
-          query: "blockLinks",
-          count: {
-            type: "count",
-          },
-        },
-        {
-          query: "blockGroups",
-          count: {
-            type: "count",
-          },
-        },
-        {
-          query: "blockImages",
-          count: {
-            type: "count",
-          },
-        },
-      ],
-      defaultQuery: "blockAll",
-      result: {
-        type: "table",
-        tableView: "blockTable",
-      },
-      operations: [
-        {
-          operation: "block.create",
-          createView: "blockCreate",
         },
       ],
     },
@@ -1202,7 +894,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
               field: "slot",
             },
           ],
-          presentations: ["dragHandle"],
         },
         maxDepth: 8,
       },
@@ -1211,84 +902,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
           operation: "site.createStarter",
           placement: "emptyStatePrimary",
           label: "Create your first site",
-        },
-      ],
-    },
-    {
-      key: "pageCompositionHome",
-      type: "collection",
-      label: "Pages",
-      entity: "block-placement",
-      navigation: {
-        primary: false,
-      },
-      scope: singletonSiteScope,
-      context: {
-        name: "block",
-        entity: "block",
-        query: "blockPages",
-        labelField: "label",
-        relationship: "blockPlacements",
-        itemView: "blockRootDetail",
-        presentation: "listDetail",
-      },
-      queries: [
-        {
-          query: "placementsForSelectedBlock",
-          count: {
-            type: "count",
-          },
-        },
-      ],
-      defaultQuery: "placementsForSelectedBlock",
-      result: {
-        type: "table",
-        tableView: "blockPlacementTable",
-      },
-      operations: [
-        {
-          operation: "block-placement.create",
-          createView: "blockPlacementCreate",
-          label: "Add placement",
-        },
-      ],
-    },
-    {
-      key: "navigationCompositionHome",
-      type: "collection",
-      label: "Navigation",
-      entity: "block-placement",
-      navigation: {
-        primary: false,
-      },
-      scope: singletonSiteScope,
-      context: {
-        name: "block",
-        entity: "block",
-        query: "blockNavigationRoots",
-        labelField: "label",
-        relationship: "blockPlacements",
-        itemView: "blockRootDetail",
-        presentation: "listDetail",
-      },
-      queries: [
-        {
-          query: "placementsForSelectedBlock",
-          count: {
-            type: "count",
-          },
-        },
-      ],
-      defaultQuery: "placementsForSelectedBlock",
-      result: {
-        type: "table",
-        tableView: "blockPlacementTable",
-      },
-      operations: [
-        {
-          operation: "block-placement.create",
-          createView: "blockPlacementCreate",
-          label: "Add placement",
         },
       ],
     },
@@ -1700,7 +1313,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
         {
           field: "label",
           editor: "text",
-          commit: "field-commit",
         },
       ],
       union: "blockByType",
@@ -1712,12 +1324,10 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "href",
               editor: "href",
-              commit: "field-commit",
             },
             {
               field: "icon",
               editor: "icon",
-              commit: "field-commit",
             },
           ],
         },
@@ -1728,17 +1338,14 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "date",
               editor: "date",
-              commit: "field-commit",
             },
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
             {
               field: "href",
               editor: "href",
-              commit: "field-commit",
             },
           ],
         },
@@ -1749,17 +1356,14 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "date",
               editor: "date",
-              commit: "field-commit",
             },
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
             {
               field: "href",
               editor: "href",
-              commit: "field-commit",
             },
           ],
         },
@@ -1770,12 +1374,10 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "linkTargetMode",
               editor: "enum",
-              commit: "immediate",
             },
             {
               field: "linkTargetBlock",
               editor: "reference",
-              commit: "immediate",
               visibleWhen: {
                 field: "linkTargetMode",
                 values: ["internal"],
@@ -1784,7 +1386,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "href",
               editor: "href",
-              commit: "field-commit",
               visibleWhen: {
                 field: "linkTargetMode",
                 values: ["", "external"],
@@ -1793,7 +1394,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "icon",
               editor: "icon",
-              commit: "field-commit",
             },
           ],
         },
@@ -1804,7 +1404,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
           ],
         },
@@ -1815,7 +1414,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
           ],
         },
@@ -1826,12 +1424,10 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
             {
               field: "alignment",
               editor: "enum",
-              commit: "immediate",
             },
           ],
         },
@@ -1842,7 +1438,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
           ],
         },
@@ -1853,7 +1448,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
           ],
         },
@@ -1864,17 +1458,14 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
             {
               field: "icon",
               editor: "icon",
-              commit: "field-commit",
             },
             {
               field: "color",
               editor: "color",
-              commit: "field-commit",
             },
           ],
         },
@@ -1885,7 +1476,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
           ],
         },
@@ -1896,12 +1486,10 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
             {
               field: "color",
               editor: "color",
-              commit: "field-commit",
             },
           ],
         },
@@ -1912,17 +1500,14 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
             {
               field: "operationName",
               editor: "text",
-              commit: "field-commit",
             },
             {
               field: "buttonLabel",
               editor: "text",
-              commit: "field-commit",
             },
           ],
         },
@@ -1933,37 +1518,30 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
             {
               field: "operationName",
               editor: "text",
-              commit: "field-commit",
             },
             {
               field: "buttonLabel",
               editor: "text",
-              commit: "field-commit",
             },
             {
               field: "successLabel",
               editor: "text",
-              commit: "field-commit",
             },
             {
               field: "nameLabel",
               editor: "text",
-              commit: "field-commit",
             },
             {
               field: "emailLabel",
               editor: "text",
-              commit: "field-commit",
             },
             {
               field: "messageLabel",
               editor: "text",
-              commit: "field-commit",
             },
           ],
         },
@@ -1974,32 +1552,26 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "body",
               editor: "markdown",
-              commit: "field-commit",
             },
             {
               field: "operationKey",
               editor: "text",
-              commit: "field-commit",
             },
             {
               field: "buttonLabel",
               editor: "text",
-              commit: "field-commit",
             },
             {
               field: "successLabel",
               editor: "text",
-              commit: "field-commit",
             },
             {
               field: "operationNotificationMode",
               editor: "enum",
-              commit: "immediate",
             },
             {
               field: "operationNotificationReplyToField",
               editor: "text",
-              commit: "field-commit",
               visibleWhen: {
                 field: "operationNotificationMode",
                 values: ["email"],
@@ -2014,7 +1586,6 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
             {
               field: "mediaAssetId",
               editor: "media",
-              commit: "field-commit",
             },
           ],
         },
@@ -2025,48 +1596,9 @@ export const sitePresentationSchemaModule = defineAppSchemaModule({
           {
             field: "label",
             editor: "text",
-            commit: "field-commit",
           },
         ],
       },
-    },
-    {
-      key: "blockCompositionHome",
-      type: "collection",
-      label: "Placements",
-      entity: "block-placement",
-      navigation: {
-        primary: false,
-      },
-      scope: singletonSiteScope,
-      context: {
-        name: "block",
-        entity: "block",
-        query: "blockAll",
-        labelField: "label",
-        relationship: "blockPlacements",
-        itemView: "blockContextItem",
-      },
-      queries: [
-        {
-          query: "placementsForSelectedBlock",
-          count: {
-            type: "count",
-          },
-        },
-      ],
-      defaultQuery: "placementsForSelectedBlock",
-      result: {
-        type: "table",
-        tableView: "blockPlacementTable",
-      },
-      operations: [
-        {
-          operation: "block-placement.create",
-          createView: "blockPlacementCreate",
-          label: "Add placement",
-        },
-      ],
     },
     {
       key: "blockPlacementCreate",

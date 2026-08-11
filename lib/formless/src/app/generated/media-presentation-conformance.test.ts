@@ -19,11 +19,6 @@ const siteMediaOccurrenceConformance = [
     surface: "record",
   },
   {
-    id: "table",
-    schemaPath: "tableViews.blockTable.columns.4",
-    surface: "table-cell",
-  },
-  {
     id: "detail",
     schemaPath: "itemViews.blockRootDetail.variants.image.fields.mediaAssetId",
     surface: "detail",
@@ -43,7 +38,6 @@ describe("generated media presentation conformance", () => {
     expect(siteMediaOccurrenceConformance.map(({ id }) => id)).toEqual([
       "create-operation",
       "record",
-      "table",
       "detail",
       "tree",
     ]);
@@ -99,21 +93,6 @@ describe("generated media presentation conformance", () => {
         recordValue: "hero.webp",
         schema: parsedSiteSchema,
         surface: "record",
-      }),
-      table: projectGeneratedRecordField({
-        canPatch: true,
-        density: "compact",
-        entityName: "block",
-        fieldConfig: recordConfig,
-        mediaAssetOptions,
-        occurrence: {
-          owner: { cellId: "block-image", kind: "tableCell", tableId: "site:block-table" },
-          placementId: "mediaAssetId",
-        },
-        recordId: "block-image",
-        recordValue: "hero.webp",
-        schema: parsedSiteSchema,
-        surface: "table-cell",
       }),
       detail: projectGeneratedRecordField({
         canPatch: true,
@@ -193,7 +172,7 @@ describe("generated media presentation conformance", () => {
     expect(fieldIds.size).toBe(siteMediaOccurrenceConformance.length);
   });
 
-  it("projects document facts and constraints across create, list, record, table, and tree authoring", () => {
+  it("projects document facts and constraints across create, list, record, and tree authoring", () => {
     const documentField: TextFieldSchema = {
       asset: {
         acceptedMimeTypes: ["application/pdf"],
@@ -263,21 +242,6 @@ describe("generated media presentation conformance", () => {
         recordId: "report-1",
         recordValue: documentOption.id,
         surface: "detail",
-      }),
-      projectGeneratedRecordField({
-        canPatch: true,
-        density: "compact",
-        entityName: "report",
-        fieldConfig: recordConfig,
-        isPending: true,
-        mediaAssetOptions: [documentOption],
-        occurrence: {
-          owner: { cellId: "report-1", kind: "tableCell", tableId: "reports:table" },
-          placementId: "reportAssetId",
-        },
-        recordId: "report-1",
-        recordValue: documentOption.id,
-        surface: "table-cell",
       }),
       projectGeneratedRecordField({
         canPatch: true,

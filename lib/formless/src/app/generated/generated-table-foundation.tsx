@@ -1,6 +1,7 @@
 import type { MediaAssetOption } from "@dpeek/formless-media/client";
 import type {
   CollectionEmptyStatePrimaryActionContract,
+  DisplayFieldContract,
   FieldContract,
   FieldIntent,
   TableActionContract,
@@ -9,8 +10,10 @@ import type {
   TableContract,
   TableOperationActionContract,
 } from "@dpeek/formless-presentation/contract";
+import { parseSourceSvg } from "@dpeek/formless-source-svg";
 import {
   evaluateNumericExpression,
+  isValidStoredFieldValue,
   resolveRecordLink,
   resolveRecordFieldValue,
   type AppSchema,
@@ -18,15 +21,11 @@ import {
   type QueryEvaluationContext,
 } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
-import {
-  createAggregateValueMatchingQuerySelector,
-  createReferenceOptionsSelector,
-} from "../../client/projections.ts";
-import { getRecordReadinessWarnings } from "../../client/readiness.ts";
+import { createAggregateValueMatchingQuerySelector } from "../../client/projections.ts";
 import { getClientStoreSnapshot } from "../../client/store.ts";
 import {
+  createIdleGeneratedOperationExecutionState,
   projectOrderingMoveOperationControlBinding,
-  projectStateTransitionOperationControlBinding,
   projectTableOperationControlBinding,
   recordFieldIsWritable,
   recordFieldRef,
@@ -37,7 +36,6 @@ import {
   type RecordFieldConfig,
   type RecordUnionPresentationConfig,
   type TableOperationControlConfig,
-  type TransitionStateOperationConfig,
 } from "../../client/views.ts";
 import type { TableCollectionResultModel } from "../../client/collection-result-model.ts";
 import { selectTransitionStateOperationAvailability } from "../../client/state-machine-model.ts";
@@ -50,15 +48,14 @@ import {
 } from "./field-projection.ts";
 import {
   projectGeneratedTableActionGroup,
+  projectGeneratedTableCellValue,
   projectGeneratedTableDisplayValue,
   projectGeneratedTableEditAction,
-  projectGeneratedTableFieldContent,
+  projectGeneratedTableInvalidValue,
   projectGeneratedTableContract,
-  projectGeneratedTableInvokeAction,
   projectGeneratedNativeLinkAction,
   projectGeneratedTableOperationAction,
   projectGeneratedTableOrdering,
-  type GeneratedTablePlacedAction,
 } from "./table-projection.ts";
 import {
   executeGeneratedOperationControl,
@@ -70,11 +67,6 @@ import {
   type OrderingMoveMenuItem,
   type ResultOrderingContext,
 } from "./ordering-ui.ts";
-import {
-  executeRecordDeleteOperation,
-  projectDeleteRecordButtonBinding,
-  selectRecordLabel,
-} from "./record-delete-runtime.ts";
 import {
   initialGeneratedUpdateDraftSessionState,
   nextGeneratedUpdateDraftSessionState,
@@ -89,7 +81,7 @@ import {
   type GeneratedTablePresentation,
 } from "./table-presentation.ts";
 
-export type GeneratedTableFieldContext = {
+export type GeneratedTableEditContext = {
   entityName: string;
   fields: RecordFieldConfig[];
   id: string;
@@ -99,7 +91,7 @@ export type GeneratedTableFieldContext = {
   updateOperation?: TableCollectionResultModel["updateOperation"];
 };
 
-export type GeneratedTableFieldContextState = {
+export type GeneratedTableEditContextState = {
   baselineUpdatedAt: string;
   editorDraftByFieldName: Record<string, string | undefined>;
   errorsByFieldName: Record<string, string | undefined>;
@@ -109,19 +101,18 @@ export type GeneratedTableFieldContextState = {
   session: GeneratedUpdateDraftSessionState;
 };
 
-export type GeneratedTableFieldRuntime = {
-  context: GeneratedTableFieldContext;
+export type GeneratedTableEditFieldRuntime = {
+  context: GeneratedTableEditContext;
   contextId: string;
   field: FieldContract;
   fieldConfig: RecordFieldConfig;
   fieldId: string;
   kind: "field";
-  placement: "cell" | "dialog";
   recordId: string;
   tableId: string;
 };
 
-export type GeneratedTableFieldIndex = ReadonlyMap<string, GeneratedTableFieldRuntime>;
+export type GeneratedTableEditFieldIndex = ReadonlyMap<string, GeneratedTableEditFieldRuntime>;
 
 export type GeneratedTableOperationRuntime =
   | {
@@ -132,12 +123,6 @@ export type GeneratedTableOperationRuntime =
     }
   | {
       binding: GeneratedOperationControlBinding;
-      kind: "delete";
-      recordId: string;
-      recordLabel: string;
-    }
-  | {
-      binding: GeneratedOperationControlBinding;
       kind: "ordering";
       item: OrderingMoveMenuItem;
       orderingContext: ResultOrderingContext;
@@ -145,22 +130,17 @@ export type GeneratedTableOperationRuntime =
     }
   | {
       binding: GeneratedOperationControlBinding;
+      control: Extract<TableOperationControlConfig, { type: "transition" }>;
       kind: "transition";
-      operation: TransitionStateOperationConfig;
+      operation: Extract<TableOperationControlConfig, { type: "transition" }>["transition"];
       recordId: string;
     };
-
-type GeneratedTableTransitionRuntime = Extract<
-  GeneratedTableOperationRuntime,
-  { kind: "transition" }
->;
 
 export type GeneratedTableRuntimePlan = {
   operationById: ReadonlyMap<string, GeneratedTableOperationRuntime>;
   operations: readonly GeneratedTableOperationRuntime[];
   orderingByCellId: ReadonlyMap<string, readonly GeneratedTableOperationRuntime[]>;
   orderingItemsByCellId: ReadonlyMap<string, readonly OrderingMoveMenuItem[]>;
-  transitionsByContextId: ReadonlyMap<string, readonly GeneratedTableTransitionRuntime[]>;
 };
 
 export type SelectGeneratedWorkspaceTableFoundationOptions = {
@@ -170,7 +150,7 @@ export type SelectGeneratedWorkspaceTableFoundationOptions = {
   entity: EntitySchema;
   entityName: string;
   emptyStateAction?: CollectionEmptyStatePrimaryActionContract;
-  fieldStateByContextId?: Readonly<Record<string, GeneratedTableFieldContextState | undefined>>;
+  editStateByContextId?: Readonly<Record<string, GeneratedTableEditContextState | undefined>>;
   id: string;
   mediaAssetOptionsForField?: (
     entityName: string,
@@ -192,7 +172,7 @@ export function selectGeneratedWorkspaceTableFoundation({
   entity,
   entityName,
   emptyStateAction,
-  fieldStateByContextId = {},
+  editStateByContextId = {},
   id,
   mediaAssetOptionsForField = () => [],
   query,
@@ -212,22 +192,16 @@ export function selectGeneratedWorkspaceTableFoundation({
   });
   const orderedRecordIds = orderingContext?.orderedRecordIds ?? [...recordIds];
   const presentation = selectGeneratedTablePresentation({
-    canDelete: result.deleteOperation !== undefined,
-    canPatch: result.updateOperation !== undefined,
     columns: result.columns,
     footer: result.footer ?? [],
     orderedRecordIds,
-    orderingDragPatchEnabled: false,
     query,
     queryName,
-    transitionOperations: result.transitionOperations,
   });
   const runtimePlan = selectGeneratedTableRuntimePlan({
-    entity,
     orderingContext,
     presentation,
     recordsById,
-    result,
     tableId: id,
   });
   const projected = projectGeneratedRecordTable({
@@ -237,7 +211,7 @@ export function selectGeneratedWorkspaceTableFoundation({
     entity,
     entityName,
     emptyStateAction,
-    fieldStateByContextId,
+    editStateByContextId,
     mediaAssetOptionsForField,
     presentation,
     query,
@@ -259,7 +233,7 @@ export function projectGeneratedRecordTable({
   entity,
   entityName,
   emptyStateAction,
-  fieldStateByContextId,
+  editStateByContextId,
   mediaAssetOptionsForField,
   presentation,
   query,
@@ -276,7 +250,7 @@ export function projectGeneratedRecordTable({
   entity: EntitySchema;
   entityName: string;
   emptyStateAction?: CollectionEmptyStatePrimaryActionContract;
-  fieldStateByContextId: Readonly<Record<string, GeneratedTableFieldContextState | undefined>>;
+  editStateByContextId: Readonly<Record<string, GeneratedTableEditContextState | undefined>>;
   mediaAssetOptionsForField: (entityName: string, fieldName: string) => readonly MediaAssetOption[];
   presentation: GeneratedTablePresentation;
   query: HomeQueryTabConfig["query"];
@@ -287,13 +261,12 @@ export function projectGeneratedRecordTable({
   schema: AppSchema | null;
   tableId: string;
 }) {
-  const fieldContexts = new Map<string, GeneratedTableFieldContext>();
+  const editContexts = new Map<string, GeneratedTableEditContext>();
   const rowsByRecordId: Record<
     string,
     {
       accessibilityLabel: string;
       contentsByColumnId: Record<string, readonly TableCellContentContract[]>;
-      readinessWarnings: ReturnType<typeof getRecordReadinessWarnings>;
     }
   > = {};
 
@@ -308,13 +281,13 @@ export function projectGeneratedRecordTable({
             confirmationOpenById,
             controller,
             dialogOpenById,
+            entityLabel: entity.label,
             entityName,
-            fieldContexts,
-            fieldStateByContextId,
+            editContexts,
+            editStateByContextId,
             mediaAssetOptionsForField,
             record,
             recordsById,
-            result,
             runtimePlan,
             schema,
             tableId,
@@ -331,7 +304,6 @@ export function projectGeneratedRecordTable({
     rowsByRecordId[row.recordId] = {
       accessibilityLabel: recordLabel(record, entity.label, row.recordId),
       contentsByColumnId,
-      readinessWarnings: record ? getRecordReadinessWarnings(record, recordsById) : [],
     };
   }
 
@@ -360,7 +332,6 @@ export function projectGeneratedRecordTable({
 
   const table = projectGeneratedTableContract({
     accessibilityLabel: `${entity.label} records`,
-    editingDisabledReason: `Editing is disabled for ${entity.label}.`,
     ...(emptyStateAction === undefined ? {} : { emptyStateAction }),
     footerValuesByColumnId,
     id: tableId,
@@ -369,37 +340,30 @@ export function projectGeneratedRecordTable({
   });
 
   return {
-    fieldContexts,
-    fieldsById: indexGeneratedTableFieldOccurrences(table, fieldContexts, fieldStateByContextId),
+    editContexts,
+    editFieldsById: indexGeneratedTableEditFields(table, editContexts, editStateByContextId),
     table,
   };
 }
 
-export function indexGeneratedTableFieldOccurrences(
+export function indexGeneratedTableEditFields(
   table: TableContract,
-  fieldContexts: ReadonlyMap<string, GeneratedTableFieldContext>,
-  fieldStateByContextId: Readonly<Record<string, GeneratedTableFieldContextState | undefined>> = {},
-): GeneratedTableFieldIndex {
-  const fieldsById = new Map<string, GeneratedTableFieldRuntime>();
+  editContexts: ReadonlyMap<string, GeneratedTableEditContext>,
+  editStateByContextId: Readonly<Record<string, GeneratedTableEditContextState | undefined>> = {},
+): GeneratedTableEditFieldIndex {
+  const fieldsById = new Map<string, GeneratedTableEditFieldRuntime>();
   const visibleFieldsByContextId = new Map<string, readonly RecordFieldConfig[]>();
 
-  const registerFields = (
-    contextId: string,
-    fields: readonly FieldContract[],
-    placement: GeneratedTableFieldRuntime["placement"],
-  ) => {
-    const context = fieldContexts.get(contextId);
+  const registerFields = (contextId: string, fields: readonly FieldContract[]) => {
+    const context = editContexts.get(contextId);
 
     if (context === undefined) {
-      throw new Error(`Generated table "${table.id}" is missing field context "${contextId}".`);
+      throw new Error(`Generated table "${table.id}" is missing edit context "${contextId}".`);
     }
 
     let visibleFields = visibleFieldsByContextId.get(contextId);
     if (visibleFields === undefined) {
-      const state = rebaseGeneratedTableFieldContextState(
-        context,
-        fieldStateByContextId[contextId],
-      );
+      const state = rebaseGeneratedTableEditContextState(context, editStateByContextId[contextId]);
       visibleFields = selectGeneratedUpdateDraftSession({
         fields: context.fields,
         state: state.session,
@@ -431,7 +395,6 @@ export function indexGeneratedTableFieldOccurrences(
         fieldConfig,
         fieldId: field.fieldId,
         kind: "field",
-        placement,
         recordId: context.recordId,
         tableId: table.id,
       });
@@ -444,14 +407,11 @@ export function indexGeneratedTableFieldOccurrences(
     }
 
     const { target } = action.dialog;
-    registerFields(target.fieldSet.id, target.fieldSet.fields, "dialog");
-    if (target.actionGroup !== undefined) {
-      indexActionGroup(target.actionGroup);
-    }
+    registerFields(target.fieldSet.id, target.fieldSet.fields);
   };
 
   const indexActionGroup = (group: TableActionGroupContract) => {
-    for (const action of [...group.primary, ...group.secondary]) {
+    for (const action of group.actions) {
       indexAction(action);
     }
   };
@@ -459,9 +419,7 @@ export function indexGeneratedTableFieldOccurrences(
   for (const row of table.rows) {
     for (const cell of row.cells) {
       for (const content of cell.contents) {
-        if (content.kind === "field") {
-          registerFields(cell.id, [content.field], "cell");
-        } else if (content.kind === "actionGroup") {
+        if (content.kind === "actionGroup") {
           indexActionGroup(content);
         }
       }
@@ -477,8 +435,8 @@ export function indexGeneratedTableFieldOccurrences(
   return fieldsById;
 }
 
-export function resolveGeneratedTableFieldIntent(
-  fieldsById: GeneratedTableFieldIndex,
+export function resolveGeneratedTableEditFieldIntent(
+  fieldsById: GeneratedTableEditFieldIndex,
   {
     contextId,
     fieldId,
@@ -492,7 +450,7 @@ export function resolveGeneratedTableFieldIntent(
     recordId?: string;
     tableId: string;
   },
-): GeneratedTableFieldRuntime | undefined {
+): GeneratedTableEditFieldRuntime | undefined {
   if (recordId === undefined) {
     return undefined;
   }
@@ -518,13 +476,13 @@ function projectGeneratedTableCell({
   confirmationOpenById,
   controller,
   dialogOpenById,
+  entityLabel,
   entityName,
-  fieldContexts,
-  fieldStateByContextId,
+  editContexts,
+  editStateByContextId,
   mediaAssetOptionsForField,
   record,
   recordsById,
-  result,
   runtimePlan,
   schema,
   tableId,
@@ -533,59 +491,33 @@ function projectGeneratedTableCell({
   confirmationOpenById: Readonly<Record<string, boolean | undefined>>;
   controller: GeneratedOperationController;
   dialogOpenById: Readonly<Record<string, boolean | undefined>>;
+  entityLabel: string;
   entityName: string;
-  fieldContexts: Map<string, GeneratedTableFieldContext>;
-  fieldStateByContextId: Readonly<Record<string, GeneratedTableFieldContextState | undefined>>;
+  editContexts: Map<string, GeneratedTableEditContext>;
+  editStateByContextId: Readonly<Record<string, GeneratedTableEditContextState | undefined>>;
   mediaAssetOptionsForField: (entityName: string, fieldName: string) => readonly MediaAssetOption[];
   record: StoredRecord;
   recordsById: Readonly<Record<string, StoredRecord>>;
-  result: TableCollectionResultModel;
   runtimePlan: GeneratedTableRuntimePlan;
   schema: AppSchema | null;
   tableId: string;
 }): readonly TableCellContentContract[] {
-  if (cell.column.type === "delete") {
-    const operation = runtimePlan.operations.find(
-      (candidate) => candidate.kind === "delete" && candidate.recordId === record.id,
-    );
-    const action = operationAction(operation, controller, confirmationOpenById);
-
-    return action
-      ? [
-          projectGeneratedTableActionGroup({
-            actions: [{ action, placement: "primary" }],
-            id: `${cell.id}:actions`,
-            secondaryAccessibilityLabel: "Delete actions",
-          }),
-        ]
-      : [];
-  }
-
-  if (cell.column.type === "transition") {
-    return actionGroupContents(
-      `${cell.id}:actions`,
-      "Lifecycle transitions",
-      transitionActionsForContext(
-        `row:${record.id}`,
-        runtimePlan,
-        controller,
-        confirmationOpenById,
-        "primary",
-      ),
-    );
-  }
-
   const column = cell.column.column;
 
   if (column.type === "computed") {
     const value = evaluateNumericExpression(column.computedValue.expression, record);
 
+    if (value === undefined || !Number.isFinite(value)) {
+      return [invalidTableCellValue(column.label)];
+    }
+
+    const displayValue = formatComputedDisplayValue(column, value);
+
     return [
       projectGeneratedTableDisplayValue({
-        accessibilityLabel: `${column.label}: ${formatComputedDisplayValue(column, value)}`,
-        displayValue: formatComputedDisplayValue(column, value),
+        accessibilityLabel: `${column.label}: ${displayValue}`,
+        displayValue,
         suffix: column.suffix,
-        valueKind: "computed",
       }),
     ];
   }
@@ -597,117 +529,62 @@ function projectGeneratedTableCell({
   }
 
   if (column.type === "operationControl") {
-    const actions = column.controls.flatMap((control): GeneratedTablePlacedAction[] => {
+    const actions = column.controls.map((control): TableActionContract => {
       if (control.type === "editRecord") {
-        return [
-          {
-            action: projectTableEditAction({
-              control,
-              dialogOpenById,
-              fieldContexts,
-              fieldStateByContextId,
-              mediaAssetOptionsForField,
-              record,
-              recordsById,
-              runtimePlan,
-              controller,
-              confirmationOpenById,
-              schema,
-              tableId,
-            }),
-            placement:
-              column.presentation === "button" && column.controls.length === 1
-                ? "primary"
-                : "secondary",
-          },
-        ];
+        return projectTableEditAction({
+          control,
+          dialogOpenById,
+          editContexts,
+          editStateByContextId,
+          mediaAssetOptionsForField,
+          record,
+          recordsById,
+          schema,
+          tableId,
+        });
       }
 
       const operation = runtimePlan.operations.find(
-        (candidate): candidate is Extract<GeneratedTableOperationRuntime, { kind: "control" }> =>
-          candidate.kind === "control" &&
+        (candidate): candidate is Exclude<GeneratedTableOperationRuntime, { kind: "ordering" }> =>
+          candidate.kind !== "ordering" &&
           candidate.recordId === record.id &&
           candidate.control.bindingName === control.bindingName,
       );
-      const action = operationAction(operation, controller, confirmationOpenById);
-      const fallbackAction =
-        action ??
-        projectGeneratedTableInvokeAction({
-          actionId: `${tableId}:${record.id}:${control.bindingName}:unavailable`,
-          disabled: true,
-          disabledReason: control.disabledReason ?? "Operation unavailable.",
-          invocationSource:
-            column.presentation === "button" && column.controls.length === 1
-              ? "button"
-              : "menuItem",
-          label: control.label,
-          role: "command",
-          rowId: record.id,
-          tableId,
-        });
-      return action
-        ? [
-            {
-              action,
-              placement:
-                column.presentation === "button" && column.controls.length === 1
-                  ? "primary"
-                  : "secondary",
-            },
-          ]
-        : [
-            {
-              action: fallbackAction,
-              placement:
-                column.presentation === "button" && column.controls.length === 1
-                  ? "primary"
-                  : "secondary",
-            },
-          ];
+      return operationAction(operation, controller, confirmationOpenById);
     });
-    const contents: TableCellContentContract[] = [];
-
-    if (actions.length > 0) {
-      contents.push(
-        projectGeneratedTableActionGroup({
-          actions,
-          id: `${cell.id}:actions`,
-          secondaryAccessibilityLabel: column.headerLabel,
-        }),
-      );
-    }
-
     const ordering = runtimePlan.orderingByCellId.get(cell.id) ?? [];
     const orderingItems = runtimePlan.orderingItemsByCellId.get(cell.id) ?? [];
-    contents.push(
-      ...orderingContents(
-        orderingItems,
-        ordering,
-        controller,
-        tableId,
-        record.id,
-        column.headerLabel,
-      ),
+    const orderingActions = projectOrderingActions(
+      orderingItems,
+      ordering,
+      controller,
+      tableId,
+      record.id,
+      `Reorder ${recordLabel(record, entityLabel, record.id)}`,
     );
-    return contents;
+    const menuActions = [...actions, ...orderingActions];
+
+    return menuActions.length === 0
+      ? []
+      : [
+          projectGeneratedTableActionGroup({
+            accessibilityLabel: `More options for ${recordLabel(record, entityLabel, record.id)}`,
+            actions: menuActions,
+            id: `${cell.id}:actions`,
+          }),
+        ];
   }
 
   if (column.type === "linkControl") {
     const action = projectGeneratedNativeLinkAction({
-      accessibilityLabel: `${column.link.label} for ${recordLabel(record, entityName, record.id)}`,
+      accessibilityLabel: `${column.link.label} for ${recordLabel(record, entityLabel, record.id)}`,
       id: `${cell.id}:link`,
       label: column.link.label,
       resolution: resolveRecordLink(column.link, record, recordsById),
       target: column.link.target,
     });
 
-    return [
-      projectGeneratedTableActionGroup({
-        actions: [{ action, placement: "primary" }],
-        id: `${cell.id}:actions`,
-        secondaryAccessibilityLabel: `More links for ${recordLabel(record, entityName, record.id)}`,
-      }),
-    ];
+    return [action];
   }
 
   if (column.type === "referenceField") {
@@ -715,219 +592,121 @@ function projectGeneratedTableCell({
     const referenceRecord =
       typeof referenceRecordId === "string" ? recordsById[referenceRecordId] : undefined;
 
-    if (!referenceRecord) {
-      return [
-        {
-          accessibilityLabel: `${column.label} unavailable`,
-          kind: "unavailable",
-          message: "",
-        },
-      ];
+    if (
+      !referenceRecord ||
+      referenceRecord.deletedAt !== undefined ||
+      referenceRecord.entity !== column.referencedEntityName
+    ) {
+      return [invalidTableCellValue(column.label)];
     }
 
     return [
-      projectTableRecordField({
-        controller,
-        contextId: cell.id,
+      projectTableCellValue({
         entityName: column.referencedEntityName,
         fieldConfig: column,
-        fieldContexts,
-        fieldStateByContextId,
         mediaAssetOptionsForField,
         record: referenceRecord,
         recordsById,
         schema,
-        source: "referencedRecord",
-        tableId,
-        transitionRuntimes: runtimePlan.transitionsByContextId.get(cell.id),
-        updateOperation: column.referencedUpdateOperation,
+        valueOwnerId: cell.id,
       }),
     ];
   }
 
-  const contents: TableCellContentContract[] = [
-    projectTableRecordField({
-      controller,
-      contextId: cell.id,
+  return [
+    projectTableCellValue({
       entityName,
       fieldConfig: column,
-      fieldContexts,
-      fieldStateByContextId,
       mediaAssetOptionsForField,
       record,
       recordsById,
       schema,
-      source: "record",
-      tableId,
-      updateOperation: result.updateOperation,
-      transitionOperations: column.stateTransitionOperations,
-      transitionRuntimes: runtimePlan.transitionsByContextId.get(cell.id),
+      valueOwnerId: cell.id,
     }),
   ];
-
-  if (column.referenceItem && column.field.type === "reference") {
-    const referenceRecordId = record.values[column.fieldName];
-    const referenceRecord =
-      typeof referenceRecordId === "string" ? recordsById[referenceRecordId] : undefined;
-
-    if (referenceRecord) {
-      const dialogId = `${tableId}:${record.id}:${column.key}:reference-dialog`;
-      const context = registerFieldContext({
-        entityName: column.referenceItem.entityName,
-        fields: column.referenceItem.recordFields,
-        id: `${dialogId}:fields`,
-        record: referenceRecord,
-        union: column.referenceItem.recordUnion,
-        updateOperation: column.referenceItem.updateOperation,
-      });
-      fieldContexts.set(context.id, context);
-      const fields = projectFieldContext(
-        context,
-        { fieldSetId: context.id, kind: "tableEditFieldSet", tableId },
-        fieldStateByContextId[context.id],
-        mediaAssetOptionsForField,
-        recordsById,
-        schema,
-      );
-      const action = projectGeneratedTableEditAction({
-        actionId: `${dialogId}:open`,
-        description: `Changes apply to every record that uses this ${column.referenceItem.entity.label.toLowerCase()}.`,
-        dialogId,
-        fields,
-        label: `Edit shared ${column.referenceItem.entity.label.toLowerCase()}`,
-        open: dialogOpenById[dialogId] ?? false,
-        rowId: record.id,
-        tableId,
-        target: {
-          editingEnabled: column.referenceItem.updateOperation !== undefined,
-          disabledReason:
-            column.referenceItem.updateOperation === undefined
-              ? `Editing is disabled for ${column.referenceItem.entity.label}.`
-              : undefined,
-          kind: "available",
-        },
-        targetKind: "reference",
-        title: `Shared ${column.referenceItem.entity.label}`,
-      });
-      contents.push(
-        projectGeneratedTableActionGroup({
-          actions: [{ action, placement: "primary" }],
-          id: `${cell.id}:reference-actions`,
-          secondaryAccessibilityLabel: "Shared record actions",
-        }),
-      );
-    }
-  }
-
-  return contents;
 }
 
-function projectTableRecordField({
-  controller,
-  contextId,
+function projectTableCellValue({
   entityName,
   fieldConfig,
-  fieldContexts,
-  fieldStateByContextId,
   mediaAssetOptionsForField,
   record,
   recordsById,
   schema,
-  source,
-  tableId,
-  updateOperation,
-  transitionOperations,
-  transitionRuntimes,
+  valueOwnerId,
 }: {
-  controller: GeneratedOperationController;
-  contextId: string;
   entityName: string;
-  fieldConfig: RecordFieldConfig & { display?: "editor" | "readOnly" | "hidden"; suffix?: string };
-  fieldContexts: Map<string, GeneratedTableFieldContext>;
-  fieldStateByContextId: Readonly<Record<string, GeneratedTableFieldContextState | undefined>>;
+  fieldConfig: RecordFieldConfig & { suffix?: string };
   mediaAssetOptionsForField: (entityName: string, fieldName: string) => readonly MediaAssetOption[];
   record: StoredRecord;
   recordsById: Readonly<Record<string, StoredRecord>>;
   schema: AppSchema | null;
-  source: "record" | "referencedRecord";
-  tableId: string;
-  updateOperation?: TableCollectionResultModel["updateOperation"];
-  transitionOperations?: readonly TransitionStateOperationConfig[];
-  transitionRuntimes?: readonly GeneratedTableTransitionRuntime[];
+  valueOwnerId: string;
 }) {
-  const context = registerFieldContext({
-    entityName,
-    fields: [fieldConfig],
-    id: contextId,
-    record,
-    updateOperation,
-  });
-  fieldContexts.set(context.id, context);
   const recordValue = resolveRecordFieldValue(record, recordFieldRef(fieldConfig));
   const referenceOptions = referenceOptionsForField(fieldConfig, recordsById);
-  const field = withTableStateTransitionRuntimeState(
-    fieldConfig.display === "readOnly" || !recordFieldIsWritable(fieldConfig)
-      ? projectGeneratedDisplayField({
-          density: "compact",
-          fieldConfig,
-          mediaAssetOptions: mediaAssetOptionsForField(entityName, fieldConfig.fieldName),
-          occurrence: {
-            owner: { cellId: contextId, kind: "tableCell", tableId },
-            placementId: fieldConfig.fieldName,
-          },
-          recordId: record.id,
-          recordValue,
-          referenceOptions,
-          schema,
-          surface: "table-cell",
-          transitionOperations,
-        })
-      : projectFieldContext(
-          context,
-          { cellId: contextId, kind: "tableCell", tableId },
-          fieldStateByContextId[context.id],
-          mediaAssetOptionsForField,
-          recordsById,
-          schema,
-          transitionOperations?.length
-            ? {
-                controller,
-                transitionOperations,
-                transitionRuntimes: transitionRuntimes ?? [],
-              }
-            : undefined,
-        )[0]!,
-    transitionRuntimes ?? [],
-    controller,
-  );
+  const mediaAssetOptions = mediaAssetOptionsForField(entityName, fieldConfig.fieldName);
+  const unitRecordValue =
+    fieldConfig.valueUnit === undefined
+      ? undefined
+      : record.values[fieldConfig.valueUnit.unitFieldName];
 
-  return projectGeneratedTableFieldContent(field, source);
+  if (
+    !tableStoredFieldValuesAreValid({
+      fieldConfig,
+      recordValue,
+      unitRecordValue,
+    })
+  ) {
+    return invalidTableCellValue(fieldConfig.label ?? fieldConfig.fieldName);
+  }
+
+  const field = projectGeneratedDisplayField({
+    density: "compact",
+    fieldConfig,
+    mediaAssetOptions,
+    occurrence: {
+      owner: { kind: "standalone", ownerId: valueOwnerId },
+      placementId: fieldConfig.fieldName,
+    },
+    recordId: record.id,
+    recordValue,
+    referenceOptions,
+    schema,
+    showLabel: false,
+    surface: "record",
+  });
+
+  if (!tableDisplayFieldIsPresentable(field, fieldConfig, recordValue, recordsById)) {
+    return invalidTableCellValue(fieldConfig.label ?? fieldConfig.fieldName);
+  }
+
+  const unitLabel = tableValueUnitLabel(fieldConfig, unitRecordValue);
+
+  return projectGeneratedTableCellValue(
+    field,
+    unitLabel ?? field.formatting.suffix ?? field.suffix,
+  );
 }
 
 function projectTableEditAction({
-  confirmationOpenById,
   control,
-  controller,
   dialogOpenById,
-  fieldContexts,
-  fieldStateByContextId,
+  editContexts,
+  editStateByContextId,
   mediaAssetOptionsForField,
   record,
   recordsById,
-  runtimePlan,
   schema,
   tableId,
 }: {
-  confirmationOpenById: Readonly<Record<string, boolean | undefined>>;
   control: EditRecordTableOperationControlConfig;
-  controller: GeneratedOperationController;
   dialogOpenById: Readonly<Record<string, boolean | undefined>>;
-  fieldContexts: Map<string, GeneratedTableFieldContext>;
-  fieldStateByContextId: Readonly<Record<string, GeneratedTableFieldContextState | undefined>>;
+  editContexts: Map<string, GeneratedTableEditContext>;
+  editStateByContextId: Readonly<Record<string, GeneratedTableEditContextState | undefined>>;
   mediaAssetOptionsForField: (entityName: string, fieldName: string) => readonly MediaAssetOption[];
   record: StoredRecord;
   recordsById: Readonly<Record<string, StoredRecord>>;
-  runtimePlan: GeneratedTableRuntimePlan;
   schema: AppSchema | null;
   tableId: string;
 }) {
@@ -953,10 +732,13 @@ function projectTableEditAction({
       target: { kind: "unavailable", message: "Record unavailable." },
       targetKind: control.target.kind === "row" ? "row" : "reference",
       title: control.label,
+      ...(control.target.kind === "reference"
+        ? { warning: "Updating this shared record may affect other records." }
+        : {}),
     });
   }
 
-  const context = registerFieldContext({
+  const context = registerTableEditContext({
     entityName: control.editView.entityName,
     fields: control.editView.fields,
     id: `${dialogId}:fields`,
@@ -964,48 +746,17 @@ function projectTableEditAction({
     union: control.editView.union,
     updateOperation: control.editView.updateOperation,
   });
-  fieldContexts.set(context.id, context);
-  const fields = projectFieldContext(
+  editContexts.set(context.id, context);
+  const fields = projectTableEditFields(
     context,
     { fieldSetId: context.id, kind: "tableEditFieldSet", tableId },
-    fieldStateByContextId[context.id],
+    editStateByContextId[context.id],
     mediaAssetOptionsForField,
     recordsById,
     schema,
-    {
-      controller,
-      transitionOperations: control.editView.transitionOperations,
-      transitionRuntimes: runtimePlan.transitionsByContextId.get(context.id) ?? [],
-    },
-  );
-  const pairedTransitionOperationNames = new Set(
-    fields.flatMap((field) =>
-      field.stateMachineFacts?.interaction.kind === "transitions"
-        ? field.stateMachineFacts.interaction.transitions.map(
-            (transition) => transition.operationName,
-          )
-        : [],
-    ),
-  );
-  const transitionActions = transitionActionsForContext(
-    context.id,
-    runtimePlan,
-    controller,
-    confirmationOpenById,
-    "primary",
-    pairedTransitionOperationNames,
   );
 
   return projectGeneratedTableEditAction({
-    ...(transitionActions.length === 0
-      ? {}
-      : {
-          actionGroup: projectGeneratedTableActionGroup({
-            actions: transitionActions,
-            id: `${dialogId}:actions`,
-            secondaryAccessibilityLabel: "More record actions",
-          }),
-        }),
     actionId: `${dialogId}:open`,
     description: control.editView.entity.label,
     disabled: control.disabled,
@@ -1026,23 +777,21 @@ function projectTableEditAction({
     },
     targetKind: control.target.kind === "row" ? "row" : "reference",
     title: control.label,
+    ...(control.target.kind === "reference"
+      ? { warning: "Updating this shared record may affect other records." }
+      : {}),
   });
 }
 
-function projectFieldContext(
-  context: GeneratedTableFieldContext,
+function projectTableEditFields(
+  context: GeneratedTableEditContext,
   owner: GeneratedRecordFieldOwner,
-  currentState: GeneratedTableFieldContextState | undefined,
+  currentState: GeneratedTableEditContextState | undefined,
   mediaAssetOptionsForField: (entityName: string, fieldName: string) => readonly MediaAssetOption[],
   recordsById: Readonly<Record<string, StoredRecord>>,
   schema: AppSchema | null,
-  transitionRuntime?: {
-    controller: GeneratedOperationController;
-    transitionOperations: readonly TransitionStateOperationConfig[];
-    transitionRuntimes: readonly GeneratedTableTransitionRuntime[];
-  },
 ): readonly FieldContract[] {
-  const state = rebaseGeneratedTableFieldContextState(context, currentState);
+  const state = rebaseGeneratedTableEditContextState(context, currentState);
   const session = selectGeneratedUpdateDraftSession({
     fields: context.fields,
     state: state.session,
@@ -1059,10 +808,6 @@ function projectFieldContext(
         mediaAssetOptionsForField(context.entityName, field.fieldName),
       ]),
   );
-  const transitionOperationsByFieldName = transitionRuntime
-    ? groupTransitionOperationsByFieldName(transitionRuntime.transitionOperations, context.fields)
-    : undefined;
-
   return projectGeneratedRecordFields({
     canPatch: context.updateOperation !== undefined,
     density: "compact",
@@ -1078,65 +823,26 @@ function projectFieldContext(
     referenceOptionsByFieldName,
     schema,
     session,
-    showLabel: context.fields.length > 1,
+    showLabel: true,
     state: state.session,
-    surface: "table-cell",
-    transitionOperationsByFieldName,
-  }).map((field) =>
-    transitionRuntime
-      ? withTableStateTransitionRuntimeState(
-          field,
-          transitionRuntime.transitionRuntimes,
-          transitionRuntime.controller,
-        )
-      : field,
-  );
-}
-
-function groupTransitionOperationsByFieldName(
-  operations: readonly TransitionStateOperationConfig[],
-  fields: readonly RecordFieldConfig[],
-): Readonly<Record<string, readonly TransitionStateOperationConfig[]>> {
-  const byFieldName: Record<string, TransitionStateOperationConfig[]> = {};
-
-  for (const field of fields) {
-    if (!field.stateMachine) {
-      continue;
-    }
-
-    const matchingOperations = operations.filter(
-      (operation) =>
-        operation.fieldName === field.fieldName &&
-        operation.machineName === field.stateMachine?.machineName,
-    );
-
-    if (matchingOperations.length > 0) {
-      byFieldName[field.fieldName] = matchingOperations;
-    }
-  }
-
-  return byFieldName;
+    surface: "record",
+  });
 }
 
 export function selectGeneratedTableRuntimePlan({
-  entity,
   orderingContext,
   presentation,
   recordsById,
-  result,
   tableId,
 }: {
-  entity: EntitySchema;
   orderingContext?: ResultOrderingContext;
   presentation: GeneratedTablePresentation;
   recordsById: Readonly<Record<string, StoredRecord>>;
-  result: TableCollectionResultModel;
   tableId: string;
 }): GeneratedTableRuntimePlan {
   const operations: GeneratedTableOperationRuntime[] = [];
   const orderingByCellId = new Map<string, readonly GeneratedTableOperationRuntime[]>();
   const orderingItemsByCellId = new Map<string, readonly OrderingMoveMenuItem[]>();
-  const transitionsByContextId = new Map<string, readonly GeneratedTableTransitionRuntime[]>();
 
   for (const row of presentation.rows) {
     const record = recordsById[row.recordId];
@@ -1145,90 +851,31 @@ export function selectGeneratedTableRuntimePlan({
       continue;
     }
 
-    if (result.deleteOperation) {
-      const recordLabel = selectRecordLabel(
-        record,
-        presentation.delete?.labelFields ?? [],
-        entity.label,
-        record.id,
-      );
-      const binding = projectDeleteRecordButtonBinding({
-        deleteOperation: result.deleteOperation,
-        entityLabel: entity.label,
-        idPrefix: `${tableId}:${record.id}`,
-        recordId: record.id,
-        recordLabel,
-      });
-
-      if (binding) {
-        operations.push({ binding, kind: "delete", recordId: record.id, recordLabel });
-      }
-    }
-
-    const rowTransitions = projectTransitionRuntimes(
-      result.transitionOperations,
-      record,
-      `row:${record.id}`,
-    );
-    operations.push(...rowTransitions);
-    transitionsByContextId.set(`row:${record.id}`, rowTransitions);
-
     for (const cell of row.cells) {
-      if (cell.column.type !== "data") {
-        continue;
-      }
-
       const column = cell.column.column;
-
-      if (column.type === "field" && column.stateTransitionOperations?.length) {
-        const contextId = cell.id;
-        const transitions = projectTransitionRuntimes(
-          column.stateTransitionOperations,
-          record,
-          contextId,
-        );
-        operations.push(...transitions);
-        transitionsByContextId.set(contextId, transitions);
-      }
 
       if (column.type === "operationControl") {
         for (const control of column.controls) {
-          if (control.type === "editRecord") {
-            const binding = projectTableOperationControlBinding(control, {
-              executionTargetKey: record.id,
-              idPrefix: `table:${record.id}`,
-            });
-            if (binding) {
-              operations.push({ binding, control, kind: "control", recordId: record.id });
-            }
-
-            const dialogId = `${tableId}:${record.id}:${control.bindingName}:dialog`;
-            const transitionContextId = `${dialogId}:fields`;
-            const targetRecordId =
-              control.target.kind === "row"
-                ? record.id
-                : typeof record.values[control.target.fieldName] === "string"
-                  ? String(record.values[control.target.fieldName])
-                  : undefined;
-            const targetRecord = targetRecordId ? recordsById[targetRecordId] : undefined;
-            const transitions = targetRecord
-              ? projectTransitionRuntimes(
-                  control.editView.transitionOperations,
-                  targetRecord,
-                  transitionContextId,
-                )
-              : [];
-            operations.push(...transitions);
-            transitionsByContextId.set(transitionContextId, transitions);
-            continue;
-          }
-
-          const binding = projectTableOperationControlBinding(control, {
+          const options = {
             executionTargetKey: record.id,
             idPrefix: `table:${record.id}`,
-          });
+          };
+          const binding =
+            control.type === "transition"
+              ? projectExplicitTableTransitionBinding(control, record, options)
+              : projectTableOperationControlBinding(control, options);
           if (binding) {
-            operations.push({ binding, control, kind: "control", recordId: record.id });
+            operations.push(
+              control.type === "transition"
+                ? {
+                    binding,
+                    control,
+                    kind: "transition",
+                    operation: control.transition,
+                    recordId: record.id,
+                  }
+                : { binding, control, kind: "control", recordId: record.id },
+            );
           }
         }
       }
@@ -1276,91 +923,47 @@ export function selectGeneratedTableRuntimePlan({
     operations,
     orderingByCellId,
     orderingItemsByCellId,
-    transitionsByContextId,
   };
 }
 
-function projectTransitionRuntimes(
-  transitionOperations: readonly TransitionStateOperationConfig[],
+function projectExplicitTableTransitionBinding(
+  control: Extract<TableOperationControlConfig, { type: "transition" }>,
   record: StoredRecord,
-  contextId: string,
-): GeneratedTableTransitionRuntime[] {
-  return transitionOperations.map((operation) => {
-    const availability = selectTransitionStateOperationAvailability({
-      currentValue: record.values[operation.fieldName],
-      field: operation.field,
-      operation,
-    });
-    const binding = projectStateTransitionOperationControlBinding({
-      availability,
-      operation,
-      options: {
-        executionTargetKey: record.id,
-        idPrefix: contextId,
-      },
-    });
-
-    return { binding, kind: "transition", operation, recordId: record.id };
-  });
-}
-
-export function selectFieldTransitionRuntime(
-  contextId: string,
-  intent: Extract<FieldIntent, { type: "stateTransitionInvoke" }>,
-  runtimePlan: GeneratedTableRuntimePlan,
-): GeneratedTableTransitionRuntime | undefined {
-  return (runtimePlan.transitionsByContextId.get(contextId) ?? []).find(
-    (runtime) =>
-      runtime.recordId === intent.recordId &&
-      runtime.operation.fieldName === intent.fieldName &&
-      runtime.operation.operationName === intent.operationName &&
-      runtime.operation.transitionName === intent.transitionName,
-  );
-}
-
-function withTableStateTransitionRuntimeState(
-  field: FieldContract,
-  runtimes: readonly GeneratedTableTransitionRuntime[],
-  controller: GeneratedOperationController,
-): FieldContract {
-  const facts = field.stateMachineFacts;
-
-  if (facts?.interaction.kind !== "transitions") {
-    return field;
+  options: { executionTargetKey: string; idPrefix: string },
+): GeneratedOperationControlBinding | undefined {
+  const binding = projectTableOperationControlBinding(control, options);
+  if (binding === undefined) {
+    return undefined;
   }
 
-  const runtimeByOperationName = new Map(
-    runtimes
-      .filter((runtime) => runtime.operation.fieldName === field.fieldName)
-      .map((runtime) => [runtime.operation.operationName, runtime]),
-  );
-  const transitions = facts.interaction.transitions.map((transition) => {
-    const runtime = runtimeByOperationName.get(transition.operationName);
-
-    return runtime && controller.isPending(runtime.binding.id)
-      ? {
-          ...transition,
-          pending: { isPending: true, label: `${transition.label}...` },
-        }
-      : transition;
+  const transitionAvailability = selectTransitionStateOperationAvailability({
+    currentValue: record.values[control.transition.fieldName],
+    field: control.transition.field,
+    operation: control.transition,
   });
-  const pendingTransition = transitions.find((transition) => transition.pending?.isPending);
-  const pendingLabel = pendingTransition?.pending?.label;
+  const disabledReason =
+    binding.availability.state === "disabled"
+      ? binding.availability.reason
+      : transitionAvailability.valid
+        ? undefined
+        : (transitionAvailability.disabledReason ?? "Transition unavailable.");
+  const { disabledReason: _disabledReason, ...base } = binding;
 
   return {
-    ...field,
-    ...(pendingTransition
-      ? {
-          pending: {
-            isPending: true,
-            ...(pendingLabel === undefined ? {} : { label: pendingLabel }),
-          },
-        }
-      : {}),
-    stateMachineFacts: {
-      ...facts,
-      interaction: { ...facts.interaction, transitions },
+    ...base,
+    availability:
+      disabledReason === undefined
+        ? { state: "enabled" }
+        : { reason: disabledReason, state: "disabled" },
+    ...(disabledReason === undefined ? {} : { disabledReason }),
+    input: {
+      fieldName: control.transition.fieldName,
+      kind: "stateTransition",
+      machineName: control.transition.machineName,
+      targetState: control.transition.transition.to,
+      transitionName: control.transition.transitionName,
     },
+    kind: "stateTransition",
   };
 }
 
@@ -1368,27 +971,25 @@ function operationAction(
   runtime: GeneratedTableOperationRuntime | undefined,
   controller: GeneratedOperationController,
   confirmationOpenById: Readonly<Record<string, boolean | undefined>>,
-): TableOperationActionContract | undefined {
+): TableOperationActionContract {
   if (!runtime) {
-    return undefined;
+    throw new Error("Missing generated table operation runtime.");
   }
 
-  const state = controller.getStateByExecutionKey(runtime.binding.executionKey);
-  if (!state) {
-    return undefined;
-  }
-
-  const isDelete = runtime.kind === "delete";
+  const state =
+    controller.getStateByExecutionKey(runtime.binding.executionKey) ??
+    createIdleGeneratedOperationExecutionState(runtime.binding.executionKey);
+  const isDelete = runtime.binding.operationKind === "delete";
   const control = projectGeneratedOperationControl({
     binding: runtime.binding,
     confirmationOpen: confirmationOpenById[runtime.binding.id] ?? false,
     presentation: {
-      accessibilityLabel:
-        runtime.kind === "delete" ? `Delete ${runtime.recordLabel}` : runtime.binding.label,
+      accessibilityLabel: runtime.binding.label,
       content: isDelete
-        ? { icon: "delete", kind: "iconOnly" }
+        ? { icon: "delete", kind: "iconAndLabel", label: runtime.binding.label }
         : { kind: "label", label: runtime.binding.label },
       density: "compact",
+      invocationSource: "menuItem",
       pendingLabel: `${runtime.binding.label}...`,
       prominence: runtime.binding.destructive ? "destructive" : "secondary",
     },
@@ -1397,36 +998,8 @@ function operationAction(
 
   return projectGeneratedTableOperationAction(
     control,
-    runtime.kind === "delete" ? "delete" : runtime.kind === "transition" ? "transition" : "command",
+    isDelete ? "delete" : runtime.kind === "transition" ? "transition" : "command",
   );
-}
-
-function transitionActionsForContext(
-  contextId: string,
-  runtimePlan: GeneratedTableRuntimePlan,
-  controller: GeneratedOperationController,
-  confirmationOpenById: Readonly<Record<string, boolean | undefined>>,
-  placement: GeneratedTablePlacedAction["placement"],
-  excludedOperationNames: ReadonlySet<string> = new Set(),
-): GeneratedTablePlacedAction[] {
-  return (runtimePlan.transitionsByContextId.get(contextId) ?? []).flatMap((runtime) => {
-    if (excludedOperationNames.has(runtime.operation.operationName)) {
-      return [];
-    }
-
-    const action = operationAction(runtime, controller, confirmationOpenById);
-    return action ? [{ action, placement }] : [];
-  });
-}
-
-function actionGroupContents(
-  id: string,
-  secondaryAccessibilityLabel: string,
-  actions: readonly GeneratedTablePlacedAction[],
-): readonly TableCellContentContract[] {
-  return actions.length === 0
-    ? []
-    : [projectGeneratedTableActionGroup({ actions, id, secondaryAccessibilityLabel })];
 }
 
 function orderingContents(
@@ -1457,21 +1030,31 @@ function orderingContents(
   ];
 }
 
+function projectOrderingActions(
+  items: readonly OrderingMoveMenuItem[],
+  operations: readonly GeneratedTableOperationRuntime[],
+  controller: GeneratedOperationController,
+  tableId: string,
+  rowId: string,
+  accessibilityLabel: string,
+): TableActionContract[] {
+  const content = orderingContents(
+    items,
+    operations,
+    controller,
+    tableId,
+    rowId,
+    accessibilityLabel,
+  )[0];
+
+  return content?.kind === "ordering" ? [...content.actions] : [];
+}
+
 export async function executeGeneratedTableRuntimeOperation(
   runtime: GeneratedTableOperationRuntime,
   controller: GeneratedOperationController,
   source: "button" | "confirmationDialog" | "menuItem",
 ) {
-  if (runtime.kind === "delete") {
-    return executeRecordDeleteOperation({
-      binding: runtime.binding,
-      controller,
-      recordId: runtime.recordId,
-      recordLabel: runtime.recordLabel,
-      source: source === "menuItem" ? "button" : source,
-    });
-  }
-
   if (runtime.kind === "transition") {
     return executeTransitionStateOperation({
       binding: runtime.binding,
@@ -1507,14 +1090,14 @@ export async function executeGeneratedTableRuntimeOperation(
   });
 }
 
-function registerFieldContext({
+function registerTableEditContext({
   entityName,
   fields,
   id,
   record,
   union,
   updateOperation,
-}: Omit<GeneratedTableFieldContext, "recordId">): GeneratedTableFieldContext {
+}: Omit<GeneratedTableEditContext, "recordId">): GeneratedTableEditContext {
   return {
     entityName,
     fields,
@@ -1526,9 +1109,9 @@ function registerFieldContext({
   };
 }
 
-export function createGeneratedTableFieldContextState(
-  context: GeneratedTableFieldContext,
-): GeneratedTableFieldContextState {
+export function createGeneratedTableEditContextState(
+  context: GeneratedTableEditContext,
+): GeneratedTableEditContextState {
   return {
     baselineUpdatedAt: context.record.updatedAt,
     editorDraftByFieldName: {},
@@ -1544,16 +1127,16 @@ export function createGeneratedTableFieldContextState(
   };
 }
 
-export function rebaseGeneratedTableFieldContextState(
-  context: GeneratedTableFieldContext,
-  current?: GeneratedTableFieldContextState,
-): GeneratedTableFieldContextState {
+export function rebaseGeneratedTableEditContextState(
+  context: GeneratedTableEditContext,
+  current?: GeneratedTableEditContextState,
+): GeneratedTableEditContextState {
   return current?.baselineUpdatedAt === context.record.updatedAt
     ? current
-    : createGeneratedTableFieldContextState(context);
+    : createGeneratedTableEditContextState(context);
 }
 
-export function resetFailedFieldContextSession(
+export function resetFailedTableEditSession(
   session: GeneratedUpdateDraftSessionState,
   fieldConfig: RecordFieldConfig | undefined,
 ) {
@@ -1587,16 +1170,114 @@ function referenceOptionsForField(
   ) {
     return [];
   }
+  const referenceField = fieldConfig.field;
 
-  const snapshot = getClientStoreSnapshot();
-  if (snapshot.recordsById !== recordsById) {
-    return [];
+  return Object.values(recordsById).flatMap((record) => {
+    if (record.entity !== referenceField.to || record.deletedAt !== undefined) {
+      return [];
+    }
+
+    const displayValue =
+      referenceField.displayField === undefined
+        ? undefined
+        : record.values[referenceField.displayField];
+
+    return [
+      {
+        id: record.id,
+        label:
+          typeof displayValue === "string" && displayValue.trim() !== "" ? displayValue : record.id,
+      },
+    ];
+  });
+}
+
+function tableStoredFieldValuesAreValid({
+  fieldConfig,
+  recordValue,
+  unitRecordValue,
+}: {
+  fieldConfig: RecordFieldConfig;
+  recordValue: StoredRecord["values"][string] | undefined;
+  unitRecordValue: StoredRecord["values"][string] | undefined;
+}) {
+  if (recordValue === undefined && fieldConfig.field.required) {
+    return false;
   }
 
-  return createReferenceOptionsSelector(
-    fieldConfig.field.to,
-    fieldConfig.field.displayField,
-  )(snapshot);
+  if (!isValidStoredFieldValue(recordValue, fieldConfig.field)) {
+    return false;
+  }
+
+  const fieldRef = recordFieldRef(fieldConfig);
+  if (
+    fieldRef.kind === "system" &&
+    fieldRef.name !== "id" &&
+    recordValue !== undefined &&
+    (typeof recordValue !== "string" || !Number.isFinite(Date.parse(recordValue)))
+  ) {
+    return false;
+  }
+
+  return (
+    fieldConfig.valueUnit === undefined ||
+    isValidStoredFieldValue(unitRecordValue, fieldConfig.valueUnit.unitField)
+  );
+}
+
+function tableDisplayFieldIsPresentable(
+  field: DisplayFieldContract,
+  fieldConfig: RecordFieldConfig,
+  recordValue: StoredRecord["values"][string] | undefined,
+  recordsById: Readonly<Record<string, StoredRecord>>,
+) {
+  const hasValue =
+    recordValue !== undefined && (typeof recordValue !== "string" || recordValue.trim() !== "");
+
+  if (fieldConfig.field.type === "reference" && hasValue) {
+    if (!shouldUseAppReplicaReferenceOptions(fieldConfig.field)) {
+      return true;
+    }
+
+    const referencedRecord = typeof recordValue === "string" ? recordsById[recordValue] : undefined;
+    return (
+      referencedRecord?.entity === fieldConfig.field.to && referencedRecord.deletedAt === undefined
+    );
+  }
+
+  if (field.control.controlKind === "color" && hasValue) {
+    return field.color?.swatch.kind === "hex";
+  }
+
+  if (field.control.controlKind === "icon" && hasValue) {
+    return parseSourceSvg(field.icon?.previewSource) !== null;
+  }
+
+  if (field.control.controlKind === "media" && hasValue) {
+    return (
+      field.media?.missingSelectedAsset === undefined &&
+      typeof field.media?.previewHref === "string" &&
+      field.media.previewHref.trim() !== ""
+    );
+  }
+
+  return true;
+}
+
+function tableValueUnitLabel(
+  fieldConfig: RecordFieldConfig,
+  unitRecordValue: StoredRecord["values"][string] | undefined,
+) {
+  if (fieldConfig.valueUnit === undefined || typeof unitRecordValue !== "string") {
+    return undefined;
+  }
+
+  return fieldConfig.valueUnit.unitField.values.find((option) => option.key === unitRecordValue)
+    ?.label;
+}
+
+function invalidTableCellValue(label: string) {
+  return projectGeneratedTableInvalidValue(`${label} value is invalid or unavailable.`);
 }
 
 function recordLabel(record: StoredRecord | undefined, entityLabel: string, recordId: string) {

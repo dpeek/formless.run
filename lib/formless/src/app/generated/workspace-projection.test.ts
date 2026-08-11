@@ -569,7 +569,6 @@ function tableResult(scope: GeneratedWorkspaceIdentityScope, id: string): Worksp
     accessibilityLabel: "Records",
     columns: [],
     density: "compact",
-    editing: { enabled: true },
     id: generatedWorkspaceScopedId(scope, "result", id),
     kind: "table",
     rows: [],
