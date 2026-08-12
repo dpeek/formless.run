@@ -56,6 +56,29 @@ beforeEach(() => {
 });
 
 describe("generated selected-record relationship hierarchy", () => {
+  it("projects a root-only hierarchy with fields, links, and operations but no groups", () => {
+    const schema = relationshipHierarchySchema({ rootOnly: true });
+    const foundation = selectHierarchyFoundation(
+      schema,
+      hierarchyProjectionRecords(),
+      "rec_card_premium",
+    );
+    const root = foundation.runtimePlan.root;
+
+    expect(root.model.relationships).toEqual([]);
+    expect(root.relationshipGroups).toEqual([]);
+    expect(root.contract.relationshipGroups).toEqual([]);
+    expect(fieldDraft(root.contract, "name")).toBe("Premium");
+    expect(hierarchyLinkActions(root.contract).map(({ link }) => link.label)).toEqual([
+      "Open card",
+    ]);
+    expect(operationLabels(root.contract)).toEqual(["Remove card"]);
+    expect(root.contract.headerActions.items.map(({ kind }) => kind)).toEqual([
+      "linkAction",
+      "operationAction",
+    ]);
+  });
+
   it("projects heterogeneous flat records in declaration and sibling order with path identities", () => {
     const schema = relationshipHierarchySchema();
     const records = hierarchyProjectionRecords();
@@ -1196,7 +1219,7 @@ function createdRateRecord(): StoredRecord {
   };
 }
 
-function relationshipHierarchySchema(): AppSchema {
+function relationshipHierarchySchema({ rootOnly = false }: { rootOnly?: boolean } = {}): AppSchema {
   const setup = required(rateSourceSchema.screens.find((screen) => screen.key === "rateSetup"));
   if (setup.type !== "workspace") {
     throw new Error("Missing rate setup workspace.");
@@ -1428,7 +1451,7 @@ function relationshipHierarchySchema(): AppSchema {
                   detail: {
                     type: "selectedRecord" as const,
                     context: "selectedCard",
-                    sections: [hierarchy],
+                    sections: [rootOnly ? { ...hierarchy, relationships: [] } : hierarchy],
                   },
                 },
               ],

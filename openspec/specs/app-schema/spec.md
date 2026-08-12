@@ -1372,7 +1372,9 @@ contain one level of destination-less labelled sections.
 - WHEN a detail section declares type `relationshipHierarchy`
 - THEN the section declares one field item view for the selected root entity,
   optional ordered root record-link definitions, optional root record-operation
-  bindings, and a non-empty ordered array of child relationship declarations
+  bindings, and a required ordered array of child relationship declarations
+- AND the child relationship array may be empty so the hierarchy declares only
+  its selected-record root
 - AND each child declaration has a stable id, references a to-many relationship
   whose source is the current node entity, references a field item view for the
   relationship target entity, and may recursively declare the next fixed child

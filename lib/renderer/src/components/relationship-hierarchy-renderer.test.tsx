@@ -94,6 +94,53 @@ describe("Astryx relationship-hierarchy renderer", () => {
     expect(editor.parentElement?.firstElementChild).toBe(editor);
   });
 
+  it("renders a root-only hierarchy with its fields and working header actions but no groups", () => {
+    const hierarchy = hierarchyContract();
+    hierarchy.root.relationshipGroups = [];
+    hierarchy.root.headerActions.items = [
+      linkAction({
+        availability: "available",
+        href: "https://example.test/accounts/account:formless",
+        id: "occurrence:account:details",
+        label: "Open account details",
+        target: "sameTab",
+      }),
+      {
+        control: operationControlFixtures.workspacePushSuccess.initial,
+        kind: "operationAction",
+      },
+    ];
+    const intents: RelationshipHierarchyIntent[] = [];
+    const renderer = render(
+      <AstryxRelationshipHierarchyRenderer
+        hierarchy={hierarchy}
+        onIntent={(intent) => {
+          intents.push(intent);
+        }}
+      />,
+    );
+    const root = renderer.getByRole("region", { name: "Formless account" });
+    const actions = relationshipActionList(root);
+    const link = within(actions).getByRole("link", { name: "Open account details" });
+
+    expect(within(root).getByDisplayValue("Formless")).toBeTruthy();
+    expect(link.getAttribute("href")).toBe("https://example.test/accounts/account:formless");
+    expect(renderer.queryByRole("heading", { name: "Projects" })).toBeNull();
+    expect(renderer.queryByRole("region", { name: "Archived projects" })).toBeNull();
+
+    fireEvent.click(within(actions).getByRole("button", { name: "Push workspace" }));
+    expect(intents).toEqual([
+      {
+        controlId: operationControlFixtures.workspacePushSuccess.initial.id,
+        hierarchyId: hierarchy.id,
+        intent: operationControlFixtures.workspacePushSuccess.initial.trigger.intent,
+        occurrenceId: hierarchy.root.id,
+        recordId: hierarchy.root.recordId,
+        type: "relationshipHierarchyOperation",
+      },
+    ]);
+  });
+
   it("renders wide record-header actions in stable order with labelled controls and native links", () => {
     const hierarchy = hierarchyContract();
     const renderer = render(

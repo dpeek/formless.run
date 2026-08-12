@@ -768,6 +768,33 @@ describe("schema screens", () => {
     expect(parseAppSchema(JSON.parse(stringifySchema(parsed)))).toEqual(parsed);
   });
 
+  it("parses and preserves a root-only selected-record relationship hierarchy", () => {
+    const hierarchy = selectedRecordRelationshipHierarchySection({
+      links: [hierarchyRecordLink("openTask", "title")],
+      relationships: [],
+    });
+    const parsed = parseAppSchema(
+      selectedRecordDetailSchema(selectedRecordDetail({ sections: [hierarchy] })),
+    );
+    const screen = parsed.screens[0];
+    if (screen.type !== "workspace") {
+      throw new Error("Expected selected-record workspace.");
+    }
+
+    const section = screen.layout.sections[0].detail?.sections[0];
+    expect(section).toMatchObject({
+      id: "hierarchy",
+      itemView: "taskItem",
+      operations: [{ operation: "task.update", label: "Edit task" }],
+      relationships: [],
+      type: "relationshipHierarchy",
+    });
+    expect(
+      section?.type === "relationshipHierarchy" ? section.links?.map(({ key }) => key) : [],
+    ).toEqual(["openTask"]);
+    expect(parseAppSchema(JSON.parse(stringifySchema(parsed)))).toEqual(parsed);
+  });
+
   it("parses ordered record links against every hierarchy node entity and serializes recursively", () => {
     const hierarchy = selectedRecordRelationshipHierarchySection({
       links: [
@@ -883,9 +910,19 @@ describe("schema screens", () => {
   it("validates relationship-hierarchy paths, field item views, sibling ids, and operations", () => {
     const invalidHierarchies: { hierarchy: unknown; message: string }[] = [
       {
-        hierarchy: selectedRecordRelationshipHierarchySection({ relationships: [] }),
+        hierarchy: selectedRecordRelationshipHierarchySection({ relationships: undefined }),
+        message: 'Screen "home" layout section 0 detail section 0 relationships must be an array.',
+      },
+      {
+        hierarchy: selectedRecordRelationshipHierarchySection({ relationships: {} }),
+        message: 'Screen "home" layout section 0 detail section 0 relationships must be an array.',
+      },
+      {
+        hierarchy: selectedRecordRelationshipHierarchySection({
+          relationships: [selectedRecordHierarchyRelationship({ relationships: [] })],
+        }),
         message:
-          'Screen "home" layout section 0 detail section 0 relationships must be a non-empty array.',
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 relationships must be a non-empty array.',
       },
       {
         hierarchy: selectedRecordRelationshipHierarchySection({ itemView: "taskSummary" }),

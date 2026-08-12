@@ -606,6 +606,9 @@ summary slots, operation controls, and schema-declared result types.
 - AND every declared labelled relationship group remains present with its
   available heading actions when it has no active target records while its
   parent record node remains present
+- AND a hierarchy with no child relationship declarations contains its root
+  record node with zero relationship groups while preserving the root item
+  view, record links, and enabled record-operation controls
 - AND occurrence identity scopes fields, create surfaces, controls, drafts,
   confirmations, feedback, and intent routing without becoming stored record
   identity or user selection state
@@ -626,6 +629,9 @@ summary slots, operation controls, and schema-declared result types.
 - AND the complete finite hierarchy renders without an outline-detail split,
   selected-node editor, disclosure control, hierarchy toolbar, or application-
   specific renderer
+- AND a root-only hierarchy renders the root record and its available header
+  actions without a relationship heading, placeholder row, or relationship
+  empty-state section
 
 #### Scenario: Render responsive hierarchy record-header actions
 

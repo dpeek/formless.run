@@ -893,7 +893,7 @@ function parseSelectedRecordRelationshipHierarchySection(
     relationships,
     views,
     operations ?? [],
-    true,
+    { allowEmpty: true, required: true },
   );
 
   return {
@@ -916,12 +916,15 @@ function parseSelectedRecordRelationshipHierarchyRelationships(
   relationships: Record<string, RelationshipSchema>,
   views: Record<string, ViewSchema>,
   sourceNodeOperations: readonly SelectedRecordRelationshipHierarchyOperationBindingSchema[],
-  required: boolean,
+  options: { allowEmpty: boolean; required: boolean },
 ): SelectedRecordRelationshipHierarchyRelationshipSchema[] | undefined {
-  if (value === undefined && !required) {
+  if (value === undefined && !options.required) {
     return undefined;
   }
-  if (!Array.isArray(value) || value.length === 0) {
+  if (!Array.isArray(value)) {
+    throw new Error(`${context} must be an array.`);
+  }
+  if (!options.allowEmpty && value.length === 0) {
     throw new Error(`${context} must be a non-empty array.`);
   }
 
@@ -1010,7 +1013,7 @@ function parseSelectedRecordRelationshipHierarchyRelationships(
       relationships,
       views,
       operations ?? [],
-      false,
+      { allowEmpty: false, required: false },
     );
 
     return {
