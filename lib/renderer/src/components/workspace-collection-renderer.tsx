@@ -4,6 +4,7 @@ import { Badge } from "@astryxdesign/core/Badge";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
 import { Card } from "@astryxdesign/core/Card";
+import { Divider } from "@astryxdesign/core/Divider";
 import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { Grid } from "@astryxdesign/core/Grid";
 import { HStack } from "@astryxdesign/core/HStack";
@@ -741,13 +742,14 @@ function AstryxWorkspaceCollectionMainResult({
 
   return (
     <>
-      <VStack gap={2} width="100%">
+      <VStack gap={0} width="100%">
         <AstryxWorkspaceListHeader
           actions={actions}
           label={collectionLabel}
           onIntent={onIntent}
           scope={scope}
         />
+        <Divider />
         {mainResult}
       </VStack>
       <AstryxWorkspaceCollectionActionEffects actions={actions} onIntent={onIntent} scope={scope} />
@@ -767,7 +769,14 @@ function AstryxWorkspaceListHeader({
   scope: WorkspaceIntentScope;
 }) {
   return (
-    <HStack align="center" gap={3} justify="between" width="100%">
+    <HStack
+      align="center"
+      gap={3}
+      justify="between"
+      paddingBlock={3}
+      paddingInline={4}
+      width="100%"
+    >
       <Heading level={4}>{label}</Heading>
       <AstryxWorkspaceCollectionActionList actions={actions} onIntent={onIntent} scope={scope} />
     </HStack>
