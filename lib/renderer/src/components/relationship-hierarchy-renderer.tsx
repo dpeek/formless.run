@@ -6,6 +6,7 @@ import { Heading } from "@astryxdesign/core/Text";
 import { MoreMenu } from "@astryxdesign/core/MoreMenu";
 import { OverflowList } from "@astryxdesign/core/OverflowList";
 import { VStack } from "@astryxdesign/core/VStack";
+import * as stylex from "@stylexjs/stylex";
 import type {
   CreateIntent,
   FieldIntent,
@@ -237,11 +238,19 @@ function AstryxRelationshipHierarchyActionList({
           variant="ghost"
         />
       )}
+      xstyle={styles.actionList}
     >
       {descriptors.map(({ inline }) => inline)}
     </OverflowList>
   );
 }
+
+const styles = stylex.create({
+  actionList: {
+    flexGrow: 1,
+    justifyContent: "flex-end",
+  },
+});
 
 function astryxRelationshipHierarchyActionDescriptors({
   actionGroup,
