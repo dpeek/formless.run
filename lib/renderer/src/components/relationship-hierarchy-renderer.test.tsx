@@ -48,6 +48,23 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("Astryx relationship-hierarchy renderer", () => {
+  it("does not reserve body spacing for idle operation effects", () => {
+    const hierarchy = hierarchyContract();
+    hierarchy.root.headerActions.items = [
+      {
+        control: operationControlFixtures.workspacePushSuccess.initial,
+        kind: "operationAction",
+      },
+    ];
+    const renderer = render(
+      <AstryxRelationshipHierarchyRenderer hierarchy={hierarchy} onIntent={() => undefined} />,
+    );
+    const root = renderer.getByRole("region", { name: "Formless account" });
+    const editor = within(root).getByRole("region", { name: "Formless account editor" });
+
+    expect(editor.parentElement?.firstElementChild).toBe(editor);
+  });
+
   it("renders every heterogeneous editable node, one populated header menu, action state, a child dialog, and labelled empty groups", () => {
     const hierarchy = hierarchyContract();
     const html = renderToStaticMarkup(

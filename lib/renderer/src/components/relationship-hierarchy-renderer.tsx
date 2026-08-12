@@ -21,6 +21,7 @@ import {
   useRelationshipHierarchy,
   useWorkspaceIntentHandler,
 } from "@dpeek/formless-presentation/host/react";
+import { Fragment } from "react";
 import { AstryxCreateSurfaceRenderer } from "./create-renderer.tsx";
 import {
   AstryxOperationCompactStatus,
@@ -175,13 +176,18 @@ function AstryxRelationshipHierarchyActionEffects({
     const control = action.control;
     const dispatch = (intent: OperationPresentationIntent) =>
       dispatchAstryxRelationshipHierarchyOperationIntent(onIntent, hierarchy, node, action, intent);
+    const hasInlineEffects = control.progress !== undefined || control.status.status !== "idle";
 
     return (
-      <VStack gap={2} key={control.id} width="100%">
-        {control.progress ? <AstryxOperationProgress progress={control.progress} /> : null}
-        {control.status.status === "idle" ? null : (
-          <AstryxOperationCompactStatus status={control.status} />
-        )}
+      <Fragment key={control.id}>
+        {hasInlineEffects ? (
+          <VStack gap={2} width="100%">
+            {control.progress ? <AstryxOperationProgress progress={control.progress} /> : null}
+            {control.status.status === "idle" ? null : (
+              <AstryxOperationCompactStatus status={control.status} />
+            )}
+          </VStack>
+        ) : null}
         {control.confirmation ? (
           <AstryxOperationDestructiveConfirmation
             confirmation={control.confirmation}
@@ -189,7 +195,7 @@ function AstryxRelationshipHierarchyActionEffects({
           />
         ) : null}
         <AstryxOperationFeedback feedback={control.feedback} />
-      </VStack>
+      </Fragment>
     );
   });
 }
