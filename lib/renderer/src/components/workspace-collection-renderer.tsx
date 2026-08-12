@@ -1,4 +1,5 @@
 import * as stylex from "@stylexjs/stylex";
+import type { DropdownMenuItemData } from "@astryxdesign/core/DropdownMenu";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
@@ -7,12 +8,14 @@ import { EmptyState } from "@astryxdesign/core/EmptyState";
 import { Grid } from "@astryxdesign/core/Grid";
 import { HStack } from "@astryxdesign/core/HStack";
 import { List, ListItem } from "@astryxdesign/core/List";
+import { MoreMenu } from "@astryxdesign/core/MoreMenu";
+import { OverflowList } from "@astryxdesign/core/OverflowList";
 import { Section } from "@astryxdesign/core/Section";
 import { Tab, TabList } from "@astryxdesign/core/TabList";
 import { Heading, Text } from "@astryxdesign/core/Text";
 import { VStack } from "@astryxdesign/core/VStack";
 import { borderVars, colorVars } from "@astryxdesign/core/theme/tokens.stylex";
-import { memo, type ReactNode } from "react";
+import { Fragment, memo, type ReactElement, type ReactNode } from "react";
 import type {
   CreateIntent,
   FieldIntent,
@@ -45,7 +48,7 @@ import type {
 } from "@dpeek/formless-presentation/contract";
 import { presentationReferenceKey } from "@dpeek/formless-presentation/host";
 import { useResult, useWorkspaceIntentHandler } from "@dpeek/formless-presentation/host/react";
-import { AstryxCreateSurfaceRenderer } from "./create-renderer.tsx";
+import { AstryxCreateButton, AstryxCreateSurfaceRenderer } from "./create-renderer.tsx";
 import { AstryxListRenderer } from "./list-renderer.tsx";
 import { AstryxRecordResultRenderer } from "./record-result-renderer.tsx";
 import {
@@ -66,7 +69,10 @@ import {
   AstryxOperationCompactStatus,
   AstryxOperationDestructiveConfirmation,
   AstryxOperationFeedback,
+  AstryxOperationProgress,
+  operationIcon,
 } from "./operation-renderer.tsx";
+import { semanticIcon } from "./semantic-icon.tsx";
 
 export function AstryxWorkspaceCollectionRenderer({
   collection,
@@ -275,10 +281,12 @@ function AstryxWorkspaceCollectionFrame({
                 onIntent={onIntent}
               />
               <AstryxWorkspaceSummaries summaries={presentation.summaries} />
-              {mainResult}
-              <AstryxWorkspaceCollectionActions
+              <AstryxWorkspaceCollectionMainResult
                 actions={presentation.actions}
+                collectionLabel={collection.label}
+                mainResult={mainResult}
                 onIntent={onIntent}
+                resultKind={presentation.result.kind}
                 scope={scope}
               />
             </VStack>
@@ -335,10 +343,12 @@ function AstryxWorkspaceCollectionFrame({
               onIntent={onIntent}
             />
             <AstryxWorkspaceSummaries summaries={presentation.summaries} />
-            {mainResult}
-            <AstryxWorkspaceCollectionActions
+            <AstryxWorkspaceCollectionMainResult
               actions={presentation.actions}
+              collectionLabel={collection.label}
+              mainResult={mainResult}
               onIntent={onIntent}
+              resultKind={presentation.result.kind}
               scope={scope}
             />
           </VStack>
@@ -358,10 +368,12 @@ function AstryxWorkspaceCollectionFrame({
             onIntent={onIntent}
           />
           <AstryxWorkspaceSummaries summaries={presentation.summaries} />
-          {mainResult}
-          <AstryxWorkspaceCollectionActions
+          <AstryxWorkspaceCollectionMainResult
             actions={presentation.actions}
+            collectionLabel={collection.label}
+            mainResult={mainResult}
             onIntent={onIntent}
+            resultKind={presentation.result.kind}
             scope={scope}
           />
         </>
@@ -484,6 +496,10 @@ function AstryxWorkspaceContextTabs({
 }
 
 const styles = stylex.create({
+  collectionActionList: {
+    flexGrow: 1,
+    justifyContent: "flex-end",
+  },
   compactHiddenPane: {
     display: {
       default: "none",
@@ -697,6 +713,124 @@ function AstryxWorkspaceSummaries({
   );
 }
 
+function AstryxWorkspaceCollectionMainResult({
+  actions,
+  collectionLabel,
+  mainResult,
+  onIntent,
+  resultKind,
+  scope,
+}: {
+  actions: WorkspaceCollectionActionGroupContract;
+  collectionLabel: string;
+  mainResult: ReactNode;
+  onIntent: WorkspaceIntentHandler;
+  resultKind:
+    | WorkspaceCollectionContract["presentation"]["result"]["kind"]
+    | WorkspaceCollectionShellContract["presentation"]["result"]["kind"];
+  scope: WorkspaceIntentScope;
+}) {
+  if (resultKind !== "list" && resultKind !== "listResultReference") {
+    return (
+      <>
+        {mainResult}
+        <AstryxWorkspaceCollectionActions actions={actions} onIntent={onIntent} scope={scope} />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <VStack gap={2} width="100%">
+        <AstryxWorkspaceListHeader
+          actions={actions}
+          label={collectionLabel}
+          onIntent={onIntent}
+          scope={scope}
+        />
+        {mainResult}
+      </VStack>
+      <AstryxWorkspaceCollectionActionEffects actions={actions} onIntent={onIntent} scope={scope} />
+    </>
+  );
+}
+
+function AstryxWorkspaceListHeader({
+  actions,
+  label,
+  onIntent,
+  scope,
+}: {
+  actions: WorkspaceCollectionActionGroupContract;
+  label: string;
+  onIntent: WorkspaceIntentHandler;
+  scope: WorkspaceIntentScope;
+}) {
+  return (
+    <HStack align="center" gap={3} justify="between" width="100%">
+      <Heading level={4}>{label}</Heading>
+      <AstryxWorkspaceCollectionActionList actions={actions} onIntent={onIntent} scope={scope} />
+    </HStack>
+  );
+}
+
+type AstryxWorkspaceCollectionActionDescriptor = {
+  inline: ReactElement;
+  menuItem: DropdownMenuItemData;
+};
+
+function AstryxWorkspaceCollectionActionList({
+  actions,
+  onIntent,
+  scope,
+}: {
+  actions: WorkspaceCollectionActionGroupContract;
+  onIntent: WorkspaceIntentHandler;
+  scope: WorkspaceIntentScope;
+}) {
+  const descriptors: AstryxWorkspaceCollectionActionDescriptor[] = [
+    ...actions.primary,
+    ...actions.secondary,
+  ].map((action) => ({
+    inline: (
+      <AstryxWorkspaceCollectionInlineAction
+        action={action}
+        key={workspaceCollectionActionId(action)}
+        onIntent={onIntent}
+        scope={scope}
+      />
+    ),
+    menuItem: astryxWorkspaceCollectionActionMenuItem(action, onIntent, scope),
+  }));
+
+  if (descriptors.length === 0) {
+    return null;
+  }
+
+  return (
+    <OverflowList
+      aria-label={actions.secondaryAccessibilityLabel}
+      collapseFrom="end"
+      gap={1}
+      minVisibleItems={0}
+      overflowRenderer={(overflowItems) => (
+        <MoreMenu
+          items={overflowItems.flatMap(({ index }) => {
+            const descriptor = descriptors[index];
+            return descriptor ? [descriptor.menuItem] : [];
+          })}
+          label={actions.secondaryAccessibilityLabel}
+          size="sm"
+          variant="ghost"
+        />
+      )}
+      xstyle={styles.collectionActionList}
+    >
+      {descriptors.map(({ inline }) => inline)}
+    </OverflowList>
+  );
+}
+
 function AstryxWorkspaceCollectionActions({
   actions,
   onIntent,
@@ -723,6 +857,158 @@ function AstryxWorkspaceCollectionActions({
       ))}
     </HStack>
   );
+}
+
+function AstryxWorkspaceCollectionInlineAction({
+  action,
+  onIntent,
+  scope,
+}: {
+  action: WorkspaceCollectionActionContract;
+  onIntent: WorkspaceIntentHandler;
+  scope: WorkspaceIntentScope;
+}) {
+  if (action.kind === "createAction") {
+    const trigger = { ...action.surface.trigger, density: "compact" as const };
+    const disabled = Boolean(trigger.disabled || trigger.pending?.isPending);
+
+    return (
+      <AstryxCreateButton
+        button={trigger}
+        onClick={() => {
+          if (disabled) {
+            return;
+          }
+          void dispatchAstryxWorkspaceCreateIntent(onIntent, scope, action.surface.id, {
+            open: true,
+            surfaceId: action.surface.id,
+            type: "createOpenChange",
+          });
+        }}
+      />
+    );
+  }
+
+  return (
+    <AstryxOperationButton
+      button={{ ...action.control.trigger, density: "compact" }}
+      onIntent={(intent) =>
+        dispatchAstryxWorkspaceOperationIntent(onIntent, scope, action.control.id, intent)
+      }
+    />
+  );
+}
+
+function astryxWorkspaceCollectionActionMenuItem(
+  action: WorkspaceCollectionActionContract,
+  onIntent: WorkspaceIntentHandler,
+  scope: WorkspaceIntentScope,
+): DropdownMenuItemData {
+  const trigger = action.kind === "createAction" ? action.surface.trigger : action.control.trigger;
+  const disabled = Boolean(trigger.disabled || trigger.pending?.isPending);
+  const label = workspaceCollectionActionLabel(action);
+  const icon =
+    trigger.content.kind === "label"
+      ? undefined
+      : action.kind === "createAction"
+        ? semanticIcon(trigger.content.icon)
+        : operationIcon(trigger.content.icon);
+
+  return {
+    icon,
+    isDisabled: disabled,
+    label,
+    onClick: () => {
+      if (disabled) {
+        return;
+      }
+
+      if (action.kind === "createAction") {
+        void dispatchAstryxWorkspaceCreateIntent(onIntent, scope, action.surface.id, {
+          open: true,
+          surfaceId: action.surface.id,
+          type: "createOpenChange",
+        });
+        return;
+      }
+
+      void dispatchAstryxWorkspaceOperationIntent(
+        onIntent,
+        scope,
+        action.control.id,
+        action.control.trigger.intent,
+      );
+    },
+  };
+}
+
+function workspaceCollectionActionLabel(action: WorkspaceCollectionActionContract) {
+  const trigger = action.kind === "createAction" ? action.surface.trigger : action.control.trigger;
+  const label =
+    trigger.pending?.label ??
+    (trigger.content.kind === "iconOnly" ? trigger.accessibilityLabel : trigger.content.label);
+
+  return trigger.disabledReason && trigger.disabledReason !== label
+    ? `${label} — ${trigger.disabledReason}`
+    : label;
+}
+
+function AstryxWorkspaceCollectionActionEffects({
+  actions,
+  onIntent,
+  scope,
+}: {
+  actions: WorkspaceCollectionActionGroupContract;
+  onIntent: WorkspaceIntentHandler;
+  scope: WorkspaceIntentScope;
+}) {
+  return [...actions.primary, ...actions.secondary].map((action) => {
+    if (action.kind === "createAction") {
+      return (
+        <AstryxCreateSurfaceRenderer
+          key={action.surface.id}
+          onFieldIntent={(fieldId, intent) =>
+            dispatchAstryxWorkspaceFieldIntent(onIntent, scope, fieldId, intent, {
+              surfaceId: action.surface.id,
+            })
+          }
+          onIntent={(intent) =>
+            dispatchAstryxWorkspaceCreateIntent(onIntent, scope, action.surface.id, intent)
+          }
+          renderTrigger={false}
+          surface={action.surface}
+        />
+      );
+    }
+
+    const control = action.control;
+    const dispatch = (intent: OperationPresentationIntent) =>
+      dispatchAstryxWorkspaceOperationIntent(onIntent, scope, control.id, intent);
+    const hasInlineEffects = control.progress !== undefined || control.status.status !== "idle";
+
+    return (
+      <Fragment key={control.id}>
+        {hasInlineEffects ? (
+          <VStack gap={2} width="100%">
+            {control.progress ? <AstryxOperationProgress progress={control.progress} /> : null}
+            {control.status.status === "idle" ? null : (
+              <AstryxOperationCompactStatus status={control.status} />
+            )}
+          </VStack>
+        ) : null}
+        {control.confirmation ? (
+          <AstryxOperationDestructiveConfirmation
+            confirmation={control.confirmation}
+            onIntent={dispatch}
+          />
+        ) : null}
+        {control.commandDialog ? (
+          <AstryxOperationCommandDialog dialog={control.commandDialog} onIntent={dispatch} />
+        ) : null}
+        <AstryxOperationFeedback feedback={control.feedback} />
+      </Fragment>
+    );
+  });
 }
 
 function AstryxWorkspaceCollectionAction({

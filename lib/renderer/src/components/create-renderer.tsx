@@ -36,7 +36,7 @@ export function AstryxCreateSurfaceRenderer({
   return (
     <>
       {renderTrigger ? (
-        <CreateButton button={surface.trigger} onClick={() => emitOpenChange(true)} />
+        <AstryxCreateButton button={surface.trigger} onClick={() => emitOpenChange(true)} />
       ) : null}
       <Dialog
         aria-label={surface.dialog.title}
@@ -78,11 +78,14 @@ export function AstryxCreateSurfaceRenderer({
             footer={
               <LayoutFooter>
                 <HStack gap={2} hAlign="end">
-                  <CreateButton
+                  <AstryxCreateButton
                     button={surface.dialog.form.cancel}
                     onClick={() => emitOpenChange(false)}
                   />
-                  <CreateButton button={surface.dialog.form.submit} form={surface.dialog.form.id} />
+                  <AstryxCreateButton
+                    button={surface.dialog.form.submit}
+                    form={surface.dialog.form.id}
+                  />
                 </HStack>
               </LayoutFooter>
             }
@@ -93,7 +96,7 @@ export function AstryxCreateSurfaceRenderer({
   );
 }
 
-function CreateButton({
+export function AstryxCreateButton({
   button,
   form,
   onClick,

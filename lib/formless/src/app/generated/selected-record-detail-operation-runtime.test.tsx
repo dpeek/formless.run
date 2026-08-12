@@ -38,6 +38,14 @@ vi.mock("../../client/sync.ts", async (importOriginal) => ({
 beforeEach(() => {
   resetClientStore();
   submitOperationMock.mockReset();
+  Object.defineProperty(globalThis, "ResizeObserver", {
+    configurable: true,
+    value: class TestResizeObserver implements ResizeObserver {
+      disconnect() {}
+      observe() {}
+      unobserve() {}
+    },
+  });
   Object.defineProperty(window, "matchMedia", {
     configurable: true,
     value: (query: string): MediaQueryList => ({

@@ -123,6 +123,8 @@ describe("Astryx workspace renderer", () => {
     expect(html).toMatch(/<h2[^>]*>Companies<\/h2>/);
     expect(html.indexOf("Task section")).toBeLessThan(html.indexOf("Company section"));
     expect(html).toContain("Install app");
+    expect(html).toMatch(/<h4[^>]*>Tasks<\/h4>/);
+    expect(html).not.toMatch(/<h4[^>]*>Companies<\/h4>/);
     expect(html).toContain("Create task");
     expect(html).toContain("Refresh tasks");
     expect(html).toContain('aria-label="Task queries"');
