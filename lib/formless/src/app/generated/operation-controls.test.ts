@@ -112,13 +112,32 @@ describe("generated operation controls", () => {
       onCommandDialogOpenChange: (open) => openChanges.push(open),
     });
     expect(openChanges).toEqual([true]);
-    expect(initialDialog.submit.disabled).toBe(true);
+    expect(initialDialog.submit.disabled).toBe(false);
+    expect(initialDialog.fieldSet.fields[0]?.errors).toBeUndefined();
     await dispatch(initialDialog.submit.intent);
     expect(invocations).toEqual([]);
+    expect(state?.submitAttempted).toBe(true);
+
+    const invalidDialog = projectGeneratedOperationControl({
+      binding,
+      commandDialogOpen: true,
+      commandState: state,
+      presentation: {
+        accessibilityLabel: binding.label,
+        content: { kind: "label", label: binding.label },
+        density: "default",
+        prominence: "secondary",
+      },
+      state: controller.getStateByExecutionKey(binding.executionKey),
+    }).commandDialog!;
+    expect(invalidDialog.submit.disabled).toBe(true);
+    expect(invalidDialog.fieldSet.fields[0]?.errors?.map((error) => error.message)).toEqual([
+      'Field "assayRole" cannot be empty.',
+    ]);
 
     await dispatch({
       controlId: binding.id,
-      fieldId: initialDialog.fieldSet.fields[0]!.fieldId,
+      fieldId: invalidDialog.fieldSet.fields[0]!.fieldId,
       intent: {
         inputName: "assayRole",
         inputValue: { kind: "input", value: "sterility" },
@@ -139,6 +158,7 @@ describe("generated operation controls", () => {
       state: controller.getStateByExecutionKey(binding.executionKey),
     }).commandDialog!;
     expect(readyDialog.submit.disabled).toBe(false);
+    expect(readyDialog.fieldSet.fields[0]?.errors).toBeUndefined();
 
     await dispatch(readyDialog.cancel.intent);
     expect(openChanges).toEqual([true, false]);
@@ -146,6 +166,54 @@ describe("generated operation controls", () => {
     await dispatch(readyDialog.submit.intent);
     expect(invocations).toEqual([{ input: { assayRole: "sterility" }, source: "formSubmit" }]);
     expect(openChanges).toEqual([true, false, false]);
+  });
+
+  it("retains a completed command draft after failed execution", async () => {
+    const projected = projectCollectionOperationControlBinding(requiredClearCompletedOperation());
+    const binding = {
+      ...projected,
+      input: {
+        ...projected.input,
+        form: {
+          fields: [
+            {
+              editor: "text" as const,
+              field: { label: "Message", required: true, type: "text" as const },
+              fieldName: "message",
+              inputName: "message",
+              label: "Message",
+            },
+          ],
+        },
+      },
+    };
+    const controller = createGeneratedOperationController({ bindings: [binding] });
+    let state: GeneratedCommandDraftSessionState | undefined = {
+      draft: { values: { message: { kind: "input", value: "Keep this" } } },
+      submitAttempted: true,
+    };
+    const openChanges: boolean[] = [];
+
+    await expect(
+      handleGeneratedOperationIntent({
+        binding,
+        commandDialogOpen: true,
+        commandState: state,
+        controller,
+        intent: { controlId: binding.id, type: "operationCommandSubmit" },
+        invoke: async () => ({ displayError: "Operation failed.", type: "failed" }),
+        onCommandDialogOpenChange: (open) => openChanges.push(open),
+        onCommandStateChange: (next) => {
+          state = next;
+        },
+      }),
+    ).resolves.toEqual({ displayError: "Operation failed.", type: "failed" });
+
+    expect(state).toMatchObject({
+      draft: { values: { message: { value: "Keep this" } } },
+      submitAttempted: true,
+    });
+    expect(openChanges).toEqual([]);
   });
 
   it("keeps input-free collection commands on their immediate invocation path", async () => {

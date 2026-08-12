@@ -1,4 +1,7 @@
+// @vitest-environment jsdom
+
 import { describe, expect, it } from "vite-plus/test";
+import { fireEvent, render, within } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type {
   CompactStatusContract,
@@ -24,7 +27,7 @@ import {
   isAstryxOperationResultFeedback,
   operationButtonVariant,
 } from "./operation-renderer.tsx";
-import { enumControl, operationField } from "./fields/fixture-helpers.ts";
+import { operationField, textControl } from "./fields/fixture-helpers.ts";
 
 describe("Astryx operation controls", () => {
   it("maps projected hierarchy to semantic Astryx button variants", () => {
@@ -147,74 +150,130 @@ describe("Astryx operation controls", () => {
     expect(html.match(/disabled=""/g)).toHaveLength(1);
   });
 
-  it("renders declared command fields through the production Astryx form dialog", () => {
+  it("submits the production Astryx command dialog through deferred required validation", () => {
     const field = {
-      type: "enum",
+      type: "text",
       required: true,
-      label: "Assay",
-      values: [
-        { key: "analytical", label: "Analytical" },
-        { key: "sterility", label: "Sterility" },
-      ],
+      label: "Customer name",
     } as const;
     const closeIntent = {
       controlId: "add-sample",
       open: false,
       type: "operationCommandDialogOpenChange",
     } as const;
-    const dialog = {
-      cancel: operationButton({
-        accessibilityLabel: "Cancel",
-        content: { kind: "label", label: "Cancel" },
-        id: "add-sample:cancel",
-        intent: closeIntent,
-      }),
-      closeIntent,
-      errors: [],
-      fieldSet: {
-        disabled: false,
-        fields: [
-          operationField({
-            control: enumControl(field),
-            draftInput: { kind: "input", value: "" },
-            editor: "enum",
-            field,
-            fieldName: "assayRole",
-            inputName: "assayRole",
-            label: "Assay",
-            labelVisibility: "visible",
-            occurrence: { ownerId: "add-sample", placementId: "assayRole" },
-          }),
-        ],
-        id: "add-sample:fields",
-        kind: "fieldSet",
-        label: "Add sample fields",
-      },
-      id: "add-sample:dialog",
-      kind: "operationCommandDialog",
-      open: true,
-      submit: operationButton({
-        accessibilityLabel: "Add sample",
-        content: { kind: "label", label: "Add sample" },
-        disabled: true,
-        disabledReason: "Complete the required fields.",
-        id: "add-sample:submit",
-        intent: { controlId: "add-sample", type: "operationCommandSubmit" },
-        prominence: "primary",
-        type: "submit",
-      }),
-      title: "Add sample",
-    } satisfies OperationCommandDialogContract;
-
-    const html = renderToStaticMarkup(
-      <AstryxOperationCommandDialog dialog={dialog} onIntent={() => undefined} />,
+    const commandDialog = ({
+      errors,
+      submitDisabled,
+      value,
+    }: {
+      errors?: readonly { fieldName: string; message: string }[];
+      submitDisabled: boolean;
+      value: string;
+    }) =>
+      ({
+        cancel: operationButton({
+          accessibilityLabel: "Cancel",
+          content: { kind: "label", label: "Cancel" },
+          id: "add-sample:cancel",
+          intent: closeIntent,
+        }),
+        closeIntent,
+        errors: [],
+        fieldSet: {
+          disabled: false,
+          fields: [
+            operationField({
+              control: textControl(field),
+              draftInput: { kind: "input", value },
+              editor: "text",
+              errors,
+              field,
+              fieldName: "customerName",
+              inputName: "customerName",
+              label: "Customer name",
+              labelVisibility: "visible",
+              occurrence: { ownerId: "add-sample", placementId: "customerName" },
+            }),
+          ],
+          id: "add-sample:fields",
+          kind: "fieldSet",
+          label: "Add sample fields",
+        },
+        id: "add-sample:dialog",
+        kind: "operationCommandDialog",
+        open: true,
+        submit: operationButton({
+          accessibilityLabel: "Add sample",
+          content: { kind: "label", label: "Add sample" },
+          disabled: submitDisabled,
+          ...(submitDisabled ? { disabledReason: "Complete the required fields." } : {}),
+          id: "add-sample:submit",
+          intent: { controlId: "add-sample", type: "operationCommandSubmit" },
+          prominence: "primary",
+          type: "submit",
+        }),
+        title: "Add sample",
+      }) satisfies OperationCommandDialogContract;
+    const intents: OperationPresentationIntent[] = [];
+    const initial = commandDialog({ submitDisabled: false, value: "" });
+    const mounted = render(
+      <AstryxOperationCommandDialog
+        dialog={initial}
+        onIntent={(intent) => {
+          intents.push(intent);
+        }}
+      />,
     );
+    let dialog = within(mounted.getByRole("dialog", { name: "Add sample" }));
 
-    expect(html).toContain('aria-label="Add sample"');
-    expect(html).toContain("Assay");
-    expect(html).toContain('role="combobox"');
-    expect(html).toContain('aria-required="true"');
-    expect(html).toContain("Complete the required fields.");
+    expect(dialog.getByText("Customer name")).toBeTruthy();
+    expect(dialog.queryByText('Field "customerName" cannot be empty.')).toBeNull();
+    expect(dialog.getByRole("button", { name: "Add sample" }).getAttribute("aria-disabled")).toBe(
+      null,
+    );
+    fireEvent.submit(mounted.container.querySelector("form")!);
+    expect(intents).toEqual([{ controlId: "add-sample", type: "operationCommandSubmit" }]);
+
+    mounted.rerender(
+      <AstryxOperationCommandDialog
+        dialog={commandDialog({
+          errors: [{ fieldName: "customerName", message: 'Field "customerName" cannot be empty.' }],
+          submitDisabled: true,
+          value: "",
+        })}
+        onIntent={(intent) => {
+          intents.push(intent);
+        }}
+      />,
+    );
+    dialog = within(mounted.getByRole("dialog", { name: "Add sample" }));
+    expect(dialog.getByText('Field "customerName" cannot be empty.')).toBeTruthy();
+    expect(dialog.getByRole("button", { name: "Add sample" }).getAttribute("aria-disabled")).toBe(
+      "true",
+    );
+    fireEvent.change(dialog.getByRole("textbox", { name: /Customer name/ }), {
+      target: { value: "Ada Lovelace" },
+    });
+    expect(intents.at(-1)).toMatchObject({
+      intent: {
+        inputName: "customerName",
+        inputValue: { value: "Ada Lovelace" },
+        type: "operationDraftChange",
+      },
+      type: "operationCommandFieldIntent",
+    });
+
+    mounted.rerender(
+      <AstryxOperationCommandDialog
+        dialog={commandDialog({ submitDisabled: false, value: "Ada Lovelace" })}
+        onIntent={(intent) => {
+          intents.push(intent);
+        }}
+      />,
+    );
+    fireEvent.submit(mounted.container.querySelector("form")!);
+    expect(intents.filter((intent) => intent.type === "operationCommandSubmit")).toHaveLength(2);
+    mounted.unmount();
   });
 
   it("renders visible compact status text with semantic async and failure state", () => {

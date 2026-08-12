@@ -7,6 +7,7 @@ import {
   createGeneratedOperationController,
   generatedCommandInputForm,
   initialGeneratedCommandDraftSessionState,
+  markGeneratedCommandDraftSessionSubmitted,
   nextGeneratedCommandDraftSessionState,
   selectGeneratedCommandDraftSession,
   type GeneratedCommandDraftSessionState,
@@ -148,10 +149,12 @@ export async function handleGeneratedOperationIntent({
       return undefined;
     }
     const current = commandState ?? initialGeneratedCommandDraftSessionState(commandForm);
+    const submitted = markGeneratedCommandDraftSessionSubmitted(current);
+    onCommandStateChange?.(submitted);
     const session = selectGeneratedCommandDraftSession({
       enabled: !controller.isPending(binding.id),
       form: commandForm,
-      state: current,
+      state: submitted,
     });
     if (!session.canSubmit) {
       return undefined;

@@ -2709,9 +2709,17 @@ entity operations and view operation bindings.
 #### Scenario: Validate and execute command input dialogs
 
 - GIVEN a generated command-input dialog is open
-- WHEN the user submits an empty or invalid required field
-- THEN generated validation reports display-safe field errors and does not
-  invoke the command
+- WHEN the dialog first projects an untouched draft with missing required fields
+- THEN generated validation does not present those missing-required errors and
+  keeps the initial submit action available
+- WHEN the user first submits the invalid draft
+- THEN generated validation marks the draft session submitted, reports
+  display-safe required field errors, and does not invoke the command
+- AND subsequent field edits recompute visible validation so resolved errors
+  disappear, unresolved errors remain, and submit becomes available when the
+  draft is valid
+- AND a valid submission invokes the command exactly once with the resolved
+  input
 - AND pending, failed, committed, and replayed execution uses the command's
   existing shared execution state, idempotency, feedback, and close behavior
 - AND generated runtime closes the dialog only after committed or replayed

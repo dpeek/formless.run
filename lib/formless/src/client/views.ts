@@ -54,6 +54,7 @@ import {
 export { selectRelatedCollectionModels } from "./collection-shell-model.ts";
 export {
   initialGeneratedCommandDraftSessionState,
+  markGeneratedCommandDraftSessionSubmitted,
   nextGeneratedCommandDraftSessionState,
   selectGeneratedCommandDraftSession,
 } from "./operation-command-form.ts";

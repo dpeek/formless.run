@@ -14,12 +14,14 @@ import type {
 
 export type GeneratedCommandDraftSessionState = {
   draft: GeneratedFieldDraft;
+  submitAttempted: boolean;
 };
 
 export type GeneratedCommandDraftSessionFacts = {
   canSubmit: boolean;
   fieldErrors: Record<string, GeneratedFieldDraftError>;
   input: RecordValues;
+  valid: boolean;
   visibleFields: readonly GeneratedCommandInputFieldConfig[];
 };
 
@@ -37,6 +39,16 @@ export function initialGeneratedCommandDraftSessionState(
         ]),
       ),
     },
+    submitAttempted: false,
+  };
+}
+
+export function markGeneratedCommandDraftSessionSubmitted(
+  state: GeneratedCommandDraftSessionState,
+): GeneratedCommandDraftSessionState {
+  return {
+    ...state,
+    submitAttempted: true,
   };
 }
 
@@ -52,7 +64,7 @@ export function nextGeneratedCommandDraftSessionState(input: {
     values[input.inputName] = input.inputValue;
   }
 
-  return { draft: { values } };
+  return { ...input.state, draft: { values } };
 }
 
 export function selectGeneratedCommandDraftSession(input: {
@@ -102,10 +114,35 @@ export function selectGeneratedCommandDraftSession(input: {
     }
   }
 
+  const visibleFieldErrors = input.state.submitAttempted
+    ? fieldErrors
+    : Object.fromEntries(
+        Object.entries(fieldErrors).filter(([inputName]) => {
+          const fieldConfig = input.form.fields.find((field) => field.inputName === inputName);
+          return (
+            fieldConfig === undefined ||
+            !commandFieldIsMissingRequiredValue(fieldConfig, input.state)
+          );
+        }),
+      );
+
   return {
-    canSubmit: (input.enabled ?? true) && Object.keys(fieldErrors).length === 0,
-    fieldErrors,
+    canSubmit: (input.enabled ?? true) && Object.keys(visibleFieldErrors).length === 0,
+    fieldErrors: visibleFieldErrors,
     input: values,
+    valid: Object.keys(fieldErrors).length === 0,
     visibleFields: input.form.fields,
   };
+}
+
+function commandFieldIsMissingRequiredValue(
+  fieldConfig: GeneratedCommandInputFieldConfig,
+  state: GeneratedCommandDraftSessionState,
+): boolean {
+  if (!fieldConfig.field.required || fieldConfig.field.type === "boolean") {
+    return false;
+  }
+
+  const value = state.draft.values[fieldConfig.inputName]?.value;
+  return value === undefined || (typeof value === "string" && value.trim() === "");
 }

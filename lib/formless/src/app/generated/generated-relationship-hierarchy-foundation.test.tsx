@@ -685,10 +685,31 @@ describe("generated selected-record relationship hierarchy", () => {
     control = operationControl(node, "Add sample");
     expect(control.commandDialog).toMatchObject({
       open: true,
-      submit: { disabled: true },
+      submit: { disabled: false },
     });
 
-    const dialog = required(control.commandDialog);
+    let dialog = required(control.commandDialog);
+    expect(dialog.fieldSet.fields[0]?.errors).toBeUndefined();
+    await act(async () => {
+      await runtime.dispatch(
+        projectGeneratedWorkspaceRelationshipHierarchyIntent(
+          currentScope(runtime),
+          hierarchy.id,
+          hierarchyOperationIntent(hierarchy.id, node, control, dialog.submit.intent),
+        ),
+      );
+    });
+    expect(submitOperationMock).not.toHaveBeenCalled();
+    runtime = required(controller);
+    hierarchy = currentHierarchy(runtime);
+    node = required(hierarchy.root.relationshipGroups[0]?.nodes[0]);
+    control = operationControl(node, "Add sample");
+    dialog = required(control.commandDialog);
+    expect(dialog.submit.disabled).toBe(true);
+    expect(dialog.fieldSet.fields[0]?.errors?.map((error) => error.message)).toEqual([
+      'Field "assayRole" cannot be empty.',
+    ]);
+
     await act(async () => {
       await runtime.dispatch(
         projectGeneratedWorkspaceRelationshipHierarchyIntent(
