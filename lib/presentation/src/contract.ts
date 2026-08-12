@@ -521,7 +521,7 @@ export type OperationInputFieldContract = BaseFieldContract & {
   mode: "editor";
   commit: "submit";
   density: FieldDensity;
-  input: PublicSafeOperationInputField;
+  input?: PublicSafeOperationInputField;
   inputName: string;
   draftInput?: GeneratedFieldDraftInput;
   media?: MediaAuthoring;
@@ -576,6 +576,7 @@ export type ValueUnitCommit = {
 export type OperationInvocationSource =
   | "button"
   | "confirmationDialog"
+  | "formSubmit"
   | "menuItem"
   | "submitButton";
 
@@ -711,7 +712,7 @@ export type OperationInvokeIntent = {
   controlId: string;
   invocationSource: Extract<
     OperationInvocationSource,
-    "button" | "confirmationDialog" | "menuItem"
+    "button" | "confirmationDialog" | "formSubmit" | "menuItem"
   >;
   type: "operationInvoke";
 };
@@ -722,7 +723,28 @@ export type OperationConfirmationOpenChangeIntent = {
   type: "operationConfirmationOpenChange";
 };
 
+export type OperationCommandDialogOpenChangeIntent = {
+  controlId: string;
+  open: boolean;
+  type: "operationCommandDialogOpenChange";
+};
+
+export type OperationCommandFieldIntent = {
+  controlId: string;
+  fieldId: string;
+  intent: FieldIntent;
+  type: "operationCommandFieldIntent";
+};
+
+export type OperationCommandSubmitIntent = {
+  controlId: string;
+  type: "operationCommandSubmit";
+};
+
 export type OperationPresentationIntent =
+  | OperationCommandDialogOpenChangeIntent
+  | OperationCommandFieldIntent
+  | OperationCommandSubmitIntent
   | OperationConfirmationOpenChangeIntent
   | OperationInvokeIntent;
 
@@ -890,6 +912,7 @@ export type CreateFieldIntentHandler = (
 ) => Promise<void> | void;
 
 export type OperationControlContract = {
+  commandDialog?: OperationCommandDialogContract;
   confirmation?: OperationDestructiveConfirmationContract;
   feedback?: OperationFeedbackEventContract;
   id: string;
@@ -897,6 +920,20 @@ export type OperationControlContract = {
   progress?: OperationProgressContract;
   status: CompactStatusContract;
   trigger: OperationButtonContract;
+};
+
+export type OperationCommandDialogContract = {
+  cancel: OperationButtonContract;
+  closeIntent: OperationCommandDialogOpenChangeIntent;
+  errors: readonly string[];
+  fieldSet: Omit<FieldSetContract, "fields"> & {
+    fields: readonly OperationInputFieldContract[];
+  };
+  id: string;
+  kind: "operationCommandDialog";
+  open: boolean;
+  submit: OperationButtonContract;
+  title: string;
 };
 
 export type CollectionEmptyStatePrimaryActionContract =

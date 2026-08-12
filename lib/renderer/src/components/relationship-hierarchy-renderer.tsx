@@ -31,6 +31,7 @@ import { AstryxCreateSurfaceRenderer } from "./create-renderer.tsx";
 import {
   AstryxOperationButton,
   AstryxOperationCompactStatus,
+  AstryxOperationCommandDialog,
   AstryxOperationDestructiveConfirmation,
   AstryxOperationFeedback,
   AstryxOperationProgress,
@@ -478,6 +479,9 @@ function AstryxRelationshipHierarchyActionEffects({
             confirmation={control.confirmation}
             onIntent={dispatch}
           />
+        ) : null}
+        {control.commandDialog ? (
+          <AstryxOperationCommandDialog dialog={control.commandDialog} onIntent={dispatch} />
         ) : null}
         <AstryxOperationFeedback feedback={control.feedback} />
       </Fragment>

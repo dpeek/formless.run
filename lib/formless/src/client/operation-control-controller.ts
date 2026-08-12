@@ -255,6 +255,7 @@ export function buildGeneratedOperationInvocationRequest(
   switch (binding.input.kind) {
     case "collectionCommand":
     case "tableStatic":
+    case "tableCommand":
       return withOptionalOperationInput(base, callerInput);
     case "createForm":
       return withInput(base, callerInput.input);
@@ -263,7 +264,7 @@ export function buildGeneratedOperationInvocationRequest(
         ...base,
         recordId: requiredRecordId(binding, callerInput),
       };
-    case "recordStatic":
+    case "recordCommand":
       return {
         ...withOptionalOperationInput(base, callerInput),
         recordId: requiredRecordId(binding, callerInput),

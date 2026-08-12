@@ -1,9 +1,11 @@
+import type { AppSchema } from "@dpeek/formless-schema";
 import type {
   ButtonContent,
   CompactStatusContract,
   CompactStatusIntent,
   OperationButtonContract,
   OperationControlContract,
+  OperationCommandDialogContract,
   OperationExecutionStatus,
   OperationFeedbackEventContract,
   OperationPresentationIntent,
@@ -11,10 +13,17 @@ import type {
   OperationProgressStepContract,
 } from "@dpeek/formless-presentation/contract";
 import type {
+  GeneratedCommandDraftSessionState,
   GeneratedOperationControlBinding,
   GeneratedOperationExecutionState,
   GeneratedOperationProgressStep,
 } from "../../client/views.ts";
+import {
+  generatedCommandInputForm,
+  initialGeneratedCommandDraftSessionState,
+  selectGeneratedCommandDraftSession,
+} from "../../client/views.ts";
+import { projectGeneratedCommandFields } from "./field-projection.ts";
 
 type ProjectedFeedbackStatus = Exclude<OperationExecutionStatus, "idle">;
 
@@ -56,14 +65,20 @@ export type ProjectGeneratedOperationControlOptions = {
   presentation: GeneratedOperationButtonPresentation;
   state: GeneratedOperationExecutionState;
   targetCount?: GeneratedOperationTargetCount;
+  commandDialogOpen?: boolean;
+  commandState?: GeneratedCommandDraftSessionState;
+  schema?: AppSchema | null;
 };
 
 export function projectGeneratedOperationControl({
   binding,
+  commandDialogOpen = false,
+  commandState,
   confirmationOpen = false,
   feedbackCopy,
   presentation,
   state,
+  schema,
   targetCount,
 }: ProjectGeneratedOperationControlOptions): OperationControlContract {
   const pending = state.status === "pending";
@@ -78,18 +93,31 @@ export function projectGeneratedOperationControl({
     copy: feedbackCopy,
     progress,
   });
+  const commandDialog = projectGeneratedOperationCommandDialog({
+    binding,
+    open: commandDialogOpen,
+    pending,
+    schema,
+    state: commandState,
+  });
   const triggerIntent: OperationPresentationIntent =
-    binding.confirmation === undefined
+    commandDialog !== undefined
       ? {
           controlId: binding.id,
-          invocationSource: presentation.invocationSource ?? ("button" as const),
-          type: "operationInvoke" as const,
-        }
-      : {
-          controlId: binding.id,
           open: true,
-          type: "operationConfirmationOpenChange" as const,
-        };
+          type: "operationCommandDialogOpenChange" as const,
+        }
+      : binding.confirmation === undefined
+        ? {
+            controlId: binding.id,
+            invocationSource: presentation.invocationSource ?? ("button" as const),
+            type: "operationInvoke" as const,
+          }
+        : {
+            controlId: binding.id,
+            open: true,
+            type: "operationConfirmationOpenChange" as const,
+          };
   const trigger: OperationButtonContract = {
     accessibilityLabel: presentation.accessibilityLabel,
     content: presentation.content,
@@ -117,6 +145,7 @@ export function projectGeneratedOperationControl({
   };
 
   return {
+    ...(commandDialog === undefined ? {} : { commandDialog }),
     ...(binding.confirmation === undefined
       ? {}
       : {
@@ -165,6 +194,94 @@ export function projectGeneratedOperationControl({
     ...(progress === undefined ? {} : { progress }),
     status,
     trigger,
+  };
+}
+
+export function projectGeneratedOperationCommandDialog(input: {
+  binding: GeneratedOperationControlBinding;
+  open: boolean;
+  pending: boolean;
+  schema?: AppSchema | null;
+  state?: GeneratedCommandDraftSessionState;
+}): OperationCommandDialogContract | undefined {
+  const form = generatedCommandInputForm(input.binding);
+  if (form === undefined) {
+    return undefined;
+  }
+  const state = input.state ?? initialGeneratedCommandDraftSessionState(form);
+  const session = selectGeneratedCommandDraftSession({
+    enabled: !input.pending,
+    form,
+    state,
+  });
+  const closeIntent = {
+    controlId: input.binding.id,
+    open: false,
+    type: "operationCommandDialogOpenChange" as const,
+  };
+
+  return {
+    cancel: commandDialogButton({
+      binding: input.binding,
+      id: "cancel",
+      intent: closeIntent,
+      label: "Cancel",
+      prominence: "secondary",
+    }),
+    closeIntent,
+    errors: [],
+    fieldSet: {
+      disabled: input.pending,
+      ...(input.pending ? { disabledReason: `${input.binding.label} is running.` } : {}),
+      fields: projectGeneratedCommandFields({
+        owner: { formId: `${input.binding.id}:form`, kind: "operationForm" },
+        schema: input.schema,
+        session,
+        state,
+      }),
+      id: `${input.binding.id}:fields`,
+      kind: "fieldSet",
+      label: `${input.binding.label} fields`,
+    },
+    id: `${input.binding.id}:dialog`,
+    kind: "operationCommandDialog",
+    open: input.open,
+    submit: commandDialogButton({
+      binding: input.binding,
+      disabledReason: session.canSubmit ? undefined : "Complete the required fields.",
+      id: "submit",
+      intent: { controlId: input.binding.id, type: "operationCommandSubmit" },
+      label: input.binding.label,
+      pending: input.pending,
+      prominence: "primary",
+      type: "submit",
+    }),
+    title: input.binding.label,
+  };
+}
+
+function commandDialogButton(input: {
+  binding: GeneratedOperationControlBinding;
+  id: string;
+  intent: OperationPresentationIntent;
+  label: string;
+  prominence: OperationButtonContract["prominence"];
+  disabledReason?: string;
+  pending?: boolean;
+  type?: OperationButtonContract["type"];
+}): OperationButtonContract {
+  return {
+    accessibilityLabel: input.label,
+    content: { kind: "label", label: input.label },
+    density: "default",
+    disabled: input.disabledReason !== undefined,
+    ...(input.disabledReason === undefined ? {} : { disabledReason: input.disabledReason }),
+    id: `${input.binding.id}:${input.id}`,
+    intent: input.intent,
+    kind: "button",
+    pending: input.pending ? { isPending: true, label: `${input.binding.label}...` } : undefined,
+    prominence: input.prominence,
+    type: input.type ?? "button",
   };
 }
 

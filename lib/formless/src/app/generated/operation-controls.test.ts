@@ -7,6 +7,7 @@ import {
   projectTreeCompositionOperationControlBindings,
   selectCollectionModels,
   type GeneratedOperationAuthoritySubmitter,
+  type GeneratedCommandDraftSessionState,
   type HomeOperationConfig,
   type ResultOrderingConfig,
   type TableOperationControlConfig,
@@ -42,6 +43,144 @@ import {
 } from "./record-delete-runtime.ts";
 
 describe("generated operation controls", () => {
+  it("collects, validates, cancels, and submits declared command input exactly once", async () => {
+    const projected = projectCollectionOperationControlBinding(requiredClearCompletedOperation());
+    const binding = {
+      ...projected,
+      input: {
+        ...projected.input,
+        form: {
+          fields: [
+            {
+              editor: "enum" as const,
+              field: {
+                type: "enum" as const,
+                required: true,
+                label: "Assay",
+                values: [
+                  { key: "analytical", label: "Analytical" },
+                  { key: "sterility", label: "Sterility" },
+                ],
+              },
+              fieldName: "assayRole",
+              inputName: "assayRole",
+              label: "Assay",
+            },
+          ],
+        },
+      },
+    };
+    const controller = createGeneratedOperationController({ bindings: [binding] });
+    let state: GeneratedCommandDraftSessionState | undefined;
+    const openChanges: boolean[] = [];
+    const invocations: Array<{ input: unknown; source: string }> = [];
+    const dispatch = (intent: Parameters<typeof handleGeneratedOperationIntent>[0]["intent"]) =>
+      handleGeneratedOperationIntent({
+        binding,
+        commandDialogOpen: true,
+        commandState: state,
+        controller,
+        intent,
+        invoke: async (invokeIntent, input) => {
+          invocations.push({ input, source: invokeIntent.invocationSource });
+          return { type: "committed" };
+        },
+        onCommandDialogOpenChange: (open) => openChanges.push(open),
+        onCommandStateChange: (next) => {
+          state = next;
+        },
+      });
+    const initialControl = projectGeneratedOperationControl({
+      binding,
+      presentation: {
+        accessibilityLabel: binding.label,
+        content: { kind: "label", label: binding.label },
+        density: "default",
+        prominence: "secondary",
+      },
+      state: controller.getStateByExecutionKey(binding.executionKey),
+    });
+    const initialDialog = initialControl.commandDialog!;
+
+    await handleGeneratedOperationIntent({
+      binding,
+      controller,
+      intent: initialControl.trigger.intent,
+      invoke: async () => {
+        throw new Error("Initial trigger must not invoke.");
+      },
+      onCommandDialogOpenChange: (open) => openChanges.push(open),
+    });
+    expect(openChanges).toEqual([true]);
+    expect(initialDialog.submit.disabled).toBe(true);
+    await dispatch(initialDialog.submit.intent);
+    expect(invocations).toEqual([]);
+
+    await dispatch({
+      controlId: binding.id,
+      fieldId: initialDialog.fieldSet.fields[0]!.fieldId,
+      intent: {
+        inputName: "assayRole",
+        inputValue: { kind: "input", value: "sterility" },
+        type: "operationDraftChange",
+      },
+      type: "operationCommandFieldIntent",
+    });
+    const readyDialog = projectGeneratedOperationControl({
+      binding,
+      commandDialogOpen: true,
+      commandState: state,
+      presentation: {
+        accessibilityLabel: binding.label,
+        content: { kind: "label", label: binding.label },
+        density: "default",
+        prominence: "secondary",
+      },
+      state: controller.getStateByExecutionKey(binding.executionKey),
+    }).commandDialog!;
+    expect(readyDialog.submit.disabled).toBe(false);
+
+    await dispatch(readyDialog.cancel.intent);
+    expect(openChanges).toEqual([true, false]);
+    expect(invocations).toEqual([]);
+    await dispatch(readyDialog.submit.intent);
+    expect(invocations).toEqual([{ input: { assayRole: "sterility" }, source: "formSubmit" }]);
+    expect(openChanges).toEqual([true, false, false]);
+  });
+
+  it("keeps input-free collection commands on their immediate invocation path", async () => {
+    const binding = projectCollectionOperationControlBinding(requiredClearCompletedOperation());
+    const controller = createGeneratedOperationController({ bindings: [binding] });
+    const control = projectGeneratedOperationControl({
+      binding,
+      presentation: {
+        accessibilityLabel: binding.label,
+        content: { kind: "label", label: binding.label },
+        density: "default",
+        prominence: "secondary",
+      },
+      state: controller.getStateByExecutionKey(binding.executionKey),
+    });
+    let invocationCount = 0;
+
+    expect(selectGeneratedOperationControlTriggerDecision({ binding })).toEqual({
+      type: "execute",
+    });
+    expect(control.commandDialog).toBeUndefined();
+    await expect(
+      handleGeneratedOperationIntent({
+        binding,
+        controller,
+        intent: control.trigger.intent,
+        invoke: async () => {
+          invocationCount += 1;
+          return { type: "committed" };
+        },
+      }),
+    ).resolves.toEqual({ type: "committed" });
+    expect(invocationCount).toBe(1);
+  });
+
   it("reports collection command committed feedback with affected counts", async () => {
     const operation = requiredClearCompletedOperation();
     const binding = projectCollectionOperationControlBinding(operation);

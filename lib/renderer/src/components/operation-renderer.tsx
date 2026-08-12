@@ -1,12 +1,16 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import * as stylex from "@stylexjs/stylex";
 import { AlertDialog } from "@astryxdesign/core/AlertDialog";
+import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
+import { FieldStatus } from "@astryxdesign/core/FieldStatus";
+import { FormLayout } from "@astryxdesign/core/FormLayout";
 import { Badge } from "@astryxdesign/core/Badge";
 import { Button, type ButtonSize, type ButtonVariant } from "@astryxdesign/core/Button";
 import { HStack } from "@astryxdesign/core/HStack";
 import { HoverCard } from "@astryxdesign/core/HoverCard";
 import { IconButton } from "@astryxdesign/core/IconButton";
 import { List, ListItem } from "@astryxdesign/core/List";
+import { Layout, LayoutContent, LayoutFooter } from "@astryxdesign/core/Layout";
 import { Spinner } from "@astryxdesign/core/Spinner";
 import { StatusDot, type StatusDotVariant } from "@astryxdesign/core/StatusDot";
 import { Text } from "@astryxdesign/core/Text";
@@ -17,6 +21,7 @@ import type {
   CompactStatusContract,
   CompactStatusIntent,
   OperationButtonContract,
+  OperationCommandDialogContract,
   OperationDestructiveConfirmationContract,
   OperationExecutionStatus,
   OperationFeedbackEventContract,
@@ -25,6 +30,7 @@ import type {
   OperationProgressStepStatus,
   SemanticIconId,
 } from "@dpeek/formless-presentation/contract";
+import { FieldRenderer } from "./fields/field-renderer.tsx";
 import { semanticIcon } from "./semantic-icon.tsx";
 
 export type AstryxOperationButtonFacts = {
@@ -239,6 +245,101 @@ export function AstryxOperationDestructiveConfirmation({
   );
 }
 
+export function AstryxOperationCommandDialog({
+  dialog,
+  onIntent,
+}: {
+  dialog: OperationCommandDialogContract;
+  onIntent: OperationPresentationIntentHandler;
+}) {
+  const emitOpenChange = (open: boolean) => {
+    void onIntent({ ...dialog.closeIntent, open });
+  };
+
+  return (
+    <Dialog
+      aria-label={dialog.title}
+      isOpen={dialog.open}
+      onOpenChange={emitOpenChange}
+      purpose="form"
+      width={520}
+    >
+      <form
+        id={`${dialog.id}:form`}
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!dialog.submit.disabled && !dialog.submit.pending?.isPending) {
+            void onIntent(dialog.submit.intent);
+          }
+        }}
+      >
+        <Layout
+          header={<DialogHeader title={dialog.title} onOpenChange={emitOpenChange} />}
+          content={
+            <LayoutContent>
+              <VStack gap={3}>
+                <fieldset
+                  aria-label={dialog.fieldSet.label}
+                  disabled={dialog.fieldSet.disabled}
+                  title={dialog.fieldSet.disabledReason}
+                  {...stylex.props(styles.commandFieldSet)}
+                >
+                  <FormLayout direction="vertical">
+                    {dialog.fieldSet.fields.map((field) => (
+                      <FieldRenderer
+                        key={field.fieldId}
+                        field={field}
+                        onIntent={(intent) =>
+                          onIntent({
+                            controlId: dialog.closeIntent.controlId,
+                            fieldId: field.fieldId,
+                            intent,
+                            type: "operationCommandFieldIntent",
+                          })
+                        }
+                      />
+                    ))}
+                  </FormLayout>
+                </fieldset>
+                {dialog.errors.map((error) => (
+                  <FieldStatus key={error} message={error} type="error" />
+                ))}
+              </VStack>
+            </LayoutContent>
+          }
+          footer={
+            <LayoutFooter>
+              <HStack gap={2} hAlign="end">
+                <Button
+                  isDisabled={dialog.cancel.disabled}
+                  label={dialog.cancel.accessibilityLabel}
+                  onClick={() => void onIntent(dialog.cancel.intent)}
+                  type="button"
+                  variant="secondary"
+                >
+                  {operationButtonVisibleLabel(dialog.cancel)}
+                </Button>
+                <Button
+                  form={`${dialog.id}:form`}
+                  isDisabled={dialog.submit.disabled}
+                  isLoading={Boolean(dialog.submit.pending?.isPending)}
+                  label={dialog.submit.accessibilityLabel}
+                  tooltip={dialog.submit.disabledReason}
+                  type="submit"
+                  variant="primary"
+                >
+                  {operationButtonVisibleLabel(dialog.submit)}
+                </Button>
+              </HStack>
+            </LayoutFooter>
+          }
+        />
+      </form>
+    </Dialog>
+  );
+}
+
 export function AstryxOperationCompactStatus({ status }: { status: CompactStatusContract }) {
   const isPending = Boolean(status.pending?.isPending);
 
@@ -435,6 +536,11 @@ export function operationIcon(icon: SemanticIconId) {
 }
 
 const styles = stylex.create({
+  commandFieldSet: {
+    borderWidth: 0,
+    margin: 0,
+    padding: 0,
+  },
   confirmationDialog: {
     textAlign: "start",
   },

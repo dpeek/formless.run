@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type {
   CompactStatusContract,
   OperationButtonContract,
+  OperationCommandDialogContract,
   OperationDestructiveConfirmationContract,
   OperationFeedbackEventContract,
   OperationPresentationIntent,
@@ -12,6 +13,7 @@ import { operationControlFixtures } from "./operation-controls.fixtures.ts";
 import {
   AstryxOperationButton,
   AstryxOperationButtonWithProgress,
+  AstryxOperationCommandDialog,
   AstryxOperationCompactStatus,
   AstryxOperationDestructiveConfirmation,
   AstryxOperationProgress,
@@ -22,6 +24,7 @@ import {
   isAstryxOperationResultFeedback,
   operationButtonVariant,
 } from "./operation-renderer.tsx";
+import { enumControl, operationField } from "./fields/fixture-helpers.ts";
 
 describe("Astryx operation controls", () => {
   it("maps projected hierarchy to semantic Astryx button variants", () => {
@@ -142,6 +145,76 @@ describe("Astryx operation controls", () => {
     );
     expect(html).toContain('aria-busy="true"');
     expect(html.match(/disabled=""/g)).toHaveLength(1);
+  });
+
+  it("renders declared command fields through the production Astryx form dialog", () => {
+    const field = {
+      type: "enum",
+      required: true,
+      label: "Assay",
+      values: [
+        { key: "analytical", label: "Analytical" },
+        { key: "sterility", label: "Sterility" },
+      ],
+    } as const;
+    const closeIntent = {
+      controlId: "add-sample",
+      open: false,
+      type: "operationCommandDialogOpenChange",
+    } as const;
+    const dialog = {
+      cancel: operationButton({
+        accessibilityLabel: "Cancel",
+        content: { kind: "label", label: "Cancel" },
+        id: "add-sample:cancel",
+        intent: closeIntent,
+      }),
+      closeIntent,
+      errors: [],
+      fieldSet: {
+        disabled: false,
+        fields: [
+          operationField({
+            control: enumControl(field),
+            draftInput: { kind: "input", value: "" },
+            editor: "enum",
+            field,
+            fieldName: "assayRole",
+            inputName: "assayRole",
+            label: "Assay",
+            labelVisibility: "visible",
+            occurrence: { ownerId: "add-sample", placementId: "assayRole" },
+          }),
+        ],
+        id: "add-sample:fields",
+        kind: "fieldSet",
+        label: "Add sample fields",
+      },
+      id: "add-sample:dialog",
+      kind: "operationCommandDialog",
+      open: true,
+      submit: operationButton({
+        accessibilityLabel: "Add sample",
+        content: { kind: "label", label: "Add sample" },
+        disabled: true,
+        disabledReason: "Complete the required fields.",
+        id: "add-sample:submit",
+        intent: { controlId: "add-sample", type: "operationCommandSubmit" },
+        prominence: "primary",
+        type: "submit",
+      }),
+      title: "Add sample",
+    } satisfies OperationCommandDialogContract;
+
+    const html = renderToStaticMarkup(
+      <AstryxOperationCommandDialog dialog={dialog} onIntent={() => undefined} />,
+    );
+
+    expect(html).toContain('aria-label="Add sample"');
+    expect(html).toContain("Assay");
+    expect(html).toContain('role="combobox"');
+    expect(html).toContain('aria-required="true"');
+    expect(html).toContain("Complete the required fields.");
   });
 
   it("renders visible compact status text with semantic async and failure state", () => {

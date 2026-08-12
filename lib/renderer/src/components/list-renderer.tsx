@@ -31,6 +31,7 @@ import { FieldRenderer } from "./fields/field-renderer.tsx";
 import {
   AstryxOperationButton,
   AstryxOperationButtonWithProgress,
+  AstryxOperationCommandDialog,
   AstryxOperationDestructiveConfirmation,
   AstryxOperationFeedback,
   operationIcon,
@@ -320,6 +321,12 @@ function AstryxListActionEffects({
       {action.control.confirmation ? (
         <AstryxOperationDestructiveConfirmation
           confirmation={action.control.confirmation}
+          onIntent={(intent) => onOperationIntent(action, intent)}
+        />
+      ) : null}
+      {action.control.commandDialog ? (
+        <AstryxOperationCommandDialog
+          dialog={action.control.commandDialog}
           onIntent={(intent) => onOperationIntent(action, intent)}
         />
       ) : null}

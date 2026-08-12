@@ -2681,6 +2681,52 @@ entity operations and view operation bindings.
 - AND adapters do not redefine operation input, output, effect, actor policy,
   idempotency policy, audit policy, or storage target semantics
 
+#### Scenario: Collect declared collection command input
+
+- GIVEN a generated collection-scoped command declares operation input fields
+- WHEN the user selects its generated operation control
+- THEN generated UI opens a controlled command-input dialog without invoking
+  the command
+- AND the dialog projects entity-backed and inline input definitions through
+  the generated field and form contracts with their declared labels, required
+  state, field types, formats, enum values, suggestions, and validation
+- AND cancelling closes the dialog without invoking the command
+- AND submitting a valid draft invokes the command exactly once with input
+  keyed by the declared operation input names
+
+#### Scenario: Collect declared record command input
+
+- GIVEN a generated record-scoped command declares operation input fields
+- WHEN the user selects its control from a record, table, detail, or
+  relationship-hierarchy `recordOperation` surface
+- THEN generated UI opens the same controlled command-input dialog without
+  invoking the command
+- AND submitting a valid draft invokes the command exactly once with the
+  selected record id and resolved declared input
+- AND the invocation source identifies the generated command form submit
+  surface
+
+#### Scenario: Validate and execute command input dialogs
+
+- GIVEN a generated command-input dialog is open
+- WHEN the user submits an empty or invalid required field
+- THEN generated validation reports display-safe field errors and does not
+  invoke the command
+- AND pending, failed, committed, and replayed execution uses the command's
+  existing shared execution state, idempotency, feedback, and close behavior
+- AND generated runtime closes the dialog only after committed or replayed
+  execution and retains the draft after failure
+- AND Authority remains responsible for record-plan generation and trusted
+  generated ids, codes, dates, and other operation effects
+
+#### Scenario: Preserve input-free command behavior
+
+- GIVEN a generated collection-scoped or record-scoped command declares no
+  input fields
+- WHEN the user selects its operation control
+- THEN the command retains its existing immediate or controlled-confirmation
+  behavior without opening a command-input dialog
+
 #### Scenario: Public operation form authoring controls
 
 - GIVEN generated Site authoring renders a `publicOperationForm` block editor

@@ -2181,6 +2181,7 @@ function ProjectedPublicOperationSelector({
 }
 
 type ProjectedPublicOperationFieldData = OperationInputFieldContract & {
+  input: PublicSafeOperationInputField;
   publicDescription?: string;
   publicPlaceholder?: string;
 };

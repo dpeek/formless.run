@@ -59,6 +59,9 @@ import {
   recordFieldRef,
   type CreateDefaultConfig,
   type CreateFieldConfig,
+  type GeneratedCommandDraftSessionFacts,
+  type GeneratedCommandDraftSessionState,
+  type GeneratedCommandInputFieldConfig,
   type RecordFieldConfig,
 } from "../../client/views.ts";
 import {
@@ -323,7 +326,7 @@ export type ProjectGeneratedOperationFieldsOptions = ProjectGeneratedOperationSe
 
 export type ProjectGeneratedOperationFieldOptions = {
   error?: GeneratedFieldErrorInput;
-  fieldConfig: GeneratedOperationInputFieldConfig;
+  fieldConfig: GeneratedOperationInputFieldConfig | GeneratedCommandInputFieldConfig;
   iconDialogDraft?: string;
   iconDialogOpen?: boolean;
   iconParseError?: string;
@@ -335,6 +338,13 @@ export type ProjectGeneratedOperationFieldOptions = {
   schema?: AppSchema | null;
   state?: GeneratedOperationDraftSessionState;
   value?: FieldValue;
+};
+
+export type ProjectGeneratedCommandFieldsOptions = {
+  owner: GeneratedOperationFieldOwner;
+  schema?: AppSchema | null;
+  session: GeneratedCommandDraftSessionFacts;
+  state: GeneratedCommandDraftSessionState;
 };
 
 export function projectGeneratedFieldId({ owner, placementId }: GeneratedFieldOccurrence): string {
@@ -1006,6 +1016,24 @@ export function projectGeneratedOperationFields({
   );
 }
 
+export function projectGeneratedCommandFields({
+  owner,
+  schema = null,
+  session,
+  state,
+}: ProjectGeneratedCommandFieldsOptions): OperationInputFieldContract[] {
+  return session.visibleFields.map((fieldConfig) =>
+    projectGeneratedOperationField({
+      error: session.fieldErrors[fieldConfig.inputName],
+      fieldConfig,
+      occurrence: { owner, placementId: fieldConfig.inputName },
+      schema,
+      state,
+      value: session.input[fieldConfig.inputName],
+    }),
+  );
+}
+
 export function projectGeneratedOperationField({
   error,
   fieldConfig,
@@ -1065,7 +1093,7 @@ export function projectGeneratedOperationField({
       value: draftInput?.value ?? value,
     }),
     ...(icon === undefined ? {} : { icon }),
-    input: fieldConfig,
+    ...("control" in fieldConfig ? { input: fieldConfig } : {}),
     inputName,
     mode: "editor",
     surface: "operation",
@@ -1110,7 +1138,11 @@ function projectBaseField({
   commit: FieldContract["commit"];
   control: GeneratedFieldControl;
   error?: GeneratedFieldErrorInput;
-  fieldConfig: CreateFieldConfig | GeneratedRecordFieldConfig | GeneratedOperationInputFieldConfig;
+  fieldConfig:
+    | CreateFieldConfig
+    | GeneratedCommandInputFieldConfig
+    | GeneratedRecordFieldConfig
+    | GeneratedOperationInputFieldConfig;
   fieldId: string;
   inputName?: string;
   label: string;

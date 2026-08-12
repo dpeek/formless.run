@@ -639,6 +639,119 @@ describe("generated selected-record relationship hierarchy", () => {
     });
   });
 
+  it("collects relationship-hierarchy record command enum input before invoking the target record", async () => {
+    resetClientStore();
+    const schema = relationshipHierarchySchema({ withCommandInput: true });
+    applyBootstrapResponse(bootstrapResponse(schema, hierarchyRuntimeRecords()));
+    const screen = required(
+      selectScreenModels(schema).find((candidate) => candidate.screenName === "rateSetup"),
+    );
+    let controller: GeneratedWorkspaceRuntimeController | undefined;
+
+    function RuntimeProbe() {
+      controller = useGeneratedWorkspaceRuntimeController({
+        getSectionSelection: () => ({ selectedRecordId: "rec_card_premium" }),
+        onSelectContext: () => undefined,
+        onSelectQuery: () => undefined,
+        onSelectRecord: () => undefined,
+        screen,
+        today: "2026-08-11",
+      });
+      return null;
+    }
+
+    let renderer: RenderResult | undefined;
+    await act(async () => {
+      renderer = render(<RuntimeProbe />);
+    });
+    let runtime = required(controller);
+    let hierarchy = currentHierarchy(runtime);
+    let node = required(hierarchy.root.relationshipGroups[0]?.nodes[0]);
+    let control = operationControl(node, "Add sample");
+
+    await act(async () => {
+      await runtime.dispatch(
+        projectGeneratedWorkspaceRelationshipHierarchyIntent(
+          currentScope(runtime),
+          hierarchy.id,
+          hierarchyOperationIntent(hierarchy.id, node, control),
+        ),
+      );
+    });
+    expect(submitOperationMock).not.toHaveBeenCalled();
+    runtime = required(controller);
+    hierarchy = currentHierarchy(runtime);
+    node = required(hierarchy.root.relationshipGroups[0]?.nodes[0]);
+    control = operationControl(node, "Add sample");
+    expect(control.commandDialog).toMatchObject({
+      open: true,
+      submit: { disabled: true },
+    });
+
+    const dialog = required(control.commandDialog);
+    await act(async () => {
+      await runtime.dispatch(
+        projectGeneratedWorkspaceRelationshipHierarchyIntent(
+          currentScope(runtime),
+          hierarchy.id,
+          hierarchyOperationIntent(hierarchy.id, node, control, {
+            controlId: control.id,
+            fieldId: dialog.fieldSet.fields[0]!.fieldId,
+            intent: {
+              inputName: "assayRole",
+              inputValue: { kind: "input", value: "sterility" },
+              type: "operationDraftChange",
+            },
+            type: "operationCommandFieldIntent",
+          }),
+        ),
+      );
+    });
+    runtime = required(controller);
+    hierarchy = currentHierarchy(runtime);
+    node = required(hierarchy.root.relationshipGroups[0]?.nodes[0]);
+    control = operationControl(node, "Add sample");
+    expect(control.commandDialog?.submit.disabled).toBe(false);
+
+    submitOperationMock.mockResolvedValueOnce(committedCommandResponse());
+    await act(async () => {
+      await runtime.dispatch(
+        projectGeneratedWorkspaceRelationshipHierarchyIntent(
+          currentScope(runtime),
+          hierarchy.id,
+          hierarchyOperationIntent(
+            hierarchy.id,
+            node,
+            control,
+            required(control.commandDialog).submit.intent,
+          ),
+        ),
+      );
+    });
+    expect(submitOperationMock.mock.calls[0]?.slice(0, 3)).toEqual([
+      "rate",
+      "addSample",
+      {
+        input: { assayRole: "sterility" },
+        recordId: node.recordId,
+        source: { protocol: "generated-ui", surface: "formSubmit" },
+      },
+    ]);
+    expect(required(required(controller).workspace?.sections[0]).collection.presentation.kind).toBe(
+      "selectedRecord",
+    );
+    expect(
+      operationControl(
+        required(currentHierarchy(required(controller)).root.relationshipGroups[0]?.nodes[0]),
+        "Add sample",
+      ).commandDialog?.open,
+    ).toBe(false);
+
+    await act(async () => {
+      required(renderer).unmount();
+    });
+  });
+
   it("scopes child create surfaces, drafts, fields, and stale intents to their path occurrence", async () => {
     resetClientStore();
     const schema = relationshipHierarchySchema();
@@ -1219,7 +1332,10 @@ function createdRateRecord(): StoredRecord {
   };
 }
 
-function relationshipHierarchySchema({ rootOnly = false }: { rootOnly?: boolean } = {}): AppSchema {
+function relationshipHierarchySchema({
+  rootOnly = false,
+  withCommandInput = false,
+}: { rootOnly?: boolean; withCommandInput?: boolean } = {}): AppSchema {
   const setup = required(rateSourceSchema.screens.find((screen) => screen.key === "rateSetup"));
   if (setup.type !== "workspace") {
     throw new Error("Missing rate setup workspace.");
@@ -1265,7 +1381,11 @@ function relationshipHierarchySchema({ rootOnly = false }: { rootOnly?: boolean 
           },
         ],
         links: rateHierarchyLinks(),
-        operations: [{ operation: "rate.archive" }, { operation: "rate.restore" }],
+        operations: [
+          { operation: "rate.archive" },
+          { operation: "rate.restore" },
+          ...(withCommandInput ? [{ operation: "rate.addSample" }] : []),
+        ],
         relationships: [
           {
             id: "adjustments",
@@ -1392,6 +1512,44 @@ function relationshipHierarchySchema({ rootOnly = false }: { rootOnly?: boolean 
                   config: { machine: "workflow", transition: "restore" },
                 },
               },
+              ...(withCommandInput
+                ? [
+                    {
+                      key: "addSample",
+                      label: "Add sample",
+                      kind: "command" as const,
+                      scope: "record" as const,
+                      effect: {
+                        type: "recordPlan" as const,
+                        steps: [
+                          {
+                            name: "markSampleAdded",
+                            kind: "patch" as const,
+                            entity: "rate",
+                            recordId: { kind: "targetRecordId" as const },
+                            values: {
+                              externalId: { kind: "literal" as const, value: "sample-added" },
+                            },
+                          },
+                        ],
+                      },
+                      input: {
+                        fields: [
+                          {
+                            key: "assayRole",
+                            label: "Assay",
+                            required: true,
+                            type: "enum" as const,
+                            values: [
+                              { key: "analytical", label: "Analytical" },
+                              { key: "sterility", label: "Sterility" },
+                            ],
+                          },
+                        ],
+                      },
+                    },
+                  ]
+                : []),
             ],
           };
         }

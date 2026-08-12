@@ -310,8 +310,16 @@ function selectTableOperationControlConfigs(
       continue;
     }
 
+    const operationEntity = schema.entities.find(
+      (definition) => definition.key === operation.entityName,
+    );
+    if (operationEntity === undefined) {
+      throw new Error(`Missing table operation entity "${operation.entityName}".`);
+    }
+
     const base = {
       bindingName: operation.canonicalKey,
+      entity: operationEntity,
       operation,
       label: binding.label ?? operation.label,
       variant:
@@ -322,14 +330,9 @@ function selectTableOperationControlConfigs(
         : { disabledReason: binding.availability.reason }),
     };
 
-    const operationEntity = schema.entities.find(
-      (definition) => definition.key === operation.entityName,
+    const transition = selectTransitionStateOperations(operation.entityName, operationEntity).find(
+      (candidate) => candidate.operationName === operation.operationName,
     );
-    const transition = operationEntity
-      ? selectTransitionStateOperations(operation.entityName, operationEntity).find(
-          (candidate) => candidate.operationName === operation.operationName,
-        )
-      : undefined;
 
     if (transition !== undefined) {
       configs.push({ ...base, transition, type: "transition" });

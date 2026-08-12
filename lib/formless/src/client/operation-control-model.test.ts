@@ -1,20 +1,31 @@
 import { describe, expect, it } from "vite-plus/test";
-import type { AppSchema, CollectionViewSchema, TableViewSchema } from "@dpeek/formless-schema";
+import type {
+  AppSchema,
+  CollectionViewSchema,
+  EntitySchema,
+  KeyedDefinition,
+  TableViewSchema,
+} from "@dpeek/formless-schema";
 import { sourceLikeSiteSchema, sourceLikeTaskSchema } from "../test/schema-builders.ts";
 import { selectHomeCollectionShell } from "./collection-shell-model.ts";
 import {
   createIdleGeneratedOperationExecutionState,
+  projectCollectionOperationControlBinding,
   projectCollectionOperationControlBindings,
   projectOrderingMoveOperationControlBinding,
   projectPublicOperationFormControlBinding,
   projectRecordDeleteOperationControlBinding,
+  projectRecordOperationControlBinding,
   projectStateTransitionOperationControlBinding,
   projectTableOperationControlBindings,
   projectTreeCompositionOperationControlBindings,
   projectWorkspaceOperationControlBinding,
 } from "./operation-control-model.ts";
 import type { GeneratedOperationExecutionState } from "./operation-control-model.ts";
-import { selectEntityOperationByKind } from "./operation-presentation-model.ts";
+import {
+  selectEntityOperationByKind,
+  selectEntityOperationPresentation,
+} from "./operation-presentation-model.ts";
 import {
   selectTransitionStateOperationAvailability,
   selectTransitionStateOperations,
@@ -67,6 +78,87 @@ describe("generated operation control model", () => {
         inputKind: "collectionCommand",
       },
     ]);
+  });
+
+  it("projects entity-backed and inline command fields for collection and record controls", () => {
+    const entity = commandInputEntity();
+    const collectionOperation = selectEntityOperationPresentation(
+      entity.key,
+      "intake",
+      entity.operations![0]!,
+    );
+    const recordOperation = selectEntityOperationPresentation(
+      entity.key,
+      "addSample",
+      entity.operations![1]!,
+    );
+    const collectionBinding = projectCollectionOperationControlBinding({
+      type: "command",
+      placement: "toolbar",
+      label: "Create order",
+      entityName: entity.key,
+      entity,
+      operationName: "intake",
+      operation: collectionOperation,
+      ui: { showAffectedCountOnSuccess: false },
+    });
+    const recordBinding = projectRecordOperationControlBinding({
+      entity,
+      entityLabel: entity.label,
+      operation: recordOperation,
+    });
+
+    expect(collectionBinding.input).toMatchObject({
+      kind: "collectionCommand",
+      form: {
+        fields: [
+          {
+            editor: "text",
+            entityFieldName: "operatorEmail",
+            field: { type: "text", format: "email", required: true },
+            inputName: "email",
+            label: "Operator email",
+          },
+        ],
+      },
+    });
+    expect(recordBinding.input).toMatchObject({
+      kind: "recordCommand",
+      form: {
+        fields: [
+          {
+            editor: "enum",
+            field: {
+              type: "enum",
+              required: true,
+              values: [
+                { key: "analytical", label: "Analytical" },
+                { key: "sterility", label: "Sterility" },
+              ],
+            },
+            inputName: "assayRole",
+            label: "Assay",
+          },
+        ],
+      },
+    });
+  });
+
+  it("keeps input-free commands free of generated form state", () => {
+    const entity = commandInputEntity();
+    const operation = selectEntityOperationPresentation(
+      entity.key,
+      "refresh",
+      entity.operations![2]!,
+    );
+
+    expect(
+      projectRecordOperationControlBinding({
+        entity,
+        entityLabel: entity.label,
+        operation,
+      }).input,
+    ).toEqual({ kind: "recordCommand" });
   });
 
   it("models optional display-safe progress on operation execution state", () => {
@@ -349,4 +441,66 @@ function requiredCollectionView(schema: AppSchema, viewName: string): Collection
   }
 
   return view;
+}
+
+function commandInputEntity(): KeyedDefinition<EntitySchema> {
+  return {
+    key: "compound-line",
+    id: "entity_compound_line",
+    label: "Compound line",
+    fields: [
+      {
+        key: "operatorEmail",
+        label: "Email",
+        type: "text",
+        format: "email",
+        required: false,
+      },
+    ],
+    operations: [
+      {
+        key: "intake",
+        kind: "command",
+        scope: "collection",
+        input: {
+          fields: [
+            { key: "email", field: "operatorEmail", label: "Operator email", required: true },
+          ],
+        },
+        output: { type: "command" },
+        idempotency: { required: true },
+        audit: { input: "summary" },
+      },
+      {
+        key: "addSample",
+        kind: "command",
+        scope: "record",
+        input: {
+          fields: [
+            {
+              key: "assayRole",
+              label: "Assay",
+              required: true,
+              type: "enum",
+              values: [
+                { key: "analytical", label: "Analytical" },
+                { key: "sterility", label: "Sterility" },
+              ],
+            },
+          ],
+        },
+        output: { type: "command" },
+        idempotency: { required: true },
+        audit: { input: "summary" },
+      },
+      {
+        key: "refresh",
+        kind: "command",
+        scope: "record",
+        output: { type: "command" },
+        idempotency: { required: true },
+        audit: { input: "none" },
+      },
+    ],
+  };
 }

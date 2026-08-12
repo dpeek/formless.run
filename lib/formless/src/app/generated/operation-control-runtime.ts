@@ -5,6 +5,11 @@ import type {
 } from "@dpeek/formless-presentation/contract";
 import {
   createGeneratedOperationController,
+  generatedCommandInputForm,
+  initialGeneratedCommandDraftSessionState,
+  nextGeneratedCommandDraftSessionState,
+  selectGeneratedCommandDraftSession,
+  type GeneratedCommandDraftSessionState,
   type GeneratedOperationCallerInput,
   type GeneratedOperationControlBinding,
   type GeneratedOperationController,
@@ -23,6 +28,7 @@ export type ExecuteGeneratedOperationControlOptions = {
 };
 
 export type GeneratedOperationControlTriggerDecision =
+  | { type: "collectInput" }
   | { type: "confirm" }
   | { type: "execute" }
   | { type: "ignore" };
@@ -30,10 +36,17 @@ export type GeneratedOperationControlTriggerDecision =
 export type HandleGeneratedOperationIntentOptions = {
   binding: GeneratedOperationControlBinding;
   confirmationOpen?: boolean;
+  commandDialogOpen?: boolean;
+  commandState?: GeneratedCommandDraftSessionState;
   controller: GeneratedOperationController;
   intent: OperationPresentationIntent;
-  invoke: (intent: OperationInvokeIntent) => Promise<GeneratedOperationExecutionResult>;
+  invoke: (
+    intent: OperationInvokeIntent,
+    commandInput?: unknown,
+  ) => Promise<GeneratedOperationExecutionResult>;
   onConfirmationOpenChange?: (open: boolean) => void;
+  onCommandDialogOpenChange?: (open: boolean) => void;
+  onCommandStateChange?: (state: GeneratedCommandDraftSessionState) => void;
   onSuccess?: (result: Exclude<GeneratedOperationExecutionResult, { type: "failed" }>) => void;
 };
 
@@ -78,6 +91,10 @@ export function selectGeneratedOperationControlTriggerDecision({
     return { type: "ignore" };
   }
 
+  if (generatedCommandInputForm(binding) !== undefined) {
+    return { type: "collectInput" };
+  }
+
   if (binding.confirmation !== undefined) {
     return { type: "confirm" };
   }
@@ -88,20 +105,80 @@ export function selectGeneratedOperationControlTriggerDecision({
 export async function handleGeneratedOperationIntent({
   binding,
   confirmationOpen = false,
+  commandDialogOpen = false,
+  commandState,
   controller,
   intent,
   invoke,
   onConfirmationOpenChange,
+  onCommandDialogOpenChange,
+  onCommandStateChange,
   onSuccess,
 }: HandleGeneratedOperationIntentOptions): Promise<GeneratedOperationExecutionResult | undefined> {
   if (intent.controlId !== binding.id) {
     return undefined;
   }
 
+  const commandForm = generatedCommandInputForm(binding);
+
+  if (intent.type === "operationCommandDialogOpenChange") {
+    if (commandForm !== undefined) {
+      onCommandDialogOpenChange?.(intent.open);
+    }
+    return undefined;
+  }
+
+  if (intent.type === "operationCommandFieldIntent") {
+    if (commandForm === undefined || intent.intent.type !== "operationDraftChange") {
+      return undefined;
+    }
+    const current = commandState ?? initialGeneratedCommandDraftSessionState(commandForm);
+    onCommandStateChange?.(
+      nextGeneratedCommandDraftSessionState({
+        inputName: intent.intent.inputName,
+        inputValue: intent.intent.inputValue,
+        state: current,
+      }),
+    );
+    return undefined;
+  }
+
+  if (intent.type === "operationCommandSubmit") {
+    if (commandForm === undefined || !commandDialogOpen) {
+      return undefined;
+    }
+    const current = commandState ?? initialGeneratedCommandDraftSessionState(commandForm);
+    const session = selectGeneratedCommandDraftSession({
+      enabled: !controller.isPending(binding.id),
+      form: commandForm,
+      state: current,
+    });
+    if (!session.canSubmit) {
+      return undefined;
+    }
+    const result = await invoke(
+      {
+        controlId: binding.id,
+        invocationSource: "formSubmit",
+        type: "operationInvoke",
+      },
+      session.input,
+    );
+    if (result.type !== "failed") {
+      onCommandDialogOpenChange?.(false);
+      onSuccess?.(result);
+    }
+    return result;
+  }
+
   if (intent.type === "operationConfirmationOpenChange") {
     if (binding.confirmation !== undefined) {
       onConfirmationOpenChange?.(intent.open);
     }
+    return undefined;
+  }
+
+  if (commandForm !== undefined) {
     return undefined;
   }
 

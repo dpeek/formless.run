@@ -113,6 +113,42 @@ describe("generated operation control controller", () => {
     });
   });
 
+  it("submits collected record command input with the form surface and target record", async () => {
+    const output = {
+      type: "command",
+      affectedChangeIds: ["write-sample"],
+      changes: [],
+      cursor: 3,
+    } satisfies OperationInvocationResponse["output"];
+    const submit = captureAuthoritySubmitter(operationResponse(output));
+    const controller = createGeneratedOperationController({
+      bindings: [
+        binding({
+          id: "add-sample",
+          canonicalOperationKey: "compound-line.addSample",
+          input: { kind: "recordCommand" },
+          kind: "command",
+          label: "Add sample",
+          operationName: "addSample",
+        }),
+      ],
+      submitAuthorityOperation: submit.submit,
+    });
+
+    await controller.execute({
+      bindingId: "add-sample",
+      input: { assayRole: "sterility" },
+      recordId: "compound-line-1",
+      source: "formSubmit",
+    });
+
+    expect(submit.calls[0]?.request).toEqual({
+      input: { assayRole: "sterility" },
+      recordId: "compound-line-1",
+      source: { protocol: "generated-ui", surface: "formSubmit" },
+    });
+  });
+
   it("normalizes affected counts and created record ids from command output", async () => {
     const created = record("task-2", "Created by command");
     const output = {

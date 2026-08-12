@@ -62,6 +62,7 @@ import {
 import {
   AstryxOperationButton,
   AstryxOperationButtonWithProgress,
+  AstryxOperationCommandDialog,
   AstryxOperationCompactStatus,
   AstryxOperationDestructiveConfirmation,
   AstryxOperationFeedback,
@@ -778,6 +779,9 @@ function AstryxWorkspaceOperationControl({
           confirmation={control.confirmation}
           onIntent={onIntent}
         />
+      ) : null}
+      {control.commandDialog ? (
+        <AstryxOperationCommandDialog dialog={control.commandDialog} onIntent={onIntent} />
       ) : null}
       {control.status.status === "idle" ? null : (
         <AstryxOperationCompactStatus status={control.status} />

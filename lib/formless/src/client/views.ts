@@ -53,6 +53,15 @@ import {
 
 export { selectRelatedCollectionModels } from "./collection-shell-model.ts";
 export {
+  initialGeneratedCommandDraftSessionState,
+  nextGeneratedCommandDraftSessionState,
+  selectGeneratedCommandDraftSession,
+} from "./operation-command-form.ts";
+export type {
+  GeneratedCommandDraftSessionFacts,
+  GeneratedCommandDraftSessionState,
+} from "./operation-command-form.ts";
+export {
   buildGeneratedOperationInvocationRequest,
   buildGeneratedOperationRuntimeAdapterRequest,
   createGeneratedOperationController,
@@ -71,6 +80,7 @@ export {
 } from "./workspace-operation-runtime.ts";
 export {
   createIdleGeneratedOperationExecutionState,
+  generatedCommandInputForm,
   generatedOperationExecutionKey,
   projectCollectionOperationControlBinding,
   projectCollectionOperationControlBindings,
@@ -111,6 +121,8 @@ export type {
 } from "./operation-control-controller.ts";
 export type { WorkspaceGatewayGeneratedOperationRuntimeAdapterOptions } from "./workspace-operation-runtime.ts";
 export type {
+  GeneratedCommandInputFieldConfig,
+  GeneratedCommandInputForm,
   GeneratedOperationCallerInput,
   GeneratedOperationControlAvailability,
   GeneratedOperationControlBinding,
@@ -232,6 +244,7 @@ export type LinkControlTableColumnConfig = TableColumnBaseConfig & {
 
 export type TableOperationControlBaseConfig = {
   bindingName: string;
+  entity?: EntitySchema;
   operation?: EntityOperationPresentationConfig;
   label: string;
   variant: TableOperationControlVariant;

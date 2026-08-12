@@ -1,8 +1,13 @@
 import type {
+  EntityOperationSchema,
   EntityOperationKind,
   EntityOperationScope,
+  EntitySchema,
+  FieldEditor,
+  FieldSchema,
   FieldVisibilityValue,
 } from "@dpeek/formless-schema";
+import { getFieldTypeBehavior } from "@dpeek/formless-schema";
 import type { CommandOperationUiConfig, HomeOperationConfig } from "./collection-shell-model.ts";
 import type { OperationInvocationResponse } from "../shared/operation-invocation.ts";
 import type { EntityOperationPresentationConfig } from "./operation-presentation-model.ts";
@@ -56,6 +61,7 @@ export type GeneratedOperationControlFeedback = {
 export type GeneratedOperationInputAdapter =
   | {
       kind: "collectionCommand";
+      form?: GeneratedCommandInputForm;
       ui: CommandOperationUiConfig;
     }
   | {
@@ -68,10 +74,15 @@ export type GeneratedOperationInputAdapter =
       recordLabel?: string;
     }
   | {
-      kind: "recordStatic";
+      form?: GeneratedCommandInputForm;
+      kind: "recordCommand";
     }
   | {
       kind: "tableStatic";
+    }
+  | {
+      form?: GeneratedCommandInputForm;
+      kind: "tableCommand";
     }
   | {
       kind: "tableEditRecord";
@@ -118,6 +129,20 @@ export type GeneratedPublicOperationInputField = {
   control: "boolean" | "date" | "enum" | "longText" | "number" | "text";
 };
 
+export type GeneratedCommandInputFieldConfig = {
+  editor: FieldEditor;
+  entityFieldName?: string;
+  field: FieldSchema;
+  fieldName: string;
+  inputName: string;
+  label: string;
+  mustBeTrue?: true;
+};
+
+export type GeneratedCommandInputForm = {
+  fields: readonly GeneratedCommandInputFieldConfig[];
+};
+
 export type GeneratedOperationControlBinding = {
   id: string;
   executionKey: string;
@@ -139,6 +164,7 @@ export type GeneratedOperationControlBinding = {
 
 export type GeneratedOperationInvocationSource =
   | "button"
+  | "formSubmit"
   | "confirmationDialog"
   | "menuItem"
   | "submitButton";
@@ -317,6 +343,7 @@ export function projectCollectionOperationControlBinding(
     },
     input: {
       kind: "collectionCommand",
+      ...commandInputAdapterForm(operation.entity, operation.operation.operation),
       ui: operation.ui,
     },
   });
@@ -366,6 +393,7 @@ export function projectRecordDeleteOperationControlBinding(input: {
 }
 
 export function projectRecordOperationControlBinding(input: {
+  entity: EntitySchema;
   entityLabel: string;
   operation: EntityOperationPresentationConfig;
   label?: string;
@@ -398,7 +426,10 @@ export function projectRecordOperationControlBinding(input: {
       replayLabel: `${label} replayed.`,
       failureLabel: `${label} failed.`,
     },
-    input: { kind: "recordStatic" },
+    input: {
+      kind: "recordCommand",
+      ...commandInputAdapterForm(input.entity, input.operation.operation),
+    },
   });
 }
 
@@ -454,8 +485,80 @@ export function projectTableOperationControlBinding(
             editView: control.editView,
             target: control.target,
           }
-        : { kind: "tableStatic" },
+        : control.operation.operation.kind === "command"
+          ? {
+              kind: "tableCommand",
+              ...(control.entity === undefined
+                ? {}
+                : commandInputAdapterForm(control.entity, control.operation.operation)),
+            }
+          : { kind: "tableStatic" },
   });
+}
+
+export function projectGeneratedCommandInputForm(
+  entity: EntitySchema,
+  operation: EntityOperationSchema,
+): GeneratedCommandInputForm | undefined {
+  const fields = operation.input?.fields ?? [];
+  if (operation.kind !== "command" || fields.length === 0) {
+    return undefined;
+  }
+
+  const entityFields = new Map(entity.fields.map((field) => [field.key, field]));
+  return {
+    fields: fields.map((inputField) => {
+      const inputName = inputField.key;
+      const entityFieldName = "field" in inputField ? inputField.field : undefined;
+      const entityField =
+        entityFieldName === undefined ? undefined : entityFields.get(entityFieldName);
+      if ("field" in inputField && entityField === undefined) {
+        throw new Error(
+          `Operation input field "${inputName}" references missing entity field "${inputField.field}".`,
+        );
+      }
+
+      const sourceField = entityField ?? inputField;
+      const field = {
+        ...sourceField,
+        label: inputField.label ?? sourceField.label,
+        required: "field" in inputField ? (inputField.required ?? false) : inputField.required,
+      } as FieldSchema;
+
+      return {
+        editor: getFieldTypeBehavior(field).defaultEditor,
+        ...(entityFieldName === undefined ? {} : { entityFieldName }),
+        field,
+        fieldName: inputName,
+        inputName,
+        label: inputField.label ?? sourceField.label ?? inputName,
+        ...("mustBeTrue" in inputField && inputField.mustBeTrue
+          ? { mustBeTrue: true as const }
+          : {}),
+      };
+    }),
+  };
+}
+
+export function generatedCommandInputForm(
+  binding: GeneratedOperationControlBinding,
+): GeneratedCommandInputForm | undefined {
+  switch (binding.input.kind) {
+    case "collectionCommand":
+    case "recordCommand":
+    case "tableCommand":
+      return binding.input.form;
+    default:
+      return undefined;
+  }
+}
+
+function commandInputAdapterForm(
+  entity: EntitySchema,
+  operation: EntityOperationSchema,
+): { form?: GeneratedCommandInputForm } {
+  const form = projectGeneratedCommandInputForm(entity, operation);
+  return form === undefined ? {} : { form };
 }
 
 export function projectStateTransitionOperationControlBinding(input: {

@@ -443,7 +443,7 @@ function profileCompletionFields(
     session: visibleSession,
     state: session.profile,
   }).map((field) => ({
-    autocomplete: field.input.format === "email" ? "email" : "off",
+    autocomplete: field.input?.format === "email" ? "email" : "off",
     field,
     intent: { fieldId: field.fieldId, surfaceId: AUTH_ACCOUNT_GATE_SURFACE_ID, type: "authField" },
     kind: "authField",

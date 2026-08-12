@@ -30,6 +30,7 @@ import {
   recordFieldIsWritable,
   recordFieldRef,
   type EditRecordTableOperationControlConfig,
+  type GeneratedCommandDraftSessionState,
   type GeneratedOperationControlBinding,
   type GeneratedOperationController,
   type HomeQueryTabConfig,
@@ -144,6 +145,8 @@ export type GeneratedTableRuntimePlan = {
 };
 
 export type SelectGeneratedWorkspaceTableFoundationOptions = {
+  commandDialogOpenById?: Readonly<Record<string, boolean | undefined>>;
+  commandStateById?: Readonly<Record<string, GeneratedCommandDraftSessionState | undefined>>;
   confirmationOpenById?: Readonly<Record<string, boolean | undefined>>;
   controller: GeneratedOperationController;
   dialogOpenById?: Readonly<Record<string, boolean | undefined>>;
@@ -166,6 +169,8 @@ export type SelectGeneratedWorkspaceTableFoundationOptions = {
 };
 
 export function selectGeneratedWorkspaceTableFoundation({
+  commandDialogOpenById = {},
+  commandStateById = {},
   confirmationOpenById = {},
   controller,
   dialogOpenById = {},
@@ -205,6 +210,8 @@ export function selectGeneratedWorkspaceTableFoundation({
     tableId: id,
   });
   const projected = projectGeneratedRecordTable({
+    commandDialogOpenById,
+    commandStateById,
     confirmationOpenById,
     controller,
     dialogOpenById,
@@ -227,6 +234,8 @@ export function selectGeneratedWorkspaceTableFoundation({
 }
 
 export function projectGeneratedRecordTable({
+  commandDialogOpenById,
+  commandStateById,
   confirmationOpenById,
   controller,
   dialogOpenById,
@@ -244,6 +253,8 @@ export function projectGeneratedRecordTable({
   schema,
   tableId,
 }: {
+  commandDialogOpenById: Readonly<Record<string, boolean | undefined>>;
+  commandStateById: Readonly<Record<string, GeneratedCommandDraftSessionState | undefined>>;
   confirmationOpenById: Readonly<Record<string, boolean | undefined>>;
   controller: GeneratedOperationController;
   dialogOpenById: Readonly<Record<string, boolean | undefined>>;
@@ -277,6 +288,8 @@ export function projectGeneratedRecordTable({
     for (const cell of row.cells) {
       contentsByColumnId[cell.columnId] = record
         ? projectGeneratedTableCell({
+            commandDialogOpenById,
+            commandStateById,
             cell,
             confirmationOpenById,
             controller,
@@ -472,6 +485,8 @@ export function resolveGeneratedTableEditFieldIntent(
 }
 
 function projectGeneratedTableCell({
+  commandDialogOpenById,
+  commandStateById,
   cell,
   confirmationOpenById,
   controller,
@@ -487,6 +502,8 @@ function projectGeneratedTableCell({
   schema,
   tableId,
 }: {
+  commandDialogOpenById: Readonly<Record<string, boolean | undefined>>;
+  commandStateById: Readonly<Record<string, GeneratedCommandDraftSessionState | undefined>>;
   cell: GeneratedTableCellPresentation;
   confirmationOpenById: Readonly<Record<string, boolean | undefined>>;
   controller: GeneratedOperationController;
@@ -550,7 +567,14 @@ function projectGeneratedTableCell({
           candidate.recordId === record.id &&
           candidate.control.bindingName === control.bindingName,
       );
-      return operationAction(operation, controller, confirmationOpenById);
+      return operationAction({
+        commandDialogOpenById,
+        commandStateById,
+        confirmationOpenById,
+        controller,
+        runtime: operation,
+        schema,
+      });
     });
     const ordering = runtimePlan.orderingByCellId.get(cell.id) ?? [];
     const orderingItems = runtimePlan.orderingItemsByCellId.get(cell.id) ?? [];
@@ -967,11 +991,21 @@ function projectExplicitTableTransitionBinding(
   };
 }
 
-function operationAction(
-  runtime: GeneratedTableOperationRuntime | undefined,
-  controller: GeneratedOperationController,
-  confirmationOpenById: Readonly<Record<string, boolean | undefined>>,
-): TableOperationActionContract {
+function operationAction({
+  commandDialogOpenById,
+  commandStateById,
+  confirmationOpenById,
+  controller,
+  runtime,
+  schema,
+}: {
+  commandDialogOpenById: Readonly<Record<string, boolean | undefined>>;
+  commandStateById: Readonly<Record<string, GeneratedCommandDraftSessionState | undefined>>;
+  confirmationOpenById: Readonly<Record<string, boolean | undefined>>;
+  controller: GeneratedOperationController;
+  runtime: GeneratedTableOperationRuntime | undefined;
+  schema: AppSchema | null;
+}): TableOperationActionContract {
   if (!runtime) {
     throw new Error("Missing generated table operation runtime.");
   }
@@ -982,6 +1016,8 @@ function operationAction(
   const isDelete = runtime.binding.operationKind === "delete";
   const control = projectGeneratedOperationControl({
     binding: runtime.binding,
+    commandDialogOpen: commandDialogOpenById[runtime.binding.id] ?? false,
+    commandState: commandStateById[runtime.binding.id],
     confirmationOpen: confirmationOpenById[runtime.binding.id] ?? false,
     presentation: {
       accessibilityLabel: runtime.binding.label,
@@ -994,6 +1030,7 @@ function operationAction(
       prominence: runtime.binding.destructive ? "destructive" : "secondary",
     },
     state,
+    schema,
   });
 
   return projectGeneratedTableOperationAction(
@@ -1053,7 +1090,8 @@ function projectOrderingActions(
 export async function executeGeneratedTableRuntimeOperation(
   runtime: GeneratedTableOperationRuntime,
   controller: GeneratedOperationController,
-  source: "button" | "confirmationDialog" | "menuItem",
+  source: "button" | "confirmationDialog" | "formSubmit" | "menuItem",
+  commandInput?: unknown,
 ) {
   if (runtime.kind === "transition") {
     return executeTransitionStateOperation({
@@ -1083,6 +1121,7 @@ export async function executeGeneratedTableRuntimeOperation(
     binding: runtime.binding,
     callerInput: {
       bindingId: runtime.binding.id,
+      ...(commandInput === undefined ? {} : { input: commandInput }),
       recordId: runtime.recordId,
       source,
     },

@@ -25,6 +25,7 @@ import { setSyncStatus } from "../../client/sync-status.ts";
 import { submitOperation } from "../../client/sync.ts";
 import type { EntityOperationPresentationConfig } from "../../client/operation-presentation-model.ts";
 import type {
+  GeneratedCommandDraftSessionState,
   GeneratedOperationControlBinding,
   GeneratedOperationController,
   HomeOperationConfig,
@@ -252,6 +253,12 @@ export function useGeneratedWorkspaceRuntimeController({
   const [confirmationOpenByControlId, setConfirmationOpenByControlId] = useState<
     Record<string, boolean | undefined>
   >({});
+  const [commandDialogOpenByControlId, setCommandDialogOpenByControlId] = useState<
+    Record<string, boolean | undefined>
+  >({});
+  const [commandStateByControlId, setCommandStateByControlId] = useState<
+    Record<string, GeneratedCommandDraftSessionState | undefined>
+  >({});
   const [recordStateByResultId, setRecordStateByResultId] = useState<
     Record<string, GeneratedRecordResultRecordState | undefined>
   >({});
@@ -289,6 +296,8 @@ export function useGeneratedWorkspaceRuntimeController({
     screen.layout.sections.map((section) => [section.id, getSectionSelection(section)]),
   );
   const base = selectWorkspaceRuntimeFoundation({
+    commandDialogOpenByControlId,
+    commandStateByControlId,
     confirmationOpenByControlId,
     controller: idleController,
     createOpenBySurfaceId,
@@ -314,6 +323,8 @@ export function useGeneratedWorkspaceRuntimeController({
   const controller = useGeneratedOperationController(bindings);
   useGeneratedOperationControllerVersion(controller);
   const selected = selectWorkspaceRuntimeFoundation({
+    commandDialogOpenByControlId,
+    commandStateByControlId,
     confirmationOpenByControlId,
     controller,
     createOpenBySurfaceId,
@@ -428,6 +439,23 @@ export function useGeneratedWorkspaceRuntimeController({
     }
   }, [onSelectRecord, sectionSelection, selected.foundation]);
 
+  function commandIntentOptions(binding: GeneratedOperationControlBinding) {
+    return {
+      commandDialogOpen: commandDialogOpenByControlId[binding.id] ?? false,
+      commandState: commandStateByControlId[binding.id],
+      onCommandDialogOpenChange: (open: boolean) =>
+        setCommandDialogOpenByControlId((current) => ({
+          ...current,
+          [binding.id]: open,
+        })),
+      onCommandStateChange: (state: GeneratedCommandDraftSessionState) =>
+        setCommandStateByControlId((current) => ({
+          ...current,
+          [binding.id]: state,
+        })),
+    };
+  }
+
   async function onIntent(intent: WorkspaceIntent) {
     if (!selected.foundation) {
       return;
@@ -450,14 +478,16 @@ export function useGeneratedWorkspaceRuntimeController({
         .runtime as GeneratedWorkspaceSelectedRecordHeadingOperationRuntime;
       await handleGeneratedOperationIntent({
         binding: runtime.binding,
+        ...commandIntentOptions(runtime.binding),
         confirmationOpen: confirmationOpenByControlId[runtime.binding.id] ?? false,
         controller,
         intent: intent.intent,
-        invoke: (invokeIntent) =>
+        invoke: (invokeIntent, commandInput) =>
           executeGeneratedOperationControl({
             binding: runtime.binding,
             callerInput: {
               bindingId: runtime.binding.id,
+              ...(commandInput === undefined ? {} : { input: commandInput }),
               recordId: resolved.relationship.selectedRecordId,
               source: invokeIntent.invocationSource,
             },
@@ -570,14 +600,16 @@ export function useGeneratedWorkspaceRuntimeController({
       const runtime = resolved.operation;
       await handleGeneratedOperationIntent({
         binding: runtime.binding,
+        ...commandIntentOptions(runtime.binding),
         confirmationOpen: confirmationOpenByControlId[runtime.binding.id] ?? false,
         controller,
         intent: intent.intent.intent,
-        invoke: (invokeIntent) =>
+        invoke: (invokeIntent, commandInput) =>
           executeGeneratedOperationControl({
             binding: runtime.binding,
             callerInput: {
               bindingId: runtime.binding.id,
+              ...(commandInput === undefined ? {} : { input: commandInput }),
               recordId: resolved.node.recordId,
               source: invokeIntent.invocationSource,
             },
@@ -741,6 +773,7 @@ export function useGeneratedWorkspaceRuntimeController({
       const runtime = resolved.runtime;
       await handleGeneratedOperationIntent({
         binding: runtime.binding,
+        ...commandIntentOptions(runtime.binding),
         confirmationOpen: confirmationOpenByControlId[runtime.binding.id] ?? false,
         controller,
         intent: intent.intent.intent,
@@ -790,13 +823,18 @@ export function useGeneratedWorkspaceRuntimeController({
       if (intent.type === "workspaceOperation") {
         await handleGeneratedOperationIntent({
           binding: runtime.binding,
+          ...commandIntentOptions(runtime.binding),
           confirmationOpen: confirmationOpenByControlId[runtime.binding.id] ?? false,
           controller,
           intent: intent.intent,
-          invoke: (invokeIntent) =>
+          invoke: (invokeIntent, commandInput) =>
             executeGeneratedOperationControl({
               binding: runtime.binding,
-              callerInput: { bindingId: runtime.binding.id, source: invokeIntent.invocationSource },
+              callerInput: {
+                bindingId: runtime.binding.id,
+                ...(commandInput === undefined ? {} : { input: commandInput }),
+                source: invokeIntent.invocationSource,
+              },
               controller,
             }),
           onConfirmationOpenChange: (open) =>
@@ -1264,14 +1302,16 @@ export function useGeneratedWorkspaceRuntimeController({
       if (runtime) {
         await handleGeneratedOperationIntent({
           binding: runtime.binding,
+          ...commandIntentOptions(runtime.binding),
           confirmationOpen: confirmationOpenByControlId[runtime.binding.id] ?? false,
           controller,
           intent: intent.intent,
-          invoke: (invokeIntent) =>
+          invoke: (invokeIntent, commandInput) =>
             executeGeneratedTableRuntimeOperation(
               runtime,
               controller,
               invokeIntent.invocationSource,
+              commandInput,
             ),
           onConfirmationOpenChange: (open) =>
             setConfirmationOpenByControlId((current) => ({
@@ -1988,6 +2028,7 @@ export function useGeneratedWorkspaceRuntimeController({
   ) {
     await handleGeneratedOperationIntent({
       binding: runtime.binding,
+      ...commandIntentOptions(runtime.binding),
       confirmationOpen: confirmationOpenByControlId[runtime.binding.id] ?? false,
       controller,
       intent,
@@ -2137,6 +2178,8 @@ function applyWorkspaceRecordFieldIntent<T extends GeneratedWorkspaceRecordField
 }
 
 function selectWorkspaceRuntimeFoundation({
+  commandDialogOpenByControlId,
+  commandStateByControlId,
   confirmationOpenByControlId,
   controller,
   createOpenBySurfaceId,
@@ -2158,6 +2201,8 @@ function selectWorkspaceRuntimeFoundation({
   mediaAssetOptionsByFieldKey,
   workspaceActions,
 }: {
+  commandDialogOpenByControlId: Readonly<Record<string, boolean | undefined>>;
+  commandStateByControlId: Readonly<Record<string, GeneratedCommandDraftSessionState | undefined>>;
   confirmationOpenByControlId: Readonly<Record<string, boolean | undefined>>;
   controller: GeneratedOperationController;
   createOpenBySurfaceId: Readonly<Record<string, boolean | undefined>>;
@@ -2196,6 +2241,8 @@ function selectWorkspaceRuntimeFoundation({
     sectionSelection,
     selectSectionFoundation: (facts) => {
       const input = selectWorkspaceSectionRuntimeInput({
+        commandDialogOpenByControlId,
+        commandStateByControlId,
         confirmationOpenByControlId,
         controller,
         createOpenBySurfaceId,
@@ -2269,6 +2316,8 @@ function selectWorkspaceRuntimeFoundation({
 }
 
 function selectWorkspaceSectionRuntimeInput({
+  commandDialogOpenByControlId,
+  commandStateByControlId,
   confirmationOpenByControlId,
   controller,
   createOpenBySurfaceId,
@@ -2287,6 +2336,8 @@ function selectWorkspaceSectionRuntimeInput({
   createFieldStateBySurfaceId,
   mediaAssetOptionsByFieldKey,
 }: {
+  commandDialogOpenByControlId: Readonly<Record<string, boolean | undefined>>;
+  commandStateByControlId: Readonly<Record<string, GeneratedCommandDraftSessionState | undefined>>;
   confirmationOpenByControlId: Readonly<Record<string, boolean | undefined>>;
   controller: GeneratedOperationController;
   createOpenBySurfaceId: Readonly<Record<string, boolean | undefined>>;
@@ -2505,6 +2556,8 @@ function selectWorkspaceSectionRuntimeInput({
                       node.result.recordUnion,
                     );
                     return {
+                      commandDialogOpenByControlId,
+                      commandStateByControlId,
                       confirmationOpenByControlId,
                       mediaAssetOptionsByFieldName: selectWorkspaceRecordMediaOptions(
                         fields,
@@ -2561,6 +2614,8 @@ function selectWorkspaceSectionRuntimeInput({
       facts.selectedRecordDetailRelationships.map((relationshipFacts) => {
         const { queryContext, recordIds, resultId, section, selectedRecordId } = relationshipFacts;
         const table = selectGeneratedWorkspaceTableFoundation({
+          commandDialogOpenById: commandDialogOpenByControlId,
+          commandStateById: commandStateByControlId,
           confirmationOpenById: confirmationOpenByControlId,
           controller,
           dialogOpenById: tableDialogOpenById,
@@ -2580,6 +2635,7 @@ function selectWorkspaceSectionRuntimeInput({
         });
         const headingOperations = section.operations.map((operation) => {
           const binding = projectRecordOperationControlBinding({
+            entity: selectedRecordDetail.entity,
             entityLabel: selectedRecordDetail.entity.label,
             label: operation.label,
             operation: operation.operation,
@@ -2598,6 +2654,8 @@ function selectWorkspaceSectionRuntimeInput({
           return {
             control: projectGeneratedOperationControl({
               binding,
+              commandDialogOpen: commandDialogOpenByControlId[binding.id] ?? false,
+              commandState: commandStateByControlId[binding.id],
               confirmationOpen: confirmationOpenByControlId[binding.id] ?? false,
               presentation: {
                 accessibilityLabel: operation.label,
@@ -2607,6 +2665,7 @@ function selectWorkspaceSectionRuntimeInput({
                 prominence: "secondary",
               },
               state,
+              schema,
             }),
             runtime: {
               binding,
@@ -2662,6 +2721,8 @@ function selectWorkspaceSectionRuntimeInput({
   );
   const selectedCollectionActions = availableOperations.map((operation) => ({
     foundation: selectWorkspaceCollectionAction({
+      commandDialogOpenByControlId,
+      commandStateByControlId,
       confirmationOpenByControlId,
       controller,
       createFieldStateBySurfaceId,
@@ -2731,6 +2792,8 @@ function selectWorkspaceSectionRuntimeInput({
 
   if (facts.section.collection.result.type === "table") {
     const table = selectGeneratedWorkspaceTableFoundation({
+      commandDialogOpenById: commandDialogOpenByControlId,
+      commandStateById: commandStateByControlId,
       confirmationOpenById: confirmationOpenByControlId,
       controller,
       dialogOpenById: tableDialogOpenById,
@@ -2857,6 +2920,8 @@ export function selectWorkspaceContextDetailReferenceOptions(
 }
 
 function selectWorkspaceCollectionAction({
+  commandDialogOpenByControlId,
+  commandStateByControlId,
   confirmationOpenByControlId,
   controller,
   createFieldStateBySurfaceId,
@@ -2868,6 +2933,8 @@ function selectWorkspaceCollectionAction({
   schema,
   snapshot,
 }: {
+  commandDialogOpenByControlId: Readonly<Record<string, boolean | undefined>>;
+  commandStateByControlId: Readonly<Record<string, GeneratedCommandDraftSessionState | undefined>>;
   confirmationOpenByControlId: Readonly<Record<string, boolean | undefined>>;
   controller: GeneratedOperationController;
   createFieldStateBySurfaceId: Readonly<
@@ -2919,6 +2986,8 @@ function selectWorkspaceCollectionAction({
     : undefined;
   const control = projectGeneratedOperationControl({
     binding,
+    commandDialogOpen: commandDialogOpenByControlId[binding.id] ?? false,
+    commandState: commandStateByControlId[binding.id],
     confirmationOpen: confirmationOpenByControlId[binding.id] ?? false,
     presentation: {
       accessibilityLabel: operation.label,
@@ -2928,6 +2997,7 @@ function selectWorkspaceCollectionAction({
       prominence: operation.placement === "emptyStatePrimary" ? "primary" : "secondary",
     },
     state,
+    schema,
     ...(targetCount === undefined ? {} : { targetCount }),
   });
   return {

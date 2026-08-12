@@ -31,6 +31,7 @@ import {
   projectCollectionOperationControlBinding,
   projectRecordOperationControlBinding,
   projectStateTransitionOperationControlBinding,
+  type GeneratedCommandDraftSessionState,
   type GeneratedOperationControlBinding,
   type TransitionStateOperationConfig,
 } from "../../client/views.ts";
@@ -73,7 +74,10 @@ type GeneratedRelationshipHierarchyRecordResultOptions = Partial<
     | "referenceOptionsByFieldName"
     | "schema"
   >
->;
+> & {
+  commandDialogOpenByControlId?: Readonly<Record<string, boolean | undefined>>;
+  commandStateByControlId?: Readonly<Record<string, GeneratedCommandDraftSessionState | undefined>>;
+};
 
 export type GeneratedRelationshipHierarchyFoundationInput = {
   createActionOptions?: (
@@ -679,6 +683,7 @@ function selectGeneratedRelationshipHierarchyOperations({
     const binding =
       transition === undefined
         ? projectRecordOperationControlBinding({
+            entity: model.entity,
             entityLabel: model.entity.label,
             label: operation.label,
             operation: operation.operation,
@@ -704,6 +709,8 @@ function selectGeneratedRelationshipHierarchyOperations({
       createIdleGeneratedOperationExecutionState(binding.executionKey);
     const control = projectGeneratedOperationControl({
       binding,
+      commandDialogOpen: options?.commandDialogOpenByControlId?.[binding.id] ?? false,
+      commandState: options?.commandStateByControlId?.[binding.id],
       confirmationOpen: options?.confirmationOpenByControlId?.[binding.id] ?? false,
       presentation: {
         accessibilityLabel: operation.label,
@@ -714,6 +721,7 @@ function selectGeneratedRelationshipHierarchyOperations({
         prominence: binding.destructive ? "destructive" : "secondary",
       },
       state,
+      schema: options?.schema,
     });
 
     return [

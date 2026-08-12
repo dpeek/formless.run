@@ -156,6 +156,7 @@ export type HomeOperationConfig = {
       type: "command";
       label: string;
       entityName: string;
+      entity: EntitySchema;
       operationName: string;
       operation: EntityOperationPresentationConfig;
       ui: CommandOperationUiConfig;
@@ -477,6 +478,7 @@ function selectHomeOperations(
       label,
       placement: binding.placement,
       entityName: operation.entityName,
+      entity: schema.entities.find((definition) => definition.key === operation.entityName)!,
       operationName: operation.operationName,
       operation,
       ui: selectCommandOperationUi(schema, label, operation.operation, binding.count),
