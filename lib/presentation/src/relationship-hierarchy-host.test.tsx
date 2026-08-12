@@ -194,6 +194,50 @@ describe("relationship-hierarchy memory Presentation Host", () => {
       "duplicate relationship group identities",
     );
   });
+
+  it("validates relationship-group action placement and identity", () => {
+    const wrongCreateGroup = hierarchyContract();
+    const projects = wrongCreateGroup.root.relationshipGroups[0]!;
+    const create = projects.headerActions.items[0]!;
+    if (create.kind !== "createAction") {
+      throw new Error("Missing relationship-group create action.");
+    }
+    wrongCreateGroup.root = {
+      ...wrongCreateGroup.root,
+      relationshipGroups: [
+        {
+          ...projects,
+          headerActions: {
+            ...projects.headerActions,
+            items: [{ ...create, relationshipGroupId: "relationship-group:other" }],
+          },
+        },
+        wrongCreateGroup.root.relationshipGroups[1]!,
+      ],
+    };
+    expect(() => createMemoryPresentationHost({ nodes: hierarchyNodes(wrongCreateGroup) })).toThrow(
+      "invalid create-action relationship group",
+    );
+
+    const duplicateActionGroup = hierarchyContract();
+    const duplicateProjects = duplicateActionGroup.root.relationshipGroups[0]!;
+    duplicateActionGroup.root = {
+      ...duplicateActionGroup.root,
+      relationshipGroups: [
+        {
+          ...duplicateProjects,
+          headerActions: {
+            ...duplicateProjects.headerActions,
+            id: duplicateActionGroup.root.headerActions.id,
+          },
+        },
+        duplicateActionGroup.root.relationshipGroups[1]!,
+      ],
+    };
+    expect(() =>
+      createMemoryPresentationHost({ nodes: hierarchyNodes(duplicateActionGroup) }),
+    ).toThrow("duplicate action-group identities");
+  });
 });
 
 function hierarchyNodes(hierarchy = hierarchyContract()): PresentationNodeSet {
@@ -338,6 +382,8 @@ function hierarchyContract(): RelationshipHierarchyContract {
     recordId: "project:runtime",
     relationshipGroups: [
       {
+        accessibilityLabel: "Tasks",
+        headerActions: relationshipGroupActions("relationship-group:account/project/tasks"),
         id: "relationship-group:account/project/tasks",
         kind: "relationshipHierarchyRelationshipGroup",
         label: "Tasks",
@@ -352,17 +398,26 @@ function hierarchyContract(): RelationshipHierarchyContract {
     kind: "relationshipHierarchy",
     root: hierarchyNode({
       entityTypeLabel: "Account",
-      headerCreateGroupId: "relationship-group:account/projects",
       id: "occurrence:account",
       recordId: selectedRecordId,
       relationshipGroups: [
         {
+          accessibilityLabel: "Projects",
+          headerActions: relationshipGroupActions("relationship-group:account/projects", [
+            {
+              kind: "createAction",
+              relationshipGroupId: "relationship-group:account/projects",
+              surface: createSurface("occurrence:account:create"),
+            },
+          ]),
           id: "relationship-group:account/projects",
           kind: "relationshipHierarchyRelationshipGroup",
           label: "Projects",
           nodes: [project],
         },
         {
+          accessibilityLabel: "Archived projects",
+          headerActions: relationshipGroupActions("relationship-group:account/archived-projects"),
           id: "relationship-group:account/archived-projects",
           kind: "relationshipHierarchyRelationshipGroup",
           label: "Archived projects",
@@ -376,14 +431,12 @@ function hierarchyContract(): RelationshipHierarchyContract {
 function hierarchyNode({
   actions = [],
   entityTypeLabel,
-  headerCreateGroupId,
   id,
   recordId,
   relationshipGroups = [],
 }: {
   actions?: RelationshipHierarchyNodeContract["headerActions"]["items"];
   entityTypeLabel: string;
-  headerCreateGroupId?: string;
   id: string;
   recordId: string;
   relationshipGroups?: RelationshipHierarchyNodeContract["relationshipGroups"];
@@ -395,24 +448,25 @@ function hierarchyNode({
     headerActions: {
       accessibilityLabel: `More ${entityTypeLabel.toLowerCase()} actions`,
       id: `${id}:header-actions`,
-      items: [
-        ...actions,
-        ...(headerCreateGroupId === undefined
-          ? []
-          : [
-              {
-                kind: "createAction" as const,
-                relationshipGroupId: headerCreateGroupId,
-                surface: createSurface(`${id}:create`),
-              },
-            ]),
-      ],
+      items: actions,
       kind: "relationshipHierarchyActions",
     },
     id,
     kind: "relationshipHierarchyNode",
     recordId,
     relationshipGroups,
+  };
+}
+
+function relationshipGroupActions(
+  groupId: string,
+  items: RelationshipHierarchyNodeContract["relationshipGroups"][number]["headerActions"]["items"] = [],
+): RelationshipHierarchyNodeContract["relationshipGroups"][number]["headerActions"] {
+  return {
+    accessibilityLabel: `More ${groupId} actions`,
+    id: `${groupId}:header-actions`,
+    items,
+    kind: "relationshipHierarchyActions",
   };
 }
 

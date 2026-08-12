@@ -601,8 +601,11 @@ summary slots, operation controls, and schema-declared result types.
   entity type label, one canonical record-result editor contract, resolved
   record-link actions, enabled operation controls, ordered relationship groups,
   and display-safe runtime state
-- AND every declared labelled relationship group remains present when it has no
-  active target records while its parent record node remains present
+- AND every relationship group carries a display-safe accessibility label, one
+  ordered heading-action group, and its ordered child record nodes
+- AND every declared labelled relationship group remains present with its
+  available heading actions when it has no active target records while its
+  parent record node remains present
 - AND occurrence identity scopes fields, create surfaces, controls, drafts,
   confirmations, feedback, and intent routing without becoming stored record
   identity or user selection state
@@ -624,31 +627,70 @@ summary slots, operation controls, and schema-declared result types.
   selected-node editor, disclosure control, hierarchy toolbar, or application-
   specific renderer
 
-#### Scenario: Render hierarchy node actions
+#### Scenario: Render responsive hierarchy record-header actions
 
-- GIVEN a hierarchy record node declares record links or record operations, or
-  its immediate child relationships declare create actions
+- GIVEN a hierarchy record node declares record links or record operations
 - WHEN generated runtime resolves action availability for the current record
-- THEN the node header exposes one action menu containing link actions in link
-  declaration order, enabled operation actions in operation declaration order,
-  then enabled immediate-child create actions in relationship declaration order
+- THEN the node header exposes one ordered single-line action list containing
+  link actions in link declaration order followed by enabled operation actions
+  in operation declaration order
+- AND actions that fit render as labelled controls while trailing actions that
+  do not fit collapse in stable order into one icon-only More menu with a
+  display-safe accessible label and no visible overflow count
+- AND wide headers expose every fitting action, narrow headers may collapse
+  every action behind the More menu, and the action list does not force the
+  record card wider than its available inline space
+- AND fitting operation controls preserve projected prominence including
+  destructive presentation while overflow items preserve invocation,
+  confirmation, pending, and disabled behavior supported by the More-menu
+  primitive
 - AND an unavailable link remains present and disabled with its display-safe
-  reason and no href while unavailable operations and create actions retain
-  their canonical filtering behavior
-- AND the menu is omitted only when no link, operation, or create item remains
+  reason and no href while unavailable operations retain their canonical
+  filtering behavior
+- AND the action list is omitted only when no link or operation item remains
 - AND a semantically enabled operation that is currently executing remains in
-  the menu with canonical pending and disabled interaction state
-- AND invocation reuses canonical create or operation controls, authorization,
+  the action list or overflow menu with canonical pending and disabled
+  interaction state
+- AND invocation reuses canonical operation controls, authorization,
   confirmation, idempotency, progress, feedback, and error behavior
 - AND following a link does not invoke those controls or dispatch a hierarchy,
   workspace, presentation, or operation intent
 - AND the renderer does not discover entity operations, evaluate availability,
   construct operation input, attach child records, or execute writes
 
+#### Scenario: Render relationship-group heading actions
+
+- GIVEN a hierarchy relationship group declares ordered create or source-record
+  operation heading actions
+- WHEN generated runtime resolves those actions for the current parent record
+  occurrence
+- THEN the relationship-group contract carries one ordered heading-action group
+  whose create actions target that relationship and whose operation controls
+  target the immediate parent record occurrence
+- AND a group action is exclusive to that heading and is not duplicated in the
+  parent record header
+- AND labelled controls are the default while explicitly icon-only controls use
+  their projected semantic icon, accessible action name, and understandable
+  tooltip
+- AND fitting operation controls preserve projected prominence including
+  destructive presentation while their overflow items retain canonical
+  confirmation and execution behavior
+- AND multiple actions retain declaration order and use the same responsive
+  trailing-overflow behavior as record-header actions
+- AND a labelled empty group retains its heading and available actions, an
+  action-free empty unlabelled group may remain omitted, and unavailable actions
+  retain their canonical filtering behavior
+- AND deeply nested group operations use the exact immediate parent occurrence
+  rather than a root, ancestor, sibling, child, entity-first, or operation-name
+  target
+- AND create dialogs, destructive confirmation, pending state, progress,
+  feedback, disabled reasons, and display-safe errors remain associated with the
+  control at its one projected placement
+
 #### Scenario: Create a flat related child from a hierarchy node
 
-- GIVEN an immediate child relationship exposes an enabled canonical create
-  action for its target entity
+- GIVEN an immediate child relationship heading exposes an enabled canonical
+  create action for its target entity
 - WHEN the user opens and submits its ordinary create dialog
 - THEN opening changes only controlled dialog and draft state and creates no
   placeholder record
@@ -1624,12 +1666,12 @@ reference resolution, structured URL construction, and availability.
 - AND an unavailable destination renders as a disabled control with its
   display-safe reason and without an href
 
-#### Scenario: Navigate relationship-hierarchy menu links
+#### Scenario: Navigate overflowed relationship-hierarchy links
 
 - GIVEN a relationship-hierarchy node header carries a projected native-link
-  action and the active More-menu primitive exposes callback-backed items rather
-  than link-backed items
-- WHEN the user activates an available item
+  action that does not fit inline and the active More-menu primitive exposes
+  callback-backed items rather than link-backed items
+- WHEN the user activates the available overflow item
 - THEN `sameTab` navigation assigns the resolved href to the current location
 - AND `newTab` navigation opens the resolved href in a new tab without an opener
 - AND the callback performs client-side navigation directly without dispatching
@@ -1647,8 +1689,11 @@ reference resolution, structured URL construction, and availability.
 - WHEN generated UI selects record controls
 - THEN each `linkControl` renders its one referenced link as a visible primary
   row action in its own table column
-- AND each hierarchy node projects its ordered links into that node's one More
-  menu without a second placement registry
+- AND each hierarchy node projects its ordered links into that node's one
+  responsive record-header action list without a second placement registry
+- AND an available hierarchy link that fits inline renders through native link
+  semantics while only an overflowed link uses the callback-backed More-menu
+  behavior
 - AND the table's one operation-control column places edit, command,
   destructive, transition, delete, or ordering operations independently
 - AND a row may contain both link-control and operation-control columns in

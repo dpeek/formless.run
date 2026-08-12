@@ -8,6 +8,7 @@ import type {
   RelationshipHierarchyNodeContract,
   RelationshipHierarchyOperationIntent,
   RelationshipHierarchyRecordResultIntent,
+  RelationshipHierarchyRelationshipGroupActionContract,
 } from "@dpeek/formless-presentation/contract";
 import type { MediaAssetOption } from "@dpeek/formless-media/client";
 import {
@@ -22,6 +23,7 @@ import type {
   HomeSelectedRecordRelationshipHierarchyCreateActionConfig,
   HomeSelectedRecordRelationshipHierarchyNodeConfig,
   HomeSelectedRecordRelationshipHierarchyOperationConfig,
+  HomeSelectedRecordRelationshipHierarchyRecordOperationActionConfig,
   HomeSelectedRecordRelationshipHierarchyRelationshipConfig,
 } from "../../client/views.ts";
 import {
@@ -76,6 +78,7 @@ type GeneratedRelationshipHierarchyRecordResultOptions = Partial<
 export type GeneratedRelationshipHierarchyFoundationInput = {
   createActionOptions?: (
     relationship: HomeSelectedRecordRelationshipHierarchyRelationshipConfig,
+    operation: HomeSelectedRecordRelationshipHierarchyCreateActionConfig,
   ) => GeneratedRelationshipHierarchyCreateActionOptions;
   recordResultOptions?: (
     node: HomeSelectedRecordRelationshipHierarchyNodeConfig,
@@ -116,6 +119,7 @@ export type GeneratedRelationshipHierarchyOperationRuntime = {
   operation: HomeSelectedRecordRelationshipHierarchyOperationConfig;
   occurrenceId: string;
   recordId: string;
+  relationshipGroupId?: string;
   transition?: TransitionStateOperationConfig;
 };
 
@@ -133,8 +137,9 @@ export type GeneratedRelationshipHierarchyCreateRuntime = {
 
 export type GeneratedRelationshipHierarchyRelationshipGroupRuntime = {
   contract: RelationshipHierarchyNodeContract["relationshipGroups"][number];
-  create?: GeneratedRelationshipHierarchyCreateRuntime;
+  creates: readonly GeneratedRelationshipHierarchyCreateRuntime[];
   nodes: readonly GeneratedRelationshipHierarchyNodeRuntime[];
+  operations: readonly GeneratedRelationshipHierarchyOperationRuntime[];
   relationship: HomeSelectedRecordRelationshipHierarchyRelationshipConfig;
 };
 
@@ -262,6 +267,7 @@ export function resolveGeneratedRelationshipHierarchyOperationIntent(
     intent.recordId === node.recordId &&
     operation.occurrenceId === node.occurrenceId &&
     operation.recordId === node.recordId &&
+    operation.relationshipGroupId === intent.relationshipGroupId &&
     intent.intent.controlId === operation.binding.id
     ? { node, operation }
     : undefined;
@@ -366,9 +372,10 @@ function selectGeneratedRelationshipHierarchyNode({
     selectedRecordId: recordId,
     ...nodeRecordResultOptions,
   });
-  const operations = selectGeneratedRelationshipHierarchyOperations({
+  const recordOperations = selectGeneratedRelationshipHierarchyOperations({
     model,
     occurrenceId,
+    operationConfigs: model.operations,
     options: nodeRecordResultOptions,
     record,
     recordLabel: foundation.recordResult.selectedRecord?.accessibilityLabel,
@@ -387,28 +394,54 @@ function selectGeneratedRelationshipHierarchyNode({
             target: link.target,
           }),
         }));
-  const operationByControlId = new Map(
-    operations.map((operation) => [operation.binding.id, operation]),
-  );
-  if (operationByControlId.size !== operations.length) {
-    throw new Error(`Duplicate relationship-hierarchy operation in occurrence "${occurrenceId}".`);
-  }
   const relationshipGroups = model.relationships.map((relationship) => {
     const groupId = generatedRelationshipHierarchyGroupId(occurrenceId, relationship.id);
-    const create = selectGeneratedRelationshipHierarchyCreate({
-      groupId,
-      occurrenceId,
-      options: createActionOptions?.(relationship),
-      parentRecord: record,
-      queryContext,
-      relationship,
-    });
-    if (create !== undefined) {
-      if (createBySurfaceId.has(create.surfaceId)) {
-        throw new Error(`Duplicate relationship-hierarchy create surface "${create.surfaceId}".`);
-      }
-      createBySurfaceId.set(create.surfaceId, create);
-    }
+    const creates: GeneratedRelationshipHierarchyCreateRuntime[] = [];
+    const groupOperations: GeneratedRelationshipHierarchyOperationRuntime[] = [];
+    const headerItems =
+      relationship.headerActions.flatMap<RelationshipHierarchyRelationshipGroupActionContract>(
+        (action) => {
+          if (action.kind === "create") {
+            const create = selectGeneratedRelationshipHierarchyCreate({
+              groupId,
+              occurrenceId,
+              operation: action,
+              options: createActionOptions?.(relationship, action),
+              parentRecord: record,
+              queryContext,
+              relationship,
+            });
+            if (create === undefined) {
+              return [];
+            }
+            if (createBySurfaceId.has(create.surfaceId)) {
+              throw new Error(
+                `Duplicate relationship-hierarchy create surface "${create.surfaceId}".`,
+              );
+            }
+            createBySurfaceId.set(create.surfaceId, create);
+            creates.push(create);
+            return [
+              {
+                kind: "createAction" as const,
+                relationshipGroupId: groupId,
+                surface: create.surface,
+              },
+            ];
+          }
+          const projected = selectGeneratedRelationshipHierarchyOperations({
+            model,
+            occurrenceId,
+            operationConfigs: [action],
+            options: nodeRecordResultOptions,
+            record,
+            recordLabel: foundation.recordResult.selectedRecord?.accessibilityLabel,
+            relationshipGroupId: groupId,
+          });
+          groupOperations.push(...projected);
+          return projected.map(({ control }) => ({ control, kind: "operationAction" as const }));
+        },
+      );
     const childRuntimes = selectGeneratedRelationshipHierarchyChildren({
       createActionOptions,
       createBySurfaceId,
@@ -426,19 +459,35 @@ function selectGeneratedRelationshipHierarchyNode({
 
     return {
       contract: {
+        accessibilityLabel: relationship.label ?? `${relationship.entity.label} relationship group`,
+        headerActions: {
+          accessibilityLabel: `More ${(relationship.label ?? relationship.entity.label).toLowerCase()} actions`,
+          id: `${groupId}:header-actions`,
+          items: headerItems,
+          kind: "relationshipHierarchyActions" as const,
+        },
         id: groupId,
         kind: "relationshipHierarchyRelationshipGroup" as const,
         ...(relationship.label === undefined ? {} : { label: relationship.label }),
         nodes: childRuntimes.map((child) => child.contract),
       },
-      ...(create === undefined ? {} : { create }),
+      creates,
       nodes: childRuntimes,
+      operations: groupOperations,
       relationship,
     };
   });
-  const creates = relationshipGroups.flatMap((group) =>
-    group.create === undefined ? [] : [group.create],
+  const creates = relationshipGroups.flatMap((group) => group.creates);
+  const operations = [
+    ...recordOperations,
+    ...relationshipGroups.flatMap((group) => group.operations),
+  ];
+  const operationByControlId = new Map(
+    operations.map((operation) => [operation.binding.id, operation]),
   );
+  if (operationByControlId.size !== operations.length) {
+    throw new Error(`Duplicate relationship-hierarchy operation in occurrence "${occurrenceId}".`);
+  }
   const createByNodeSurfaceId = new Map(creates.map((create) => [create.surfaceId, create]));
   const contract: RelationshipHierarchyNodeContract = {
     accessibilityLabel: `${model.entity.label} record`,
@@ -449,11 +498,9 @@ function selectGeneratedRelationshipHierarchyNode({
       id: `${occurrenceId}:header-actions`,
       items: [
         ...links,
-        ...operations.map(({ control }) => ({ control, kind: "operationAction" as const })),
-        ...creates.map(({ relationshipGroupId, surface }) => ({
-          kind: "createAction" as const,
-          relationshipGroupId,
-          surface,
+        ...recordOperations.map(({ control }) => ({
+          control,
+          kind: "operationAction" as const,
         })),
       ],
       kind: "relationshipHierarchyActions",
@@ -492,6 +539,7 @@ function selectGeneratedRelationshipHierarchyNode({
 function selectGeneratedRelationshipHierarchyCreate({
   groupId,
   occurrenceId,
+  operation,
   options,
   parentRecord,
   queryContext,
@@ -499,14 +547,13 @@ function selectGeneratedRelationshipHierarchyCreate({
 }: {
   groupId: string;
   occurrenceId: string;
+  operation: HomeSelectedRecordRelationshipHierarchyCreateActionConfig;
   options: GeneratedRelationshipHierarchyCreateActionOptions | undefined;
   parentRecord: StoredRecord | undefined;
   queryContext: QueryEvaluationContext;
   relationship: HomeSelectedRecordRelationshipHierarchyRelationshipConfig;
 }): GeneratedRelationshipHierarchyCreateRuntime | undefined {
-  const operation = relationship.createAction;
   if (
-    operation === undefined ||
     !operation.enabled ||
     parentRecord === undefined ||
     parentRecord.entity !== relationship.relationship.from.entity ||
@@ -568,7 +615,7 @@ function selectGeneratedRelationshipHierarchyCreate({
     state,
     submitLabel: operation.label,
     trigger: {
-      content: { kind: "label", label: operation.label },
+      content: operation.content,
       density: "compact",
       prominence: "secondary",
     },
@@ -591,15 +638,22 @@ function selectGeneratedRelationshipHierarchyCreate({
 function selectGeneratedRelationshipHierarchyOperations({
   model,
   occurrenceId,
+  operationConfigs,
   options,
   record,
   recordLabel,
+  relationshipGroupId,
 }: {
   model: HomeSelectedRecordRelationshipHierarchyNodeConfig;
   occurrenceId: string;
+  operationConfigs: readonly (
+    | HomeSelectedRecordRelationshipHierarchyOperationConfig
+    | HomeSelectedRecordRelationshipHierarchyRecordOperationActionConfig
+  )[];
   options: GeneratedRelationshipHierarchyRecordResultOptions | undefined;
   record: StoredRecord | undefined;
   recordLabel: string | undefined;
+  relationshipGroupId?: string;
 }): GeneratedRelationshipHierarchyOperationRuntime[] {
   if (record === undefined || record.entity !== model.entityName || record.deletedAt) {
     return [];
@@ -612,11 +666,15 @@ function selectGeneratedRelationshipHierarchyOperations({
     ]),
   );
 
-  return model.operations.flatMap((operation): GeneratedRelationshipHierarchyOperationRuntime[] => {
+  return operationConfigs.flatMap((operation): GeneratedRelationshipHierarchyOperationRuntime[] => {
     const transition = transitionsByOperationName.get(operation.operation.operationName);
     const projectionOptions = {
-      executionTargetKey: occurrenceId,
-      id: generatedRelationshipHierarchyOperationId(occurrenceId, operation.bindingName),
+      executionTargetKey: relationshipGroupId ?? occurrenceId,
+      id: generatedRelationshipHierarchyOperationId(
+        occurrenceId,
+        operation.bindingName,
+        relationshipGroupId,
+      ),
     };
     const binding =
       transition === undefined
@@ -649,8 +707,9 @@ function selectGeneratedRelationshipHierarchyOperations({
       confirmationOpen: options?.confirmationOpenByControlId?.[binding.id] ?? false,
       presentation: {
         accessibilityLabel: operation.label,
-        content: { kind: "label", label: operation.label },
-        density: "default",
+        content:
+          "content" in operation ? operation.content : { kind: "label", label: operation.label },
+        density: relationshipGroupId === undefined ? "default" : "compact",
         pendingLabel: `${operation.label}...`,
         prominence: binding.destructive ? "destructive" : "secondary",
       },
@@ -664,6 +723,7 @@ function selectGeneratedRelationshipHierarchyOperations({
         occurrenceId,
         operation,
         recordId: record.id,
+        ...(relationshipGroupId === undefined ? {} : { relationshipGroupId }),
         ...(transition === undefined ? {} : { transition }),
       },
     ];
@@ -773,8 +833,9 @@ function generatedRelationshipHierarchyGroupId(
 function generatedRelationshipHierarchyOperationId(
   occurrenceId: string,
   operationKey: string,
+  relationshipGroupId?: string,
 ): string {
-  return `${occurrenceId}:operation:${encodeURIComponent(operationKey)}`;
+  return `${relationshipGroupId ?? occurrenceId}:operation:${encodeURIComponent(operationKey)}`;
 }
 
 function generatedRelationshipHierarchyLinkId(occurrenceId: string, linkKey: string): string {

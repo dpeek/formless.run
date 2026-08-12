@@ -1378,12 +1378,14 @@ contain one level of destination-less labelled sections.
   relationship target entity, and may recursively declare the next fixed child
   relationships
 - AND each child declaration may provide a display label for its relationship
-  group plus ordered record-link definitions and record-operation bindings for
-  its target record entity
+  group, ordered heading-action bindings for that group, plus ordered
+  record-link definitions and record-operation bindings for its target record
+  entity
 - AND sibling declaration ids are unique, relationship order is schema order,
   and the finite declaration fixes every permitted entity and relationship path
-- AND the hierarchy stores no nested arrays, placement records, projection
-  records, selection state, disclosure state, query, or traversal callback
+- AND the hierarchy stores no nested record arrays, runtime placement or
+  projection records, selection state, disclosure state, query, or traversal
+  callback
 
 #### Scenario: Bind relationship-hierarchy record operations
 
@@ -1396,11 +1398,40 @@ contain one level of destination-less labelled sections.
 - AND an operation for another entity, a collection-scoped operation, an
   unknown operation, or an unsupported binding value is rejected
 
-#### Scenario: Bind relationship-hierarchy child creation
+#### Scenario: Bind relationship-hierarchy group heading actions
+
+- GIVEN a relationship-hierarchy child declaration places actions beside its
+  relationship-group heading
+- WHEN the complete schema is parsed
+- THEN the declaration's optional ordered `headerActions` array contains
+  discriminated `create` or `recordOperation` bindings
+- AND a `recordOperation` binding references a browser-visible record-scoped
+  operation for the relationship source entity, so invocation targets the
+  current parent record occurrence
+- AND a `create` binding references a browser-visible collection-scoped create
+  operation and ordinary create view for the relationship target entity, so
+  submission creates and attaches one child to the current parent occurrence
+- AND each binding may override its visible label and may request label,
+  icon-and-label, or icon-only content using a declared semantic icon
+- AND label content is the default, icon-bearing content requires a known
+  semantic icon, and every icon-only action retains its label as its accessible
+  name
+- AND a declaration with heading actions resolves a non-empty display label
+  from its declaration or relationship metadata
+- AND heading-action array order is presentation order, one binding has one
+  heading placement, and the same canonical record operation is not also bound
+  to that source node's record header
+- AND the binding does not redefine operation access, input, output, effect,
+  audit, idempotency, transition validity, confirmation, or execution semantics
+- AND an unknown kind, source or target entity mismatch, unsupported operation
+  scope, hidden operation, unknown icon, missing heading label, duplicate
+  placement, or unsupported binding value is rejected
+
+#### Scenario: Bind relationship-hierarchy heading child creation
 
 - GIVEN a relationship-hierarchy child declaration exposes ordinary target
-  record creation from its current parent node
-- WHEN the child declaration binds a create action
+  record creation from its current parent node beside the relationship heading
+- WHEN the child declaration binds a `create` header action
 - THEN the binding references an ordinary create view and browser-visible
   collection-scoped create operation for the child relationship target entity
 - AND the create view defaults the relationship's exact target reference field

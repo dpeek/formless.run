@@ -992,62 +992,140 @@ describe("schema screens", () => {
     }
   });
 
-  it("validates relationship-hierarchy child create operations, views, and attachment defaults", () => {
+  it("validates ordered relationship-hierarchy heading actions and attachment defaults", () => {
     const createAction = {
+      kind: "create",
       operation: "note.create",
       createView: "noteCreateForHierarchy",
       label: "Add note",
     };
-    const invalidBindings: { createAction: unknown; message: string }[] = [
+    const parsed = parseAppSchema(
+      selectedRecordDetailSchema(
+        selectedRecordDetail({
+          sections: [
+            selectedRecordRelationshipHierarchySection({
+              operations: undefined,
+              relationships: [
+                selectedRecordHierarchyRelationship({
+                  headerActions: [
+                    {
+                      kind: "recordOperation",
+                      operation: "task.update",
+                      label: "Edit task here",
+                      content: { kind: "iconOnly", icon: "edit" },
+                    },
+                    { ...createAction, content: { kind: "iconAndLabel", icon: "add" } },
+                  ],
+                  relationships: undefined,
+                }),
+              ],
+            }),
+          ],
+        }),
+      ),
+    );
+    const screen = parsed.screens[0];
+    if (screen.type !== "workspace") {
+      throw new Error("Expected selected-record workspace.");
+    }
+    const section = screen.layout.sections[0].detail?.sections[0];
+    if (section?.type !== "relationshipHierarchy") {
+      throw new Error("Expected selected-record relationship hierarchy.");
+    }
+    expect(section.relationships[0]?.headerActions).toEqual([
       {
-        createAction: { ...createAction, operation: "task.create" },
+        kind: "recordOperation",
+        operation: "task.update",
+        label: "Edit task here",
+        content: { kind: "iconOnly", icon: "edit" },
+      },
+      { ...createAction, content: { kind: "iconAndLabel", icon: "add" } },
+    ]);
+
+    const invalidBindings: { action: unknown; message: string }[] = [
+      {
+        action: { ...createAction, operation: "task.create" },
         message:
-          'Screen "home" layout section 0 detail section 0 relationships relationship 0 createAction operation must use relationship target entity "note".',
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 headerActions binding 0 operation must use relationship target entity "note".',
       },
       {
-        createAction: { ...createAction, operation: "note.update" },
+        action: { ...createAction, operation: "note.update" },
         message:
-          'Screen "home" layout section 0 detail section 0 relationships relationship 0 createAction operation must be a collection-scoped create operation.',
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 headerActions binding 0 operation must be a collection-scoped create operation.',
       },
       {
-        createAction: { ...createAction, operation: "note.missing" },
+        action: { ...createAction, operation: "note.missing" },
         message:
-          'Screen "home" layout section 0 detail section 0 relationships relationship 0 createAction references unknown operation "note.missing".',
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 headerActions binding 0 references unknown operation "note.missing".',
       },
       {
-        createAction: { ...createAction, operation: "note.hiddenCreate" },
+        action: { ...createAction, operation: "note.hiddenCreate" },
         message:
-          'Screen "home" layout section 0 detail section 0 relationships relationship 0 createAction operation must be visible to browser actors.',
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 headerActions binding 0 operation must be visible to browser actors.',
       },
       {
-        createAction: { ...createAction, createView: "missing" },
+        action: { ...createAction, createView: "missing" },
         message:
-          'Screen "home" layout section 0 detail section 0 relationships relationship 0 createAction references unknown create view "missing".',
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 headerActions binding 0 references unknown create view "missing".',
       },
       {
-        createAction: { ...createAction, createView: "noteEdit" },
+        action: { ...createAction, createView: "noteEdit" },
         message:
-          'Screen "home" layout section 0 detail section 0 relationships relationship 0 createAction view "noteEdit" must be a create view.',
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 headerActions binding 0 view "noteEdit" must be a create view.',
       },
       {
-        createAction: { ...createAction, createView: "taskCreate" },
+        action: { ...createAction, createView: "taskCreate" },
         message:
-          'Screen "home" layout section 0 detail section 0 relationships relationship 0 createAction create view "taskCreate" must use relationship target entity "note".',
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 headerActions binding 0 create view "taskCreate" must use relationship target entity "note".',
       },
       {
-        createAction: { ...createAction, createView: "noteCreateNoAttachment" },
+        action: { ...createAction, createView: "noteCreateNoAttachment" },
         message:
-          'Screen "home" layout section 0 detail section 0 relationships relationship 0 createAction create view "noteCreateNoAttachment" must default relationship field "note.task" from one context.',
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 headerActions binding 0 create view "noteCreateNoAttachment" must default relationship field "note.task" from one context.',
       },
       {
-        createAction: { ...createAction, createView: "noteCreateExtraContext" },
+        action: { ...createAction, createView: "noteCreateExtraContext" },
         message:
-          'Screen "home" layout section 0 detail section 0 relationships relationship 0 createAction create view "noteCreateExtraContext" must use only relationship "taskNotes" field "note.task" as a context default.',
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 headerActions binding 0 create view "noteCreateExtraContext" must use only relationship "taskNotes" field "note.task" as a context default.',
       },
       {
-        createAction: { ...createAction, placement: "heading" },
+        action: { ...createAction, placement: "heading" },
         message:
-          'Screen "home" layout section 0 detail section 0 relationships relationship 0 createAction has unsupported key "placement".',
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 headerActions binding 0 has unsupported key "placement".',
+      },
+      {
+        action: { kind: "recordOperation", operation: "note.update" },
+        message:
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 headerActions binding 0 operation must use source entity "task".',
+      },
+      {
+        action: { kind: "recordOperation", operation: "task.create" },
+        message:
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 headerActions binding 0 operation must use record scope.',
+      },
+      {
+        action: { kind: "recordOperation", operation: "task.hiddenUpdate" },
+        message:
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 headerActions binding 0 operation must be visible to browser actors.',
+      },
+      {
+        action: { kind: "recordOperation", operation: "task.missing" },
+        message:
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 headerActions binding 0 references unknown operation "task.missing".',
+      },
+      {
+        action: { kind: "missing", operation: "task.update" },
+        message:
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 headerActions binding 0 has unsupported kind "missing".',
+      },
+      {
+        action: {
+          kind: "recordOperation",
+          operation: "task.update",
+          content: { kind: "iconOnly", icon: "missing" },
+        },
+        message:
+          'Screen "home" layout section 0 detail section 0 relationships relationship 0 headerActions binding 0 content icon must be a supported semantic icon id.',
       },
     ];
 
@@ -1060,7 +1138,7 @@ describe("schema screens", () => {
                 selectedRecordRelationshipHierarchySection({
                   relationships: [
                     selectedRecordHierarchyRelationship({
-                      createAction: invalid.createAction,
+                      headerActions: [invalid.action],
                       relationships: undefined,
                     }),
                   ],
@@ -1071,6 +1149,73 @@ describe("schema screens", () => {
         ),
       ).toThrow(invalid.message);
     }
+
+    expect(() =>
+      parseAppSchema(
+        selectedRecordDetailSchema(
+          selectedRecordDetail({
+            sections: [
+              selectedRecordRelationshipHierarchySection({
+                relationships: [
+                  selectedRecordHierarchyRelationship({
+                    label: undefined,
+                    headerActions: [createAction],
+                    relationships: undefined,
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ),
+      ),
+    ).toThrow(
+      'Screen "home" layout section 0 detail section 0 relationships relationship 0 with headerActions must resolve a label from its declaration or relationship "taskNotes".',
+    );
+
+    expect(() =>
+      parseAppSchema(
+        selectedRecordDetailSchema(
+          selectedRecordDetail({
+            sections: [
+              selectedRecordRelationshipHierarchySection({
+                relationships: [
+                  selectedRecordHierarchyRelationship({
+                    headerActions: [{ kind: "recordOperation", operation: "task.update" }],
+                    relationships: undefined,
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ),
+      ),
+    ).toThrow(
+      'Screen "home" layout section 0 detail section 0 relationships relationship 0 headerActions binding 0 operation "task.update" cannot also be bound to the source record header.',
+    );
+
+    const metadataLabelSource = selectedRecordDetailSchema(
+      selectedRecordDetail({
+        sections: [
+          selectedRecordRelationshipHierarchySection({
+            relationships: [
+              selectedRecordHierarchyRelationship({
+                label: undefined,
+                headerActions: [createAction],
+                relationships: undefined,
+              }),
+            ],
+          }),
+        ],
+      }),
+    );
+    expect(() =>
+      parseAppSchema({
+        ...metadataLabelSource,
+        relationships: metadataLabelSource.relationships.map((relationship) =>
+          relationship.key === "taskNotes" ? { ...relationship, label: "Notes" } : relationship,
+        ),
+      }),
+    ).not.toThrow();
   });
 
   it("rejects invalid query-count badge targets", () => {
@@ -1664,11 +1809,14 @@ function selectedRecordHierarchyRelationship(overrides: Record<string, unknown> 
     relationship: "taskNotes",
     itemView: "noteItem",
     operations: [{ operation: "note.update", label: "Edit note" }],
-    createAction: {
-      operation: "note.create",
-      createView: "noteCreateForHierarchy",
-      label: "Add note",
-    },
+    headerActions: [
+      {
+        kind: "create",
+        operation: "note.create",
+        createView: "noteCreateForHierarchy",
+        label: "Add note",
+      },
+    ],
     relationships: [
       {
         id: "comments",
@@ -1676,11 +1824,14 @@ function selectedRecordHierarchyRelationship(overrides: Record<string, unknown> 
         relationship: "noteComments",
         itemView: "commentItem",
         operations: [{ operation: "comment.update", label: "Edit comment" }],
-        createAction: {
-          operation: "comment.create",
-          createView: "commentCreateForHierarchy",
-          label: "Add comment",
-        },
+        headerActions: [
+          {
+            kind: "create",
+            operation: "comment.create",
+            createView: "commentCreateForHierarchy",
+            label: "Add comment",
+          },
+        ],
       },
     ],
     ...overrides,

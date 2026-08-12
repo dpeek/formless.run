@@ -1537,8 +1537,35 @@ function assertWorkspaceSelectedRecordContract(
 }
 
 function assertRelationshipHierarchyContract(snapshot: RelationshipHierarchyContract) {
+  const actionGroupIds = new Set<string>();
+  const actionIds = new Set<string>();
   const occurrenceIds = new Set<string>();
   const relationshipGroupIds = new Set<string>();
+
+  function assertActionGroupIdentity(
+    actionGroup: RelationshipHierarchyContract["root"]["headerActions"],
+  ) {
+    if (actionGroupIds.has(actionGroup.id)) {
+      throw new Error(
+        `Formless UI relationship hierarchy ${JSON.stringify(snapshot.id)} has duplicate action-group identities.`,
+      );
+    }
+    actionGroupIds.add(actionGroup.id);
+    for (const action of actionGroup.items) {
+      const actionId =
+        action.kind === "createAction"
+          ? action.surface.id
+          : action.kind === "operationAction"
+            ? action.control.id
+            : action.link.id;
+      if (actionIds.has(actionId)) {
+        throw new Error(
+          `Formless UI relationship hierarchy ${JSON.stringify(snapshot.id)} has duplicate action identities.`,
+        );
+      }
+      actionIds.add(actionId);
+    }
+  }
 
   function visit(node: RelationshipHierarchyContract["root"]) {
     if (occurrenceIds.has(node.id)) {
@@ -1554,14 +1581,11 @@ function assertRelationshipHierarchyContract(snapshot: RelationshipHierarchyCont
       );
     }
 
-    const immediateRelationshipGroupIds = new Set(node.relationshipGroups.map(({ id }) => id));
+    assertActionGroupIdentity(node.headerActions);
     for (const action of node.headerActions.items) {
-      if (
-        action.kind === "createAction" &&
-        !immediateRelationshipGroupIds.has(action.relationshipGroupId)
-      ) {
+      if (action.kind === "createAction") {
         throw new Error(
-          `Formless UI relationship hierarchy ${JSON.stringify(snapshot.id)} has an invalid create-action relationship group.`,
+          `Formless UI relationship hierarchy ${JSON.stringify(snapshot.id)} has a create action outside its relationship group.`,
         );
       }
     }
@@ -1573,6 +1597,14 @@ function assertRelationshipHierarchyContract(snapshot: RelationshipHierarchyCont
         );
       }
       relationshipGroupIds.add(relationshipGroup.id);
+      assertActionGroupIdentity(relationshipGroup.headerActions);
+      for (const action of relationshipGroup.headerActions.items) {
+        if (action.kind === "createAction" && action.relationshipGroupId !== relationshipGroup.id) {
+          throw new Error(
+            `Formless UI relationship hierarchy ${JSON.stringify(snapshot.id)} has an invalid create-action relationship group.`,
+          );
+        }
+      }
       for (const child of relationshipGroup.nodes) {
         visit(child);
       }

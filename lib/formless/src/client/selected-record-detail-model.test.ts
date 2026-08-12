@@ -26,7 +26,7 @@ describe("selected-record relationship-hierarchy model", () => {
         { key: "openCard", destination: { query: [{ source: { field: "name" } }] } },
         { key: "inspectCard", target: "newTab" },
       ],
-      operations: [{ bindingName: "card.update", label: "Edit card" }],
+      operations: [],
       relationships: [
         {
           id: "rates",
@@ -52,12 +52,22 @@ describe("selected-record relationship-hierarchy model", () => {
             },
           ],
           operations: [{ bindingName: "rate.update", label: "Edit rate" }],
-          createAction: {
-            type: "create",
-            entityName: "rate",
-            operationName: "create",
-            contextName: "card",
-          },
+          headerActions: [
+            {
+              kind: "recordOperation",
+              bindingName: "card.update",
+              label: "Edit card",
+              content: { kind: "iconOnly", icon: "edit" },
+            },
+            {
+              kind: "create",
+              type: "create",
+              entityName: "rate",
+              operationName: "create",
+              contextName: "card",
+              content: { kind: "iconAndLabel", icon: "add", label: "Add rate" },
+            },
+          ],
           relationships: [
             {
               id: "adjustments",
@@ -69,12 +79,16 @@ describe("selected-record relationship-hierarchy model", () => {
                 { key: "openAdjustment", destination: { query: [{ source: { field: "label" } }] } },
               ],
               operations: [{ bindingName: "adjustment.update", label: "Update adjustment" }],
-              createAction: {
-                type: "create",
-                entityName: "adjustment",
-                operationName: "create",
-                contextName: "parentRate",
-              },
+              headerActions: [
+                {
+                  kind: "create",
+                  type: "create",
+                  entityName: "adjustment",
+                  operationName: "create",
+                  contextName: "parentRate",
+                  content: { kind: "label", label: "Create adjustment" },
+                },
+              ],
               relationships: [],
             },
           ],
@@ -95,6 +109,21 @@ describe("selected-record relationship-hierarchy model", () => {
     expect(hierarchyModel.relationships[0]?.relationships[0]?.links).toBe(
       hierarchyDetail.relationships[0]?.relationships?.[0]?.links,
     );
+
+    const metadataLabelDetail = relationshipHierarchyDetail({
+      relationships: [relationshipHierarchyRelationship({ label: undefined })],
+    });
+    const metadataLabelModel = selectHomeSelectedRecordDetail(
+      schema,
+      metadataLabelDetail,
+      "card",
+      card,
+    );
+    const metadataLabelHierarchy = metadataLabelModel.sections[0];
+    if (metadataLabelHierarchy?.type !== "relationshipHierarchy") {
+      throw new Error("Expected relationship hierarchy.");
+    }
+    expect(metadataLabelHierarchy.relationships[0]?.label).toBe("Rates");
   });
 
   it("rejects incompatible hierarchy entities, relationships, item views, operations, and create views", () => {
@@ -139,7 +168,9 @@ describe("selected-record relationship-hierarchy model", () => {
         detail: relationshipHierarchyDetail({
           relationships: [
             relationshipHierarchyRelationship({
-              createAction: { operation: "resource.create", createView: "resourceCreate" },
+              headerActions: [
+                { kind: "create", operation: "resource.create", createView: "resourceCreate" },
+              ],
             }),
           ],
         }),
@@ -149,7 +180,9 @@ describe("selected-record relationship-hierarchy model", () => {
         detail: relationshipHierarchyDetail({
           relationships: [
             relationshipHierarchyRelationship({
-              createAction: { operation: "rate.create", createView: "rateCreate" },
+              headerActions: [
+                { kind: "create", operation: "rate.create", createView: "rateCreate" },
+              ],
             }),
           ],
         }),
@@ -187,7 +220,7 @@ function relationshipHierarchyDetail(
             "newTab",
           ),
         ],
-        operations: [{ operation: "card.update", label: "Edit card" }],
+        operations: [],
         relationships: [relationshipHierarchyRelationship()],
         ...overrides,
       },
@@ -211,11 +244,21 @@ function relationshipHierarchyRelationship(overrides: Record<string, unknown> = 
       }),
     ],
     operations: [{ operation: "rate.update", label: "Edit rate" }],
-    createAction: {
-      operation: "rate.create",
-      createView: "rateCreateForCard",
-      label: "Add rate",
-    },
+    headerActions: [
+      {
+        kind: "recordOperation",
+        operation: "card.update",
+        label: "Edit card",
+        content: { kind: "iconOnly", icon: "edit" },
+      },
+      {
+        kind: "create",
+        operation: "rate.create",
+        createView: "rateCreateForCard",
+        label: "Add rate",
+        content: { kind: "iconAndLabel", icon: "add" },
+      },
+    ],
     relationships: [
       {
         id: "adjustments",
@@ -229,10 +272,13 @@ function relationshipHierarchyRelationship(overrides: Record<string, unknown> = 
           }),
         ],
         operations: [{ operation: "adjustment.update" }],
-        createAction: {
-          operation: "adjustment.create",
-          createView: "adjustmentCreateForRate",
-        },
+        headerActions: [
+          {
+            kind: "create",
+            operation: "adjustment.create",
+            createView: "adjustmentCreateForRate",
+          },
+        ],
       },
     ],
     ...overrides,

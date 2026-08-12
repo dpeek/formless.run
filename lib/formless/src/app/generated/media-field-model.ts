@@ -82,7 +82,11 @@ export function collectGeneratedWorkspaceMediaFields(
 
   function addHierarchyCreateOperations(node: HomeSelectedRecordRelationshipHierarchyNodeConfig) {
     for (const relationship of node.relationships) {
-      addCreateOperation(relationship.createAction);
+      for (const action of relationship.headerActions) {
+        if (action.kind === "create") {
+          addCreateOperation(action);
+        }
+      }
       addHierarchyCreateOperations(relationship);
     }
   }

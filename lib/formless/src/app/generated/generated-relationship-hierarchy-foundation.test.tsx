@@ -119,9 +119,13 @@ describe("generated selected-record relationship hierarchy", () => {
     expect(root.contract.headerActions.items.map((action) => action.kind)).toEqual([
       "linkAction",
       "operationAction",
-      "createAction",
-      "createAction",
     ]);
+    expect(
+      root.contract.relationshipGroups[0]?.headerActions.items.map((action) => action.kind),
+    ).toEqual(["operationAction", "createAction"]);
+    expect(
+      root.contract.relationshipGroups[1]?.headerActions.items.map((action) => action.kind),
+    ).toEqual(["createAction"]);
     expect(primaryDesigner.contract.headerActions.items.map((action) => action.kind)).toEqual([
       "linkAction",
       "linkAction",
@@ -131,6 +135,7 @@ describe("generated selected-record relationship hierarchy", () => {
       "linkAction",
       "operationAction",
     ]);
+    expect(primaryDesigner.contract.relationshipGroups[0]?.headerActions.items).toHaveLength(1);
     expect(rootLinks[0]?.link).toEqual({
       accessibilityLabel: "Open card for Premium",
       availability: "available",
@@ -193,7 +198,11 @@ describe("generated selected-record relationship hierarchy", () => {
       root.relationshipGroups[0]?.nodes[1]?.relationshipGroups[0]?.nodes[0],
     );
     const rootDelete = required(root.operations[0]);
+    const ratesHeadingOperation = required(root.relationshipGroups[0]?.operations[0]);
     const primaryArchive = required(primaryDesigner.operations[0]);
+    const adjustmentHeadingOperation = required(
+      primaryDesigner.relationshipGroups[0]?.operations[0],
+    );
     const duplicateArchive = required(duplicateDesigner.operations[0]);
 
     expect(operationLabels(root.contract)).toEqual(["Remove card"]);
@@ -203,7 +212,7 @@ describe("generated selected-record relationship hierarchy", () => {
       "Archive rate",
       "Restore rate",
     ]);
-    expect(primaryDesigner.operations).toHaveLength(1);
+    expect(primaryDesigner.operations).toHaveLength(2);
     expect(primaryArchive.binding).toMatchObject({
       availability: { state: "enabled" },
       input: { kind: "stateTransition" },
@@ -211,6 +220,22 @@ describe("generated selected-record relationship hierarchy", () => {
     expect(rootDelete.control.confirmation).toMatchObject({
       open: false,
       title: "Remove card Premium?",
+    });
+    expect(ratesHeadingOperation).toMatchObject({
+      occurrenceId: root.occurrenceId,
+      recordId: root.recordId,
+      relationshipGroupId: root.relationshipGroups[0]?.contract.id,
+      control: {
+        trigger: {
+          accessibilityLabel: "Edit card rates",
+          content: { kind: "iconOnly", icon: "edit" },
+        },
+      },
+    });
+    expect(adjustmentHeadingOperation).toMatchObject({
+      occurrenceId: primaryDesigner.occurrenceId,
+      recordId: primaryDesigner.recordId,
+      relationshipGroupId: primaryDesigner.relationshipGroups[0]?.contract.id,
     });
     expect(primaryArchive.binding.id).not.toBe(duplicateArchive.binding.id);
     expect(primaryArchive.binding.executionKey).not.toBe(duplicateArchive.binding.executionKey);
@@ -454,6 +479,33 @@ describe("generated selected-record relationship hierarchy", () => {
     const duplicateNode = required(hierarchy.root.relationshipGroups[1]?.nodes[0]);
     const primaryArchive = operationControl(primaryNode, "Archive rate");
     const duplicateArchive = operationControl(duplicateNode, "Archive rate");
+    const ratesGroup = required(hierarchy.root.relationshipGroups[0]);
+    const editCardRates = relationshipGroupOperationControl(ratesGroup, "Edit card rates");
+    submitOperationMock.mockResolvedValueOnce(committedCommandResponse());
+    await act(async () => {
+      await runtime.dispatch(
+        projectGeneratedWorkspaceRelationshipHierarchyIntent(
+          currentScope(runtime),
+          hierarchy.id,
+          hierarchyOperationIntent(
+            hierarchy.id,
+            hierarchy.root,
+            editCardRates,
+            editCardRates.trigger.intent,
+            ratesGroup.id,
+          ),
+        ),
+      );
+    });
+    expect(submitOperationMock.mock.calls[0]?.slice(0, 3)).toEqual([
+      "card",
+      "update",
+      {
+        recordId: hierarchy.root.recordId,
+        source: { protocol: "generated-ui", surface: "button" },
+      },
+    ]);
+    submitOperationMock.mockClear();
     const primaryEnvelope = projectGeneratedWorkspaceRelationshipHierarchyIntent(
       currentScope(runtime),
       hierarchy.id,
@@ -913,6 +965,7 @@ function hierarchyOperationIntent(
   node: RelationshipHierarchyNodeContract,
   control: OperationControlContract,
   intent = control.trigger.intent,
+  relationshipGroupId?: string,
 ): RelationshipHierarchyOperationIntent {
   return {
     controlId: control.id,
@@ -920,8 +973,26 @@ function hierarchyOperationIntent(
     intent,
     occurrenceId: node.id,
     recordId: node.recordId,
+    ...(relationshipGroupId === undefined ? {} : { relationshipGroupId }),
     type: "relationshipHierarchyOperation",
   };
+}
+
+function relationshipGroupOperationControl(
+  group: RelationshipHierarchyNodeContract["relationshipGroups"][number],
+  label: string,
+): OperationControlContract {
+  const action = required(
+    group.headerActions.items.find(
+      (candidate) =>
+        candidate.kind === "operationAction" &&
+        candidate.control.trigger.accessibilityLabel === label,
+    ),
+  );
+  if (action.kind !== "operationAction") {
+    throw new Error(`Missing relationship-group operation "${label}".`);
+  }
+  return action.control;
 }
 
 function hierarchyCreateAction(
@@ -930,7 +1001,7 @@ function hierarchyCreateAction(
 ): RelationshipHierarchyCreateActionContract {
   const group = required(node.relationshipGroups[relationshipGroupIndex]);
   const action = required(
-    node.headerActions.items.find(
+    group.headerActions.items.find(
       (candidate) =>
         candidate.kind === "createAction" && candidate.relationshipGroupId === group.id,
     ),
@@ -1155,11 +1226,21 @@ function relationshipHierarchySchema(): AppSchema {
         label: "Rates",
         relationship: "cardRates",
         itemView: "rateListItem",
-        createAction: {
-          operation: "rate.create",
-          createView: "rateCreateForCard",
-          label: "Add rate",
-        },
+        headerActions: [
+          {
+            kind: "recordOperation",
+            operation: "card.update",
+            label: "Edit card rates",
+            content: { kind: "iconOnly", icon: "edit" },
+          },
+          {
+            kind: "create",
+            operation: "rate.create",
+            createView: "rateCreateForCard",
+            label: "Add rate",
+            content: { kind: "iconAndLabel", icon: "add" },
+          },
+        ],
         links: rateHierarchyLinks(),
         operations: [{ operation: "rate.archive" }, { operation: "rate.restore" }],
         relationships: [
@@ -1168,6 +1249,13 @@ function relationshipHierarchySchema(): AppSchema {
             label: "Adjustments",
             relationship: "rateAdjustments",
             itemView: "adjustmentItem",
+            headerActions: [
+              {
+                kind: "recordOperation",
+                operation: "rate.update",
+                label: "Edit adjustment rate",
+              },
+            ],
             links: [
               {
                 key: "openAdjustment",
@@ -1189,11 +1277,14 @@ function relationshipHierarchySchema(): AppSchema {
         label: "Rate copies",
         relationship: "cardRates",
         itemView: "rateListItem",
-        createAction: {
-          operation: "rate.create",
-          createView: "rateCreateForCard",
-          label: "Add rate copy",
-        },
+        headerActions: [
+          {
+            kind: "create",
+            operation: "rate.create",
+            createView: "rateCreateForCard",
+            label: "Add rate copy",
+          },
+        ],
         links: rateHierarchyLinks(),
         operations: [{ operation: "rate.archive" }, { operation: "rate.restore" }],
       },

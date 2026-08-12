@@ -6,7 +6,9 @@ import type {
   KeyedDefinition,
   QueryExpression,
   RecordLinkSchema,
+  SemanticIconId,
   SelectedRecordDetailSchema,
+  SelectedRecordRelationshipHierarchyHeaderActionBindingSchema,
   SelectedRecordRelationshipHierarchyOperationBindingSchema,
   SelectedRecordRelationshipHierarchyRelationshipSchema,
   ToManyRelationshipSchema,
@@ -59,8 +61,25 @@ export type HomeSelectedRecordRelationshipHierarchyCreateActionConfig = Extract<
   HomeOperationConfig,
   { type: "create" }
 > & {
+  content: HomeSelectedRecordRelationshipHierarchyHeaderActionContentConfig;
   contextName: string;
+  kind: "create";
 };
+
+export type HomeSelectedRecordRelationshipHierarchyHeaderActionContentConfig =
+  | { kind: "label"; label: string }
+  | { kind: "iconAndLabel"; icon: SemanticIconId; label: string }
+  | { kind: "iconOnly"; icon: SemanticIconId };
+
+export type HomeSelectedRecordRelationshipHierarchyRecordOperationActionConfig =
+  HomeSelectedRecordRelationshipHierarchyOperationConfig & {
+    content: HomeSelectedRecordRelationshipHierarchyHeaderActionContentConfig;
+    kind: "recordOperation";
+  };
+
+export type HomeSelectedRecordRelationshipHierarchyHeaderActionConfig =
+  | HomeSelectedRecordRelationshipHierarchyCreateActionConfig
+  | HomeSelectedRecordRelationshipHierarchyRecordOperationActionConfig;
 
 export type HomeSelectedRecordRelationshipHierarchyNodeConfig = {
   entityName: string;
@@ -79,7 +98,7 @@ export type HomeSelectedRecordRelationshipHierarchyRelationshipConfig =
     label?: string;
     relationshipName: string;
     relationship: ToManyRelationshipSchema;
-    createAction?: HomeSelectedRecordRelationshipHierarchyCreateActionConfig;
+    headerActions: HomeSelectedRecordRelationshipHierarchyHeaderActionConfig[];
   };
 
 export type HomeSelectedRecordDetailRelationshipHierarchySectionConfig =
@@ -279,22 +298,47 @@ function selectHomeSelectedRecordRelationshipHierarchyRelationship(
     relationship.to.entity,
     targetEntity,
   );
-  const createAction =
-    declaration.createAction === undefined
-      ? undefined
-      : selectHomeSelectedRecordRelationshipHierarchyCreateAction(
-          schema,
-          declaration.createAction,
-          relationship,
-        );
+  const label = declaration.label ?? relationship.label;
+  const headerActions = (declaration.headerActions ?? []).map((binding) =>
+    selectHomeSelectedRecordRelationshipHierarchyHeaderAction(
+      schema,
+      binding,
+      sourceEntityName,
+      relationship,
+    ),
+  );
 
   return {
     id: declaration.id,
-    ...(declaration.label === undefined ? {} : { label: declaration.label }),
+    ...(label === undefined ? {} : { label }),
     relationshipName: declaration.relationship,
     relationship,
-    ...(createAction === undefined ? {} : { createAction }),
+    headerActions,
     ...node,
+  };
+}
+
+function selectHomeSelectedRecordRelationshipHierarchyHeaderAction(
+  schema: AppSchema,
+  binding: SelectedRecordRelationshipHierarchyHeaderActionBindingSchema,
+  sourceEntityName: string,
+  relationship: ToManyRelationshipSchema,
+): HomeSelectedRecordRelationshipHierarchyHeaderActionConfig {
+  if (binding.kind === "create") {
+    return selectHomeSelectedRecordRelationshipHierarchyCreateAction(schema, binding, relationship);
+  }
+  const operation = selectHomeSelectedRecordRelationshipHierarchyOperation(
+    schema,
+    binding,
+    sourceEntityName,
+  );
+  return {
+    ...operation,
+    content: selectHomeSelectedRecordRelationshipHierarchyHeaderActionContent(
+      binding.content,
+      operation.label,
+    ),
+    kind: "recordOperation",
   };
 }
 
@@ -329,7 +373,10 @@ function selectHomeSelectedRecordRelationshipHierarchyOperation(
 
 function selectHomeSelectedRecordRelationshipHierarchyCreateAction(
   schema: AppSchema,
-  binding: NonNullable<SelectedRecordRelationshipHierarchyRelationshipSchema["createAction"]>,
+  binding: Extract<
+    SelectedRecordRelationshipHierarchyHeaderActionBindingSchema,
+    { kind: "create" }
+  >,
   relationship: ToManyRelationshipSchema,
 ): HomeSelectedRecordRelationshipHierarchyCreateActionConfig {
   const createAction = selectHomeCreateOperation(
@@ -357,8 +404,25 @@ function selectHomeSelectedRecordRelationshipHierarchyCreateAction(
 
   return {
     ...createAction,
+    content: selectHomeSelectedRecordRelationshipHierarchyHeaderActionContent(
+      binding.content,
+      createAction.label,
+    ),
     contextName: attachmentDefault.value.name,
+    kind: "create",
   };
+}
+
+function selectHomeSelectedRecordRelationshipHierarchyHeaderActionContent(
+  content: SelectedRecordRelationshipHierarchyHeaderActionBindingSchema["content"],
+  label: string,
+): HomeSelectedRecordRelationshipHierarchyHeaderActionContentConfig {
+  if (content === undefined || content.kind === "label") {
+    return { kind: "label", label };
+  }
+  return content.kind === "iconOnly"
+    ? { icon: content.icon, kind: "iconOnly" }
+    : { icon: content.icon, kind: "iconAndLabel", label };
 }
 
 function selectHomeSelectedRecordDetailOperation(

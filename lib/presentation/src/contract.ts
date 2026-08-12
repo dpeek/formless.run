@@ -1851,6 +1851,7 @@ export type RelationshipHierarchyOperationIntent = {
   intent: OperationPresentationIntent;
   occurrenceId: string;
   recordId: string;
+  relationshipGroupId?: string;
   type: "relationshipHierarchyOperation";
 };
 
@@ -1911,7 +1912,20 @@ export type RelationshipHierarchyActionGroupContract = {
   kind: "relationshipHierarchyActions";
 };
 
+export type RelationshipHierarchyRelationshipGroupActionContract =
+  | RelationshipHierarchyCreateActionContract
+  | RelationshipHierarchyOperationActionContract;
+
+export type RelationshipHierarchyRelationshipGroupActionGroupContract = Omit<
+  RelationshipHierarchyActionGroupContract,
+  "items"
+> & {
+  items: readonly RelationshipHierarchyRelationshipGroupActionContract[];
+};
+
 export type RelationshipHierarchyRelationshipGroupContract = {
+  accessibilityLabel: string;
+  headerActions: RelationshipHierarchyRelationshipGroupActionGroupContract;
   id: string;
   kind: "relationshipHierarchyRelationshipGroup";
   label?: string;

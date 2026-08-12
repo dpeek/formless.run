@@ -19,6 +19,7 @@ export function AstryxRecursiveRecordNode({
   children,
   editor,
   entityTypeLabel,
+  headerActions,
   headerDetail,
   leadingContent,
   onEditorIntent,
@@ -30,6 +31,7 @@ export function AstryxRecursiveRecordNode({
   children?: ReactNode;
   editor?: RecordResultContract;
   entityTypeLabel: string;
+  headerActions?: ReactNode;
   headerDetail?: string;
   leadingContent?: ReactNode;
   onEditorIntent?: RecordResultIntentHandler;
@@ -56,14 +58,15 @@ export function AstryxRecursiveRecordNode({
               </Text>
             ) : null}
           </VStack>
-          {actionMenuItems.length > 0 ? (
-            <MoreMenu
-              items={[...actionMenuItems]}
-              label={actionMenuAccessibilityLabel}
-              size="sm"
-              variant="ghost"
-            />
-          ) : null}
+          {headerActions ??
+            (actionMenuItems.length > 0 ? (
+              <MoreMenu
+                items={[...actionMenuItems]}
+                label={actionMenuAccessibilityLabel}
+                size="sm"
+                variant="ghost"
+              />
+            ) : null)}
         </HStack>
         <Divider isFullBleed />
         <VStack gap={4} padding={8} width="100%">

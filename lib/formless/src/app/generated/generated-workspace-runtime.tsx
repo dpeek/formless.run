@@ -2481,25 +2481,21 @@ function selectWorkspaceSectionRuntimeInput({
               [
                 section.id,
                 {
-                  createActionOptions: (relationship) => {
-                    const operation = relationship.createAction;
+                  createActionOptions: (_relationship, operation) => {
                     return {
                       createErrorBySurfaceId: relationshipHierarchyCreateErrorBySurfaceId,
                       createOpenBySurfaceId,
                       createStateBySurfaceId,
                       fieldStateBySurfaceId: createFieldStateBySurfaceId,
-                      mediaAssetOptionsByFieldName:
-                        operation === undefined
-                          ? {}
-                          : selectWorkspaceCreateMediaOptions(
-                              operation,
-                              mediaAssetOptionsByFieldKey,
-                            ),
+                      mediaAssetOptionsByFieldName: selectWorkspaceCreateMediaOptions(
+                        operation,
+                        mediaAssetOptionsByFieldKey,
+                      ),
                       operationStateByExecutionKey,
-                      referenceOptionsByFieldName:
-                        operation === undefined
-                          ? {}
-                          : selectWorkspaceCreateReferenceOptions(operation, snapshot),
+                      referenceOptionsByFieldName: selectWorkspaceCreateReferenceOptions(
+                        operation,
+                        snapshot,
+                      ),
                       schema,
                     };
                   },

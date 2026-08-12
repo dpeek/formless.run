@@ -29,6 +29,14 @@ if (typeof globalThis.CSS.escape !== "function") {
   globalThis.CSS.escape = (value: string) => value.replace(/[^a-zA-Z0-9_-]/g, "\\\\$&");
 }
 
+if (typeof globalThis.ResizeObserver === "undefined") {
+  globalThis.ResizeObserver = class ResizeObserver {
+    disconnect() {}
+    observe() {}
+    unobserve() {}
+  };
+}
+
 if (typeof HTMLDialogElement !== "undefined") {
   if (typeof HTMLDialogElement.prototype.showModal !== "function") {
     HTMLDialogElement.prototype.showModal = function showModal() {

@@ -46,7 +46,10 @@ import type {
   SelectedRecordDetailSchema,
   SelectedRecordDetailSectionSchema,
   SelectedRecordRelationshipHierarchyCreateBindingSchema,
+  SelectedRecordRelationshipHierarchyHeaderActionBindingSchema,
+  SelectedRecordRelationshipHierarchyHeaderActionContentSchema,
   SelectedRecordRelationshipHierarchyOperationBindingSchema,
+  SelectedRecordRelationshipHierarchyRecordOperationBindingSchema,
   SelectedRecordRelationshipHierarchyRelationshipSchema,
   TableViewSchema,
   ViewSchema,
@@ -889,6 +892,7 @@ function parseSelectedRecordRelationshipHierarchySection(
     itemViews,
     relationships,
     views,
+    operations ?? [],
     true,
   );
 
@@ -911,6 +915,7 @@ function parseSelectedRecordRelationshipHierarchyRelationships(
   itemViews: Record<string, ItemViewSchema>,
   relationships: Record<string, RelationshipSchema>,
   views: Record<string, ViewSchema>,
+  sourceNodeOperations: readonly SelectedRecordRelationshipHierarchyOperationBindingSchema[],
   required: boolean,
 ): SelectedRecordRelationshipHierarchyRelationshipSchema[] | undefined {
   if (value === undefined && !required) {
@@ -930,7 +935,7 @@ function parseSelectedRecordRelationshipHierarchyRelationships(
       relationshipContext,
       relationshipValue,
       ["id", "relationship", "itemView"],
-      ["createAction", "label", "links", "operations", "relationships"],
+      ["headerActions", "label", "links", "operations", "relationships"],
     );
     const id = parseRequiredNonEmptyString(`${relationshipContext} id`, relationshipValue.id);
     if (siblingIds.has(id)) {
@@ -981,14 +986,21 @@ function parseSelectedRecordRelationshipHierarchyRelationships(
       relationship.to.entity,
       entities,
     );
-    const createAction = parseSelectedRecordRelationshipHierarchyCreateBinding(
-      `${relationshipContext} createAction`,
-      relationshipValue.createAction,
+    const headerActions = parseSelectedRecordRelationshipHierarchyHeaderActions(
+      `${relationshipContext} headerActions`,
+      relationshipValue.headerActions,
+      sourceEntityName,
       relationshipName,
       relationship,
       entities,
       views,
+      sourceNodeOperations,
     );
+    if (headerActions !== undefined && label === undefined && relationship.label === undefined) {
+      throw new Error(
+        `${relationshipContext} with headerActions must resolve a label from its declaration or relationship "${relationshipName}".`,
+      );
+    }
     const childRelationships = parseSelectedRecordRelationshipHierarchyRelationships(
       `${relationshipContext} relationships`,
       relationshipValue.relationships,
@@ -997,6 +1009,7 @@ function parseSelectedRecordRelationshipHierarchyRelationships(
       itemViews,
       relationships,
       views,
+      operations ?? [],
       false,
     );
 
@@ -1006,7 +1019,7 @@ function parseSelectedRecordRelationshipHierarchyRelationships(
       relationship: relationshipName,
       itemView,
       ...(links === undefined ? {} : { links }),
-      ...(createAction === undefined ? {} : { createAction }),
+      ...(headerActions === undefined ? {} : { headerActions }),
       ...(operations === undefined ? {} : { operations }),
       ...(childRelationships === undefined ? {} : { relationships: childRelationships }),
     };
@@ -1092,21 +1105,79 @@ function parseSelectedRecordRelationshipHierarchyOperationBindings(
   return operations.length > 0 ? operations : undefined;
 }
 
-function parseSelectedRecordRelationshipHierarchyCreateBinding(
+function parseSelectedRecordRelationshipHierarchyHeaderActions(
   context: string,
   value: unknown,
+  sourceEntityName: string,
   relationshipName: string,
   relationship: Extract<RelationshipSchema, { kind: "toMany" }>,
   entities: Record<string, EntitySchema>,
   views: Record<string, ViewSchema>,
-): SelectedRecordRelationshipHierarchyCreateBindingSchema | undefined {
+  sourceNodeOperations: readonly SelectedRecordRelationshipHierarchyOperationBindingSchema[],
+): SelectedRecordRelationshipHierarchyHeaderActionBindingSchema[] | undefined {
   if (value === undefined) {
     return undefined;
   }
-  if (!isRecord(value)) {
-    throw new Error(`${context} must be an object.`);
+  if (!Array.isArray(value)) {
+    throw new Error(`${context} must be an array.`);
   }
-  assertExactKeys(context, value, ["operation", "createView"], ["label"]);
+
+  const sourceNodeOperationKeys = new Set(sourceNodeOperations.map(({ operation }) => operation));
+  const actionKeys = new Set<string>();
+  const actions = value.map(
+    (binding, index): SelectedRecordRelationshipHierarchyHeaderActionBindingSchema => {
+      const bindingContext = `${context} binding ${index}`;
+      if (!isRecord(binding)) {
+        throw new Error(`${bindingContext} must be an object.`);
+      }
+
+      let action: SelectedRecordRelationshipHierarchyHeaderActionBindingSchema;
+      if (binding.kind === "create") {
+        action = parseSelectedRecordRelationshipHierarchyCreateBinding(
+          bindingContext,
+          binding,
+          relationshipName,
+          relationship,
+          entities,
+          views,
+        );
+      } else if (binding.kind === "recordOperation") {
+        action = parseSelectedRecordRelationshipHierarchyHeaderRecordOperationBinding(
+          bindingContext,
+          binding,
+          sourceEntityName,
+          entities,
+        );
+        if (sourceNodeOperationKeys.has(action.operation)) {
+          throw new Error(
+            `${bindingContext} operation "${action.operation}" cannot also be bound to the source record header.`,
+          );
+        }
+      } else {
+        throw new Error(`${bindingContext} has unsupported kind "${String(binding.kind)}".`);
+      }
+
+      const actionKey = `${action.kind}:${action.operation}`;
+      if (actionKeys.has(actionKey)) {
+        throw new Error(`${bindingContext} duplicates header action "${action.operation}".`);
+      }
+      actionKeys.add(actionKey);
+      return action;
+    },
+  );
+
+  return actions.length > 0 ? actions : undefined;
+}
+
+function parseSelectedRecordRelationshipHierarchyCreateBinding(
+  context: string,
+  value: Record<string, unknown>,
+  relationshipName: string,
+  relationship: Extract<RelationshipSchema, { kind: "toMany" }>,
+  entities: Record<string, EntitySchema>,
+  views: Record<string, ViewSchema>,
+): SelectedRecordRelationshipHierarchyCreateBindingSchema {
+  assertExactKeys(context, value, ["kind", "operation", "createView"], ["content", "label"]);
 
   const operationKey = parseEntityOperationKey(`${context} operation`, value.operation);
   const operationEntity = entities[operationKey.entityKey];
@@ -1162,11 +1233,78 @@ function parseSelectedRecordRelationshipHierarchyCreateBinding(
   }
 
   const label = parseOptionalNonEmptyString(`${context} label`, value.label);
+  const content = parseSelectedRecordRelationshipHierarchyHeaderActionContent(
+    `${context} content`,
+    value.content,
+  );
   return {
+    kind: "create",
     operation: formatEntityOperationKey(operationKey),
     createView: createViewName,
     ...(label === undefined ? {} : { label }),
+    ...(content === undefined ? {} : { content }),
   };
+}
+
+function parseSelectedRecordRelationshipHierarchyHeaderRecordOperationBinding(
+  context: string,
+  value: Record<string, unknown>,
+  sourceEntityName: string,
+  entities: Record<string, EntitySchema>,
+): SelectedRecordRelationshipHierarchyRecordOperationBindingSchema {
+  assertExactKeys(context, value, ["kind", "operation"], ["content", "label"]);
+  const operationKey = parseEntityOperationKey(`${context} operation`, value.operation);
+  const operationEntity = entities[operationKey.entityKey];
+  const operation = definitionsToRecord(operationEntity?.operations)[operationKey.operationKey];
+  if (!operationEntity || !operation) {
+    throw new Error(`${context} references unknown operation "${String(value.operation)}".`);
+  }
+  if (operationKey.entityKey !== sourceEntityName) {
+    throw new Error(`${context} operation must use source entity "${sourceEntityName}".`);
+  }
+  if (operation.scope !== "record") {
+    throw new Error(`${context} operation must use record scope.`);
+  }
+  if (!isEntityOperationVisibleToBrowser(operation)) {
+    throw new Error(`${context} operation must be visible to browser actors.`);
+  }
+
+  const label = parseOptionalNonEmptyString(`${context} label`, value.label);
+  const content = parseSelectedRecordRelationshipHierarchyHeaderActionContent(
+    `${context} content`,
+    value.content,
+  );
+  return {
+    kind: "recordOperation",
+    operation: formatEntityOperationKey(operationKey),
+    ...(label === undefined ? {} : { label }),
+    ...(content === undefined ? {} : { content }),
+  };
+}
+
+function parseSelectedRecordRelationshipHierarchyHeaderActionContent(
+  context: string,
+  value: unknown,
+): SelectedRecordRelationshipHierarchyHeaderActionContentSchema | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!isRecord(value)) {
+    throw new Error(`${context} must be an object.`);
+  }
+  if (value.kind === "label") {
+    assertExactKeys(context, value, ["kind"], []);
+    return { kind: "label" };
+  }
+  if (value.kind !== "iconAndLabel" && value.kind !== "iconOnly") {
+    throw new Error(`${context} has unsupported kind "${String(value.kind)}".`);
+  }
+  assertExactKeys(context, value, ["kind", "icon"], []);
+  const icon = parseRequiredNonEmptyString(`${context} icon`, value.icon);
+  if (!semanticIconIds.includes(icon as SemanticIconId)) {
+    throw new Error(`${context} icon must be a supported semantic icon id.`);
+  }
+  return { kind: value.kind, icon: icon as SemanticIconId };
 }
 
 function parseSelectedRecordRelationshipSection(

@@ -1087,10 +1087,28 @@ export type SelectedRecordRelationshipHierarchyOperationBindingSchema = {
 };
 
 export type SelectedRecordRelationshipHierarchyCreateBindingSchema = {
+  kind: "create";
   operation: string;
   createView: string;
   label?: string;
+  content?: SelectedRecordRelationshipHierarchyHeaderActionContentSchema;
 };
+
+export type SelectedRecordRelationshipHierarchyRecordOperationBindingSchema = {
+  kind: "recordOperation";
+  operation: string;
+  label?: string;
+  content?: SelectedRecordRelationshipHierarchyHeaderActionContentSchema;
+};
+
+export type SelectedRecordRelationshipHierarchyHeaderActionContentSchema =
+  | { kind: "label" }
+  | { kind: "iconAndLabel"; icon: SemanticIconId }
+  | { kind: "iconOnly"; icon: SemanticIconId };
+
+export type SelectedRecordRelationshipHierarchyHeaderActionBindingSchema =
+  | SelectedRecordRelationshipHierarchyCreateBindingSchema
+  | SelectedRecordRelationshipHierarchyRecordOperationBindingSchema;
 
 export type SelectedRecordRelationshipHierarchyRelationshipSchema = {
   id: string;
@@ -1098,7 +1116,7 @@ export type SelectedRecordRelationshipHierarchyRelationshipSchema = {
   relationship: string;
   itemView: string;
   links?: KeyedDefinition<RecordLinkSchema>[];
-  createAction?: SelectedRecordRelationshipHierarchyCreateBindingSchema;
+  headerActions?: SelectedRecordRelationshipHierarchyHeaderActionBindingSchema[];
   operations?: SelectedRecordRelationshipHierarchyOperationBindingSchema[];
   relationships?: SelectedRecordRelationshipHierarchyRelationshipSchema[];
 };
@@ -1137,6 +1155,12 @@ export type SelectedRecordRelationshipHierarchyOperationBindingSchemaSource =
   SelectedRecordRelationshipHierarchyOperationBindingSchema;
 export type SelectedRecordRelationshipHierarchyCreateBindingSchemaSource =
   SelectedRecordRelationshipHierarchyCreateBindingSchema;
+export type SelectedRecordRelationshipHierarchyRecordOperationBindingSchemaSource =
+  SelectedRecordRelationshipHierarchyRecordOperationBindingSchema;
+export type SelectedRecordRelationshipHierarchyHeaderActionContentSchemaSource =
+  SelectedRecordRelationshipHierarchyHeaderActionContentSchema;
+export type SelectedRecordRelationshipHierarchyHeaderActionBindingSchemaSource =
+  SelectedRecordRelationshipHierarchyHeaderActionBindingSchema;
 export type SelectedRecordRelationshipHierarchyRelationshipSchemaSource = Omit<
   SelectedRecordRelationshipHierarchyRelationshipSchema,
   "links" | "relationships"

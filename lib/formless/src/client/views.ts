@@ -142,8 +142,11 @@ export type {
   HomeSelectedRecordDetailRelationshipSectionConfig,
   HomeSelectedRecordDetailSectionConfig,
   HomeSelectedRecordRelationshipHierarchyCreateActionConfig,
+  HomeSelectedRecordRelationshipHierarchyHeaderActionConfig,
+  HomeSelectedRecordRelationshipHierarchyHeaderActionContentConfig,
   HomeSelectedRecordRelationshipHierarchyNodeConfig,
   HomeSelectedRecordRelationshipHierarchyOperationConfig,
+  HomeSelectedRecordRelationshipHierarchyRecordOperationActionConfig,
   HomeSelectedRecordRelationshipHierarchyRelationshipConfig,
 } from "./selected-record-detail-model.ts";
 export { fieldLabel } from "./view-labels.ts";
