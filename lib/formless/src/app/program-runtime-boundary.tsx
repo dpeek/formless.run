@@ -90,6 +90,7 @@ type ProgramRuntimeState = Omit<ProgramRuntimeSnapshot, "logout" | "logoutState"
 type ActiveProgramRuntime = {
   canPublish: () => boolean;
   end: () => void;
+  replaceSessionExpiry: (session: ProgramSessionResponse) => void;
   requestSync: () => void;
 };
 
@@ -125,9 +126,13 @@ export function ProgramRuntimeBoundary({
     const resolvedDependencies = dependenciesRef.current;
     let lastSnapshotAt = 0;
     let refreshPromise: Promise<void> | undefined;
+    let revalidationPromise: Promise<void> | undefined;
+    let sessionRequestController: AbortController | undefined;
+    let sessionRequestPromise: Promise<ProgramSessionResponse> | undefined;
 
-    function requestRefresh(
+    function requestRestart(
       reason: ProgramAuthorityInvalidationReason | "startup" = "startup",
+      prefetchedSession?: ProgramSessionResponse,
     ): Promise<void> {
       if (!mountedRef.current) {
         return Promise.resolve();
@@ -137,7 +142,11 @@ export function ProgramRuntimeBoundary({
         return refreshPromise;
       }
 
-      const promise = refresh(reason);
+      if (reason === "logout") {
+        cancelSessionRequest();
+      }
+
+      const promise = restart(reason, prefetchedSession);
       refreshPromise = promise;
       void promise.finally(() => {
         if (refreshPromise === promise) {
@@ -147,12 +156,113 @@ export function ProgramRuntimeBoundary({
       return promise;
     }
 
-    function invalidate(reason: ProgramAuthorityInvalidationReason): Promise<void> {
-      resolvedDependencies.publishInvalidation(reason);
-      return requestRefresh(reason);
+    function requestRevalidation(reason: ProgramAuthorityInvalidationReason): Promise<void> {
+      if (!mountedRef.current) {
+        return Promise.resolve();
+      }
+
+      if (refreshPromise) {
+        return refreshPromise;
+      }
+
+      if (revalidationPromise) {
+        return revalidationPromise;
+      }
+
+      const runtime = activeRuntimeRef.current;
+      const session = sessionRef.current;
+
+      if (!runtime || session?.status !== "ready") {
+        return requestRestart(reason);
+      }
+
+      const promise = revalidate(reason, runtime, session);
+      revalidationPromise = promise;
+      void promise.finally(() => {
+        if (revalidationPromise === promise) {
+          revalidationPromise = undefined;
+        }
+      });
+      return promise;
     }
 
-    async function refresh(reason: ProgramAuthorityInvalidationReason | "startup") {
+    function requestAuthorityRefresh(reason: ProgramAuthorityInvalidationReason): Promise<void> {
+      return reason === "logout" || reason === "push-policy-violation"
+        ? requestRestart(reason)
+        : requestRevalidation(reason);
+    }
+
+    function invalidate(reason: ProgramAuthorityInvalidationReason): Promise<void> {
+      resolvedDependencies.publishInvalidation(reason);
+      return requestAuthorityRefresh(reason);
+    }
+
+    function requestSessionSnapshot(): Promise<ProgramSessionResponse> {
+      if (sessionRequestPromise) {
+        return sessionRequestPromise;
+      }
+
+      const controller = new AbortController();
+      const request = resolvedDependencies.fetchSession(initialPath.current, controller.signal);
+      sessionRequestController = controller;
+      sessionRequestPromise = request;
+      void request.then(clearRequest, clearRequest);
+      return request;
+
+      function clearRequest() {
+        if (sessionRequestPromise === request) {
+          sessionRequestController = undefined;
+          sessionRequestPromise = undefined;
+        }
+      }
+    }
+
+    function cancelSessionRequest() {
+      sessionRequestController?.abort();
+      sessionRequestController = undefined;
+      sessionRequestPromise = undefined;
+    }
+
+    async function revalidate(
+      reason: ProgramAuthorityInvalidationReason,
+      runtime: ActiveProgramRuntime,
+      previousSession: Extract<ProgramSessionResponse, { status: "ready" }>,
+    ) {
+      let session: ProgramSessionResponse;
+
+      try {
+        session = await requestSessionSnapshot();
+      } catch {
+        if (runtime.canPublish() && activeRuntimeRef.current === runtime) {
+          failRuntime(runtime);
+        }
+        return;
+      }
+
+      if (!runtime.canPublish() || activeRuntimeRef.current !== runtime) {
+        return;
+      }
+
+      if (
+        session.status === "ready" &&
+        session.principal.principalId === previousSession.principal.principalId &&
+        programSessionTargetsEqual(session.target, previousSession.target)
+      ) {
+        lastSnapshotAt = resolvedDependencies.now();
+        sessionRef.current = session;
+        runtime.replaceSessionExpiry(session);
+        setState({ session, status: "ready" });
+        runtime.requestSync();
+        return;
+      }
+
+      await requestRestart(reason, session);
+    }
+
+    async function restart(
+      reason: ProgramAuthorityInvalidationReason | "startup",
+      prefetchedSession?: ProgramSessionResponse,
+    ) {
       const previousRuntime = activeRuntimeRef.current;
       activeRuntimeRef.current = undefined;
       previousRuntime?.end();
@@ -183,7 +293,21 @@ export function ProgramRuntimeBoundary({
         stopPush();
         resolvedDependencies.resetMemory();
       };
-      const runtime = { canPublish, end, requestSync: () => requestSync() };
+      const replaceSessionExpiry = (session: ProgramSessionResponse) => {
+        cancelExpiry();
+        cancelExpiry =
+          session.status === "anonymous"
+            ? () => undefined
+            : scheduleProgramSessionExpiry(session.session.expiresAt, resolvedDependencies, () => {
+                void invalidate("session-expiry");
+              });
+      };
+      const runtime = {
+        canPublish,
+        end,
+        replaceSessionExpiry,
+        requestSync: () => requestSync(),
+      };
       activeRuntimeRef.current = runtime;
       let replicaCleared = false;
 
@@ -199,10 +323,7 @@ export function ProgramRuntimeBoundary({
           resolvedDependencies.publishReplicaReset();
         }
 
-        const session = await resolvedDependencies.fetchSession(
-          initialPath.current,
-          controller.signal,
-        );
+        const session = prefetchedSession ?? (await requestSessionSnapshot());
 
         if (!canPublish()) {
           return;
@@ -210,15 +331,7 @@ export function ProgramRuntimeBoundary({
 
         lastSnapshotAt = resolvedDependencies.now();
         sessionRef.current = session;
-        if (session.status !== "anonymous") {
-          cancelExpiry = scheduleProgramSessionExpiry(
-            session.session.expiresAt,
-            resolvedDependencies,
-            () => {
-              void invalidate("session-expiry");
-            },
-          );
-        }
+        replaceSessionExpiry(session);
 
         if (session.status !== "ready") {
           if (!replicaCleared) {
@@ -258,7 +371,7 @@ export function ProgramRuntimeBoundary({
               return;
             }
 
-            void requestRefresh("cross-tab");
+            void requestRestart("cross-tab");
           },
           principalId,
           runtimeTarget: session.target,
@@ -293,21 +406,26 @@ export function ProgramRuntimeBoundary({
           return;
         }
 
-        end();
-        if (activeRuntimeRef.current === runtime) {
-          activeRuntimeRef.current = undefined;
-        }
-        setSyncStatus({ code: "program-sync-failed", state: "error" });
-        setState({
-          failureCode: "runtime-start-failed",
-          status: "failed",
-        });
+        failRuntime(runtime);
       }
     }
 
-    refreshRef.current = requestRefresh;
+    function failRuntime(runtime: ActiveProgramRuntime) {
+      runtime.end();
+      if (activeRuntimeRef.current === runtime) {
+        activeRuntimeRef.current = undefined;
+      }
+      sessionRef.current = undefined;
+      setSyncStatus({ code: "program-sync-failed", state: "error" });
+      setState({
+        failureCode: "runtime-start-failed",
+        status: "failed",
+      });
+    }
+
+    refreshRef.current = requestRestart;
     const stopInvalidation = resolvedDependencies.listenForInvalidation((reason) => {
-      void requestRefresh(reason);
+      void requestAuthorityRefresh(reason);
     });
     const stopFocusRecovery = resolvedDependencies.listenForFocusRecovery(({ suspended }) => {
       const session = sessionRef.current;
@@ -325,12 +443,13 @@ export function ProgramRuntimeBoundary({
       }
     });
 
-    void requestRefresh();
+    void requestRestart();
 
     return () => {
       mountedRef.current = false;
       refreshRef.current = async () => undefined;
       logoutControllerRef.current?.abort();
+      cancelSessionRequest();
       stopFocusRecovery();
       stopInvalidation();
       activeRuntimeRef.current?.end();
@@ -548,6 +667,19 @@ function assertCurrentTargetOrigin(target: ProgramSessionTargetBinding): void {
   if (target.targetOrigin !== window.location.origin) {
     throw new Error("Program session target origin does not match this browser runtime.");
   }
+}
+
+function programSessionTargetsEqual(
+  left: ProgramSessionTargetBinding,
+  right: ProgramSessionTargetBinding,
+): boolean {
+  return (
+    left.routeAccess === right.routeAccess &&
+    left.routeId === right.routeId &&
+    left.storageIdentity === right.storageIdentity &&
+    left.targetOrigin === right.targetOrigin &&
+    left.targetProfile === right.targetProfile
+  );
 }
 
 function programSessionErrorMessage(body: unknown): string {

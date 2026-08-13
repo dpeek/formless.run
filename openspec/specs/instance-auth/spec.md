@@ -592,10 +592,18 @@ sessions, local-dev owner sessions, and mapped host-local sessions.
   changes, an authority-staleness `401` or `403` is received, bounded Program
   socket renewal fails current authority, a suspended tab regains focus after
   its freshness boundary, or another same-origin tab announces invalidation
-- THEN the client invalidates the snapshot, fails closed for later Program route
-  projection, and coalesces concurrent causes into one current snapshot refresh
-- AND replica hydration, screen admission, and invalidation reconnection resume only from
-  a new ready snapshot bound to the same principal and runtime target
+- THEN the client coalesces concurrent causes into one current Program-session
+  request without treating push notifications as proof of session authority
+- AND while a ready runtime awaits that response its mounted workspace and
+  principal-bound replica effects may remain active while every server request
+  continues to enforce current authorization
+- AND a new ready snapshot with the same principal and complete runtime-target
+  binding replaces caller facts, session expiry, and snapshot freshness in place
+- AND that unchanged authority does not rehydrate, bootstrap, reset memory,
+  resubscribe broadcast, reconnect invalidation, or publish loading state
+- AND anonymous, blocked, or forbidden results and changed principal or runtime
+  targets end the prior runtime and fail closed before protected state is cleared
+  or rebound as applicable
 - AND a failed read or write is not treated as authorized and a failed write is
   not replayed automatically after refresh
 

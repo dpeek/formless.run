@@ -315,34 +315,82 @@ describe("persistent Program runtime boundary", () => {
     renderer.unmount();
   });
 
-  it("pulls after fresh suspension and refreshes authority after stale focus", async () => {
+  it("keeps a ready workspace and its replica effects mounted while stale focus revalidates", async () => {
+    const refreshed = deferred<ProgramSessionResponse>();
+    const calls: string[] = [];
     let focus: ((event: { suspended: boolean }) => void) | undefined;
     let now = 1_000;
     let pullRequests = 0;
     let sessionCalls = 0;
+    let snapshot: ProgramRuntimeSnapshot | undefined;
+    let workspaceMounts = 0;
+    let workspaceUnmounts = 0;
     const dependencies = runtimeDependencies({
+      bootstrap: async () => {
+        calls.push("bootstrap");
+      },
+      connectBroadcast: () => {
+        calls.push("broadcast:start");
+        return () => calls.push("broadcast:stop");
+      },
       fetchSession: async () => {
         sessionCalls += 1;
-        return readySession("principal:one", target("route:one"));
+        return sessionCalls === 1
+          ? readySessionWithFacts({ owner: true, roleId: "role_member" })
+          : refreshed.promise;
+      },
+      hydrate: async () => {
+        calls.push("hydrate");
       },
       listenForFocusRecovery: (listener) => {
         focus = listener;
         return () => undefined;
       },
       now: () => now,
-      startPush: () =>
-        Object.assign(() => undefined, {
+      prepareReplica: async () => {
+        calls.push("replica:prepare");
+        return "reused";
+      },
+      resetMemory: () => calls.push("memory:reset"),
+      scheduleRefresh: () => {
+        calls.push("expiry:start");
+        return () => calls.push("expiry:stop");
+      },
+      startPush: () => {
+        calls.push("push:start");
+        return Object.assign(() => calls.push("push:stop"), {
           requestSync: () => {
             pullRequests += 1;
           },
-        }),
+        });
+      },
     });
+
+    function Workspace() {
+      useEffect(() => {
+        workspaceMounts += 1;
+        return () => {
+          workspaceUnmounts += 1;
+        };
+      }, []);
+      return <span>Workspace</span>;
+    }
+
     const renderer = render(
       <ProgramRuntimeBoundary currentPath="/tasks" dependencies={dependencies}>
-        {(runtime) => <output data-runtime-status={runtime.status} />}
+        {(runtime) => {
+          snapshot = runtime;
+          return (
+            <>
+              <output data-runtime-status={runtime.status} />
+              {runtime.status === "ready" ? <Workspace /> : null}
+            </>
+          );
+        }}
       </ProgramRuntimeBoundary>,
     );
     await waitFor(() => expect(runtimeStatus(renderer)).toBe("ready"));
+    expect(workspaceMounts).toBe(1);
 
     act(() => focus?.({ suspended: false }));
     expect(sessionCalls).toBe(1);
@@ -353,15 +401,137 @@ describe("persistent Program runtime boundary", () => {
     expect(pullRequests).toBe(1);
 
     now += 60_000;
-    act(() => focus?.({ suspended: false }));
-    await waitFor(() => {
-      expect(sessionCalls).toBe(2);
-      expect(runtimeStatus(renderer)).toBe("ready");
+    act(() => {
+      focus?.({ suspended: false });
+      focus?.({ suspended: false });
+    });
+    expect(sessionCalls).toBe(2);
+    expect(runtimeStatus(renderer)).toBe("ready");
+    expect(workspaceMounts).toBe(1);
+    expect(workspaceUnmounts).toBe(0);
+    expect(calls).toEqual([
+      "memory:reset",
+      "expiry:start",
+      "replica:prepare",
+      "broadcast:start",
+      "hydrate",
+      "bootstrap",
+      "push:start",
+    ]);
+
+    const updated = readySessionWithFacts({ owner: true, roleId: "role_administrator" });
+    await act(async () => {
+      refreshed.resolve(updated);
+      await refreshed.promise;
     });
 
-    expect(pullRequests).toBe(1);
+    await waitFor(() => expect(snapshot?.session).toEqual(updated));
+    expect(pullRequests).toBe(2);
+    expect(workspaceMounts).toBe(1);
+    expect(workspaceUnmounts).toBe(0);
+    expect(calls).toEqual([
+      "memory:reset",
+      "expiry:start",
+      "replica:prepare",
+      "broadcast:start",
+      "hydrate",
+      "bootstrap",
+      "push:start",
+      "expiry:stop",
+      "expiry:start",
+    ]);
+
+    act(() => focus?.({ suspended: false }));
+    expect(sessionCalls).toBe(2);
+    expect(pullRequests).toBe(2);
     renderer.unmount();
   });
+
+  it.each([
+    {
+      name: "principal change",
+      result: readySession("principal:two", target("route:one")),
+      status: "ready",
+    },
+    {
+      name: "runtime target change",
+      result: readySession("principal:one", target("route:two")),
+      status: "ready",
+    },
+    { name: "anonymous session", result: sessionWithStatus("anonymous"), status: "anonymous" },
+    { name: "blocked session", result: sessionWithStatus("blocked"), status: "blocked" },
+    { name: "forbidden session", result: sessionWithStatus("forbidden"), status: "forbidden" },
+  ] as const)(
+    "restarts destructively after stale focus finds a $name",
+    async ({ result, status }) => {
+      const calls: string[] = [];
+      let focus: ((event: { suspended: boolean }) => void) | undefined;
+      let now = 1_000;
+      let sessionCalls = 0;
+      const dependencies = runtimeDependencies({
+        bootstrap: async () => {
+          calls.push("bootstrap");
+        },
+        clearReplica: async () => {
+          calls.push("replica:clear");
+        },
+        connectBroadcast: () => {
+          calls.push("broadcast:start");
+          return () => calls.push("broadcast:stop");
+        },
+        fetchSession: async () => {
+          sessionCalls += 1;
+          return sessionCalls === 1 ? readySession("principal:one", target("route:one")) : result;
+        },
+        hydrate: async () => {
+          calls.push("hydrate");
+        },
+        listenForFocusRecovery: (listener) => {
+          focus = listener;
+          return () => undefined;
+        },
+        now: () => now,
+        prepareReplica: async () => {
+          calls.push("replica:prepare");
+          return "reused";
+        },
+        publishReplicaReset: () => calls.push("replica:publish-reset"),
+        resetMemory: () => calls.push("memory:reset"),
+        startPush: () => {
+          calls.push("push:start");
+          return () => calls.push("push:stop");
+        },
+      });
+      const renderer = render(
+        <ProgramRuntimeBoundary currentPath="/tasks" dependencies={dependencies}>
+          {(runtime) => <output data-runtime-status={runtime.status} />}
+        </ProgramRuntimeBoundary>,
+      );
+      await waitFor(() => expect(runtimeStatus(renderer)).toBe("ready"));
+
+      now += 60_000;
+      act(() => focus?.({ suspended: false }));
+
+      await waitFor(() => expect(runtimeStatus(renderer)).toBe(status));
+      expect(sessionCalls).toBe(2);
+      expect(calls.filter((call) => call === "broadcast:stop")).toHaveLength(1);
+      expect(calls.filter((call) => call === "push:stop")).toHaveLength(1);
+      expect(calls.filter((call) => call === "memory:reset")).toHaveLength(2);
+
+      if (status === "ready") {
+        expect(calls.filter((call) => call === "replica:prepare")).toHaveLength(2);
+        expect(calls.filter((call) => call === "hydrate")).toHaveLength(2);
+        expect(calls.filter((call) => call === "bootstrap")).toHaveLength(2);
+        expect(calls.filter((call) => call === "broadcast:start")).toHaveLength(2);
+        expect(calls.filter((call) => call === "push:start")).toHaveLength(2);
+      } else {
+        expect(calls.filter((call) => call === "replica:clear")).toHaveLength(1);
+        expect(calls.filter((call) => call === "replica:publish-reset")).toHaveLength(1);
+      }
+
+      renderer.unmount();
+    },
+  );
 
   it("refreshes caller facts after role upgrade, downgrade, and owner removal", async () => {
     const sessions = [

@@ -300,6 +300,26 @@ client runtime lifetime that persists across ordinary Program screen routes.
   that route change
 - AND only the selected route workspace and its route-local state may change
 
+#### Scenario: Revalidate unchanged Program authority in place
+
+- GIVEN a persistent Program runtime is ready with a principal-bound replica
+- WHEN session expiry, focus recovery, current replica authority, protected
+  rejection, or a same-origin authority notice requires a current Program
+  session snapshot
+- THEN concurrent causes are coalesced into one Program-session request
+- AND while that request is pending the ready workspace, in-memory projections,
+  IndexedDB hydration, broadcast subscription, and invalidation connection
+  remain mounted
+- AND a new ready snapshot with the same principal id and complete runtime-target
+  binding replaces the session summary and caller facts in place
+- AND the runtime replaces the session-expiry timer, updates snapshot freshness,
+  and requests one coalesced HTTP cursor catch-up
+- AND it does not reset memory, rehydrate IndexedDB, bootstrap the Program,
+  resubscribe broadcast, or reconnect invalidation for that unchanged authority
+- AND an anonymous, blocked, or forbidden result, a changed principal or runtime
+  target, or an invalidation that has already stopped synchronization uses the
+  destructive Program runtime transition instead
+
 #### Scenario: End a Program client runtime safely
 
 - GIVEN a persistent Program runtime is mounted
@@ -361,8 +381,12 @@ invalidation that races an in-flight pull.
 - GIVEN a persistent Program runtime regains focus after actual suspension
 - WHEN its Program session snapshot remains fresh and unexpired
 - THEN it requests one coalesced HTTP Program sync
-- AND a stale or expired snapshot follows the normal current-authority refresh
-  before replica synchronization resumes
+- AND a stale or expired snapshot first requests a current Program session
+  snapshot without replacing a ready workspace with loading state
+- AND unchanged ready authority is updated in place before one coalesced HTTP
+  Program sync is requested
+- AND a non-ready response or changed principal or runtime target uses the
+  destructive Program runtime transition before synchronization can resume
 
 ### Requirement: Write Outcome Invalidation Notifications
 
