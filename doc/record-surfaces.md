@@ -1,6 +1,6 @@
 # Record Surface Architecture
 
-Last updated: 2026-08-12
+Last updated: 2026-08-13
 
 Purpose: controlling design note for simplifying generated record display and
 authoring across multiple independently shippable changes.
@@ -23,8 +23,10 @@ reuse that description wherever a record is displayed or authored.
 The target model is:
 
 - one `recordView` selects and presents record fields;
-- an existing-record placement displays the view unless it explicitly supports
-  inline update;
+- an existing-record placement displays the view unless it explicitly binds one
+  update operation for inline update;
+- that operation's input contract and runtime access determine which selected
+  fields are editable, while the remaining selected fields display read-only;
 - a create or update operation can bind a record view as its form;
 - the bound operation kind determines whether form submission creates or
   updates;
@@ -53,7 +55,10 @@ coherent current model and delete the code it supersedes.
   itself a persistence policy.
 - **Runtime access:** the projected fact that a field is editable, disabled,
   read-only, a system field, or state-machine-owned for the current record and
-  operation context.
+  operation context, including whether the bound operation accepts that field.
+- **Inline-update binding:** one existing-record placement's reference to one
+  record-scoped update operation. It supplies the operation used by field
+  completion and contributes the editable field set through its input contract.
 - **Form transaction:** one draft session spanning all fields in the bound
   record view for one record, submitted once through a create or update
   operation. It does not imply that every entity field appears in the view.
@@ -158,6 +163,10 @@ Thin consumer Adapters impose lifecycle rules:
 - create forms accept writable value fields and enforce required-field coverage,
   defaults, context defaults, union discriminator rules, and state-machine
   initial state;
+- an inline-update placement binds exactly one browser-visible, record-scoped
+  update operation for the record-view entity;
+- selected ordinary fields accepted by that operation's input may be editable,
+  while selected fields outside its input remain display-only;
 - existing-record placements may include system fields, with runtime access
   deciding whether normal editing is available;
 - state-machine-owned fields never enter a generic existing-record patch;
@@ -200,18 +209,24 @@ Delete authored field `interaction` without replacement.
 
 Display-only behavior has stronger owners:
 
-- a record placement chooses display or explicit inline update;
+- a record placement chooses display or explicit inline update bound to one
+  update operation;
+- a selected ordinary field is editable only when the bound operation accepts
+  it and semantic writability, runtime permission, operation availability, and
+  pending state permit editing;
+- another selected ordinary field may remain read-only in the same placement
+  when the bound operation does not accept it;
 - a table is a display-only projection;
 - a form is authoring because it is bound to a create or update operation;
 - system fields are intrinsically non-writable;
 - state-machine fields are transition-owned for existing records;
-- current permissions, operation availability, and pending state determine
-  runtime access.
+- exceptional correction uses a separately placed operation or operation-bound
+  form rather than a second inline-update operation on the same placement.
 
-`readOnly` is reserved for runtime access. The model does not preserve an
-unused authored ability to make one ordinary writable field display-only among
-editable siblings. A concrete future requirement may add a narrower placement
-or presentation fact; it must not restore the old `"edit" | "display"` axis.
+`readOnly` is reserved for projected runtime access. This preserves mixed
+display and edit fields without restoring an authored `"edit" | "display"`
+axis: the record view selects and presents fields, while the placement-bound
+operation declares which of those fields it can update.
 
 ## Field Derivation
 
@@ -242,7 +257,7 @@ surface Adapter:
 - a form Adapter applies draft changes to the whole-record draft, treats field
   completion as non-persistent, and writes only on form submit;
 - an inline-update Adapter applies draft changes locally and resolves completion
-  to one field-scoped patch;
+  through the placement's one bound update operation as a field-scoped patch;
 - a display Adapter exposes no authoring intents.
 
 The current Presentation `commit` fact may remain during early changes because
@@ -271,11 +286,13 @@ effects stay behind create and update Adapters at the form-operation Seam.
 
 Inline update remains deliberately different:
 
+- fields outside the placement-bound update operation input project as display
+  and do not enter the inline draft;
 - a field draft starts from the record baseline;
 - the control-specific completion event resolves one field or one semantic
   group of flat fields;
-- successful completion invokes the bound update operation with a field-scoped
-  patch;
+- successful completion invokes the placement's bound update operation with a
+  field-scoped patch;
 - Escape or picker cancellation restores the baseline where the control
   supports it;
 - pending, failure, and replica rebase remain field-scoped.
@@ -291,6 +308,8 @@ is needed.
 - Hidden and inactive-union drafts remain in local session state so revealing a
   field restores its draft.
 - Hidden and inactive fields are excluded from create input and update patches.
+- Fields outside the placement-bound update operation input are excluded from
+  inline drafts and update patches.
 - Invalid raw drafts remain visible with field errors and produce no write.
 - Invalid stored values are separate integrity facts; display surfaces show
   explicit warnings rather than coercing them into valid drafts.
@@ -325,7 +344,7 @@ Placements and operations consume the view:
 | Consumer | Meaning |
 | --- | --- |
 | Existing-record display placement | Project the view without field authoring intents. |
-| Explicit inline-update placement | Project runtime-writable fields with field-scoped transactions. |
+| Explicit inline-update placement | Bind one update operation; project its accepted runtime-writable fields with field-scoped transactions and the remaining selected fields as display. |
 | Create operation form binding | Use the view as whole-record create input presentation. |
 | Update operation form binding | Use the view as whole-record update input presentation. |
 | Table row update operation | Open the bound update form from the row More menu. |
@@ -334,6 +353,11 @@ The operation remains the domain contract for what happens. The record view is
 presentation reused by the binding; it does not redefine operation input,
 effect, actor policy, idempotency, or audit. See
 [Operations Architecture](operations.md).
+
+One record view may be reused by placements bound to different update
+operations. Each placement binds at most one inline update operation so field
+completion has one unambiguous target. A separate correction or workflow action
+may bind another operation through its own form or placement.
 
 ## Presentation Seam
 
@@ -413,8 +437,13 @@ format plus placement and operation bindings. Delete the old registries,
 parsers, selectors, schema artifacts, and fixtures in the same change.
 
 Keep current transactions during this structural change. A create binding still
-submits a form; inline placements still patch fields; update dialogs still use
-their current behavior until atomic forms ship.
+submits a form; each inline placement binds one update operation and still
+patches accepted fields independently; other selected fields display read-only;
+update dialogs still use their current behavior until atomic forms ship.
+
+Migrate the existing compact title-and-subtitle item projection without
+introducing a richer item-layout language. Rich item slots, badges, counts,
+nested projections, and computed display composition are separate work.
 
 ### 3. Shared Record-Surface Runtime Module
 
@@ -474,6 +503,7 @@ the target sequence or Interface.
 - Flat record storage and flat create/update operation input.
 - Occurrence presentation and conditional visibility.
 - Runtime access, system fields, and state-machine ownership.
+- Mixed display and edit fields derived from the placement-bound operation.
 - Create whole-form submission until the shared form changes.
 - Existing-record inline field completion.
 - Display-only tables and More-menu row operations.
@@ -486,6 +516,8 @@ the target sequence or Interface.
 - Image asset fields declare semantic asset identity.
 - One field declaration and parser serve record-shaped views.
 - Existing-record display versus inline update becomes a placement decision.
+- An inline placement's one update operation determines which selected fields
+  can be edited there.
 - Create versus update becomes an operation-form binding decision.
 
 ### Removed
@@ -493,8 +525,6 @@ the target sequence or Interface.
 - Arbitrary authored editor choice for a field occurrence.
 - Authored persistence timing.
 - Authored field `"edit" | "display"` interaction.
-- A hypothetical mixed authoring surface that forces one ordinary writable
-  field to display-only.
 - View-dependent media identity.
 - Parallel item/create/edit field contracts.
 
@@ -518,6 +548,7 @@ catalog, commit syntax, or compatibility parser.
   draft requiredness; changing that is separate product semantics.
 - Image-specific upload policy beyond `kind: "image"` requires a real varying
   field.
-- Field-level display inside an authoring form requires a shipped use case.
+- Rich item-layout syntax beyond the existing compact summary projection belongs
+  to a separate change.
 - Presentation `commit` becomes `completion` only when transaction work can
   delete the old contract and intent paths.
