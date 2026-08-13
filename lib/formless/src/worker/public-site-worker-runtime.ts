@@ -480,13 +480,15 @@ async function loadClientDocumentAssets(
   }
 
   try {
-    const manifest = await fetchClientAssetManifest(request, env);
+    const clientAssets = await fetchClientAssetManifest(request, env);
 
-    if (!manifest) {
-      return emptyClientAssets;
+    if (clientAssets.kind === "viteDevelopment") {
+      return options.includeScripts ? developmentClientAssets : developmentStyleAssets;
     }
 
-    return publicSiteClientAssetsFromManifest(manifest, options);
+    return clientAssets.kind === "manifest"
+      ? publicSiteClientAssetsFromManifest(clientAssets.manifest, options)
+      : emptyClientAssets;
   } catch {
     return emptyClientAssets;
   }
@@ -502,12 +504,17 @@ type ClientAssetManifestChunk = {
   src?: string;
 };
 
+type ClientAssetManifestLoadResult =
+  | { kind: "manifest"; manifest: ClientAssetManifest }
+  | { kind: "unavailable" }
+  | { kind: "viteDevelopment" };
+
 async function fetchClientAssetManifest(
   request: Request,
   env: Env,
-): Promise<ClientAssetManifest | undefined> {
+): Promise<ClientAssetManifestLoadResult> {
   if (!env.ASSETS) {
-    return undefined;
+    return { kind: "unavailable" };
   }
 
   const manifestUrl = new URL(runtimeTopologyRoutes.publicSiteClientAssetManifestPath, request.url);
@@ -519,10 +526,25 @@ async function fetchClientAssetManifest(
   );
 
   if (!response.ok) {
-    return undefined;
+    return { kind: "unavailable" };
   }
 
-  return parseClientAssetManifest(await response.json());
+  const contents = await response.text();
+
+  if (isViteDevelopmentClientShell(response, contents)) {
+    return { kind: "viteDevelopment" };
+  }
+
+  const manifest = parseClientAssetManifest(JSON.parse(contents) as unknown);
+
+  return manifest ? { kind: "manifest", manifest } : { kind: "unavailable" };
+}
+
+function isViteDevelopmentClientShell(response: Response, contents: string): boolean {
+  return (
+    response.headers.get("Content-Type")?.toLowerCase().startsWith("text/html") === true &&
+    contents.includes("/@vite/client")
+  );
 }
 
 function parseClientAssetManifest(value: unknown): ClientAssetManifest | undefined {

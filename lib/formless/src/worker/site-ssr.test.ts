@@ -308,6 +308,40 @@ describe("published Site Worker SSR", () => {
     expect(html).not.toContain("/src/public-site-main.tsx");
   });
 
+  it("loads development client assets when Vite serves its client shell for the manifest", async () => {
+    const assetRequests: string[] = [];
+    const env = {
+      ...envWithTreeResponse(Response.json(testSitePageTree("home"))),
+      ASSETS: {
+        fetch: async (assetRequest: Request) => {
+          assetRequests.push(new URL(assetRequest.url).pathname);
+
+          return new Response(
+            '<!doctype html><script type="module" src="/@vite/client"></script>',
+            { headers: { "Content-Type": "text/html; charset=utf-8" } },
+          );
+        },
+      },
+    } as unknown as Env;
+    const response = await handlePublicSiteDocumentRequest(
+      new Request("https://example.com/", {
+        headers: { Accept: "text/html" },
+      }),
+      env,
+    );
+
+    if (!response) {
+      throw new Error("Expected a published Site document response.");
+    }
+
+    const html = await response.text();
+
+    expect(assetRequests).toEqual(["/assets/formless-client-manifest.json"]);
+    expect(html).toContain('<link rel="stylesheet" href="/virtual:stylex.css" />');
+    expect(html).toContain('<script type="module" src="/@id/virtual:stylex:runtime"></script>');
+    expect(html).toContain('<script type="module" src="/src/public-site-main.tsx"></script>');
+  });
+
   it("injects production client assets from the public Site manifest", async () => {
     const assetRequests: string[] = [];
     const response = await handlePublicSiteDocumentRequest(
