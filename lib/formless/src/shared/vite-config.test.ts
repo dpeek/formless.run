@@ -16,6 +16,10 @@ import { formlessProgramDefaultComposition } from "../program/schema.ts";
 import { formlessProgramDefaultRuntimeComposition } from "../program/default.ts";
 import { FORMLESS_WORKSPACE_PROGRAM_RUNTIME_ENV_NAME } from "../cli/program-runtime-bundler.ts";
 import {
+  FORMLESS_TURNSTILE_SITE_KEY_DEFINE_NAME,
+  FORMLESS_TURNSTILE_SITE_KEY_ENV_NAME,
+} from "./turnstile-config.ts";
+import {
   FORMLESS_CLIENT_ASSET_MANIFEST_FILE,
   FORMLESS_IMMUTABLE_CLIENT_ASSET_DIRECTORY,
   formlessCloudflareWorkerDependencyOptimizationPlugin,
@@ -238,6 +242,21 @@ describe("Runtime Vite config", () => {
     }) as ViteConfigWithEnvironments;
 
     expect(config.define?.[FORMLESS_PROGRAM_ARTIFACT_DEFINE_NAME]).toBe(JSON.stringify(contents));
+  });
+
+  it("injects the public Turnstile site key into browser compilation", () => {
+    const config = runtimeViteConfig({
+      env: {
+        NODE_ENV: "test",
+        VITEST: "true",
+        [FORMLESS_TURNSTILE_SITE_KEY_ENV_NAME]: "public-site-key",
+      },
+      packageRoot: repoRoot,
+    }) as ViteConfigWithEnvironments;
+
+    expect(config.define?.[FORMLESS_TURNSTILE_SITE_KEY_DEFINE_NAME]).toBe(
+      JSON.stringify("public-site-key"),
+    );
   });
 });
 

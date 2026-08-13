@@ -1166,6 +1166,7 @@ describe("Alchemy Formless instance deployment", () => {
               FORMLESS_DOMAIN_PROVIDER_INSTANCE_ID: "brother-instance",
               FORMLESS_DOMAIN_PROVIDER_WORKER_NAME: "brother-instance",
               FORMLESS_RUNTIME_PROFILE: "instance",
+              FORMLESS_TURNSTILE_SITE_KEY: "turnstile-site-key",
               FORMLESS_WORKSPACE_PROGRAM_ARTIFACT_PATH:
                 "/workspace/.formless/local/formless-program.json",
               [FORMLESS_SITE_PROJECT_ROOT_ENV_NAME]: "/workspace",
@@ -2388,7 +2389,10 @@ describe("Alchemy Formless instance deployment", () => {
       cwd: "/package",
       name: "brother-instance",
     });
-    expect(workers[0]?.props.build.env).toEqual(plan.runtimeVars);
+    expect(workers[0]?.props.build.env).toEqual({
+      ...plan.runtimeVars,
+      FORMLESS_TURNSTILE_SITE_KEY: "turnstile-site-key",
+    });
     expect(JSON.stringify(workers[0]?.props)).not.toContain("cf-token");
     expect(JSON.stringify(workers[0]?.props)).not.toContain("alchemy-password");
     expect(routeResourceCalls.map((call) => [call.kind, call.id])).toEqual([

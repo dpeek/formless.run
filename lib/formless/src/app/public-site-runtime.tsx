@@ -17,6 +17,8 @@ import { FORMLESS_PROGRAM_API_ROUTE_PREFIX } from "../program/target.ts";
 import { iconCatalogEntries } from "../shared/icon-catalog.ts";
 import { getClientStoreSnapshot, subscribeToClientStore } from "../client/store.ts";
 
+declare const __FORMLESS_TURNSTILE_SITE_KEY__: string | undefined;
+
 export type PublicSiteRouteInputProps = {
   browserRuntime?: ProgramBrowserRuntimeDefinition;
   linkMode?: SitePageLinkMode;
@@ -58,6 +60,7 @@ export function CoreSitePageRoute({
         routeBase={routeBase}
         slug={slug}
         surface={surface}
+        turnstileSiteKey={activeBrowserTurnstileSiteKey()}
         workspaceRenderer={workspaceRenderer}
       />
     );
@@ -105,6 +108,7 @@ function ProgramReplicaSitePageRoute({
   routeBase,
   slug,
   surface,
+  turnstileSiteKey,
   workspaceRenderer,
 }: {
   builtInRenderer: SitePublicRendererComponent;
@@ -113,6 +117,7 @@ function ProgramReplicaSitePageRoute({
   routeBase?: `/${string}`;
   slug: string;
   surface: SitePublicBrowserRuntimeSurface;
+  turnstileSiteKey?: string;
   workspaceRenderer?: SitePublicRendererComponent;
 }) {
   const snapshot = useSyncExternalStore(
@@ -129,7 +134,10 @@ function ProgramReplicaSitePageRoute({
       snapshot.schema,
       Object.values(snapshot.recordsById),
       slug,
-      { defaultIcons: iconCatalogEntries },
+      {
+        defaultIcons: iconCatalogEntries,
+        ...(turnstileSiteKey === undefined ? {} : { turnstileSiteKey }),
+      },
     );
 
     if (projection.status === "unavailable") {
@@ -139,7 +147,7 @@ function ProgramReplicaSitePageRoute({
     return projection.tree === null
       ? { status: "not-found", slug }
       : { status: "ready", tree: projection.tree };
-  }, [slug, snapshot.hydrated, snapshot.recordsById, snapshot.schema, surface]);
+  }, [slug, snapshot.hydrated, snapshot.recordsById, snapshot.schema, surface, turnstileSiteKey]);
   const PackageSitePageRoute = surface.Route;
 
   return (
@@ -154,6 +162,15 @@ function ProgramReplicaSitePageRoute({
       workspaceRenderer={workspaceRenderer}
     />
   );
+}
+
+function activeBrowserTurnstileSiteKey(): string | undefined {
+  const value =
+    typeof __FORMLESS_TURNSTILE_SITE_KEY__ === "string"
+      ? __FORMLESS_TURNSTILE_SITE_KEY__.trim()
+      : "";
+
+  return value || undefined;
 }
 
 function startSitePreviewSync(onSynced: () => void) {

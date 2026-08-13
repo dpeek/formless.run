@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, it } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import type {
   SitePublicRendererProps,
@@ -16,6 +16,10 @@ import { CoreSitePageRoute } from "./public-site-runtime.tsx";
 
 beforeEach(() => {
   resetClientStore();
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe("Program replica Site preview", () => {
@@ -72,6 +76,40 @@ describe("Program replica Site preview", () => {
 
     expect(renderPreview("home")).toContain('data-baked-icon="resolved"');
   });
+
+  it("projects Turnstile-protected public forms with the browser site key", () => {
+    vi.stubGlobal("__FORMLESS_TURNSTILE_SITE_KEY__", "preview-site-key");
+    applyBootstrapResponse(
+      bootstrapResponse(formlessProgramSchema, [
+        ...testSiteRecords,
+        {
+          id: "rec_site_contact_form",
+          entity: "block",
+          values: {
+            site: "rec_site_settings_primary",
+            type: "contactForm",
+            label: "Contact",
+            operationName: "submit",
+          },
+          createdAt: "2026-08-06T00:00:00.000Z",
+          updatedAt: "2026-08-06T00:00:00.000Z",
+        },
+        {
+          id: "rec_site_place_contact_form",
+          entity: "block-placement",
+          values: {
+            parent: "rec_site_content_home",
+            block: "rec_site_contact_form",
+            order: 4000,
+          },
+          createdAt: "2026-08-06T00:00:01.000Z",
+          updatedAt: "2026-08-06T00:00:01.000Z",
+        },
+      ]),
+    );
+
+    expect(renderPreview("home")).toContain('data-challenge-site-key="preview-site-key"');
+  });
 });
 
 function renderPreview(slug: string): string {
@@ -92,10 +130,14 @@ function renderPreview(slug: string): string {
 
 function PageRendererProbe({ routeBase, tree }: SitePublicRendererProps) {
   const bakedFormless = sanitizeSiteIconSvgSource(resolveIconCatalogSvg("formless"));
+  const contactForm = tree.page.placements.find(
+    ({ block }) => block.id === "rec_site_contact_form",
+  )?.block;
 
   return (
     <output
       data-baked-icon={tree.site?.icon === bakedFormless ? "resolved" : "other"}
+      data-challenge-site-key={contactForm?.publicOperation?.challenge?.siteKey ?? "unavailable"}
       data-page-label={tree.page.label}
       data-route-base={routeBase}
     />

@@ -338,6 +338,7 @@ export type AlchemyFormlessInstanceDeploymentWorkerProps = {
   build: {
     command: typeof FORMLESS_INSTANCE_WORKER_BUILD_COMMAND;
     env: FormlessInstanceDeploymentPlan["runtimeVars"] & {
+      [FORMLESS_TURNSTILE_SITE_KEY_ENV_NAME]: string;
       [FORMLESS_SITE_PROJECT_ROOT_ENV_NAME]?: string;
       [FORMLESS_WORKSPACE_RUNTIME_EXTENSIONS_ENV_NAME]?: string;
       [FORMLESS_WORKSPACE_PROGRAM_RUNTIME_ENV_NAME]?: string;
@@ -970,6 +971,7 @@ async function declareFormlessInstanceAlchemyResourceTree(
       command: FORMLESS_INSTANCE_WORKER_BUILD_COMMAND,
       env: {
         ...input.plan.runtimeVars,
+        [FORMLESS_TURNSTILE_SITE_KEY_ENV_NAME]: turnstileWidget.siteKey,
         ...(input.workspaceRoot === undefined
           ? {}
           : { [FORMLESS_SITE_PROJECT_ROOT_ENV_NAME]: input.workspaceRoot }),

@@ -18,8 +18,10 @@ import {
   FORMLESS_INSTANCE_AUTH_RELYING_PARTY_NAME_ENV_NAME,
 } from "../shared/instance-auth.ts";
 import {
+  FORMLESS_TURNSTILE_SITE_KEY_DEFINE_NAME,
   FORMLESS_TURNSTILE_SECRET_KEY_ENV_NAME,
   FORMLESS_TURNSTILE_SITE_KEY_ENV_NAME,
+  turnstileSiteKeyFromEnv,
 } from "../shared/turnstile-config.ts";
 import {
   LOCAL_SESSION_BOOTSTRAP_TOKEN_ENV,
@@ -132,6 +134,7 @@ export function runtimeViteConfig(input: RuntimeViteConfigInput = {}) {
     },
     define: {
       [FORMLESS_PROGRAM_ARTIFACT_DEFINE_NAME]: JSON.stringify(workspaceProgramArtifact ?? ""),
+      [FORMLESS_TURNSTILE_SITE_KEY_DEFINE_NAME]: JSON.stringify(turnstileSiteKeyFromEnv(env) ?? ""),
     },
     plugins: [
       formlessWorkspaceProgramRuntimePlugin({
