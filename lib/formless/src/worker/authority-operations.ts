@@ -48,6 +48,7 @@ import {
   mapWriteOutcome,
   releaseArchiveRestoreGuard,
   resetStorageSchemaToSourceOutcome,
+  restoreGuardedStorageSnapshotOutcome,
   restoreStorageSnapshotOutcome,
   readCurrentStoredSchema,
   recordOperationInvocationAccepted,
@@ -292,11 +293,7 @@ export async function executeAuthorityOperation(
       const request = parseArchiveRestoreGuardRequest(input.body);
 
       return {
-        body: beginArchiveRestoreGuard(input.storage, {
-          ...request,
-          schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
-          storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
-        }),
+        body: beginArchiveRestoreGuard(input.storage, request),
       };
     }
 
@@ -441,12 +438,19 @@ export async function executeAuthorityOperation(
         }
       }
 
-      const outcome = () => restoreStorageSnapshotOutcome(input.storage, snapshot, input.source);
-
       return writeOperationResult(
         guardedRestore === undefined
-          ? input.writes.apply(outcome)
-          : input.writes.applyGuarded(guardedRestore.guardToken, outcome),
+          ? input.writes.apply(() =>
+              restoreStorageSnapshotOutcome(input.storage, snapshot, input.source),
+            )
+          : input.writes.applyGuarded(guardedRestore.guardToken, () =>
+              restoreGuardedStorageSnapshotOutcome(
+                input.storage,
+                snapshot,
+                guardedRestore.guardToken,
+                input.source,
+              ),
+            ),
       );
     }
     case "entityOperation": {

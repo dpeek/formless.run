@@ -53,8 +53,8 @@ describe("portable Program archive restore", () => {
       "validate:media/images/hero.png",
       "begin",
       "media:media/images/hero.png",
-      "program:formless-program",
       "replace-media:media/images/hero.png",
+      "program:formless-program",
       "commit",
     ]);
   });
@@ -132,8 +132,8 @@ describe("portable Program archive restore", () => {
       "validate:media/images/hero.png",
       "begin",
       "media:media/images/hero.png",
-      "program:task,route",
       "replace-media:media/images/hero.png",
+      "program:task,route",
       "commit",
     ]);
   });
@@ -202,6 +202,7 @@ describe("portable Program archive restore", () => {
       "validate:media/images/hero.png",
       "begin",
       "media:media/images/hero.png",
+      "replace-media:media/images/hero.png",
       "program:failed",
       "rollback",
     ]);

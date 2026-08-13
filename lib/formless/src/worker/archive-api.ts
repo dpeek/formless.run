@@ -25,7 +25,7 @@ import { authorizeInstanceWrite, type AuthorityAdminGuardEnv } from "./authority
 import { FORMLESS_INSTANCE_AUTHORITY_NAME } from "./formless-instance.ts";
 import { mediaObjectStoreFromR2Bucket } from "@dpeek/formless-media/worker";
 import { CORE_IMAGE_KEY_PREFIX, PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX } from "@dpeek/formless-media";
-import { parseStorageSnapshot, type StorageSnapshot } from "@dpeek/formless-storage";
+import type { StorageSnapshot } from "@dpeek/formless-storage";
 
 export const INSTANCE_ARCHIVE_RESTORE_API_PATH = "/api/formless/archive/restore";
 
@@ -122,7 +122,6 @@ function archiveRestoreApiTarget(
   expectedSourceCursor: number | undefined,
 ): ArchiveRestoreApplyTarget {
   let activeGuardToken: string | undefined;
-  let programRestored = false;
 
   return {
     beginRestore: async () => {
@@ -144,18 +143,18 @@ function archiveRestoreApiTarget(
 
       return {
         commit: async () => {
-          await releaseProgramArchiveRestoreGuard(request, env, guard.guardToken);
-          activeGuardToken = undefined;
+          if (activeGuardToken !== undefined) {
+            await releaseProgramArchiveRestoreGuard(request, env, activeGuardToken);
+            activeGuardToken = undefined;
+          }
         },
         rollback: async () => {
           await restoreProgramMediaBackup(env.FORMLESS_MEDIA, media);
 
-          if (programRestored) {
-            await restoreProgramViaAuthority(request, env, guard.snapshot, guard.guardToken);
+          if (activeGuardToken !== undefined) {
+            await releaseProgramArchiveRestoreGuard(request, env, activeGuardToken);
+            activeGuardToken = undefined;
           }
-
-          await releaseProgramArchiveRestoreGuard(request, env, guard.guardToken);
-          activeGuardToken = undefined;
         },
       };
     },
@@ -185,8 +184,9 @@ function archiveRestoreApiTarget(
         throw new Error("Program archive restore guard is not active.");
       }
 
-      await restoreProgramViaAuthority(request, env, program, activeGuardToken);
-      programRestored = true;
+      const guardToken = activeGuardToken;
+      await restoreProgramViaAuthority(request, env, program, guardToken);
+      activeGuardToken = undefined;
     },
   };
 }
@@ -224,14 +224,13 @@ async function beginProgramArchiveRestoreGuard(
   try {
     const value = JSON.parse(text) as unknown;
     const object = parseObject("Program archive restore guard response", value);
-    assertExactKeys("Program archive restore guard response", object, ["guardToken", "snapshot"]);
+    assertExactKeys("Program archive restore guard response", object, ["guardToken"]);
 
     return {
       guardToken: parseNonEmptyString(
         "Program archive restore guard response guardToken",
         object.guardToken,
       ),
-      snapshot: parseStorageSnapshot(object.snapshot),
     };
   } catch {
     throw new Error("Failed Program archive restore guard: response was invalid.");

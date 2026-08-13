@@ -6,6 +6,17 @@ export class ArchiveApiLegacyStorageTestAuthority extends FormlessAuthority {
   async fetch(request: Request) {
     const pathname = new URL(request.url).pathname;
 
+    if (pathname === "/_test/store-program-schema" && request.method === "POST") {
+      ensureStorageTables(this.ctx.storage);
+      const body = (await request.json()) as { schema: unknown };
+      this.ctx.storage.sql.exec(
+        "UPDATE app_schema SET schema_json = ? WHERE id = 1",
+        JSON.stringify(body.schema),
+      );
+
+      return Response.json({ stored: true });
+    }
+
     if (pathname === "/_test/restore-program-storage" && request.method === "POST") {
       ensureStorageTables(this.ctx.storage);
       const snapshot = (await request.json()) as StorageSnapshot;

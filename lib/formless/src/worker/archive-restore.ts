@@ -219,6 +219,10 @@ export async function applyInstanceArchiveRestore(
         continue;
       }
 
+      await target.replaceMedia?.(
+        new Set(prepared.archive.media.objects.map((object) => object.storageKey)),
+      );
+
       try {
         await target.restoreProgram(prepared.archive.program.snapshot);
       } catch (error) {
@@ -237,9 +241,6 @@ export async function applyInstanceArchiveRestore(
       });
     }
 
-    await target.replaceMedia?.(
-      new Set(prepared.archive.media.objects.map((object) => object.storageKey)),
-    );
     await transaction.commit();
   } catch (error) {
     const executionError = asExecutionFailure(error);

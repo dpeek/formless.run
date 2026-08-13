@@ -63,6 +63,43 @@ afterAll(async () => {
 });
 
 describe("instance archive restore API", () => {
+  it("recovers Program storage whose active schema is unreadable", async () => {
+    const stored = await harness.durableObjectFetch(
+      "FORMLESS_AUTHORITY",
+      FORMLESS_PROGRAM_STORAGE_IDENTITY,
+      "/_test/store-program-schema",
+      {
+        body: JSON.stringify({ schema: unreadableProgramSchema() }),
+        headers: { "Content-Type": "application/json" },
+        method: "POST",
+      },
+    );
+
+    expect(stored.status, await stored.clone().text()).toBe(200);
+
+    const snapshot = await harness.fetch("/api/formless/program/snapshot?actorKind=cliDeployer", {
+      headers: adminHeaders(),
+    });
+    const restored = await harness.fetch("/api/formless/archive/restore", {
+      body: JSON.stringify({ archive: programInstanceArchive(), mediaFiles: [] }),
+      headers: { ...adminHeaders(), "Content-Type": "application/json" },
+      method: "POST",
+    });
+    const bootstrap = await harness.fetch("/api/formless/program/bootstrap?actorKind=owner", {
+      headers: adminHeaders(),
+    });
+
+    expect(snapshot.status, await snapshot.clone().text()).toBe(409);
+    expect(await snapshot.json()).toMatchObject({
+      blocker: { reason: expect.stringContaining("unsupported key") },
+      code: "active-schema-refresh-blocked",
+    });
+    expect(restored.status, await restored.clone().text()).toBe(200);
+    expect(bootstrap.status, await bootstrap.clone().text()).toBe(200);
+    const body = (await bootstrap.json()) as BootstrapResponse;
+    expect(body.records.map((record) => record.id)).toContain("task-program-restored");
+  });
+
   it("recovers Program storage blocked by an incompatible active schema refresh", async () => {
     const legacyRestore = await harness.durableObjectFetch(
       "FORMLESS_AUTHORITY",
@@ -330,6 +367,21 @@ function legacyBlockStorageSnapshot(): StorageSnapshot {
     ]),
     schema,
   };
+}
+
+function unreadableProgramSchema(): unknown {
+  const schema = structuredClone(formlessProgramSchema) as unknown as {
+    itemViews: Array<{ fields?: Array<Record<string, unknown>>; key: string }>;
+  };
+  const view = schema.itemViews.find(({ key }) => key === "siteSettingsForm");
+  const field = view?.fields?.[0];
+
+  if (!field) {
+    throw new Error("Expected Program Site settings view field.");
+  }
+
+  field.unsupported = true;
+  return schema;
 }
 
 function storedRecord(entity: string, id: string, values: StoredRecord["values"]): StoredRecord {

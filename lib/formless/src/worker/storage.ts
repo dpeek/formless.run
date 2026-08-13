@@ -161,8 +161,17 @@ export class ActiveSchemaRefreshBlockedError extends Error {
 
 export type ArchiveRestoreGuardBeginResult = {
   guardToken: string;
-  snapshot: StorageSnapshot;
 };
+
+class StoredSchemaParseError extends Error {
+  readonly schemaProvenance?: ProgramSchemaProvenance;
+
+  constructor(message: string, schemaProvenance?: ProgramSchemaProvenance) {
+    super(message);
+    this.name = "StoredSchemaParseError";
+    this.schemaProvenance = schemaProvenance;
+  }
+}
 
 export type WriteOutcome<T> =
   | {
@@ -471,8 +480,6 @@ export function beginArchiveRestoreGuard(
   input: {
     expectedSourceCursor?: number;
     guardToken: string;
-    schemaKey: string;
-    storageIdentity: string;
   },
 ): ArchiveRestoreGuardBeginResult {
   return storage.transactionSync(() => {
@@ -500,8 +507,10 @@ export function beginArchiveRestoreGuard(
       });
     }
 
-    const storedSchema = readStoredSchema(storage);
-    if (!storedSchema) {
+    const storedSchemaRow = storage.sql
+      .exec<{ id: number }>("SELECT id FROM app_schema WHERE id = 1")
+      .next();
+    if (storedSchemaRow.done) {
       throw new Error("Archive restore guard requires initialized Program storage.");
     }
 
@@ -517,12 +526,6 @@ export function beginArchiveRestoreGuard(
 
     return {
       guardToken: input.guardToken,
-      snapshot: storageSnapshotFromCurrentState(
-        storage,
-        storedSchema,
-        input.storageIdentity,
-        input.schemaKey,
-      ),
     };
   });
 }
@@ -573,7 +576,25 @@ export function initializeStorageFromSource(
   } = {},
 ): StoredSchema {
   return storage.transactionSync(() => {
-    const existing = readStoredSchema(storage);
+    let existing: StoredSchema | undefined;
+
+    try {
+      existing = readStoredSchema(storage);
+    } catch (error) {
+      if (!(error instanceof StoredSchemaParseError) || !source.schemaProvenance) {
+        throw error;
+      }
+
+      throw new ActiveSchemaRefreshBlockedError({
+        ...(error.schemaProvenance === undefined
+          ? {}
+          : { currentSchemaProvenance: error.schemaProvenance }),
+        reason: `Stored active schema is unreadable: ${error.message}`,
+        schemaKey: FORMLESS_PROGRAM_SCHEMA_KEY,
+        storageIdentity: FORMLESS_PROGRAM_STORAGE_IDENTITY,
+        targetSchemaProvenance: source.schemaProvenance,
+      });
+    }
 
     if (existing) {
       if (options.refreshActiveSchema === false) {
@@ -938,7 +959,29 @@ export function restoreStorageSnapshotOutcome(
   snapshot: StorageSnapshot,
   source?: Pick<StorageSource, "schema" | "schemaProvenance">,
 ): WriteOutcome<BootstrapResponse> {
+  return restoreStorageSnapshotOutcomeWithGuard(storage, snapshot, source);
+}
+
+export function restoreGuardedStorageSnapshotOutcome(
+  storage: DurableObjectStorage,
+  snapshot: StorageSnapshot,
+  guardToken: string,
+  source?: Pick<StorageSource, "schema" | "schemaProvenance">,
+): WriteOutcome<BootstrapResponse> {
+  return restoreStorageSnapshotOutcomeWithGuard(storage, snapshot, source, guardToken);
+}
+
+function restoreStorageSnapshotOutcomeWithGuard(
+  storage: DurableObjectStorage,
+  snapshot: StorageSnapshot,
+  source: Pick<StorageSource, "schema" | "schemaProvenance"> | undefined,
+  guardToken?: string,
+): WriteOutcome<BootstrapResponse> {
   return storage.transactionSync(() => {
+    if (guardToken !== undefined) {
+      assertArchiveRestoreGuardAllowsWrite(storage, guardToken);
+    }
+
     assertSnapshotRecordIdsAreUnique(snapshot.records);
 
     const restoredAt = nowIsoString();
@@ -959,6 +1002,10 @@ export function restoreStorageSnapshotOutcome(
     appendSnapshotRestoreChanges(storage, plan);
     storage.sql.exec("DELETE FROM command_executions");
     storage.sql.exec(`DELETE FROM ${operationInvocationsTableName}`);
+
+    if (guardToken !== undefined) {
+      storage.sql.exec(`DELETE FROM ${archiveRestoreGuardTableName} WHERE id = 1`);
+    }
 
     return committedWrite({
       schema: storedSchema.schema,
@@ -2719,9 +2766,19 @@ function readStoredSchema(storage: DurableObjectStorage): StoredSchema | undefin
   }
 
   const schemaProvenance = parseStoredSchemaProvenance(row.value.schema_provenance_json);
+  let schema: AppSchema;
+
+  try {
+    schema = parseStoredSchema(row.value.schema_json);
+  } catch (error) {
+    throw new StoredSchemaParseError(
+      error instanceof Error ? error.message : "Stored active schema is invalid.",
+      schemaProvenance,
+    );
+  }
 
   return {
-    schema: parseStoredSchema(row.value.schema_json),
+    schema,
     ...(schemaProvenance === undefined ? {} : { schemaProvenance }),
     updatedAt: row.value.updated_at,
   };

@@ -1,5 +1,3 @@
-import type { StorageSnapshot } from "@dpeek/formless-storage";
-
 export const ARCHIVE_RESTORE_PATH = "/snapshot/restore";
 export const ARCHIVE_RESTORE_GUARD_PATH = "/snapshot/restore/guard";
 export const ARCHIVE_RESTORE_GUARD_RELEASE_PATH = "/snapshot/restore/guard/release";
@@ -25,7 +23,6 @@ export type ArchiveRestoreGuardRequest = {
 
 export type ArchiveRestoreGuardResponse = {
   guardToken: string;
-  snapshot: StorageSnapshot;
 };
 
 export type ArchiveRestoreGuardReleaseRequest = {
