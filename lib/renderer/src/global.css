@@ -7,3 +7,51 @@ html[data-astryx-theme="neutral"] body,
 [data-astryx-public-site-provider] {
   background-color: var(--color-background-body);
 }
+
+[data-astryx-public-site-provider] {
+  /* Public pages use an editorial scale; generated application surfaces keep
+     the denser neutral-theme defaults. */
+  --font-size-4xs: 0.3125rem;
+  --font-size-3xs: 0.4375rem;
+  --font-size-2xs: 0.5rem;
+  --font-size-xs: 0.625rem;
+  --font-size-sm: 0.8125rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.25rem;
+  --font-size-xl: 1.5625rem;
+  --font-size-2xl: 1.9375rem;
+  --font-size-3xl: 2.4375rem;
+  --font-size-4xl: 3.0625rem;
+  --font-size-5xl: 3.8125rem;
+
+  /* Rebind semantic sizes inside this scope. Custom-property references are
+     otherwise resolved against the parent neutral theme before inheritance. */
+  --text-heading-1-size: var(--font-size-2xl);
+  --text-heading-2-size: var(--font-size-xl);
+  --text-heading-3-size: var(--font-size-lg);
+  --text-heading-4-size: var(--font-size-base);
+  --text-heading-5-size: var(--font-size-sm);
+  --text-heading-6-size: var(--font-size-xs);
+  --text-body-size: var(--font-size-base);
+  --text-large-size: var(--font-size-lg);
+  --text-label-size: var(--font-size-base);
+  --text-code-size: var(--font-size-base);
+  --text-supporting-size: var(--font-size-sm);
+  --text-display-1-size: var(--font-size-5xl);
+  --text-display-2-size: var(--font-size-4xl);
+  --text-display-3-size: var(--font-size-3xl);
+
+  --text-heading-1-leading: 1.05;
+  --text-heading-1-weight: var(--font-weight-bold);
+  --text-heading-2-leading: 1.1;
+  --text-heading-2-weight: var(--font-weight-bold);
+  --text-heading-3-leading: 1.2;
+  --text-heading-4-leading: 1.25;
+  --text-heading-5-leading: 1.35;
+  --text-heading-6-leading: 1.4;
+  --text-body-leading: 1.6;
+  --text-large-leading: 1.4;
+  --text-supporting-leading: 1.5;
+  --text-display-1-leading: 0.95;
+  --text-display-1-weight: var(--font-weight-bold);
+}

@@ -193,11 +193,14 @@ const styles = stylex.create({
     marginInlineStart: `calc(-1 * ${spacingVars["--spacing-3"]})`,
   },
   mainContent: {
-    paddingBlockStart: spacingVars["--spacing-12"],
-    paddingBlockEnd: spacingVars["--spacing-12"],
+    paddingBlockStart: "clamp(3.5rem, 7vw, 7rem)",
+    paddingBlockEnd: "clamp(5rem, 9vw, 8rem)",
   },
   blockStack: {
     width: "100%",
+  },
+  pageBlockStack: {
+    rowGap: "clamp(4rem, 7vw, 7rem)",
   },
   sectionBlock: {
     borderTopWidth: borderVars["--border-width"],
@@ -216,22 +219,34 @@ const styles = stylex.create({
     whiteSpace: "pre-line",
   },
   heroBlock: {
-    paddingBlock: spacingVars["--spacing-4"],
+    paddingBlock: "clamp(1rem, 2.5vw, 2.5rem)",
   },
   heroContent: {
-    alignItems: "center",
-    textAlign: "center",
+    alignItems: "flex-start",
+    textAlign: "start",
   },
   heroHeading: {
+    fontSize: "clamp(3.75rem, 10vw, 7.5rem)",
+    fontWeight: fontWeightVars["--font-weight-bold"],
+    letterSpacing: "-0.055em",
+    lineHeight: 0.92,
+    maxWidth: "10ch",
+    textWrap: "balance",
+  },
+  heroHeadingInk: {
     backgroundImage: `linear-gradient(45deg, ${colorVars["--color-icon-orange"]}, ${colorVars["--color-error"]}, ${colorVars["--color-icon-purple"]})`,
     backgroundClip: "text",
     WebkitBackgroundClip: "text",
-    color: "transparent",
+    color: colorVars["--color-text-primary"],
+    display: "block",
     WebkitTextFillColor: "transparent",
-    fontSize: "clamp(3rem, 8vw, 5.25rem)",
+    paddingBlockEnd: "0.14em",
+    paddingInlineEnd: "0.08em",
+    marginBlockEnd: "-0.14em",
+    marginInlineEnd: "-0.08em",
   },
   heroSubtitle: {
-    maxWidth: 672,
+    maxWidth: "60ch",
     textWrap: "balance",
   },
   featureBlock: {
@@ -444,8 +459,8 @@ export function FormlessSiteShell({ content, footer, header, mobileNav }: Formle
       <Layout
         {...shellStyles}
         height="auto"
-        padding={6}
-        contentWidth={960}
+        padding={5}
+        contentWidth={1120}
         header={header}
         content={content}
         footer={footer}
@@ -688,11 +703,13 @@ function ProjectedPlacementList({
   formFacts,
   headingLevel,
   placements,
+  rhythm = "nested",
   routeFacts,
 }: {
   formFacts: ProjectedFormRenderingFacts;
   headingLevel: SiteHeadingLevel;
   placements: readonly SitePlacementNode[];
+  rhythm?: "nested" | "page";
   routeFacts: SitePublicRendererProps;
 }) {
   const ordered = orderedPlacements(placements);
@@ -702,7 +719,10 @@ function ProjectedPlacementList({
   }
 
   return (
-    <VStack gap={8} {...stylex.props(styles.blockStack)}>
+    <VStack
+      gap={rhythm === "page" ? 0 : 8}
+      {...stylex.props(styles.blockStack, rhythm === "page" ? styles.pageBlockStack : null)}
+    >
       {ordered.map((placement) => (
         <ProjectedSiteBlock
           key={placement.id}
@@ -872,6 +892,7 @@ function ProjectedPageBlock({
         formFacts={formFacts}
         headingLevel={1}
         placements={defaultPlacements(block)}
+        rhythm="page"
         routeFacts={routeFacts}
       />
     </VStack>
@@ -929,11 +950,11 @@ function ProjectedHeroBlock({
     <VStack gap={4} {...stylex.props(styles.heroContent)}>
       {block.label ? (
         <Heading level={headingLevel} type="display-1" {...stylex.props(styles.heroHeading)}>
-          {block.label}
+          <span {...stylex.props(styles.heroHeadingInk)}>{block.label}</span>
         </Heading>
       ) : null}
       <div {...stylex.props(styles.heroSubtitle)}>
-        <ProjectedPlainText body={block.body} />
+        <ProjectedPlainText body={block.body} variant="lead" />
       </div>
     </VStack>
   );
@@ -2483,7 +2504,13 @@ function ProjectedMarkdown({
   );
 }
 
-function ProjectedPlainText({ body }: { body?: string }) {
+function ProjectedPlainText({
+  body,
+  variant = "body",
+}: {
+  body?: string;
+  variant?: "body" | "lead";
+}) {
   if (!body) {
     return null;
   }
@@ -2491,7 +2518,12 @@ function ProjectedPlainText({ body }: { body?: string }) {
   return (
     <VStack gap={2} {...stylex.props(styles.plainText)}>
       {body.split(/\n{2,}/).map((paragraph, index) => (
-        <Text key={`${index}:${paragraph}`} as="p">
+        <Text
+          key={`${index}:${paragraph}`}
+          as="p"
+          type={variant === "lead" ? "large" : "body"}
+          weight={variant === "lead" ? "normal" : undefined}
+        >
           {paragraph}
         </Text>
       ))}

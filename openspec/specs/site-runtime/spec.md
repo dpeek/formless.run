@@ -491,6 +491,19 @@ canonical Site page and system-state renderer contracts through
 - AND it consumes canonical Site contracts and public helpers through documented
   Site package exports instead of duplicate projection or renderer types
 
+#### Scenario: Built-in renderer establishes an editorial public page rhythm
+
+- GIVEN the built-in Formless Renderer presents a successful public Site page
+- WHEN the page renders across compact and wide viewports
+- THEN its package-owned public styling uses a readable editorial type scale
+  without changing the generated application theme
+- AND the page shell expands fluidly to a bounded content width with compact
+  viewport gutters
+- AND top-level page blocks use responsive vertical rhythm while nested block
+  composition retains its local spacing
+- AND hero presentation uses prominent, tightly set display typography with a
+  readable supporting measure
+
 #### Scenario: Renderer is selected at public roots
 
 - GIVEN the Formless Renderer page and system-state implementations are
