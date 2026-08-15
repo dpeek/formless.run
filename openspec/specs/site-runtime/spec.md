@@ -503,6 +503,49 @@ canonical Site page and system-state renderer contracts through
   composition retains its local spacing
 - AND hero presentation uses prominent, tightly set display typography with a
   readable supporting measure
+- AND wide media-and-text features use generous responsive column separation
+  while compact viewports retain a close stacked composition
+
+#### Scenario: Built-in renderer presents editorial content indexes
+
+- GIVEN a public page contains a projected post list or project list
+- WHEN the built-in Formless Renderer presents its content summaries
+- THEN summaries use open editorial rows separated by whitespace rather than
+  enclosed card surfaces or dividers
+- AND post summaries emphasize date, headline, and supporting copy through
+  typographic hierarchy
+- AND wide project summaries alternate adjacent media and text composition,
+  divide the row evenly, and align headings and descriptions toward the media
+- AND compact viewports consistently stack project media above content
+- AND each linked summary retains one full-row target while nested content
+  links remain independently interactive
+- AND linked summaries use motion-safe hover and keyboard-focus emphasis
+
+#### Scenario: Built-in renderer presents editorial metrics
+
+- GIVEN a public page contains a projected metric grid
+- WHEN the built-in Formless Renderer presents the grid and its metrics
+- THEN the required grid label remains an accessible heading without adding a
+  visible section title
+- AND metric items align directly with the surrounding content grid without
+  enclosed card surfaces or inset card padding
+- AND each metric value uses prominent display typography while its supporting
+  description remains visually secondary
+
+#### Scenario: Built-in renderer presents editorial card grids
+
+- GIVEN a public page contains a projected card grid
+- WHEN the built-in Formless Renderer presents its static cards
+- THEN the required grid label remains an accessible heading without adding a
+  visible section title
+- AND cards use borderless tonal panels that remain visually distinct from
+  open content lists and metric grids
+- AND an optional card color may tint its panel and decorative icon without
+  replacing theme-owned text colors
+- AND card icons, headings, and supporting descriptions use a clear editorial
+  hierarchy without adding interaction cues to static content
+- AND wide card grids align variable-length headings and descriptions through
+  top-aligned content with a minimum heading measure rather than truncation
 
 #### Scenario: Renderer is selected at public roots
 

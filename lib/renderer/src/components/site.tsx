@@ -12,6 +12,8 @@ import { Button } from "@astryxdesign/core/Button";
 import {
   borderVars,
   colorVars,
+  durationVars,
+  easeVars,
   fontWeightVars,
   radiusVars,
   spacingVars,
@@ -258,24 +260,63 @@ const styles = stylex.create({
   featureMedia: {
     minWidth: 0,
   },
+  featureMediaGrid: {
+    columnGap: "clamp(3rem, 6vw, 6rem)",
+  },
+  cardPanel: {
+    position: "relative",
+    overflow: "hidden",
+    width: "100%",
+    height: "100%",
+    minHeight: "clamp(15rem, 22vw, 19rem)",
+    padding: "clamp(1.5rem, 2.8vw, 2.25rem)",
+    borderRadius: radiusVars["--radius-element"],
+    backgroundColor: colorVars["--color-background-muted"],
+  },
   cardBody: {
-    minHeight: 150,
+    minHeight: "100%",
+    height: "100%",
   },
   cardIcon: {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    width: spacingVars["--spacing-9"],
-    height: spacingVars["--spacing-9"],
-    borderRadius: radiusVars["--radius-element"],
-    backgroundColor: colorVars["--color-background-muted"],
+    width: "3.5rem",
+    height: "3.5rem",
   },
-  metricBody: {
-    minHeight: 132,
+  cardIconGlyph: {
+    width: "3rem",
+    height: "3rem",
+  },
+  cardContent: {
+    maxWidth: "42ch",
+  },
+  cardHeading: {
+    fontSize: "clamp(1.5rem, 2.4vw, 2.125rem)",
+    letterSpacing: "-0.035em",
+    lineHeight: 1.05,
+    minHeight: {
+      default: "auto",
+      "@media (min-width: 769px)": "2.1em",
+    },
+    textWrap: "balance",
+  },
+  cardDescription: {
+    color: colorVars["--color-text-secondary"],
+    opacity: 0.84,
   },
   metricValue: {
     color: colorVars["--color-text-primary"],
-    fontWeight: fontWeightVars["--font-weight-semibold"],
+    fontSize: "clamp(2.25rem, 3.75vw, 3.75rem)",
+    fontWeight: fontWeightVars["--font-weight-bold"],
+    letterSpacing: "-0.045em",
+    lineHeight: 0.95,
+    textWrap: "balance",
+  },
+  metricDescription: {
+    color: colorVars["--color-text-secondary"],
+    maxWidth: "36ch",
+    opacity: 0.8,
   },
   publicFormCard: {
     minHeight: 260,
@@ -338,7 +379,6 @@ const styles = stylex.create({
     borderWidth: 0,
     borderStyle: "none",
     borderColor: "transparent",
-    borderRadius: 0,
   },
   image: {
     display: "block",
@@ -360,15 +400,42 @@ const styles = stylex.create({
   },
   summaryLayout: {
     alignItems: "flex-start",
+    width: "100%",
   },
-  summaryCard: {
+  summaryRow: {
     position: "relative",
+    width: "100%",
+    paddingBlock: "clamp(1.75rem, 3vw, 2.75rem)",
+    transform: {
+      default: "scale(1)",
+      ":hover": {
+        "@media (hover: hover)": "scale(1.008)",
+      },
+      ":focus-within": "scale(1.008)",
+    },
+    transformOrigin: "center center",
+    zIndex: {
+      default: 0,
+      ":hover": {
+        "@media (hover: hover)": 1,
+      },
+      ":focus-within": 1,
+    },
+    transitionProperty: "transform",
+    transitionDuration: {
+      default: durationVars["--duration-fast"],
+      "@media (prefers-reduced-motion: reduce)": "0s",
+    },
+    transitionTimingFunction: easeVars["--ease-standard"],
+  },
+  projectSummaryRow: {
+    paddingBlock: "clamp(2rem, 4vw, 3.75rem)",
   },
   summaryLink: {
     position: "absolute",
     inset: 0,
     zIndex: 1,
-    borderRadius: radiusVars["--radius-container"],
+    borderRadius: 0,
   },
   summaryInteractiveContent: {
     position: "relative",
@@ -382,31 +449,100 @@ const styles = stylex.create({
   },
   summaryDate: {
     color: colorVars["--color-text-secondary"],
+    fontSize: "0.75rem",
+    fontWeight: fontWeightVars["--font-weight-semibold"],
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+  },
+  summaryHeading: {
+    fontSize: "clamp(1.5rem, 2.5vw, 2.25rem)",
+    letterSpacing: "-0.035em",
+    lineHeight: 1.05,
+    textWrap: "balance",
+  },
+  projectSummaryHeading: {
+    fontSize: "clamp(1.75rem, 3vw, 2.75rem)",
+  },
+  summaryBody: {
+    maxWidth: "62ch",
+  },
+  projectSummaryMarkdownStart: {
+    textAlign: "start",
+  },
+  projectSummaryMarkdownEnd: {
+    textAlign: {
+      default: "start",
+      "@media (min-width: 769px)": "end",
+    },
   },
   summaryMedia: {
     width: "100%",
     maxWidth: 260,
   },
   projectSummaryMedia: {
-    flexBasis: "50%",
-    flexGrow: 1,
-    maxWidth: "50%",
-  },
-  projectSummaryMediaMobile: {
     flexBasis: "100%",
+    flexGrow: 0,
     maxWidth: "100%",
-    borderInlineEndWidth: 0,
+    gridRow: {
+      default: "auto",
+      "@media (min-width: 769px)": "1",
+    },
+  },
+  projectSummaryMediaTextStart: {
+    gridColumn: {
+      default: "auto",
+      "@media (min-width: 769px)": "2",
+    },
+  },
+  projectSummaryMediaTextEnd: {
+    gridColumn: {
+      default: "auto",
+      "@media (min-width: 769px)": "1",
+    },
   },
   projectSummaryContent: {
     flex: 1,
-    padding: spacingVars["--spacing-6"],
+    minWidth: 0,
+    paddingBlock: {
+      default: 0,
+      "@media (min-width: 769px)": spacingVars["--spacing-4"],
+    },
+    gridRow: {
+      default: "auto",
+      "@media (min-width: 769px)": "1",
+    },
+  },
+  projectSummaryContentStart: {
+    gridColumn: {
+      default: "auto",
+      "@media (min-width: 769px)": "1",
+    },
+    textAlign: {
+      default: "start",
+      "@media (min-width: 769px)": "end",
+    },
+  },
+  projectSummaryContentEnd: {
+    gridColumn: {
+      default: "auto",
+      "@media (min-width: 769px)": "2",
+    },
+    textAlign: "start",
   },
   summaryContent: {
     minWidth: 0,
     flex: 1,
   },
   projectSummaryLayout: {
-    alignItems: "stretch",
+    alignItems: "center",
+    display: {
+      default: "flex",
+      "@media (min-width: 769px)": "grid",
+    },
+    gridTemplateColumns: {
+      default: "none",
+      "@media (min-width: 769px)": "repeat(2, minmax(0, 1fr))",
+    },
     width: "100%",
   },
   linkList: {
@@ -432,10 +568,27 @@ const dynamicStyles = stylex.create({
   blockColor: (color: string) => ({
     color,
   }),
+  cardTone: (color: string) => ({
+    backgroundColor: `color-mix(in srgb, ${color} 12%, ${colorVars["--color-background-muted"]})`,
+  }),
   imageAspect: (width: number, height: number) => ({
     aspectRatio: `${width} / ${height}`,
   }),
 });
+
+const cardIconGlyphXstyle = styles.cardIconGlyph as unknown as NonNullable<
+  ComponentPropsWithRef<typeof SourceIcon>["xstyle"]
+>;
+const featureMediaGridXstyle = styles.featureMediaGrid as unknown as NonNullable<
+  ComponentPropsWithRef<typeof Grid>["xstyle"]
+>;
+const projectSummaryMarkdownStartXstyle =
+  styles.projectSummaryMarkdownStart as unknown as NonNullable<
+    ComponentPropsWithRef<typeof Markdown>["xstyle"]
+  >;
+const projectSummaryMarkdownEndXstyle = styles.projectSummaryMarkdownEnd as unknown as NonNullable<
+  ComponentPropsWithRef<typeof Markdown>["xstyle"]
+>;
 
 // Astryx core and this package can resolve different StyleX type brands.
 // The runtime style objects are compatible; keep the cast at the boundary.
@@ -1049,10 +1202,11 @@ function ProjectedFeatureBlock({
         {heading}
         {mediaContent ? (
           <Grid
-            columns={isMobile ? 1 : { minWidth: 280, max: 2, repeat: "fit" }}
+            columns={isMobile ? 1 : 2}
             gap={isMobile ? 4 : 6}
             align={isMobile ? "stretch" : "start"}
             width="100%"
+            xstyle={isMobile ? undefined : featureMediaGridXstyle}
           >
             {mediaSide === "left" ? (
               <>
@@ -1146,10 +1300,12 @@ function ProjectedCardGridBlock({
   const cards = defaultPlacements(block);
 
   return (
-    <VStack gap={3} data-site-block-type={block.type}>
-      {block.label ? <Heading level={headingLevel}>{block.label}</Heading> : null}
+    <VStack gap={5} data-site-block-type={block.type}>
+      {block.label ? (
+        <VisuallyHidden as={siteHeadingElement(headingLevel)}>{block.label}</VisuallyHidden>
+      ) : null}
       <ProjectedMarkdown body={block.body} headingLevelStart={nextHeadingLevel(headingLevel)} />
-      <Grid columns={isMobile ? 1 : { minWidth: 220, max: 3, repeat: "fit" }} gap={4} width="100%">
+      <Grid columns={isMobile ? 1 : { minWidth: 220, max: 3, repeat: "fit" }} gap={6} width="100%">
         {cards.map((placement) => (
           <ProjectedSiteBlock
             key={placement.id}
@@ -1177,13 +1333,12 @@ function ProjectedCardBlock({
   routeFacts: SitePublicRendererProps;
 }) {
   return (
-    <Card
-      padding={5}
-      minHeight={180}
+    <div
       data-site-block-type={block.type}
       data-site-block-color={block.color}
+      {...stylex.props(styles.cardPanel, block.color ? dynamicStyles.cardTone(block.color) : null)}
     >
-      <VStack gap={3} {...stylex.props(styles.cardBody)}>
+      <VStack gap={6} {...stylex.props(styles.cardBody)}>
         {block.icon ? (
           <span
             {...stylex.props(
@@ -1191,19 +1346,37 @@ function ProjectedCardBlock({
               block.color ? dynamicStyles.blockColor(block.color) : null,
             )}
           >
-            <SourceIcon source={block.icon} color="inherit" aria-hidden />
+            <SourceIcon
+              source={block.icon}
+              color="inherit"
+              aria-hidden
+              xstyle={cardIconGlyphXstyle}
+            />
           </span>
         ) : null}
-        {block.label ? <Heading level={headingLevel}>{block.label}</Heading> : null}
-        <ProjectedMarkdown body={block.body} headingLevelStart={nextHeadingLevel(headingLevel)} />
-        <ProjectedPlacementList
-          formFacts={formFacts}
-          headingLevel={nextHeadingLevel(headingLevel)}
-          placements={defaultPlacements(block)}
-          routeFacts={routeFacts}
-        />
+        <VStack gap={3} {...stylex.props(styles.cardContent)}>
+          {block.label ? (
+            <Heading level={headingLevel} {...stylex.props(styles.cardHeading)}>
+              {block.label}
+            </Heading>
+          ) : null}
+          {block.body ? (
+            <div {...stylex.props(styles.cardDescription)}>
+              <ProjectedMarkdown
+                body={block.body}
+                headingLevelStart={nextHeadingLevel(headingLevel)}
+              />
+            </div>
+          ) : null}
+          <ProjectedPlacementList
+            formFacts={formFacts}
+            headingLevel={nextHeadingLevel(headingLevel)}
+            placements={defaultPlacements(block)}
+            routeFacts={routeFacts}
+          />
+        </VStack>
       </VStack>
-    </Card>
+    </div>
   );
 }
 
@@ -1223,9 +1396,15 @@ function ProjectedMetricGridBlock({
 
   return (
     <VStack gap={3} data-site-block-type={block.type}>
-      {block.label ? <Heading level={headingLevel}>{block.label}</Heading> : null}
+      {block.label ? (
+        <VisuallyHidden as={siteHeadingElement(headingLevel)}>{block.label}</VisuallyHidden>
+      ) : null}
       <ProjectedMarkdown body={block.body} headingLevelStart={nextHeadingLevel(headingLevel)} />
-      <Grid columns={isMobile ? 1 : { minWidth: 180, max: 3, repeat: "fit" }} gap={3} width="100%">
+      <Grid
+        columns={isMobile ? 1 : { minWidth: 240, max: 3, repeat: "fit" }}
+        gap={isMobile ? 6 : 8}
+        width="100%"
+      >
         {metrics.map((placement) => (
           <ProjectedSiteBlock
             key={placement.id}
@@ -1249,14 +1428,8 @@ function ProjectedMetricBlock({
   headingLevel: SiteHeadingLevel;
 }) {
   return (
-    <Card
-      padding={4}
-      minHeight={140}
-      variant="muted"
-      data-site-block-type={block.type}
-      data-site-block-color={block.color}
-    >
-      <VStack gap={2} {...stylex.props(styles.metricBody)}>
+    <div data-site-block-type={block.type} data-site-block-color={block.color}>
+      <VStack gap={3}>
         <Text
           type="large"
           as="p"
@@ -1267,9 +1440,13 @@ function ProjectedMetricBlock({
         >
           {block.label}
         </Text>
-        <ProjectedMarkdown body={block.body} headingLevelStart={headingLevel} />
+        {block.body ? (
+          <div {...stylex.props(styles.metricDescription)}>
+            <ProjectedMarkdown body={block.body} headingLevelStart={headingLevel} />
+          </div>
+        ) : null}
       </VStack>
-    </Card>
+    </div>
   );
 }
 
@@ -1424,12 +1601,13 @@ function ProjectedContentListBlock({
       <VStack gap={4}>
         {block.label ? <Heading level={headingLevel}>{block.label}</Heading> : null}
         {items.length > 0 ? (
-          <VStack gap={4}>
-            {items.map((item) => (
+          <VStack gap={0}>
+            {items.map((item, index) => (
               <ProjectedContentSummary
                 key={item.id}
                 block={item}
                 headingLevel={nextHeadingLevel(headingLevel)}
+                textPosition={block.type === "projectList" && index % 2 === 1 ? "start" : "end"}
                 routeFacts={routeFacts}
               />
             ))}
@@ -1447,10 +1625,12 @@ function ProjectedContentListBlock({
 function ProjectedContentSummary({
   block,
   headingLevel,
+  textPosition = "end",
   routeFacts,
 }: {
   block: SiteBlockNode;
   headingLevel: SiteHeadingLevel;
+  textPosition?: "start" | "end";
   routeFacts: SitePublicRendererProps;
 }) {
   const isMobile = useMediaQuery("(max-width: 768px)");
@@ -1460,9 +1640,15 @@ function ProjectedContentSummary({
     : undefined;
   const summaryContent = (
     <HStack
-      gap={block.type === "project" ? 0 : 4}
+      gap={block.type === "project" ? (isMobile ? 4 : 8) : 4}
       wrap="wrap"
-      data-site-summary-layout={primaryImage ? "media-start" : "text-only"}
+      data-site-summary-layout={
+        primaryImage && block.type === "project"
+          ? `text-${textPosition}-media-adjacent`
+          : primaryImage
+            ? "media-start"
+            : "text-only"
+      }
       {...stylex.props(
         styles.summaryLayout,
         block.type === "project" ? styles.projectSummaryLayout : null,
@@ -1475,7 +1661,12 @@ function ProjectedContentSummary({
           {...stylex.props(
             styles.summaryMedia,
             block.type === "project"
-              ? [styles.projectSummaryMedia, isMobile ? styles.projectSummaryMediaMobile : null]
+              ? [
+                  styles.projectSummaryMedia,
+                  textPosition === "start"
+                    ? styles.projectSummaryMediaTextStart
+                    : styles.projectSummaryMediaTextEnd,
+                ]
               : null,
           )}
         >
@@ -1490,7 +1681,14 @@ function ProjectedContentSummary({
         data-site-summary-content
         {...stylex.props(
           styles.summaryContent,
-          block.type === "project" ? styles.projectSummaryContent : null,
+          block.type === "project"
+            ? [
+                styles.projectSummaryContent,
+                textPosition === "start"
+                  ? styles.projectSummaryContentStart
+                  : styles.projectSummaryContentEnd,
+              ]
+            : null,
         )}
       >
         {block.date && block.type !== "project" ? (
@@ -1498,20 +1696,34 @@ function ProjectedContentSummary({
             {block.date}
           </time>
         ) : null}
-        {block.label ? <Heading level={headingLevel}>{block.label}</Heading> : null}
-        <ProjectedContentSummaryBody block={block} />
+        {block.label ? (
+          <Heading
+            level={headingLevel}
+            {...stylex.props(
+              styles.summaryHeading,
+              block.type === "project" ? styles.projectSummaryHeading : null,
+            )}
+          >
+            {block.label}
+          </Heading>
+        ) : null}
+        {block.body ? (
+          <div {...stylex.props(styles.summaryBody)}>
+            <ProjectedContentSummaryBody block={block} textPosition={textPosition} />
+          </div>
+        ) : null}
       </VStack>
     </HStack>
   );
 
   return (
-    <Card
-      padding={block.type === "project" ? 0 : 5}
-      elevation={block.type === "project" ? "med" : undefined}
-      variant={block.type === "project" ? "muted" : undefined}
+    <article
       data-site-block-type={block.type}
       data-site-summary-id={block.id}
-      {...stylex.props(publicHref ? styles.summaryCard : null)}
+      {...stylex.props(
+        styles.summaryRow,
+        block.type === "project" ? styles.projectSummaryRow : null,
+      )}
     >
       {publicHref ? (
         <Link
@@ -1527,11 +1739,17 @@ function ProjectedContentSummary({
         </Link>
       ) : null}
       {summaryContent}
-    </Card>
+    </article>
   );
 }
 
-function ProjectedContentSummaryBody({ block }: { block: SiteBlockNode }) {
+function ProjectedContentSummaryBody({
+  block,
+  textPosition,
+}: {
+  block: SiteBlockNode;
+  textPosition: "start" | "end";
+}) {
   if (!block.body) {
     return null;
   }
@@ -1542,6 +1760,7 @@ function ProjectedContentSummaryBody({ block }: { block: SiteBlockNode }) {
         body={block.body}
         headingLevelStart={4}
         linkComponent={ProjectedSummaryMarkdownLink}
+        textAlign={textPosition === "start" ? "end" : "start"}
       />
     );
   }
@@ -2479,6 +2698,7 @@ function ProjectedMarkdown({
   body,
   headingLevelStart,
   linkComponent,
+  textAlign = "start",
 }: {
   body?: string;
   headingLevelStart: 1 | 2 | 3 | 4 | 5 | 6;
@@ -2486,17 +2706,26 @@ function ProjectedMarkdown({
     children: ReactNode;
     href: string;
   }>;
+  textAlign?: "start" | "end";
 }) {
   if (!body) {
     return null;
   }
 
   return (
-    <div {...stylex.props(styles.markdownBody)}>
+    <div
+      {...stylex.props(
+        styles.markdownBody,
+        textAlign === "end" ? styles.projectSummaryMarkdownEnd : null,
+      )}
+    >
       <Markdown
         headingLevelStart={headingLevelStart}
         contentWidth="100%"
         components={linkComponent ? { link: linkComponent } : undefined}
+        xstyle={
+          textAlign === "end" ? projectSummaryMarkdownEndXstyle : projectSummaryMarkdownStartXstyle
+        }
       >
         {body}
       </Markdown>
@@ -2776,6 +3005,10 @@ function primaryImagePlacement(block: SiteBlockNode): SitePlacementNode | undefi
 
 function nextHeadingLevel(level: SiteHeadingLevel): SiteHeadingLevel {
   return Math.min(level + 1, 6) as SiteHeadingLevel;
+}
+
+function siteHeadingElement(level: SiteHeadingLevel): `h${SiteHeadingLevel}` {
+  return `h${level}`;
 }
 
 function toProjectedShellLink(
