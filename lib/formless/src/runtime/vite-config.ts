@@ -47,6 +47,7 @@ import {
   formlessWorkspaceProgramRuntimePlugin,
   resolveWorkspaceProgramRuntimeFromEnv,
 } from "../cli/program-runtime-bundler.ts";
+import { FORMLESS_STYLEX_LAYER_ORDER, formlessProductStylexOptions } from "./stylex-options.ts";
 
 export {
   SITE_PUBLIC_RENDERER_BROWSER_ENTRYPOINT_MODULE_ID,
@@ -63,7 +64,6 @@ type RuntimeViteConfigInput = {
 
 const defaultPackageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const workerConfigRelativePath = "src/worker/wrangler.jsonc";
-const formlessStylexLayerOrder = "@layer reset, astryx-base, astryx-theme, product;";
 const formlessWorkerOptimizedDependencies = [
   "react",
   "react/jsx-dev-runtime",
@@ -101,17 +101,13 @@ export function runtimeViteConfig(input: RuntimeViteConfigInput = {}) {
     ? []
     : [
         formlessStylexLayerOrderPlugin(),
-        stylex.vite({
-          dev: env.NODE_ENV !== "production",
-          runtimeInjection: false,
-          treeshakeCompensation: true,
-          unstable_moduleResolution: {
-            rootDir: workspaceRoot,
-            type: "commonJS",
-          },
-          cssInjectionTarget: isSharedClientCssAsset,
-          useCSSLayers: { prefix: "product" },
-        }),
+        stylex.vite(
+          formlessProductStylexOptions({
+            canonicalRoot: workspaceRoot,
+            cssInjectionTarget: isSharedClientCssAsset,
+            development: env.NODE_ENV !== "production",
+          }),
+        ),
       ];
 
   return {
@@ -193,7 +189,7 @@ export function formlessStylexLayerOrderPlugin(): Plugin {
     transformIndexHtml() {
       return [
         {
-          children: formlessStylexLayerOrder,
+          children: FORMLESS_STYLEX_LAYER_ORDER,
           injectTo: "head-prepend",
           tag: "style",
         },

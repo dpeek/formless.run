@@ -570,6 +570,53 @@ canonical Site page and system-state renderer contracts through
 - AND it does not depend on `@dpeek/formless-renderer` or another presentation
   implementation
 
+### Requirement: Public Renderer StyleX Cascade Boundary
+
+The system SHALL keep independently compiled component-library and Formless
+product StyleX atomics in distinct class namespaces while preserving one
+explicit CSS layer order across browser and Worker rendering.
+
+#### Scenario: Separate precompiled component and product atomics
+
+- GIVEN the built-in public renderer combines precompiled Astryx component CSS,
+  a built Astryx theme, and Formless-authored StyleX
+- WHEN renderer workspace Vite, runtime Vite, or Worker esbuild compiles the
+  selected renderer
+- THEN Astryx component atomics retain their precompiled library class namespace
+  and `astryx-base` layer
+- AND generated Formless atomics use one dedicated Formless product class
+  namespace that cannot reuse an Astryx atomic selector for the same declaration
+- AND the CSS layer order remains `reset`, `astryx-base`, `astryx-theme`, then
+  the Formless product priority layers
+- AND Formless product compilation does not process Astryx component modules as
+  product StyleX or require runtime style injection
+
+#### Scenario: Align browser and Worker product compilation
+
+- GIVEN the same built-in or workspace public renderer is compiled for browser
+  preview, Worker preview, production client assets, and Worker SSR
+- WHEN each build transforms Formless-authored StyleX
+- THEN renderer workspace Vite, runtime Vite, and Worker esbuild share the same
+  product class namespace, CSS-layer policy, tree-shake compensation, and
+  module-resolution contract
+- AND environment-specific development and CSS-asset injection settings do not
+  change functional class identity
+- AND every StyleX class emitted by Worker SSR has its corresponding rule in the
+  client CSS used for hydration
+
+#### Scenario: Preserve component states under broader product extraction
+
+- GIVEN a browser preview, Worker preview, or production client stylesheet
+  contains Formless product atomics from modules beyond one Astryx component
+- WHEN an independently generated product declaration has the same property and
+  value as an Astryx component default
+- THEN the product declaration does not reuse the Astryx component's atomic
+  selector
+- AND Astryx default, hover, active, selected, focus-visible, theme, and
+  responsive rules retain their declared cascade behavior
+- AND browser preview, Worker SSR with hydration, and published or mapped-host
+  rendering produce equivalent computed component behavior
+
 ### Requirement: Subscribe Form Public Tree Projection
 
 The system SHALL project subscribe form blocks into public Site trees against

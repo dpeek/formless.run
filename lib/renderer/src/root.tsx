@@ -17,6 +17,7 @@ import { FormlessListsLayout } from "./components/lists.tsx";
 import { FormlessOperationsLayout } from "./components/operations.tsx";
 import { FormlessRecordResultsLayout } from "./components/record-results.tsx";
 import { FormlessSiteLayout } from "./components/site-fixture.tsx";
+import { FormlessStylexStateParityLayout } from "./components/stylex-state-parity.tsx";
 import { FormlessTablesLayout } from "./components/tables.tsx";
 import { FormlessTreeResultsLayout } from "./components/tree-results.tsx";
 import {
@@ -41,6 +42,7 @@ type LayoutCommandItem = SearchableItem<{
 
 const formlessPrototypeLayouts: FormlessPrototypeLayout[] = [
   createFormlessPrototypeLayout("Public Site", () => <FormlessSiteLayout />, false),
+  createFormlessPrototypeLayout("StyleX State Parity", () => <FormlessStylexStateParityLayout />),
   createFormlessPrototypeLayout("Auth", () => <FormlessAuthLayout />),
   createFormlessPrototypeLayout("Operations", () => <FormlessOperationsLayout />),
   createFormlessPrototypeLayout("Create", () => <FormlessCreateSurfacesLayout />),

@@ -4,6 +4,10 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite-plus";
 import react from "@vitejs/plugin-react";
 import stylex from "@stylexjs/unplugin";
+import {
+  FORMLESS_STYLEX_LAYER_ORDER,
+  formlessProductStylexOptions,
+} from "../formless/src/runtime/stylex-options.ts";
 
 const rendererRoot = path.dirname(fileURLToPath(import.meta.url));
 const isUnitTest = process.env.VITEST === "true" && process.env.NODE_ENV !== "production";
@@ -19,21 +23,17 @@ export default defineConfig({
             transformIndexHtml: () => [
               {
                 tag: "style",
-                children: "@layer reset, astryx-base, astryx-theme, product;",
+                children: FORMLESS_STYLEX_LAYER_ORDER,
                 injectTo: "head-prepend" as const,
               },
             ],
           },
-          stylex.vite({
-            dev: process.env.NODE_ENV !== "production",
-            runtimeInjection: false,
-            treeshakeCompensation: true,
-            unstable_moduleResolution: {
-              rootDir: rendererRoot,
-              type: "commonJS",
-            },
-            useCSSLayers: { prefix: "product" },
-          }),
+          stylex.vite(
+            formlessProductStylexOptions({
+              canonicalRoot: rendererRoot,
+              development: process.env.NODE_ENV !== "production",
+            }),
+          ),
         ]),
     react(),
   ],

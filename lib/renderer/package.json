@@ -26,8 +26,11 @@
     "!src/components/operations.tsx",
     "!src/components/record-results.tsx",
     "!src/components/site-fixture.tsx",
+    "!src/components/stylex-state-parity.tsx",
     "!src/components/tables.tsx",
-    "!src/components/tree-results.tsx"
+    "!src/components/tree-results.tsx",
+    "!src/stylex-state-parity-client.tsx",
+    "!src/stylex-state-parity-worker.tsx"
   ],
   "type": "module",
   "exports": {
