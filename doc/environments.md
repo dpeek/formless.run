@@ -41,6 +41,17 @@ changes before accepted behavior moves into canonical specs.
 - Exact environment replacement is an explicit destructive operation. It
   snapshots the target, installs the desired Worker, Program, records, and
   media, and preserves instance security state.
+- The new deployment model is implemented as a parallel CLI-first pipeline. It
+  does not call the current `push` orchestration or derive intent from
+  schema-owned deployment records.
+- Runtime-neutral environment contracts live in a durable Environment package;
+  recovery envelopes live behind an isolated Archive recovery subpath; CLI and
+  Worker code own execution at their existing runtime boundaries.
+- Existing narrow provider, credential, build, transport, storage, and media
+  adapters may be reused. Existing source-sync, deployment projection, push,
+  and restore orchestration remain quarantined until removal.
+- Browser deployment is deferred. Initial operations are headless CLI use cases
+  with structured results that a later trusted deployment runner can invoke.
 - Publishing selected records remains distinct from release deployment and
   complete data replacement.
 - Non-local deployments use canonical remote Alchemy state scoped by stable
@@ -121,6 +132,9 @@ than a prerequisite for a useful instance.
 - Formless does not decide which Git branches deserve environments. Repository
   automation or a later integration maps refs to environment ids.
 - The first environment changes do not need browser-based custom-domain editing.
+- The first deployment pipeline does not include a browser deploy UI, hosted
+  deployment runner, browser provider OAuth custody, or browser job-progress
+  transport.
 - A browser does not execute Alchemy or retain provider credentials directly; a
   trusted deployment runner performs provider mutation.
 - Deploying a release does not copy all records or media from another
@@ -137,6 +151,9 @@ than a prerequisite for a useful instance.
 - Force does not bypass target identity, authentication, transport integrity,
   deployment leases, valid local input, required physical bindings, or owner
   continuity.
+- The new pipeline does not preserve the old `push` command as an alias, add a
+  permanent `deploy-v2` package, or allow both pipelines to mutate one
+  environment concurrently.
 
 ## Model
 
@@ -625,15 +642,17 @@ records, admin origin, auth origin, relying-party id, email domain, or sender
 addresses. Origin facts derive from the generated Worker origin; outbound email
 remains unavailable until an explicit deployment configuration enables it.
 
-The browser is the orchestration surface, not the trusted deploy executor.
-Provider mutation requires a server-side runner that can use short-lived
-provider authority, Alchemy encryption material, and canonical remote state
-without exposing those secrets to Program records, archives, browser storage,
-or application APIs.
+Browser onboarding is a later orchestration surface, not the trusted deploy
+executor. Provider mutation requires a server-side runner that can use
+short-lived provider authority, Alchemy encryption material, and canonical
+remote state without exposing those secrets to Program records, archives,
+browser storage, or application APIs.
 
-The first environment proposal need not implement this hosted runner, but its
-contracts must not make a future browser runner depend on local ignored files or
-interactive CLI-only state.
+The initial implementation is CLI-only. Its operation bodies accept explicit
+dependencies and return structured plans, progress events, and receipts without
+writing terminal output. CLI wrappers own prompts, formatting, browser opening,
+and process exit behavior. A later hosted runner invokes the same operation
+bodies rather than reimplementing deployment semantics.
 
 ## Recovery And Deployment Operations
 
@@ -1013,6 +1032,7 @@ it.
   application media while excluding instance security and provider secrets.
 - Resource, Worker, Program, and data deployment remain independently
   executable concerns.
+- One deployment pipeline owns mutation of an environment at a time.
 - Worker deployment uses the installed environment manifest and does not
   reconcile provider resources.
 - A normal release deployment preserves environment-owned records and media.
@@ -1031,45 +1051,191 @@ it.
 - Branch environments do not inherit production data, secrets, or side effects
   by default.
 
+## Implementation Strategy
+
+### Parallel Clean-Sheet Pipeline
+
+The new deployment path is parallel to the current `push` pipeline. Clean sheet
+applies to orchestration and public semantics, not to every low-level adapter.
+The new path does not call current source-sync, push, restore, deployment
+observation, or schema-owned desired-state projection workflows.
+
+The current pipeline remains available only for environments that have not been
+adopted by the new path. It receives no new environment behavior beyond fixes
+needed to keep those environments operable. New commands use their final
+semantic names rather than a temporary `v2` namespace.
+
+The two pipelines may coexist in one CLI release but never own mutation of the
+same environment concurrently. Adoption is an explicit target-level transition,
+not a global CLI fallback.
+
+### Package And Runtime Boundaries
+
+The durable package layout is:
+
+| Boundary | Owns | Does not own |
+| --- | --- | --- |
+| `@dpeek/formless-environment` | environment identity, installed resource manifests, Worker capability manifests, Program generation refs, stage plans and receipts, pure compatibility helpers | CLI commands, provider SDK execution, credentials, Worker routes, Authority mutation, terminal output |
+| `@dpeek/formless-archive/recovery` | stable recovery envelope, opaque payload descriptors, integrity facts, format negotiation | current portable-archive validation, CLI capture policy, Worker export execution, storage reads |
+| Formless CLI environment modules | target selection, command policy, filesystem effects, provider adapters, operation ordering, terminal wrappers | browser UI, Worker routes, Authority storage implementation |
+| Formless Worker and Authority modules | recovery routes, raw export, security-scope filtering, generation staging, validation, activation, rollback | provider reconciliation, CLI prompts, local workspace writes |
+
+The existing `@dpeek/formless-deploy` package remains legacy while it is based
+on schema-owned control-plane deployment records and projected Alchemy graphs.
+New environment contracts do not import it. After cutover, obsolete Deploy
+package contracts and their Program-record projections are deleted rather than
+adapted into the new path.
+
+The Environment package starts with runtime-neutral root contracts only. It does
+not add browser, React, client, or provider entrypoints before a concrete caller
+requires them.
+
+### Reuse And Quarantine
+
+The new pipeline may reuse narrow leaf capabilities whose contracts do not
+encode old workflow policy:
+
+- Program materialization and Worker bundling;
+- provider credential resolution and Cloudflare API clients;
+- individual Alchemy resource declarations;
+- admin-bearer and target HTTP transport;
+- Authority storage, media object, hashing, and filesystem primitives.
+
+The new pipeline does not reuse:
+
+- `pushFormlessInstanceWorkspace` or its planning types;
+- workspace source comparison and merge behavior;
+- desired resource projection from route, email, or deployment Program records;
+- push-owned backup and restore dry-run orchestration;
+- current-version archive parsing during recovery capture;
+- deployment observation writes to Program records.
+
+This boundary prevents an apparently convenient helper from reintroducing
+schema comparison, mutable route intent, implicit Alchemy reconciliation, or
+complete-state synchronization.
+
+### CLI Operation Design
+
+Initial implementation is CLI-only and exposes explicit use cases rather than a
+generic workflow engine:
+
+```ts
+captureRecoverySnapshot();
+applyEnvironmentResources();
+deployWorkerArtifact();
+installProgramArtifact();
+stageProgramGeneration();
+activateProgramGeneration();
+replaceEnvironment();
+```
+
+Operation bodies accept explicit dependencies and return structured plans,
+progress events, evidence, and receipts. They do not read terminal input, print,
+open browsers, or terminate the process. CLI command adapters own interactive
+confirmation and presentation.
+
+Every mutating command supports explicit environment selection, non-interactive
+execution, machine-readable output, idempotency, and durable evidence. These
+properties support CI immediately and a trusted hosted runner later without
+bringing browser concerns into the first pipeline.
+
+### Pipeline Ownership And Adoption
+
+Each environment records one deployment-pipeline owner:
+
+```text
+legacy
+environment
+```
+
+New environments start as `environment`. An existing environment moves
+through one explicit adoption workflow:
+
+1. capture a recovery snapshot through the best available remote ABI;
+2. discover existing provider resources and current canonical state;
+3. produce a read-only adoption plan with exact resource identities;
+4. persist the installed resource manifest without changing resources;
+5. verify Worker capability and no-op deployment plans;
+6. record new pipeline ownership;
+7. reject subsequent legacy mutation for that environment.
+
+A narrow one-time adoption adapter may read legacy Alchemy state or provider
+truth as evidence. Legacy records and state do not become permanent desired
+input to the new pipeline. Adoption becomes one-way once new Program generation
+or security storage semantics are active. Rollback then deploys a previous
+artifact or generation through the new pipeline rather than returning to
+`push`.
+
+Preview environments adopt the pipeline first, followed by `dev` and then
+production. Read-only plans may be compared between pipelines, but mutating
+shadow deployment against one environment is prohibited.
+
+### Cutover Criteria
+
+Production adoption requires evidence that:
+
+- remote snapshot capture succeeds without local Program compatibility;
+- snapshot records and media can be inspected and migrated;
+- Worker-only deployment preserves installed bindings and target data;
+- compatible Program deployment preserves records and media;
+- exact replacement preserves owner authentication and protected authority;
+- failed staging leaves the prior generation active;
+- generation rollback succeeds;
+- resource update and destroy work from canonical remote state;
+- adopted environments reject legacy mutation.
+
+After production adoption and a bounded observation period, old command bodies,
+schema-owned deployment records, obsolete Deploy package contracts, and legacy
+tests are removed. No compatibility aliases remain.
+
 ## Change Sequence
 
 Environment delivery should be sliced so partial support cannot be mistaken for
 a safe production workflow.
 
-1. Add the stable recovery discovery and snapshot ABI plus opaque CLI capture.
-   Export the remote Program artifact, complete replaceable records and
-   tombstones, and all application media without local schema validation.
-2. Define the instance security plane and owner-continuity closure. Exclude it
+1. Add the isolated Archive recovery contracts, stable Worker discovery and
+   snapshot ABI, and opaque CLI capture. Export the remote Program artifact,
+   complete replaceable records and tombstones, and all application media
+   without local schema validation.
+2. Add the runtime-neutral Environment package with environment identity,
+   artifact and capability manifests, installed resource manifests, generation
+   refs, stage plans, and receipts. Keep provider and CLI execution outside it.
+3. Define the instance security plane and owner-continuity closure. Exclude it
    from recovery payloads and exact replacement, initially through stable scope
    classification and ultimately through a separate storage boundary.
-3. Add the combined default workspace-host policy, reserve `/formless`, mount
+4. Add the combined default workspace-host policy, reserve `/formless`, mount
    the protected Program admin surface there, and serve public Site documents
    as the remaining read-only HTML fallback.
-4. Move custom-domain, email-domain, sender-allowlist, and provider topology
+5. Move custom-domain, email-domain, sender-allowlist, and provider topology
    declarations into typed workspace configuration; derive exact origins and
    installed email capabilities; remove or narrow schema-owned route,
    deployment-config, email-domain, and email-sender behavior that no longer
    owns application data.
-5. Add stable environment identity, provider naming, production policy,
-   canonical remote Alchemy state, and the installed environment manifest to
-   resource deployment.
-6. Separate Worker artifact upload from Alchemy reconciliation. Publish Worker
-   capability requirements and support direct code and asset deployment through
-   the installed manifest.
-7. Separate the Program artifact from Worker activation, add staged Program
+6. Add CLI-only resource deployment using stable environment identity, provider
+   naming, production policy, canonical remote Alchemy state, and the installed
+   environment manifest.
+7. Add CLI-only Worker artifact upload independent of Alchemy reconciliation.
+   Publish Worker capability requirements and support direct code and asset
+   deployment through the installed manifest.
+8. Separate the Program artifact from Worker activation, add staged Program
    generations, and support compatible Program-only deployment.
-8. Add exact application record and media replacement, atomic generation
+9. Add exact application record and media replacement, atomic generation
    activation, maintenance mode, rollback retention, and stage-specific force
    semantics.
-9. Replace complete-state `push` behavior with normal `deploy`, explicit
-   resource and stage commands, and the composite nuclear environment
-   replacement workflow. Then expose environment inspect and destroy workflows.
-10. Define the server-side deployment runner contract needed by browser
-   onboarding and CI.
-11. Design and implement the first named publication capability separately,
+10. Add normal `deploy`, explicit resource and stage commands, and the composite
+   nuclear environment replacement workflow on the parallel CLI pipeline. Add
+   environment inspect and destroy without routing through `push`.
+11. Adopt preview environments, then `dev`, then production. Enforce one
+   pipeline owner per environment, verify cutover criteria, and remove
+   complete-state `push`, schema-owned deployment records, and obsolete Deploy
+   package contracts after the observation period.
+12. Design and implement the first named publication capability separately,
    likely Site content and referenced public media.
-12. Add lifecycle expiry, cleanup reconciliation, and optional branded preview
+13. Add lifecycle expiry, cleanup reconciliation, and optional branded preview
    domains.
+14. Define the trusted server-side deployment runner and browser orchestration
+   only after CLI operations and receipts are proven. Browser work consumes the
+   same use cases and does not restore browser-owned deployment state.
 
 The recommended first proposal is the stable recovery snapshot ABI. It owns one
 coherent safety outcome without changing deployment semantics:
