@@ -193,6 +193,21 @@ without forcing private auth state into reviewable storage.
   control-plane records
 - AND private auth state remains excluded from each of those boundaries
 
+#### Scenario: Recovery retains reviewable identity outside replaceable data
+
+- GIVEN a recovery snapshot captures replaceable Program state before
+  deployment or exact replacement
+- WHEN the remote runtime classifies Program records for recovery
+- THEN every active or tombstoned identity-control-plane record is retained
+  security scope and is absent from the replaceable native payload
+- AND the recovery header explicitly identifies retained security scope as
+  excluded
+- AND classification uses identity-control-plane stable entity identities
+  rather than display labels or coincidental entity names
+- AND portable archives, workspace state, management snapshots, sync, and the
+  browser replica continue carrying reviewable identity records through their
+  existing Program data-movement contracts
+
 #### Scenario: Removed app identity facts are not current Program state
 
 - GIVEN stored Program history contains app registrations, app role records,

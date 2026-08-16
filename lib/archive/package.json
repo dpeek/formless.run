@@ -11,7 +11,9 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./node": "./src/node.ts"
+    "./node": "./src/node.ts",
+    "./recovery": "./src/recovery.ts",
+    "./recovery/node": "./src/recovery-node.ts"
   },
   "publishConfig": {
     "exports": {
@@ -22,13 +24,21 @@
       "./node": {
         "types": "./dist/node.d.mts",
         "import": "./dist/node.mjs"
+      },
+      "./recovery": {
+        "types": "./dist/recovery.d.mts",
+        "import": "./dist/recovery.mjs"
+      },
+      "./recovery/node": {
+        "types": "./dist/recovery-node.d.mts",
+        "import": "./dist/recovery-node.mjs"
       }
     },
     "access": "public"
   },
   "scripts": {
     "check": "vp check --fix && vp test --configLoader runner",
-    "pack": "vp pack src/index.ts src/node.ts"
+    "pack": "vp pack src/index.ts src/node.ts src/recovery.ts src/recovery-node.ts"
   },
   "dependencies": {
     "@dpeek/formless-media": "workspace:*",

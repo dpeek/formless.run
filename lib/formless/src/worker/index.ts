@@ -10,6 +10,7 @@ import {
 } from "../shared/program-storage-identity.ts";
 import { handleInstanceArchiveApiRequest } from "./archive-api.ts";
 import { authorizeInstanceWrite, authorizeProgramAccess } from "./authority-admin-guard.ts";
+import { handleRecoveryApiRequest } from "./recovery-api.ts";
 import { handleClientAssetRequest, handleClientShellDocumentRequest } from "./client-shell.ts";
 import { handleDeployMetadataRequest } from "./deploy-metadata.ts";
 import {
@@ -188,6 +189,12 @@ export default {
 
     if (deployMetadataResponse) {
       return deployMetadataResponse;
+    }
+
+    const recoveryResponse = await handleRecoveryApiRequest(request, env);
+
+    if (recoveryResponse) {
+      return recoveryResponse;
     }
 
     const archiveResponse = await handleInstanceArchiveApiRequest(

@@ -92,6 +92,10 @@ import {
   randomizedProgramSyncSocketExpiry,
 } from "./program-sync-renewal.ts";
 import { ARCHIVE_RESTORE_CONFLICT_CODE } from "./archive-restore-protocol.ts";
+import {
+  RECOVERY_PROGRAM_SOURCE_INTERNAL_PATH,
+  handleRecoveryProgramSourceDurableObjectRequest,
+} from "./recovery-source.ts";
 
 const COMMITTED_WRITE_BROADCAST_DELAY_MS = 100;
 
@@ -126,10 +130,20 @@ export class FormlessAuthority extends DurableObject<Env> {
       } catch (error) {
         if (
           !(error instanceof ActiveSchemaRefreshBlockedError) ||
-          parseAuthorityApiRoute(url.pathname) === undefined
+          (parseAuthorityApiRoute(url.pathname) === undefined &&
+            url.pathname !== RECOVERY_PROGRAM_SOURCE_INTERNAL_PATH)
         ) {
           throw error;
         }
+      }
+
+      const recoveryProgramSourceResponse = handleRecoveryProgramSourceDurableObjectRequest(
+        request,
+        this.ctx.storage,
+      );
+
+      if (recoveryProgramSourceResponse) {
+        return recoveryProgramSourceResponse;
       }
     }
 

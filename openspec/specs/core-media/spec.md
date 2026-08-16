@@ -227,3 +227,16 @@ capabilities.
   media flow as public documents and images
 - AND runtime private access policy does not encrypt, redact, or make a
   reviewable workspace or archive payload safe for a public repository
+
+#### Scenario: Recovery captures all application media
+
+- GIVEN a remote instance has application media under its core image or Program
+  document namespaces
+- WHEN a recovery snapshot is captured
+- THEN every extant media object participates whether referenced or unreferenced
+- AND public and private media preserve exact provider key, content type,
+  fidelity metadata, byte length, and payload bytes
+- AND each media payload is streamed and covered by payload and whole-snapshot
+  integrity evidence without buffering the complete recovery snapshot
+- AND this fidelity-first recovery behavior does not change the referenced-media
+  selection used by portable archives or workspace source

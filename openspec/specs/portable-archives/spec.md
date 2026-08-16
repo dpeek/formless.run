@@ -65,6 +65,22 @@ The system SHALL expose one Instance archive API vocabulary.
 - AND local directory adapters use corresponding Instance archive names
 - AND the package does not expose a second alias family for the same envelope
 
+#### Scenario: Recovery snapshots are not portable archives
+
+- GIVEN recovery capture needs to preserve remote payload bytes whose Program,
+  payload, archive, or Formless version may be unknown locally
+- WHEN recovery contracts frame and verify those bytes
+- THEN the result is a recovery snapshot rather than an `InstanceArchive`
+- AND recovery contracts are exposed through
+  `@dpeek/formless-archive/recovery` and
+  `@dpeek/formless-archive/recovery/node`
+- AND recovery capture does not call `parseInstanceArchive`,
+  `formatInstanceArchive`, current archive directory IO, restore planning, or
+  archive media-reference discovery
+- AND accepting an opaque recovery payload does not relax current portable
+  archive kind, version, schema, provenance, record, reference, or media
+  validation
+
 ### Requirement: Export Latest Archive Format
 
 The system SHALL write instance archives using the latest supported archive

@@ -177,6 +177,27 @@ export function authorizeAdminWrite(
   };
 }
 
+export function authorizeAdminBearer(
+  request: Request,
+  env: AuthorityAdminGuardEnv,
+  error = "Admin bearer authorization is required for this endpoint.",
+): AuthorityAdminGuardResult {
+  const adminToken = normalizedAdminToken(env.FORMLESS_ADMIN_TOKEN);
+
+  if (adminToken && requestAdminToken(request) === adminToken) {
+    return { authorized: true };
+  }
+
+  return {
+    authorized: false,
+    error,
+    headers: {
+      "WWW-Authenticate": 'Bearer realm="formless-admin"',
+    },
+    status: 401,
+  };
+}
+
 export async function authorizeInstanceWrite(
   request: Request,
   env: AuthorityAdminGuardEnv,
