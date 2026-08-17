@@ -1,14 +1,15 @@
 # Deployment
 
-Last updated: 2026-08-16
+Last updated: 2026-08-17
 
 Purpose: design a reliable CLI-first deployment model for one resolved Formless
 target without coupling provider resources, Worker code, Program definitions,
 records, media, and security state into one synchronization operation.
 
-This is not shipped behavior. Shipped behavior lives in
-`openspec/specs/*/spec.md`. This document should inform multiple Git-backed
-changes before accepted behavior moves into canonical specs.
+This document is design context, not the source of shipped behavior. Accepted
+behavior, including the stable recovery snapshot ABI, lives in
+`openspec/specs/*/spec.md`. The remaining design should inform multiple
+Git-backed changes before accepted behavior moves into canonical specs.
 
 Environment identity, route topology, custom domains, email capabilities,
 branch lifecycle, and future browser onboarding live in
@@ -500,35 +501,44 @@ tests are removed. No compatibility aliases remain.
 
 ## Change Sequence
 
-1. Add the isolated recovery contracts, stable Worker discovery and snapshot
+1. Landed: isolated recovery contracts, stable Worker discovery and snapshot
    ABI, and opaque CLI capture.
-2. Add runtime-neutral target, artifact, capability, installed-manifest,
-   generation, plan, and receipt contracts.
+2. Add runtime-neutral target, Worker artifact, capability,
+   installed-manifest, plan, evidence, and receipt contracts. Reuse the shared
+   target contract from recovery capture without adding provider execution.
 3. Add CLI-only resource deployment and canonical remote provider state.
-4. Add direct Worker code and asset deployment through the installed manifest.
-5. Define the security plane and owner-continuity closure, initially through
-   stable scope classification and ultimately through storage separation.
-6. Separate the Program artifact from Worker activation and add staged Program
-   generations.
-7. Add exact record and media replacement, maintenance mode, atomic activation,
+4. Separate the Program artifact from the Worker build and activation path so
+   the Worker resolves an independently installed Authority artifact.
+5. Add direct Worker code and asset deployment through the installed manifest.
+6. Define the security plane and owner-continuity closure, building from stable
+   retained-scope classification toward storage separation.
+7. Add Program-only deployment and staged Program generations.
+8. Add exact record and media replacement, maintenance mode, atomic activation,
    rollback retention, and force policy.
-8. Add normal deploy, explicit stage commands, target inspect and destroy, and
+9. Add normal deploy, explicit stage commands, target inspect and destroy, and
    composite exact replacement on the parallel CLI pipeline.
-9. Adopt preview, development, and production targets in order; enforce one
+10. Adopt preview, development, and production targets in order; enforce one
    pipeline owner; then remove `push` and obsolete contracts.
-10. Define a trusted hosted runner and browser orchestration only after the CLI
+11. Define a trusted hosted runner and browser orchestration only after the CLI
     operations and receipts are proven.
 
-The recommended first change is the stable recovery snapshot ABI. The second is
-direct Worker deployment through an installed manifest. Together they provide
-safe capture and the most frequent deployment path before Program generation
-replacement is complete.
+The stable recovery snapshot ABI is landed. The recommended next change is the
+runtime-neutral deployment contract foundation. It establishes the shared
+target and installed-manifest vocabulary required by resource deployment and
+recovery without extending the legacy Deploy package.
+
+Direct Worker deployment follows only after resource deployment can publish an
+installed manifest and the Program artifact no longer depends on Worker build
+injection. That ordering lets Worker upload preserve the active Program,
+records, media, security state, provider resources, and Alchemy state.
 
 ## Open Decisions
 
-- Choose the permanent recovery discovery path and transport format.
-- Define the minimum stable outer envelope and large-media streaming behavior.
-- Define security-scope classification before physical separation.
+- Define the exact versioned Worker artifact and binding-capability vocabulary.
+- Define canonical storage and references for installed manifests and remote
+  provider state.
+- Define physical security-plane separation and migration from the currently
+  classified retained scopes.
 - Decide prior-generation retention and garbage collection.
 - Decide whether disposable targets may explicitly skip replacement snapshots.
 - Define how each provider preserves bindings during direct Worker upload.
