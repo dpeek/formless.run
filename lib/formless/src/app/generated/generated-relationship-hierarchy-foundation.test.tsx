@@ -36,6 +36,7 @@ import {
   selectGeneratedRelationshipHierarchyFoundation,
   type GeneratedRelationshipHierarchyFoundation,
 } from "./generated-relationship-hierarchy-foundation.ts";
+import { generatedRecordLinkResolutionOptions } from "./record-link-resolution.ts";
 import {
   useGeneratedWorkspaceRuntimeController,
   type GeneratedWorkspaceRuntimeController,
@@ -305,6 +306,40 @@ describe("generated selected-record relationship hierarchy", () => {
     }
     expect(root.operationByControlId.size).toBe(root.operations.length);
     expect(primaryDesigner.operationByControlId.size).toBe(primaryDesigner.operations.length);
+  });
+
+  it("projects a COA primary-Test vial image as an absolute hierarchy record-link value", () => {
+    const schema = relationshipHierarchySchema({ withMediaHref: true });
+    const records = hierarchyProjectionRecords().map((record) => {
+      if (record.id === "rec_card_premium") {
+        return {
+          ...record,
+          values: { ...record.values, primaryTest: "rec_rate_premium_designer" },
+        };
+      }
+      if (record.id === "rec_rate_premium_designer") {
+        return {
+          ...record,
+          values: { ...record.values, vialImageAssetId: "vial-image.webp" },
+        };
+      }
+      return record;
+    });
+    const foundation = selectHierarchyFoundation(
+      schema,
+      records,
+      "rec_card_premium",
+      {},
+      undefined,
+      generatedRecordLinkResolutionOptions("https://instance.example"),
+    );
+    const links = hierarchyLinkActions(foundation.runtimePlan.root.contract);
+
+    expect(links.find(({ link }) => link.label === "Generate COA")?.link).toMatchObject({
+      availability: "available",
+      href: "https://builder.example/generate?sampleImageUrl=https%3A%2F%2Finstance.example%2Fapi%2Fformless%2Fmedia%2Fmedia%2Fimages%2Fvial-image.webp",
+      target: "newTab",
+    });
   });
 
   it("projects only explicit enabled operations with occurrence-scoped canonical state", () => {
@@ -1304,12 +1339,16 @@ function selectHierarchyFoundation(
   recordResultOptions?: Parameters<
     typeof selectGeneratedRelationshipHierarchyFoundation
   >[0]["recordResultOptions"],
+  recordLinkOptions?: Parameters<
+    typeof selectGeneratedRelationshipHierarchyFoundation
+  >[0]["recordLinkOptions"],
 ) {
   return selectGeneratedRelationshipHierarchyFoundation({
     id: "hierarchy:rate-card",
     model: hierarchyModel(schema),
     queryContext: { today: "2026-08-11" },
     recordResultOptions,
+    recordLinkOptions,
     recordStateByResultId,
     selectedRecordId,
     snapshot: projectionSnapshot(records),
@@ -1610,11 +1649,13 @@ function relationshipHierarchySchema({
   rootOnly = false,
   withCommandInput = false,
   withDocumentMedia = false,
+  withMediaHref = false,
   withTransitionDateInput = false,
 }: {
   rootOnly?: boolean;
   withCommandInput?: boolean;
   withDocumentMedia?: boolean;
+  withMediaHref?: boolean;
   withTransitionDateInput?: boolean;
 } = {}): AppSchema {
   const setup = required(rateSourceSchema.screens.find((screen) => screen.key === "rateSetup"));
@@ -1638,6 +1679,33 @@ function relationshipHierarchySchema({
           query: [{ name: "name", source: { kind: "field", field: "name" } }],
         },
       },
+      ...(withMediaHref
+        ? [
+            {
+              key: "generateCoa",
+              label: "Generate COA",
+              target: "newTab" as const,
+              destination: {
+                type: "url" as const,
+                base: "https://builder.example/generate",
+                query: [
+                  {
+                    name: "sampleImageUrl",
+                    missing: "disable" as const,
+                    source: {
+                      kind: "mediaHref" as const,
+                      value: {
+                        kind: "referenceField" as const,
+                        referenceField: "primaryTest",
+                        field: "vialImageAssetId",
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          ]
+        : []),
     ],
     operations: [{ operation: "card.delete", label: "Remove card" }],
     relationships: [
@@ -1722,23 +1790,36 @@ function relationshipHierarchySchema({
         if (entity.key === "card") {
           return {
             ...entity,
-            fields: withDocumentMedia
-              ? [
-                  ...entity.fields,
-                  {
-                    key: "cardDocumentAssetId",
-                    label: "Card document",
-                    required: false,
-                    type: "text" as const,
-                    asset: {
-                      kind: "document" as const,
-                      acceptedMimeTypes: ["application/pdf"],
-                      maxBytes: 4 * 1024 * 1024,
-                      access: "private" as const,
+            fields: [
+              ...entity.fields,
+              ...(withDocumentMedia
+                ? [
+                    {
+                      key: "cardDocumentAssetId",
+                      label: "Card document",
+                      required: false,
+                      type: "text" as const,
+                      asset: {
+                        kind: "document" as const,
+                        acceptedMimeTypes: ["application/pdf"],
+                        maxBytes: 4 * 1024 * 1024,
+                        access: "private" as const,
+                      },
                     },
-                  },
-                ]
-              : entity.fields,
+                  ]
+                : []),
+              ...(withMediaHref
+                ? [
+                    {
+                      key: "primaryTest",
+                      label: "Primary test",
+                      required: false,
+                      to: "rate",
+                      type: "reference" as const,
+                    },
+                  ]
+                : []),
+            ],
             operations: [
               ...(entity.operations ?? []),
               {
@@ -1756,6 +1837,16 @@ function relationshipHierarchySchema({
             ...entity,
             fields: [
               ...entity.fields,
+              ...(withMediaHref
+                ? [
+                    {
+                      key: "vialImageAssetId",
+                      label: "Vial image asset id",
+                      required: false,
+                      type: "text" as const,
+                    },
+                  ]
+                : []),
               {
                 key: "externalId",
                 label: "External id",

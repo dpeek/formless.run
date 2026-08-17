@@ -2,6 +2,7 @@ import type {
   EntitySchema,
   FieldValue,
   KeyedDefinition,
+  RecordLinkFieldValueSourceSchema,
   RecordLinkMissingBehavior,
   RecordLinkQueryParameterSchema,
   RecordLinkSchema,
@@ -28,6 +29,10 @@ export type RecordLinkResolution =
       kind: "unavailable";
       reason: string;
     };
+
+export type RecordLinkResolutionOptions = {
+  mediaHrefForAssetId?: (assetId: string) => string | undefined;
+};
 
 const unavailableReason = "Link destination is unavailable.";
 
@@ -221,6 +226,39 @@ function parseRecordLinkValueSource(
     return { kind: "literal", value: value.value };
   }
 
+  if (value.kind === "mediaHref") {
+    assertExactKeys(context, value, ["kind", "value"]);
+    if (!isRecord(value.value)) {
+      throw new Error(`${context} value must be an object.`);
+    }
+    return {
+      kind: "mediaHref",
+      value: parseRecordLinkFieldValueSource(
+        `${context} value`,
+        value.value,
+        entityName,
+        entity,
+        entities,
+        true,
+      ),
+    };
+  }
+
+  if (value.kind === "field" || value.kind === "referenceField") {
+    return parseRecordLinkFieldValueSource(context, value, entityName, entity, entities, false);
+  }
+
+  throw new Error(`${context} kind must be "literal", "field", "referenceField", or "mediaHref".`);
+}
+
+function parseRecordLinkFieldValueSource(
+  context: string,
+  value: Record<string, unknown>,
+  entityName: string,
+  entity: EntitySchema,
+  entities: Record<string, EntitySchema>,
+  requireText: boolean,
+): RecordLinkFieldValueSourceSchema {
   if (value.kind === "field") {
     assertExactKeys(context, value, ["kind", "field"]);
     const fieldName = parseRequiredNonEmptyString(`${context} field`, value.field);
@@ -231,6 +269,11 @@ function parseRecordLinkValueSource(
     if (field.type === "reference") {
       throw new Error(
         `${context} field "${entityName}.${fieldName}" must be a scalar value field.`,
+      );
+    }
+    if (requireText && field.type !== "text") {
+      throw new Error(
+        `${context} field "${entityName}.${fieldName}" must be a text field containing a core image asset id.`,
       );
     }
     return { kind: "field", field: fieldName };
@@ -282,6 +325,11 @@ function parseRecordLinkValueSource(
         `${context} field "${referenceField.to}.${fieldName}" must be a scalar value field.`,
       );
     }
+    if (requireText && field.type !== "text") {
+      throw new Error(
+        `${context} field "${referenceField.to}.${fieldName}" must be a text field containing a core image asset id.`,
+      );
+    }
 
     return {
       kind: "referenceField",
@@ -291,18 +339,19 @@ function parseRecordLinkValueSource(
     };
   }
 
-  throw new Error(`${context} kind must be "literal", "field", or "referenceField".`);
+  throw new Error(`${context} kind must be "field" or "referenceField".`);
 }
 
 export function resolveRecordLink(
   link: RecordLinkSchema,
   record: StoredRecord,
   recordsById: Readonly<Record<string, StoredRecord>>,
+  options: RecordLinkResolutionOptions = {},
 ): RecordLinkResolution {
   const url = new URL(link.destination.base);
 
   for (const parameter of link.destination.query) {
-    const result = resolveRecordLinkValue(parameter.source, record, recordsById);
+    const result = resolveRecordLinkValue(parameter.source, record, recordsById, options);
     if (result.kind === "invalid") {
       return { kind: "unavailable", reason: unavailableReason };
     }
@@ -328,6 +377,7 @@ function resolveRecordLinkValue(
   source: RecordLinkValueSourceSchema,
   record: StoredRecord,
   recordsById: Readonly<Record<string, StoredRecord>>,
+  options: RecordLinkResolutionOptions,
 ): RecordLinkValueResolution {
   if (source.kind === "literal") {
     return resolveRuntimeScalar(source.value);
@@ -335,6 +385,19 @@ function resolveRecordLinkValue(
 
   if (source.kind === "field") {
     return resolveRuntimeScalar(record.values[source.field]);
+  }
+
+  if (source.kind === "mediaHref") {
+    const assetId = resolveRecordLinkValue(source.value, record, recordsById, options);
+    if (assetId.kind !== "value") {
+      return assetId;
+    }
+    if (typeof assetId.value !== "string") {
+      return { kind: "invalid" };
+    }
+
+    const href = options.mediaHrefForAssetId?.(assetId.value);
+    return href === undefined ? { kind: "missing" } : resolveRuntimeScalar(href);
   }
 
   const referenceId = record.values[source.referenceField];

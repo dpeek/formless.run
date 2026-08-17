@@ -381,6 +381,34 @@ export function coreImageMediaDeliveryFactsForAssetId(
   });
 }
 
+export function coreImageMediaDeliveryHrefForAssetId(
+  assetId: string,
+  origin: string,
+): string | undefined {
+  const delivery = coreImageMediaDeliveryFactsForAssetId(assetId);
+  if (delivery === undefined) {
+    return undefined;
+  }
+
+  let base: URL;
+  try {
+    base = new URL(origin);
+  } catch {
+    return undefined;
+  }
+
+  if (
+    (base.protocol !== "https:" && base.protocol !== "http:") ||
+    base.hostname === "" ||
+    base.username !== "" ||
+    base.password !== ""
+  ) {
+    return undefined;
+  }
+
+  return new URL(delivery.href, base.origin).toString();
+}
+
 export function documentMediaDeliveryFactsForAssetId(
   assetId: string,
   options: {

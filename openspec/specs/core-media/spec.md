@@ -88,6 +88,16 @@ Program media without app-install ownership or package namespaces.
 The system SHALL expose public instance image APIs under `/api/formless/media`
 and Program document APIs under `/api/formless/program/media/documents`.
 
+#### Scenario: Project an absolute core image delivery href
+
+- GIVEN a valid flat core image asset id and the active instance origin
+- WHEN a runtime needs an absolute delivery href for an external destination
+- THEN the Media package derives the canonical core image storage key and
+  public delivery path before resolving that path against the supplied origin
+- AND invalid or unsafe asset ids produce no delivery href
+- AND projection does not look up media metadata, expose the provider storage
+  key, embed image bytes, or hardcode an instance host
+
 #### Scenario: Upload image
 
 - GIVEN a Program editor, administrator, protected owner, or existing trusted

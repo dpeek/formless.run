@@ -806,6 +806,9 @@ strings.
 - AND a `referenceField` source names a declared reference field on the table or
   hierarchy node entity plus a declared non-reference scalar value field on
   that reference's local target entity
+- AND a `mediaHref` source wraps either a `field` or one-hop `referenceField`
+  source whose terminal field is text, treating its runtime value as a core
+  image asset id to be projected through a supplied delivery-href resolver
 - AND the referenced terminal field does not need to appear in the containing
   surface's visible field projection
 - AND unknown fields, system fields, non-scalar terminal fields, incompatible
@@ -833,6 +836,8 @@ strings.
 - WHEN the runtime-neutral Schema package resolver evaluates the destination
 - THEN literal values, direct field values, and one-hop referenced-record field
   values are converted to deterministic scalar query values
+- AND a media-href value is resolved from its flat core image asset id without
+  reading media metadata, image bytes, or provider storage keys
 - AND string, finite number, and boolean values are encoded through standard
   URL query semantics while preserving `0`, `false`, and the empty string
 - AND existing base query parameters retain their order before authored query
@@ -841,6 +846,7 @@ strings.
   and fragments are handled by structured URL construction rather than string
   interpolation
 - AND equal schema, row, and record-map inputs produce the same resolved href
+  when supplied the same delivery-href resolver
 
 #### Scenario: Resolve missing record link inputs
 
@@ -854,6 +860,8 @@ strings.
 - AND an unexpected non-scalar runtime value also makes the destination
   unavailable rather than being stringified as an object or throwing through
   presentation
+- AND a malformed or unsafe media asset id is unavailable and follows the same
+  parameter-level `omit` or `disable` behavior as any missing source value
 - AND link evaluation does not patch a record, persist a denormalized URL,
   fetch the destination, or change browser replica state
 

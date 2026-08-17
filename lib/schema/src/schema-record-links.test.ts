@@ -10,9 +10,47 @@ import {
 
 describe("schema record links", () => {
   it("round-trips parsed reference-field sources through stored schema serialization", () => {
-    const schema = parseAppSchema(recordLinkSource());
+    const source = recordLinkSource();
+    source.tableViews[0]!.links[0]!.destination.query.push(
+      {
+        name: "directImage",
+        source: { kind: "mediaHref", value: { kind: "field", field: "note" } },
+      },
+      {
+        name: "referencedImage",
+        source: {
+          kind: "mediaHref",
+          value: {
+            kind: "referenceField",
+            referenceField: "organization",
+            field: "externalCode",
+          },
+        },
+      },
+    );
+    const schema = parseAppSchema(source);
 
     expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
+    expect(schema.tableViews[0]!.links![0]!.destination.query.slice(-2)).toEqual([
+      {
+        name: "directImage",
+        source: { kind: "mediaHref", value: { kind: "field", field: "note" } },
+        missing: "disable",
+      },
+      {
+        name: "referencedImage",
+        source: {
+          kind: "mediaHref",
+          value: {
+            kind: "referenceField",
+            referenceField: "organization",
+            targetEntity: "organization",
+            field: "externalCode",
+          },
+        },
+        missing: "disable",
+      },
+    ]);
   });
 
   it("parses ordered links, structured destinations, source fields, defaults, and placement", () => {
@@ -129,6 +167,55 @@ describe("schema record links", () => {
   ])("rejects $0 sources", (_case, sourceValue, message) => {
     const source = recordLinkSource();
     source.tableViews[0]!.links[0]!.destination.query = [{ name: "value", source: sourceValue }];
+
+    expect(() => parseAppSchema(source)).toThrow(message);
+  });
+
+  it.each([
+    [
+      "literal asset ids",
+      { kind: "mediaHref", value: { kind: "literal", value: "hero.webp" } },
+      'kind must be "field" or "referenceField"',
+    ],
+    [
+      "non-text direct fields",
+      { kind: "mediaHref", value: { kind: "field", field: "count" } },
+      "must be a text field containing a core image asset id",
+    ],
+    [
+      "non-text referenced fields",
+      {
+        kind: "mediaHref",
+        value: {
+          kind: "referenceField",
+          referenceField: "organization",
+          field: "count",
+        },
+      },
+      "must be a text field containing a core image asset id",
+    ],
+    [
+      "unknown direct fields",
+      { kind: "mediaHref", value: { kind: "field", field: "missing" } },
+      "unknown value field",
+    ],
+    [
+      "second reference hops",
+      {
+        kind: "mediaHref",
+        value: {
+          kind: "referenceField",
+          referenceField: "organization",
+          field: "parent",
+        },
+      },
+      "must be a scalar value field",
+    ],
+  ])("rejects media-href sources with $0", (_case, sourceValue, message) => {
+    const source = recordLinkSource();
+    source.tableViews[0]!.links[0]!.destination.query = [
+      { name: "sampleImageUrl", source: sourceValue },
+    ];
 
     expect(() => parseAppSchema(source)).toThrow(message);
   });
@@ -264,6 +351,79 @@ describe("schema record links", () => {
     });
   });
 
+  it("projects direct and one-hop core image asset ids as encoded absolute query values", () => {
+    const link = parsedLink({
+      base: "https://builder.example/generate?mode=coa",
+      query: [
+        {
+          name: "directImageUrl",
+          source: { kind: "mediaHref", value: { kind: "field", field: "note" } },
+        },
+        {
+          name: "sampleImageUrl",
+          source: {
+            kind: "mediaHref",
+            value: {
+              kind: "referenceField",
+              referenceField: "organization",
+              field: "externalCode",
+            },
+          },
+        },
+      ],
+    });
+    const row = storedRecord("task-1", "task", {
+      note: "direct.webp",
+      organization: "organization-1",
+    });
+    const organization = storedRecord("organization-1", "organization", {
+      externalCode: "vial-image.png",
+    });
+
+    expect(
+      resolveRecordLink(link, row, { [organization.id]: organization }, { mediaHrefForAssetId }),
+    ).toEqual({
+      kind: "available",
+      href: "https://builder.example/generate?mode=coa&directImageUrl=https%3A%2F%2Finstance.example%2Fapi%2Fformless%2Fmedia%2Fmedia%2Fimages%2Fdirect.webp&sampleImageUrl=https%3A%2F%2Finstance.example%2Fapi%2Fformless%2Fmedia%2Fmedia%2Fimages%2Fvial-image.png",
+    });
+  });
+
+  it.each([
+    ["missing direct value", {}, {}, "omit", "available"],
+    ["missing reference", { organization: "organization-1" }, {}, "omit", "available"],
+    ["malformed asset id omitted", { note: "../hero.webp" }, {}, "omit", "available"],
+    ["malformed asset id disables", { note: "../hero.webp" }, {}, "disable", "unavailable"],
+  ])(
+    "applies $3 media-href behavior for $0",
+    (_case, values, recordsById, missing, expectedKind) => {
+      const source =
+        "organization" in values
+          ? {
+              kind: "mediaHref",
+              value: {
+                kind: "referenceField",
+                referenceField: "organization",
+                field: "externalCode",
+              },
+            }
+          : { kind: "mediaHref", value: { kind: "field", field: "note" } };
+      const link = parsedLink({
+        query: [{ name: "sampleImageUrl", source, missing }],
+      });
+      const resolution = resolveRecordLink(
+        link,
+        storedRecord("task-1", "task", values),
+        recordsById,
+        { mediaHrefForAssetId },
+      );
+
+      expect(resolution.kind).toBe(expectedKind);
+      if (resolution.kind === "available") {
+        expect(resolution.href).toBe("https://example.test/open?existing=first#details");
+      }
+    },
+  );
+
   it.each([
     ["absent", {}],
     [
@@ -367,6 +527,7 @@ function recordLinkSource(): TestRecordLinkSource {
         fields: [
           { key: "name", type: "text", required: true },
           { key: "externalCode", type: "text", required: false },
+          { key: "count", type: "number", required: false },
           { key: "parent", type: "reference", required: false, to: "organization" },
         ],
       },
@@ -457,4 +618,10 @@ function storedRecord(id: string, entity: string, values: StoredRecord["values"]
     createdAt: "2026-08-03T00:00:00.000Z",
     updatedAt: "2026-08-03T00:00:00.000Z",
   };
+}
+
+function mediaHrefForAssetId(assetId: string): string | undefined {
+  return /^[A-Za-z0-9][A-Za-z0-9._-]*\.(?:gif|jpe?g|png|webp)$/i.test(assetId)
+    ? `https://instance.example/api/formless/media/media/images/${assetId}`
+    : undefined;
 }

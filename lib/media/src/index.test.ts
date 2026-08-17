@@ -7,6 +7,7 @@ import {
   MEDIA_PRIVATE_DOCUMENT_CACHE_CONTROL,
   PROGRAM_DOCUMENT_MEDIA_KEY_PREFIX,
   coreImageMediaDeliveryFactsForAssetId,
+  coreImageMediaDeliveryHrefForAssetId,
   coreMediaHrefForKey,
   coreMediaKeyFromAssetId,
   coreMediaKeyFromHref,
@@ -309,6 +310,22 @@ describe("Media runtime-neutral contract helpers", () => {
       kind: "image",
       storageKey: "media/images/hero.png",
     });
+  });
+
+  it("derives absolute core image delivery hrefs from supplied instance origins", () => {
+    expect(coreImageMediaDeliveryHrefForAssetId("hero.webp", "https://instance.example")).toBe(
+      "https://instance.example/api/formless/media/media/images/hero.webp",
+    );
+    expect(coreImageMediaDeliveryHrefForAssetId("hero.webp", "http://127.0.0.1:8787")).toBe(
+      "http://127.0.0.1:8787/api/formless/media/media/images/hero.webp",
+    );
+    expect(
+      coreImageMediaDeliveryHrefForAssetId("../hero.webp", "https://instance.example"),
+    ).toBeUndefined();
+    expect(
+      coreImageMediaDeliveryHrefForAssetId("hero.webp", "data:text/plain,unsafe"),
+    ).toBeUndefined();
+    expect(coreImageMediaDeliveryHrefForAssetId("hero.webp", "not an origin")).toBeUndefined();
   });
 });
 

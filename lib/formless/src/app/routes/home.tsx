@@ -177,6 +177,7 @@ export function HomeRoute({
         )
       }
       onGeneratedWorkspaceController={onGeneratedWorkspaceController}
+      instanceOrigin={typeof window === "undefined" ? undefined : window.location.origin}
       screen={homeScreen}
       sectionExternalActions={sectionExternalActions}
       today={today}

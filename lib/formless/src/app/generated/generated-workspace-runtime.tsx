@@ -136,6 +136,7 @@ import {
   generatedRecordWriteFailure,
   generatedRecordWriteFailureMessage,
 } from "./generated-write-failure.ts";
+import { generatedRecordLinkResolutionOptions } from "./record-link-resolution.ts";
 
 const GENERATED_TREE_CREATE_FAILURE_MESSAGE = "Create failed. Try again.";
 const GENERATED_RELATIONSHIP_HIERARCHY_CREATE_FAILURE_MESSAGE = "Create failed. Try again.";
@@ -153,6 +154,7 @@ export type GeneratedWorkspaceRuntimeProps = {
   onSelectContext: (section: HomeScreenCollectionSectionModel, recordId: string | null) => void;
   onSelectQuery: (section: HomeScreenCollectionSectionModel, queryName: string) => void;
   onSelectRecord?: (section: HomeScreenCollectionSectionModel, recordId: string | null) => void;
+  instanceOrigin?: string;
   screen: HomeScreenModel;
   sectionExternalActions?: Readonly<
     Record<string, readonly GeneratedWorkspaceSectionExternalAction[] | undefined>
@@ -232,6 +234,7 @@ export function GeneratedWorkspaceRuntimeRegistration({
 export function useGeneratedWorkspaceRuntimeController({
   currentInstant,
   getSectionSelection,
+  instanceOrigin,
   onSelectContext,
   onSelectQuery,
   onSelectRecord,
@@ -246,6 +249,7 @@ export function useGeneratedWorkspaceRuntimeController({
     getClientStoreSnapshot,
   );
   const schema = useSchema();
+  const recordLinkOptions = generatedRecordLinkResolutionOptions(instanceOrigin);
   const [createOpenBySurfaceId, setCreateOpenBySurfaceId] = useState<
     Record<string, boolean | undefined>
   >({});
@@ -307,6 +311,7 @@ export function useGeneratedWorkspaceRuntimeController({
     listStateByResultId,
     recordStateByResultId,
     relationshipHierarchyCreateErrorBySurfaceId,
+    recordLinkOptions,
     schema,
     screen,
     sectionExternalActions,
@@ -334,6 +339,7 @@ export function useGeneratedWorkspaceRuntimeController({
     listStateByResultId,
     recordStateByResultId,
     relationshipHierarchyCreateErrorBySurfaceId,
+    recordLinkOptions,
     schema,
     screen,
     sectionExternalActions,
@@ -2191,6 +2197,7 @@ function selectWorkspaceRuntimeFoundation({
   listStateByResultId,
   recordStateByResultId,
   relationshipHierarchyCreateErrorBySurfaceId,
+  recordLinkOptions,
   schema,
   screen,
   sectionExternalActions,
@@ -2219,6 +2226,7 @@ function selectWorkspaceRuntimeFoundation({
   >;
   recordStateByResultId: Readonly<Record<string, GeneratedRecordResultRecordState | undefined>>;
   relationshipHierarchyCreateErrorBySurfaceId: Readonly<Record<string, string | undefined>>;
+  recordLinkOptions: ReturnType<typeof generatedRecordLinkResolutionOptions>;
   schema: ReturnType<typeof useSchema>;
   screen: HomeScreenModel;
   sectionExternalActions: Readonly<
@@ -2255,6 +2263,7 @@ function selectWorkspaceRuntimeFoundation({
         listStateByResultId,
         recordStateByResultId,
         relationshipHierarchyCreateErrorBySurfaceId,
+        recordLinkOptions,
         schema,
         sectionExternalActions: sectionExternalActions[facts.section.id] ?? [],
         snapshot,
@@ -2330,6 +2339,7 @@ function selectWorkspaceSectionRuntimeInput({
   listStateByResultId,
   recordStateByResultId,
   relationshipHierarchyCreateErrorBySurfaceId,
+  recordLinkOptions,
   schema,
   sectionExternalActions,
   snapshot,
@@ -2355,6 +2365,7 @@ function selectWorkspaceSectionRuntimeInput({
   >;
   recordStateByResultId: Readonly<Record<string, GeneratedRecordResultRecordState | undefined>>;
   relationshipHierarchyCreateErrorBySurfaceId: Readonly<Record<string, string | undefined>>;
+  recordLinkOptions: ReturnType<typeof generatedRecordLinkResolutionOptions>;
   schema: ReturnType<typeof useSchema>;
   sectionExternalActions: readonly GeneratedWorkspaceSectionExternalAction[];
   snapshot: BrowserReplicaProjectionSnapshot;
@@ -2582,6 +2593,7 @@ function selectWorkspaceSectionRuntimeInput({
                       schema,
                     };
                   },
+                  recordLinkOptions,
                   recordStateByResultId,
                 },
               ] as const,
@@ -2640,6 +2652,7 @@ function selectWorkspaceSectionRuntimeInput({
           query: section.query,
           queryContext,
           queryName: section.queryName,
+          recordLinkOptions,
           recordIds,
           recordsById: facts.snapshot.recordsById,
           result: section.result,
@@ -2823,6 +2836,7 @@ function selectWorkspaceSectionRuntimeInput({
       query: facts.selectedQuery.query,
       queryContext: facts.queryContext,
       queryName: facts.selectedQuery.queryName,
+      recordLinkOptions,
       recordIds: facts.recordIds,
       recordsById: facts.snapshot.recordsById,
       result: facts.section.collection.result,

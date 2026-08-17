@@ -465,11 +465,7 @@ export type TableOperationControlAvailabilityState = "visible" | "hidden" | "dis
 export type RecordLinkTarget = "sameTab" | "newTab";
 export type RecordLinkMissingBehavior = "disable" | "omit";
 
-export type RecordLinkValueSourceSchema =
-  | {
-      kind: "literal";
-      value: FieldValue;
-    }
+export type RecordLinkFieldValueSourceSchema =
   | {
       kind: "field";
       field: string;
@@ -481,9 +477,28 @@ export type RecordLinkValueSourceSchema =
       field: string;
     };
 
+export type RecordLinkFieldValueSourceSchemaSource =
+  | Exclude<RecordLinkFieldValueSourceSchema, { kind: "referenceField" }>
+  | Omit<Extract<RecordLinkFieldValueSourceSchema, { kind: "referenceField" }>, "targetEntity">;
+
+export type RecordLinkValueSourceSchema =
+  | {
+      kind: "literal";
+      value: FieldValue;
+    }
+  | RecordLinkFieldValueSourceSchema
+  | {
+      kind: "mediaHref";
+      value: RecordLinkFieldValueSourceSchema;
+    };
+
 export type RecordLinkValueSourceSchemaSource =
-  | Exclude<RecordLinkValueSourceSchema, { kind: "referenceField" }>
-  | Omit<Extract<RecordLinkValueSourceSchema, { kind: "referenceField" }>, "targetEntity">;
+  | Extract<RecordLinkValueSourceSchema, { kind: "literal" }>
+  | RecordLinkFieldValueSourceSchemaSource
+  | {
+      kind: "mediaHref";
+      value: RecordLinkFieldValueSourceSchemaSource;
+    };
 
 export type RecordLinkQueryParameterSchema = {
   name: string;

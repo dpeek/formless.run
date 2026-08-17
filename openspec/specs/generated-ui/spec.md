@@ -1650,6 +1650,10 @@ reference resolution, structured URL construction, and availability.
 - WHEN generated runtime prepares the link for the Formless Renderer
 - THEN it resolves the destination from the current record and current browser
   replica record map before crossing the presentation boundary
+- AND media-href query values are projected through the canonical core-image
+  delivery helpers using the active instance origin supplied by generated
+  runtime, producing absolute instance URLs without reading `window.location`
+  inside the runtime-neutral record-link resolver
 - AND the projected link carries stable occurrence identity, visible and
   accessible labels, semantic prominence, `sameTab` or `newTab` target, and
   available or unavailable destination state

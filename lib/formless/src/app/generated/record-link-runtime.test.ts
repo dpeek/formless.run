@@ -11,6 +11,7 @@ import { selectTableResultModel } from "../../client/table-model.ts";
 import { createGeneratedOperationController } from "../../client/views.ts";
 import { sourceLikeSiteSchema } from "../../test/schema-builders.ts";
 import { selectGeneratedWorkspaceTableFoundation } from "./generated-table-foundation.tsx";
+import { generatedRecordLinkResolutionOptions } from "./record-link-resolution.ts";
 
 describe("generated table record links", () => {
   it("resolves row-scoped direct and referenced values without entering operation intents", () => {
@@ -44,6 +45,19 @@ describe("generated table record links", () => {
                   referenceField: "block",
                   targetEntity: "block",
                   field: "href",
+                },
+                missing: "disable",
+              },
+              {
+                name: "sampleImageUrl",
+                source: {
+                  kind: "mediaHref",
+                  value: {
+                    kind: "referenceField",
+                    referenceField: "block",
+                    targetEntity: "block",
+                    field: "mediaAssetId",
+                  },
                 },
                 missing: "disable",
               },
@@ -87,6 +101,7 @@ describe("generated table record links", () => {
     const block = storedRecord("block-1", "block", {
       href: "/hello?x=1",
       label: "Hello",
+      mediaAssetId: "vial-image.webp",
       type: "page",
     });
     const availablePlacement = storedRecord("placement-1", entityName, {
@@ -115,6 +130,7 @@ describe("generated table record links", () => {
       id: "placements:table",
       query: { kind: "all" },
       queryName: "placements",
+      recordLinkOptions: generatedRecordLinkResolutionOptions("https://instance.example"),
       recordIds: [availablePlacement.id, unavailablePlacement.id],
       recordsById,
       result,
@@ -140,7 +156,7 @@ describe("generated table record links", () => {
     expect(available).toEqual({
       accessibilityLabel: "Open block for Hero & main",
       availability: "available",
-      href: "https://example.test/open?source=table&order=0&label=Hero+%26+main&href=%2Fhello%3Fx%3D1",
+      href: "https://example.test/open?source=table&order=0&label=Hero+%26+main&href=%2Fhello%3Fx%3D1&sampleImageUrl=https%3A%2F%2Finstance.example%2Fapi%2Fformless%2Fmedia%2Fmedia%2Fimages%2Fvial-image.webp",
       id: "placement-1:linkControl:openBlock:link",
       kind: "nativeLinkAction",
       label: "Open block",

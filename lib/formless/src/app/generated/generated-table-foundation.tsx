@@ -19,6 +19,7 @@ import {
   type AppSchema,
   type EntitySchema,
   type QueryEvaluationContext,
+  type RecordLinkResolutionOptions,
 } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import { createAggregateValueMatchingQuerySelector } from "../../client/projections.ts";
@@ -162,6 +163,7 @@ export type SelectGeneratedWorkspaceTableFoundationOptions = {
   query: HomeQueryTabConfig["query"];
   queryContext?: QueryEvaluationContext;
   queryName: string;
+  recordLinkOptions?: RecordLinkResolutionOptions;
   recordIds: readonly string[];
   recordsById: Readonly<Record<string, StoredRecord>>;
   result: TableCollectionResultModel;
@@ -183,6 +185,7 @@ export function selectGeneratedWorkspaceTableFoundation({
   query,
   queryContext,
   queryName,
+  recordLinkOptions = {},
   recordIds,
   recordsById,
   result,
@@ -223,6 +226,7 @@ export function selectGeneratedWorkspaceTableFoundation({
     presentation,
     query,
     queryContext,
+    recordLinkOptions,
     recordsById,
     result,
     runtimePlan,
@@ -247,6 +251,7 @@ export function projectGeneratedRecordTable({
   presentation,
   query,
   queryContext,
+  recordLinkOptions,
   recordsById,
   result,
   runtimePlan,
@@ -266,6 +271,7 @@ export function projectGeneratedRecordTable({
   presentation: GeneratedTablePresentation;
   query: HomeQueryTabConfig["query"];
   queryContext?: QueryEvaluationContext;
+  recordLinkOptions: RecordLinkResolutionOptions;
   recordsById: Readonly<Record<string, StoredRecord>>;
   result: TableCollectionResultModel;
   runtimePlan: GeneratedTableRuntimePlan;
@@ -300,6 +306,7 @@ export function projectGeneratedRecordTable({
             editStateByContextId,
             mediaAssetOptionsForField,
             record,
+            recordLinkOptions,
             recordsById,
             runtimePlan,
             schema,
@@ -497,6 +504,7 @@ function projectGeneratedTableCell({
   editStateByContextId,
   mediaAssetOptionsForField,
   record,
+  recordLinkOptions,
   recordsById,
   runtimePlan,
   schema,
@@ -514,6 +522,7 @@ function projectGeneratedTableCell({
   editStateByContextId: Readonly<Record<string, GeneratedTableEditContextState | undefined>>;
   mediaAssetOptionsForField: (entityName: string, fieldName: string) => readonly MediaAssetOption[];
   record: StoredRecord;
+  recordLinkOptions: RecordLinkResolutionOptions;
   recordsById: Readonly<Record<string, StoredRecord>>;
   runtimePlan: GeneratedTableRuntimePlan;
   schema: AppSchema | null;
@@ -604,7 +613,7 @@ function projectGeneratedTableCell({
       accessibilityLabel: `${column.link.label} for ${recordLabel(record, entityLabel, record.id)}`,
       id: `${cell.id}:link`,
       label: column.link.label,
-      resolution: resolveRecordLink(column.link, record, recordsById),
+      resolution: resolveRecordLink(column.link, record, recordsById, recordLinkOptions),
       target: column.link.target,
     });
 

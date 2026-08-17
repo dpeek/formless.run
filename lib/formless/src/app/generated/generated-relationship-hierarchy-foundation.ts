@@ -15,6 +15,7 @@ import {
   resolveRecordLink,
   type AppSchema,
   type QueryEvaluationContext,
+  type RecordLinkResolutionOptions,
 } from "@dpeek/formless-schema";
 import type { StoredRecord } from "@dpeek/formless-storage";
 import type { BrowserReplicaProjectionSnapshot } from "../../client/projections.ts";
@@ -87,6 +88,7 @@ export type GeneratedRelationshipHierarchyFoundationInput = {
   recordResultOptions?: (
     node: HomeSelectedRecordRelationshipHierarchyNodeConfig,
   ) => GeneratedRelationshipHierarchyRecordResultOptions;
+  recordLinkOptions?: RecordLinkResolutionOptions;
   recordStateByResultId?: Readonly<Record<string, GeneratedRecordResultRecordState | undefined>>;
 };
 
@@ -188,6 +190,7 @@ export function selectGeneratedRelationshipHierarchyFoundation({
   model,
   queryContext,
   recordResultOptions,
+  recordLinkOptions = {},
   recordStateByResultId = {},
   selectedRecordId,
   snapshot,
@@ -205,6 +208,7 @@ export function selectGeneratedRelationshipHierarchyFoundation({
     occurrenceId: generatedRelationshipHierarchyRootOccurrenceId(id, selectedRecordId),
     recordId: selectedRecordId,
     recordResultOptions,
+    recordLinkOptions,
     recordStateByResultId,
     queryContext,
     snapshot,
@@ -336,6 +340,7 @@ function selectGeneratedRelationshipHierarchyNode({
   occurrenceId,
   recordId,
   recordResultOptions,
+  recordLinkOptions,
   recordStateByResultId,
   queryContext,
   snapshot,
@@ -349,6 +354,7 @@ function selectGeneratedRelationshipHierarchyNode({
   occurrenceId: string;
   recordId: string;
   recordResultOptions?: GeneratedRelationshipHierarchyFoundationInput["recordResultOptions"];
+  recordLinkOptions: RecordLinkResolutionOptions;
   recordStateByResultId: NonNullable<
     GeneratedRelationshipHierarchyFoundationInput["recordStateByResultId"]
   >;
@@ -394,7 +400,7 @@ function selectGeneratedRelationshipHierarchyNode({
             id: generatedRelationshipHierarchyLinkId(occurrenceId, link.key),
             label: link.label,
             prominence: "secondary",
-            resolution: resolveRecordLink(link, record, snapshot.recordsById),
+            resolution: resolveRecordLink(link, record, snapshot.recordsById, recordLinkOptions),
             target: link.target,
           }),
         }));
@@ -456,6 +462,7 @@ function selectGeneratedRelationshipHierarchyNode({
       parentRecordId: recordId,
       queryContext,
       recordResultOptions,
+      recordLinkOptions,
       recordStateByResultId,
       relationship,
       snapshot,
@@ -748,6 +755,7 @@ function selectGeneratedRelationshipHierarchyChildren({
   parentRecordId,
   queryContext,
   recordResultOptions,
+  recordLinkOptions,
   recordStateByResultId,
   relationship,
   snapshot,
@@ -761,6 +769,7 @@ function selectGeneratedRelationshipHierarchyChildren({
   parentRecordId: string;
   queryContext: QueryEvaluationContext;
   recordResultOptions?: GeneratedRelationshipHierarchyFoundationInput["recordResultOptions"];
+  recordLinkOptions: RecordLinkResolutionOptions;
   recordStateByResultId: NonNullable<
     GeneratedRelationshipHierarchyFoundationInput["recordStateByResultId"]
   >;
@@ -794,6 +803,7 @@ function selectGeneratedRelationshipHierarchyChildren({
       ),
       recordId: record.id,
       recordResultOptions,
+      recordLinkOptions,
       recordStateByResultId,
       queryContext,
       snapshot,
