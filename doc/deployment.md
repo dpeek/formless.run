@@ -3,109 +3,116 @@
 Last updated: 2026-08-17
 
 Purpose: design a reliable CLI-first deployment model for one resolved Formless
-target without coupling provider resources, Worker code, Program definitions,
-records, media, and security state into one synchronization operation.
+target. Alchemy remains the single provider reconciler and durable provider-state
+owner. Recovery, Program activation, and data replacement remain separate from
+provider deployment because they operate on different state and safety boundaries.
 
 This document is design context, not the source of shipped behavior. Accepted
-behavior, including the stable recovery snapshot ABI, lives in
-`openspec/specs/*/spec.md`. The remaining design should inform multiple
-Git-backed changes before accepted behavior moves into canonical specs.
+behavior, including the stable recovery snapshot ABI and current Alchemy-owned
+deployment runtime, lives in `openspec/specs/*/spec.md`. Remaining design should
+inform focused Git-backed changes before accepted behavior moves into canonical
+specs.
 
 Environment identity, route topology, custom domains, email capabilities,
 branch lifecycle, and future browser onboarding live in
-[`environments.md`](./environments.md). That design resolves an environment into
-the deployment target consumed here.
+[`environments.md`](./environments.md). Environment resolution supplies the
+explicit target and private Alchemy execution context consumed here.
 
 ## Decision Summary
 
-- Recovery snapshot, resource deployment, Worker deployment, Program
-  deployment, and data replacement are independent operations.
+- Alchemy is the only provider deployment engine. Formless does not implement a
+  second resource diff, direct Worker uploader, or installed-resource model.
+- Every provider deployment evaluates the complete Alchemy declaration for one
+  stable app, stage, and remote state scope.
+- Alchemy skips unchanged resources, reconciles changed resources, removes
+  omitted tracked resources during finalization, and updates the Worker.
+- A code-only change uses the same Alchemy run. Infrastructure declarations are
+  unchanged, so only the Worker bundle and assets change.
+- Worker bindings are supplied directly from resources declared in the same
+  Alchemy program. Formless does not persist a duplicate binding inventory.
+- Formless desired resource projections describe intent supplied to Alchemy.
+  They are not deployed state or provider truth.
+- Canonical remote Alchemy state is the durable record required for safe update
+  and deletion. Formless stores only small display-safe deployment observations.
 - A stable recovery ABI captures remote Program records and media without
   requiring the local CLI to understand the remote Program schema, archive
   version, or Formless version.
-- Resource deployment reconciles provider infrastructure through Alchemy and
-  publishes an installed resource manifest.
-- Worker deployment uploads executable code through the provider adapter using
-  the installed manifest without rerunning Alchemy.
-- Program deployment installs a Program artifact without implicitly copying
-  records or media.
-- Exact replacement stages a complete Program generation and atomically
-  activates it while preserving target-owned security state.
-- Ordinary deploy updates Worker code and a compatible Program artifact. It
-  preserves records, media, security state, provider resources, and Alchemy
-  state.
-- Force bypasses compatibility policy only within the selected operation. It
-  never bypasses target identity, authentication, integrity, required physical
-  resources, deployment leases, or owner continuity.
-- The new model is a parallel CLI-first pipeline. It does not call current
-  `push`, source-sync, restore, deployment-observation, or schema-owned
-  deployment projection workflows.
-- Browser deployment is deferred. Headless operation bodies return structured
-  plans, progress, evidence, and receipts for CLI and CI first.
-- One deployment pipeline owns mutation of a target at a time. Existing targets
-  move through an explicit one-way adoption workflow.
+- Program deployment does not implicitly copy records or media. Exact
+  replacement remains a separate destructive workflow with a recovery snapshot.
+- Deployment evolution reuses and simplifies the current Alchemy path. It does
+  not introduce a parallel provider pipeline or require target ownership
+  adoption between two reconcilers.
 
 ## Problem
 
-The current `formless push` path combines concerns with different rates of
-change and different safety requirements:
+The current `formless push` path combines concerns with different state and
+safety requirements:
 
+- Alchemy provider and Worker deployment;
 - remote source export and local comparison;
-- archive parsing and Program schema compatibility;
-- Alchemy resource reconciliation;
-- Worker and browser asset deployment;
+- archive parsing and Program compatibility;
 - Program provenance activation;
 - record and media replacement;
 - backup and restore planning;
 - deployment observation writes to Program records.
 
-This causes ordinary runtime changes to run through provider reconciliation and
-causes recovery or exact replacement to depend on current local schema
-assumptions. Current archive readers reject unknown archive versions, and
-`push --force` still depends on Program, provenance, archive, restore, and
-concurrency validation.
+The problem is not that a Worker update evaluates the Alchemy program. That is
+the expected safe deployment mechanism: Alchemy uses tracked state to avoid
+recreating unchanged infrastructure while updating the Worker declaration.
+
+The problem is that ordinary deployment is coupled to source synchronization,
+archive compatibility, data mutation, and restore policy. Recovery and exact
+replacement also depend on current local schema assumptions. Current archive
+readers reject unknown archive versions, and `push --force` still crosses
+Program, provenance, archive, restore, and concurrency boundaries.
 
 Owner authentication also crosses the current storage boundary. Credentials and
 sessions are private auth state, while the owner principal and protected owner
 assignment are currently Program records. Blind record replacement can preserve
 a credential while deleting its authority.
 
-The deployment path must permit safe remote capture and deliberate exact
-replacement even when the old and desired Workers, Programs, records, and
-Formless versions disagree.
+The deployment model must retain Alchemy as the provider owner while separating
+provider deployment from recovery, Program activation, and deliberate data
+replacement.
 
 ## Goals
 
+- Resolve one exact target and one stable Alchemy state scope for every provider
+  deployment.
+- Redeploy Worker code by rerunning the complete Alchemy declaration, allowing
+  unchanged provider resources to remain no-ops.
+- Apply changed provider intent without deploying Program records or media.
+- Keep Formless deployment intent separate from Alchemy's tracked provider state.
 - Capture complete replaceable remote state before understanding or changing an
   older target.
-- Update Worker code without reconciling unchanged provider resources.
-- Apply provider resources without deploying Program records or media.
-- Install a Program artifact independently from record transfer.
+- Install a Program artifact independently from record transfer when the runtime
+  has a concrete Program-only installation boundary.
 - Replace complete application records and media without comparing them to the
   old remote schema.
 - Preserve owner sign-in and protected owner authority across every operation.
-- Leave the previous Program generation active when staging or validation
+- Leave the active Program and records unchanged when staging or validation
   fails.
-- Support explicit rollback to a retained generation.
-- Keep commands headless, deterministic, non-interactive when requested, and
+- Keep commands explicit, deterministic, non-interactive when requested, and
   suitable for CI.
-- Cut over incrementally without extending the current deployment pipeline.
 
 ## Non-Goals
 
+- This design does not replace Alchemy resource tracking, diffing, application,
+  deletion, Worker upload, or remote state.
+- Formless does not persist an installed resource manifest, installed graph
+  hash, binding inventory, or copy of Alchemy outputs.
+- Formless does not upload Worker code directly through a separate Cloudflare
+  adapter.
 - This design does not own environment ids, branch policy, preview lifecycle,
   resource naming policy, custom-domain topology, or browser onboarding.
 - The first implementation does not include a browser deploy UI, hosted runner,
   browser provider OAuth custody, or browser job-progress transport.
 - Deployment does not publish selected content between environments.
-  Publication is a separate future capability.
-- Force does not make missing resources exist, repair corrupt input, bypass
-  authentication, or accept an unknown outcome.
+- Force does not repair missing Alchemy state, make resources exist, repair
+  corrupt input, bypass authentication, or accept an unknown outcome.
 - A recovery snapshot is not a provider-resource or private-security backup.
-- The recovery ABI cannot retroactively guarantee capture from a historical
-  Worker that never exposed a compatible endpoint.
-- The new pipeline does not preserve `push` as an alias, add a permanent
-  `deploy-v2` package, or allow dual mutation ownership.
+- The recovery ABI cannot guarantee capture from a historical Worker that never
+  exposed a compatible endpoint.
 
 ## Deployment Target
 
@@ -116,65 +123,84 @@ type DeploymentTarget = {
   targetId: string;
   origin: string;
   provider: "cloudflare";
-  installedManifestRef?: string;
 };
 ```
 
 The target id is opaque to deployment. It does not imply production, branch,
 preview, retention, or side-effect policy. The caller resolves those facts
-before invoking a deployment operation.
+before invoking an operation.
 
-Every operation receives an explicit target. Production is never inferred by
-omission or fallback. First resource creation does not yet have an installed
-manifest. Worker deployment and later resource mutation require one.
+Private environment resolution also supplies the stable workspace identity,
+Alchemy app, stage, remote state store, credential profile, and provider
+authority required for the operation. These execution details are not
+user-authored deployment contracts and do not belong in a second persisted
+target or resource format.
+
+Production is never inferred by omission or fallback. Every operation names one
+exact target.
 
 ## Artifact And State Model
 
-### Installed Resource Manifest
+### Desired Provider Intent
 
-Resource deployment produces an installed resource manifest containing:
+Desired provider intent comes from:
 
-- provider account and Worker identity;
-- exact binding names, kinds, and concrete resource identifiers;
-- compatibility date and flags;
-- Durable Object classes and applied provider migration revision;
-- assets and route capability configuration;
-- installed resource-graph hash;
-- update time and resource-deployment evidence.
+- user-authored deployment configuration in `formless.ts`;
+- fixed Formless runtime resources such as the Worker, Authority namespace,
+  media bucket, queues, Turnstile widget, assets, and runtime bindings;
+- schema-owned deployment projections that currently supply route, domain, and
+  email intent.
 
-The manifest is display-safe canonical deployment state. It contains no
-provider credentials, Alchemy encryption material, or raw provider responses.
-Worker deployment consumes it without rerunning Alchemy.
+Formless may normalize this intent into deterministic declarations or a
+display-safe desired-state projection before calling Alchemy. That projection is
+not installed state. It contains no provider credentials, Alchemy password,
+state token, raw provider responses, or resource outputs.
 
-### Worker Artifact
+### Canonical Alchemy State
 
-A Worker artifact contains executable Worker code and browser assets. It
-declares the bindings, provider capabilities, runtime extensions, and Program
-capabilities it requires.
+Alchemy state is the durable record of tracked provider resources and outputs.
+It is necessary for safe updates and deletion. Non-local targets use canonical
+remote Alchemy state keyed by stable workspace and environment identity.
 
-Deploying it changes executable code without changing the active Program
-artifact, Program records, media, security state, provider resource graph, or
-Alchemy state.
+Apply and destroy use the same Alchemy app, stage, encryption password, and state
+scope. Missing, stale, or inaccessible canonical state blocks destructive
+reconciliation and requires explicit Alchemy adoption, state repair, or operator
+recovery.
 
-The current build injects the Program artifact and selected runtime composition
-into one deployment. Independent Worker deployment requires the Program
-artifact to become an independently installed Authority artifact. Runtime
-extensions may remain compiled into the Worker and appear in its capability
-manifest.
+Formless does not mirror this state. A deployment-config observation may cache
+the latest desired-state hash, status, time, and failure code for display, but it
+does not become provider truth.
+
+### Worker Deployment Input
+
+The Worker declaration contains executable code, browser assets, compatibility
+settings, bindings, Durable Object classes and migrations, event sources,
+routes, domains, observability settings, and Worker URL policy.
+
+Resources are declared before or alongside the Worker in the same Alchemy
+program. Their returned resource objects are passed directly into Worker
+bindings. Alchemy resolves concrete identifiers and prepares the Cloudflare
+Worker metadata. Secret values remain inside the deployment execution boundary.
+
+The complete Alchemy declaration is evaluated for every provider deployment.
+The Worker resource is updated while unchanged infrastructure remains unchanged.
+No durable handoff format is required between resource and Worker deployment.
 
 ### Program Artifact And Generation
 
 A Program artifact is the complete schema-as-data definition and provenance.
+The current build injects the Program artifact and selected runtime composition
+into the Worker. A future Program-only deployment requires the Program artifact
+to become an independently installed Authority artifact first.
 
 A Program generation binds one Program artifact to one complete application
 record snapshot and media namespace. Exact replacement stages a new generation
 and switches one active-generation pointer only after the desired runtime
 validates it.
 
-The previous generation remains available for bounded rollback and later
+The previous generation may remain available for bounded rollback and later
 garbage collection. An incompatible Program is never activated over old records
-by itself; it requires an explicit migration or an exact replacement
-generation.
+by itself; it requires an explicit migration or exact replacement.
 
 ### Instance Security Plane
 
@@ -186,10 +212,9 @@ Program artifacts may declare application roles and permissions. Security
 assignments may reference stable role keys, so removing or changing those keys
 requires an explicit security migration. Exact replacement does not guess one.
 
-Until storage is physically separated, replacement preserves the complete
-owner continuity closure: owner principal, recovery identity, credential
-binding, active protected owner assignment, and required intrinsic role
-records.
+Until storage is physically separated, replacement preserves the complete owner
+continuity closure: owner principal, recovery identity, credential binding,
+active protected owner assignment, and required intrinsic role records.
 
 ### Recovery Snapshot
 
@@ -236,55 +261,38 @@ capture from a Worker that never exposed a readable export path.
 formless snapshot --target <id> --output <path>
 ```
 
-### Resource Deployment
+### Provider And Worker Deployment
 
-Resource deployment reconciles already resolved provider intent through
-Alchemy, stores canonical remote Alchemy state, and publishes the installed
-resource manifest.
+Provider deployment resolves current desired intent and evaluates the complete
+Alchemy declaration against canonical remote state. The declaration includes
+base runtime resources, projected route and email resources, Worker bindings,
+the Worker bundle, and browser assets.
 
-It owns resource creation and deletion, bindings, storage, queues, custom
-domains, compatibility configuration, and provider migrations. It does not
-deploy Program records or media.
+Alchemy owns planning, resource identity, diffing, mutation, deletion, Worker
+metadata, and finalization. A source-code-only change does not use a partial
+resource model or direct upload path; the same declaration produces no provider
+resource changes and updates the Worker.
 
-```text
-formless resources apply --target <id>
-```
-
-Resource deployment is explicit after target creation. Ordinary Worker or
-Program deployment does not run Alchemy to discover an unchanged graph.
-
-### Worker Deployment
-
-Worker deployment compares the artifact capability requirements with the
-installed resource manifest and uploads code and assets directly through the
-provider adapter.
-
-A missing binding or unapplied provider migration requires resource deployment.
-Force may ignore remote version provenance but cannot manufacture physical
-resources.
-
-```text
-formless worker deploy --target <id>
-```
+Bindings do not need a separate discovery or persistence step. The Alchemy
+program already has the resource objects and configuration required to declare
+the complete Worker.
 
 ### Program Deployment
 
 Program deployment installs a complete Program artifact without transferring
-records or media. Normal activation validates the artifact against the active
-generation and installed Worker capability manifest.
+records or media. This becomes an independent operation only after the Authority
+owns an independently installed Program artifact. Until then, Program material
+remains part of the Worker build input.
 
-An incompatible Program requires a migration or an exact replacement. Force
-may bypass compatibility with the old generation only when activation is paired
-with exact data replacement.
-
-```text
-formless program deploy --target <id>
-```
+Normal activation validates the artifact through the active runtime. An
+incompatible Program requires a migration or exact replacement. Force may bypass
+compatibility with the old generation only when activation is paired with exact
+data replacement.
 
 ### Data And Media Replacement
 
 Data replacement stages complete local application records, tombstones, and
-media in a new generation. The desired Worker and Program validate the input;
+media in a new generation. The desired runtime and Program validate the input;
 the old remote Program does not.
 
 Replacement does not merge old application values into local state or import
@@ -296,9 +304,13 @@ formless data replace --target <id> <archive> --force
 
 ### Normal Deploy
 
-Normal deploy orchestrates Worker deployment and compatible Program deployment.
-It preserves application records, media, security, resources, and Alchemy state.
-It is not destructive when `--force` is present.
+Normal deploy resolves one target and runs the complete Alchemy deployment. If
+Program installation has become independent, it then installs and activates a
+compatible Program artifact.
+
+Ordinary deploy does not replace application records or media. It preserves
+security state and applies only provider intent and Worker or Program changes
+declared by the desired deployment.
 
 ```text
 formless deploy --target <id>
@@ -306,7 +318,7 @@ formless deploy --target <id>
 
 ### Exact Replacement
 
-Exact replacement is the explicit nuclear workflow:
+Exact replacement is the explicit destructive workflow:
 
 ```text
 formless target replace --target <id> --from workspace --force
@@ -316,17 +328,14 @@ It:
 
 1. resolves one exact target and acquires its deployment lease;
 2. captures and durably stores a recovery snapshot;
-3. enters maintenance mode;
-4. deploys the desired Worker through the installed manifest;
+3. evaluates the desired Alchemy deployment against canonical remote state;
+4. enters maintenance mode;
 5. stages the desired Program, records, tombstones, and media;
 6. validates the new generation using the desired runtime;
 7. atomically switches the active generation;
 8. verifies runtime health, owner authority, and snapshot access;
 9. retains the prior generation for bounded rollback;
 10. exits maintenance and later garbage-collects superseded data.
-
-Resource reconciliation is not implicit. Missing required infrastructure blocks
-replacement until `resources apply` installs it.
 
 A destructive replacement requires a recovery snapshot. A separate explicit
 policy may permit disposable targets to skip it; force never implies that
@@ -336,13 +345,13 @@ choice, and production policy may prohibit it.
 
 | Operation | Force may bypass | Force never bypasses |
 | --- | --- | --- |
-| Resources | desired-state drift and redundant reconciliation suppression | exact target, canonical state access, provider authority, valid resource configuration |
-| Worker | remote Formless, Worker, or Program version comparison | artifact integrity, provider authority, required bindings, valid provider migrations |
-| Program | compatibility with the old generation when paired with replacement | desired artifact validity, Worker capabilities, security schema, safe activation |
+| Alchemy deployment | explicit adoption or repair policy where supported | exact target, canonical state access, provider authority, valid declarations, destructive state-loss protection |
+| Program | compatibility with the old generation when paired with replacement | desired artifact validity, security schema, safe activation |
 | Data | old/new schema comparison, diff planning, migration requirements | local input validity, checksums, deployment lease, snapshot prerequisite, security preservation |
 
 Authentication failure, network failure, corrupt input, incomplete upload,
-wrong-target protection, and owner-continuity failure remain fatal.
+wrong-target protection, missing canonical Alchemy state, and owner-continuity
+failure remain fatal.
 
 ## Provider State And Backups
 
@@ -354,8 +363,9 @@ and target identity. Apply and destroy use the same Alchemy app, stage,
 encryption password, and state scope. Missing canonical state blocks destructive
 reconciliation and requires explicit adoption or repair.
 
-The installed resource manifest is separate display-safe deployment state used
-by Worker upload and inspection. It is not provider truth or a data backup.
+There is no separate Formless installed-resource state. Inspection reads
+display-safe desired intent, Alchemy plan or state through the Alchemy boundary,
+and limited deployment observations without persisting another resource model.
 
 Recovery snapshot policy is supplied by the caller. Exact replacement always
 requires a fresh snapshot unless an explicit disposable-target policy permits
@@ -364,183 +374,157 @@ protected operational backups.
 
 ## Implementation Strategy
 
-### Parallel Clean-Sheet Pipeline
+### Simplify The Existing Alchemy Path
 
-Clean sheet applies to orchestration and public semantics, not every low-level
-adapter. The current pipeline remains available only for unadopted targets and
-receives no new behavior beyond fixes needed to keep them operable.
+The new orchestration builds on the current Alchemy declaration, credential
+resolution, Worker build, and desired resource projection. It separates source
+synchronization, recovery, Program activation, and data replacement without
+introducing a second provider pipeline.
 
-The two pipelines may coexist in one CLI release but never mutate one target
-concurrently. New commands use final semantic names rather than a temporary
-version namespace.
+There is one mutation owner for one Alchemy state scope. New and old command
+surfaces must not run concurrently against the same target, but no resource
+manifest adoption or provider-ownership handoff is required.
 
 ### Package And Runtime Boundaries
 
 | Boundary | Owns | Does not own |
 | --- | --- | --- |
-| `@dpeek/formless-environment` | target identity, installed manifests, Worker capability manifests, Program generation refs, stage plans and receipts, pure compatibility helpers | CLI commands, provider execution, credentials, Worker routes, Authority mutation, terminal output |
-| `@dpeek/formless-archive/recovery` | stable envelope, opaque payload descriptors, integrity facts, format negotiation | portable-archive validation, CLI capture policy, Worker export, storage reads |
-| Formless CLI deployment modules | command policy, filesystem effects, provider adapters, operation ordering, terminal wrappers | browser UI, Worker routes, Authority storage |
-| Formless Worker and Authority modules | recovery routes, export, security filtering, generation staging, activation, rollback | provider reconciliation, CLI prompts, local workspace writes |
+| `@dpeek/formless-deploy` | display-safe desired deployment intent, deterministic logical ids and desired-state hashing | provider truth, Alchemy state, credentials, Worker upload |
+| Alchemy | tracked provider state, resource reconciliation, Worker bindings and metadata, Worker and asset upload, deletion | Program records, media contents, Formless recovery policy |
+| `@dpeek/formless-archive/recovery` | stable envelope, opaque payload descriptors, integrity facts, format negotiation | provider resources, Alchemy state, CLI capture policy, Worker storage reads |
+| Formless CLI deployment modules | target resolution, command policy, Alchemy execution context, operation ordering, filesystem effects, terminal adapters | browser UI, Authority storage |
+| Formless Worker and Authority modules | recovery routes, export, security filtering, Program generation staging, activation, rollback | provider reconciliation, CLI prompts, local workspace writes |
 
-The existing `@dpeek/formless-deploy` package remains legacy while its public
-contract is based on schema-owned deployment records. New contracts do not
-import it. Obsolete contracts and projections are deleted after cutover.
+Do not add a deployment contract package until a concrete shared runtime-neutral
+contract exists that is not already owned by the Deploy package, Alchemy, or the
+recovery package.
 
-The Environment package starts with runtime-neutral root contracts only. It
-does not add browser, React, client, or provider entrypoints without a concrete
-caller.
+### Reuse And Remove
 
-### Reuse And Quarantine
+Reuse:
 
-The new pipeline may reuse narrow leaf capabilities:
-
+- the current complete Alchemy resource and Worker declaration;
+- canonical remote Alchemy state support;
+- desired deployment projection for route and email intent;
 - Program materialization and Worker bundling;
-- provider credential resolution and Cloudflare API clients;
-- individual Alchemy resource declarations;
+- provider credential resolution;
 - admin-bearer and target HTTP transport;
-- Authority storage, media object, hashing, and filesystem primitives.
+- Authority storage, media, hashing, and filesystem primitives.
 
-It does not reuse:
+Separate or remove from ordinary deployment:
 
-- `pushFormlessInstanceWorkspace` or its planning types;
 - workspace source comparison and merge behavior;
-- desired resource projection from Program records;
-- push-owned backup and restore dry-run orchestration;
+- backup and restore dry-run orchestration;
 - current archive parsing during snapshot capture;
-- deployment observation writes to Program records.
+- data replacement and portable restore;
+- deployment observations that duplicate provider state.
 
-### CLI Operation Design
+### Operation Design
 
-Initial implementation exposes explicit use cases instead of a generic workflow
-engine:
+Start with concrete use cases rather than a generic workflow framework:
 
 ```ts
 captureRecoverySnapshot();
-applyTargetResources();
-deployWorkerArtifact();
+deployTargetWithAlchemy();
 installProgramArtifact();
 stageProgramGeneration();
 activateProgramGeneration();
 replaceTarget();
 ```
 
-Operation bodies accept explicit dependencies and return structured plans,
-progress events, evidence, and receipts. They do not read terminal input, print,
-open browsers, or terminate the process. CLI adapters own confirmation and
-presentation.
+Operation bodies accept explicit dependencies and return structured results.
+They do not read terminal input, print, open browsers, or terminate the process.
+CLI adapters own confirmation and presentation.
 
-Commands support explicit target selection, non-interactive execution,
-machine-readable output, idempotency, and durable evidence. These properties
-support CI now and a trusted hosted runner later.
+## State Continuity And Cutover
 
-## Pipeline Ownership And Adoption
+Deployment changes preserve each target's stable Alchemy app, stage, and state
+scope. Refactoring command orchestration does not create a new provider owner.
 
-Each target records one deployment-pipeline owner:
+If an existing target uses local Alchemy state and the desired model requires
+remote state, migrate or adopt that state through an explicit Alchemy-supported
+workflow before destructive reconciliation. Do not reconstruct state from a
+Formless resource inventory or provider guesses.
 
-```text
-legacy
-deployment
-```
-
-New targets use `deployment`. Existing targets move through one explicit
-adoption workflow:
-
-1. capture a recovery snapshot through the best available ABI;
-2. discover provider resources and canonical state;
-3. produce a read-only adoption plan with exact resource identities;
-4. persist the installed manifest without changing resources;
-5. verify Worker capability and no-op deployment plans;
-6. record new pipeline ownership;
-7. reject subsequent legacy mutation.
-
-A narrow one-time adapter may read legacy Alchemy state or provider truth as
-evidence. That state does not become permanent desired input. Adoption becomes
-one-way once generation or security storage semantics change. Rollback then
-uses the new pipeline.
-
-Preview targets adopt first, followed by development and production. Read-only
-plans may be compared between pipelines; mutating shadow deployment is
-prohibited.
+Preview targets should prove remote-state continuity, code-only deployment,
+resource updates, and deletion before development and production targets move.
 
 ## Cutover Criteria
 
-Production adoption requires evidence that:
+Production use requires evidence that:
 
 - snapshot capture succeeds without local Program compatibility;
 - snapshot records and media can be inspected and migrated;
-- Worker-only deployment preserves bindings and target data;
+- rerunning the complete Alchemy declaration updates Worker code while unchanged
+  resources remain unchanged;
+- changed and omitted resources reconcile correctly from canonical remote state;
+- bindings, assets, compatibility settings, migrations, event sources, and
+  routes remain correct after Worker deployment;
 - compatible Program deployment preserves records and media;
 - exact replacement preserves owner authentication and authority;
 - failed staging leaves the prior generation active;
 - generation rollback succeeds;
-- resource update and destroy work from canonical remote state;
-- adopted targets reject legacy mutation.
-
-After a bounded production observation period, old command bodies,
-schema-owned deployment records, obsolete Deploy package contracts, and legacy
-tests are removed. No compatibility aliases remain.
+- missing or inaccessible Alchemy state blocks destructive reconciliation;
+- no Formless persisted structure duplicates Alchemy's installed state.
 
 ## Safety Invariants
 
 - Every operation names one exact target.
-- One pipeline owns target mutation at a time.
+- Every non-local target maps to one stable Alchemy app, stage, and remote state
+  scope.
+- Alchemy is the only owner of provider reconciliation and deployed resource
+  tracking.
+- Worker deployment evaluates the complete Alchemy declaration and preserves
+  unchanged resources through Alchemy state.
+- Desired resource projections are intent, not provider truth.
+- Formless does not persist an installed resource or binding manifest.
 - Recovery capture does not depend on the local Program or archive parser.
 - Recovery includes all replaceable records, tombstones, and application media
   while excluding security and provider secrets.
-- Resource, Worker, Program, and data concerns remain independently executable.
-- Worker deployment never reconciles provider resources.
-- Normal deploy preserves records, media, security, resources, and Alchemy
-  state.
+- Normal deploy does not replace records or media.
 - Incompatible Programs activate only with migration or exact replacement.
 - Exact replacement begins with a durable snapshot and preserves security.
 - Every completed mutation preserves protected owner authentication and
   authority.
-- Force never bypasses integrity, security, target, lease, or required-resource
-  invariants.
+- Force never bypasses integrity, security, target, state, lease, or
+  owner-continuity invariants.
 
 ## Change Sequence
 
 1. Landed: isolated recovery contracts, stable Worker discovery and snapshot
    ABI, and opaque CLI capture.
-2. Add runtime-neutral target, Worker artifact, capability,
-   installed-manifest, plan, evidence, and receipt contracts. Reuse the shared
-   target contract from recovery capture without adding provider execution.
-3. Add CLI-only resource deployment and canonical remote provider state.
-4. Separate the Program artifact from the Worker build and activation path so
-   the Worker resolves an independently installed Authority artifact.
-5. Add direct Worker code and asset deployment through the installed manifest.
+2. Resolve stable deployment targets to canonical remote Alchemy app, stage, and
+   state scope while retaining the current complete Alchemy declaration.
+3. Extract ordinary deployment from source synchronization, archive parsing,
+   restore, and data replacement without changing provider ownership.
+4. Prove that repeated Alchemy deployment updates the Worker and no-ops unchanged
+   resources for preview, development, and production targets.
+5. Separate the Program artifact from Worker build injection only when a concrete
+   Program-only installation caller is ready.
 6. Define the security plane and owner-continuity closure, building from stable
    retained-scope classification toward storage separation.
-7. Add Program-only deployment and staged Program generations.
-8. Add exact record and media replacement, maintenance mode, atomic activation,
-   rollback retention, and force policy.
-9. Add normal deploy, explicit stage commands, target inspect and destroy, and
-   composite exact replacement on the parallel CLI pipeline.
-10. Adopt preview, development, and production targets in order; enforce one
-   pipeline owner; then remove `push` and obsolete contracts.
-11. Define a trusted hosted runner and browser orchestration only after the CLI
-    operations and receipts are proven.
+7. Add Program generations, exact record and media replacement, maintenance
+   mode, atomic activation, rollback retention, and force policy.
+8. Remove obsolete source-sync and restore coupling after the replacement
+   operations are proven.
+9. Define a trusted hosted runner and browser orchestration only after the CLI
+   deployment and recovery operations are proven.
 
-The stable recovery snapshot ABI is landed. The recommended next change is the
-runtime-neutral deployment contract foundation. It establishes the shared
-target and installed-manifest vocabulary required by resource deployment and
-recovery without extending the legacy Deploy package.
-
-Direct Worker deployment follows only after resource deployment can publish an
-installed manifest and the Program artifact no longer depends on Worker build
-injection. That ordering lets Worker upload preserve the active Program,
-records, media, security state, provider resources, and Alchemy state.
+The recommended next change is canonical remote Alchemy state resolution for the
+existing complete deployment declaration. It should not introduce a new
+resource model, deployment contract package, Worker upload adapter, or provider
+state store.
 
 ## Open Decisions
 
-- Define the exact versioned Worker artifact and binding-capability vocabulary.
-- Define canonical storage and references for installed manifests and remote
-  provider state.
-- Define physical security-plane separation and migration from the currently
+- Define the exact stable mapping from workspace and environment identity to the
+  Alchemy app, stage, and remote state scope.
+- Define migration from existing local Alchemy state to canonical remote state.
+- Decide when Program artifacts should become independently installed Authority
+  state rather than Worker build input.
+- Define physical security-plane separation and migration from currently
   classified retained scopes.
 - Decide prior-generation retention and garbage collection.
 - Decide whether disposable targets may explicitly skip replacement snapshots.
-- Define how each provider preserves bindings during direct Worker upload.
-- Divide Durable Object code migrations between Worker and resource deployment.
-- Choose final CLI nouns for a resolved target versus an environment.
+- Divide Durable Object code migration policy between Worker declarations and
+  Program activation without duplicating Alchemy migration state.

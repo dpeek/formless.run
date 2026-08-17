@@ -163,7 +163,6 @@ type DeploymentTarget = {
   targetId: string;
   origin: string;
   provider: "cloudflare";
-  installedManifestRef?: string;
 };
 ```
 
@@ -424,20 +423,23 @@ commit.
 Environment resolution supplies:
 
 - exact deployment target identity and generated origin;
+- stable workspace and environment identity used to resolve the Alchemy app,
+  stage, and remote state scope;
 - resolved provider resource names and desired topology;
 - protection and backup policy;
-- installed domain and email capability intent;
+- desired domain and email capability intent;
 - seed behavior for first creation;
 - cleanup and expiry policy.
 
-The deployment pipeline owns execution, installed resource manifests, provider
-state mutation, Worker and Program deployment, records and media, snapshots,
-and evidence. Environment code does not duplicate those operations.
+The deployment pipeline evaluates the complete Alchemy declaration against
+canonical remote Alchemy state. Alchemy owns provider reconciliation, tracked
+resource outputs, bindings, and Worker deployment. Environment code does not
+duplicate those operations or persist installed provider state.
 
-First creation orchestrates resource apply, initial Worker and Program deploy,
-seed initialization, and owner setup through the deployment operations. Later
-release deployment normally touches only Worker and compatible Program
-artifacts.
+First creation evaluates the same complete Alchemy declaration used by later
+deployment, then performs seed initialization and owner setup. On later release
+deployment, Alchemy leaves unchanged resources alone and updates the Worker and
+any changed desired provider intent.
 
 ## Future Browser Onboarding
 
