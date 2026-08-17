@@ -749,6 +749,7 @@ function transitionOperation(): TransitionStateOperationConfig {
   } satisfies EntityOperationSchema;
 
   return {
+    entity: blockEntity,
     field: fieldSchemas.status,
     fieldName: "status",
     label: "Publish",

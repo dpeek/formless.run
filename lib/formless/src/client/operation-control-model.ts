@@ -90,6 +90,7 @@ export type GeneratedOperationInputAdapter =
       target: TableEditRecordTargetConfig;
     }
   | {
+      form?: GeneratedCommandInputForm;
       kind: "stateTransition";
       fieldName: string;
       machineName: string;
@@ -546,6 +547,7 @@ export function generatedCommandInputForm(
   switch (binding.input.kind) {
     case "collectionCommand":
     case "recordCommand":
+    case "stateTransition":
     case "tableCommand":
       return binding.input.form;
     default:
@@ -588,6 +590,7 @@ export function projectStateTransitionOperationControlBinding(input: {
     },
     input: {
       kind: "stateTransition",
+      ...commandInputAdapterForm(input.operation.entity, input.operation.operation.operation),
       fieldName: input.operation.fieldName,
       machineName: input.operation.machineName,
       targetState: input.operation.transition.to,

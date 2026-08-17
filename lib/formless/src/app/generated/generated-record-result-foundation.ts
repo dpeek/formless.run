@@ -19,6 +19,7 @@ import type { RecordResultModel } from "../../client/list-result-model.ts";
 import {
   createIdleGeneratedOperationExecutionState,
   projectStateTransitionOperationControlBinding,
+  type GeneratedCommandDraftSessionState,
   type GeneratedOperationControlBinding,
   type GeneratedOperationExecutionState,
   type RecordFieldConfig,
@@ -97,6 +98,8 @@ export type GeneratedRecordResultFoundation = {
 
 export type SelectGeneratedRecordResultFoundationOptions = {
   accessibilityLabel?: string;
+  commandDialogOpenByControlId?: Readonly<Record<string, boolean | undefined>>;
+  commandStateByControlId?: Readonly<Record<string, GeneratedCommandDraftSessionState | undefined>>;
   confirmationOpenByControlId?: Readonly<Record<string, boolean | undefined>>;
   density?: RecordResultContract["density"];
   editingDisabledReason?: string;
@@ -122,6 +125,8 @@ export type SelectGeneratedRecordResultFoundationOptions = {
 
 export function selectGeneratedRecordResultFoundation({
   accessibilityLabel,
+  commandDialogOpenByControlId = {},
+  commandStateByControlId = {},
   confirmationOpenByControlId = {},
   density = "default",
   editingDisabledReason,
@@ -292,11 +297,14 @@ export function selectGeneratedRecordResultFoundation({
     ),
   );
   const actions = projectGeneratedRecordResultActions({
+    commandDialogOpenByControlId,
+    commandStateByControlId,
     confirmationOpenByControlId,
     density,
     operationStateByExecutionKey,
     pairedTransitionOperationNames,
     runtimePlan,
+    schema,
   });
 
   return {
@@ -521,12 +529,17 @@ function selectGeneratedRecordResultRuntimePlan({
 }
 
 function projectGeneratedRecordResultActions({
+  commandDialogOpenByControlId,
+  commandStateByControlId,
   confirmationOpenByControlId,
   density,
   operationStateByExecutionKey,
   pairedTransitionOperationNames,
   runtimePlan,
+  schema,
 }: {
+  commandDialogOpenByControlId: Readonly<Record<string, boolean | undefined>>;
+  commandStateByControlId: Readonly<Record<string, GeneratedCommandDraftSessionState | undefined>>;
   confirmationOpenByControlId: Readonly<Record<string, boolean | undefined>>;
   density: RecordResultContract["density"];
   operationStateByExecutionKey: Readonly<
@@ -534,6 +547,7 @@ function projectGeneratedRecordResultActions({
   >;
   pairedTransitionOperationNames: ReadonlySet<string>;
   runtimePlan: GeneratedRecordResultRuntimePlan;
+  schema: AppSchema | null;
 }): readonly GeneratedRecordResultPlacedAction[] {
   return runtimePlan.operations.flatMap((operation): GeneratedRecordResultPlacedAction[] => {
     if (
@@ -549,6 +563,8 @@ function projectGeneratedRecordResultActions({
       createIdleGeneratedOperationExecutionState(binding.executionKey);
     const control = projectGeneratedOperationControl({
       binding,
+      commandDialogOpen: commandDialogOpenByControlId[binding.id] ?? false,
+      commandState: commandStateByControlId[binding.id],
       confirmationOpen: confirmationOpenByControlId[binding.id] ?? false,
       presentation: {
         accessibilityLabel: deleting ? `Delete ${operation.recordLabel}` : binding.label,
@@ -557,6 +573,7 @@ function projectGeneratedRecordResultActions({
         pendingLabel: `${binding.label}...`,
         prominence: deleting ? "destructive" : "primary",
       },
+      schema,
       state,
     });
 
@@ -623,6 +640,10 @@ function recordResultFieldOwnsTransition(
   visibleFields: readonly RecordFieldConfig[],
   operation: TransitionStateOperationConfig,
 ): boolean {
+  if (operation.operation.operation.input !== undefined) {
+    return false;
+  }
+
   return visibleFields.some(
     (field) =>
       field.fieldName === operation.fieldName &&

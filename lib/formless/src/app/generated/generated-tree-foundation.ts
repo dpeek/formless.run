@@ -63,6 +63,8 @@ import { selectRecordContextLinkForActiveUnion } from "./union-presentation.ts";
 
 type GeneratedTreeRecordProjectionOptions = Pick<
   SelectGeneratedRecordResultFoundationOptions,
+  | "commandDialogOpenByControlId"
+  | "commandStateByControlId"
   | "confirmationOpenByControlId"
   | "mediaAssetOptionsByFieldName"
   | "operationStateByExecutionKey"

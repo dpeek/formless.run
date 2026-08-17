@@ -2882,6 +2882,23 @@ status fields.
 - AND submitting a transition invokes the matching operation through the normal
   Authority operation boundary
 
+#### Scenario: Collect transition operation date input
+
+- GIVEN a generated record-scoped transition-state operation declares a
+  required date operation input used by one target value
+- WHEN its control is selected from a record, table, detail, or
+  relationship-hierarchy `recordOperation` surface
+- THEN generated UI projects the operation through the standard controlled
+  command-input dialog
+- AND the dialog uses the declared date field contract and required validation
+- AND a valid submission invokes the transition once with the selected record
+  id and date keyed by the declared operation input name
+- AND invalid or missing input does not invoke the transition
+- AND a transition with declared input remains a normal operation action rather
+  than using an input-free state-field invocation shortcut
+- AND input-free generated-date transitions retain their existing immediate or
+  controlled-confirmation behavior
+
 #### Scenario: Render transition with side-effect creates
 
 - GIVEN a transition-state operation declares create-only side effects

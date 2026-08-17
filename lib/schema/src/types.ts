@@ -1499,7 +1499,7 @@ export type SubscribeOperationHandlerConfigSchema = Record<string, never>;
 export type TransitionStateOperationHandlerConfigSchema = {
   machine: string;
   transition: string;
-  targetValues?: Record<string, RecordPlanGeneratedDateExpressionSchema>;
+  targetValues?: Record<string, TransitionStateTargetValueExpressionSchema>;
   sideEffects?: TransitionSideEffectRecordPlanSchema;
 };
 
@@ -1568,6 +1568,10 @@ export type RecordPlanGeneratedDateExpressionSchema = {
   kind: "generatedDate";
   timeZone: string;
 };
+
+export type TransitionStateTargetValueExpressionSchema =
+  | RecordPlanGeneratedDateExpressionSchema
+  | RecordPlanInputValueExpressionSchema;
 
 export type RecordPlanActorContextExpressionSchema = {
   kind: "actor";

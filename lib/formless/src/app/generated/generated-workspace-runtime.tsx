@@ -2032,7 +2032,7 @@ export function useGeneratedWorkspaceRuntimeController({
       confirmationOpen: confirmationOpenByControlId[runtime.binding.id] ?? false,
       controller,
       intent,
-      invoke: (invokeIntent) =>
+      invoke: (invokeIntent, commandInput) =>
         runtime.kind === "delete"
           ? executeRecordDeleteOperation({
               binding: runtime.binding,
@@ -2044,6 +2044,7 @@ export function useGeneratedWorkspaceRuntimeController({
           : executeTransitionStateOperation({
               binding: runtime.binding,
               controller,
+              ...(commandInput === undefined ? {} : { input: commandInput }),
               operation: runtime.operation,
               recordId: runtime.recordId,
               source: invokeIntent.invocationSource,
@@ -2391,6 +2392,8 @@ function selectWorkspaceSectionRuntimeInput({
       };
     }),
     list: {
+      commandDialogOpenByControlId,
+      commandStateByControlId,
       confirmationOpenByControlId,
       fieldStateByRecordId: listStateByResultId[facts.resultId],
       mediaAssetOptionsByRecordId:
@@ -2417,6 +2420,8 @@ function selectWorkspaceSectionRuntimeInput({
       schema,
     },
     recordResult: {
+      commandDialogOpenByControlId,
+      commandStateByControlId,
       confirmationOpenByControlId,
       mediaAssetOptionsByFieldName:
         facts.section.collection.result.type === "record"
@@ -2490,6 +2495,8 @@ function selectWorkspaceSectionRuntimeInput({
         operationStateByExecutionKey,
       },
       recordResult: {
+        commandDialogOpenByControlId,
+        commandStateByControlId,
         confirmationOpenByControlId,
         mediaAssetOptionsByFieldName: selectWorkspaceRecordMediaOptions(
           collectRecordPresentationFields(
@@ -2593,6 +2600,8 @@ function selectWorkspaceSectionRuntimeInput({
           [
             section.id,
             {
+              commandDialogOpenByControlId,
+              commandStateByControlId,
               confirmationOpenByControlId,
               mediaAssetOptionsByFieldName: selectWorkspaceRecordMediaOptions(
                 fields,
@@ -2777,6 +2786,8 @@ function selectWorkspaceSectionRuntimeInput({
       `${context.itemViewName ?? `${context.name}:detail`}:context`,
     );
     input.contextDetail = {
+      commandDialogOpenByControlId,
+      commandStateByControlId,
       confirmationOpenByControlId,
       mediaAssetOptionsByFieldName: selectWorkspaceRecordMediaOptions(
         collectRecordPresentationFields(context.recordFields ?? [], context.recordUnion),

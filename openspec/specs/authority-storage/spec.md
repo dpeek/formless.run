@@ -535,18 +535,24 @@ received instant and an explicit business time zone.
 
 #### Scenario: Commit a transition target date atomically
 
-- GIVEN an accepted record-scoped transition operation declares validated
-  generated-date `targetValues`
+- GIVEN an accepted record-scoped transition operation declares validated date
+  `targetValues` from generated-date or required operation-input expressions
 - WHEN Authority materializes a valid transition
-- THEN generated target values are merged with the transition destination state
+- THEN generated target values are evaluated from the invocation received
+  instant and input target values resolve from the validated operation-input
+  values keyed by declared input name
+- AND input dates have already been materialized and validated through the
+  shared operation-input boundary
+- AND resolved target values are merged with the transition destination state
   and the stored pre-transition record values
 - AND Authority validates and commits one target record patch containing both
-  the next state and generated date values
+  the next state and resolved date values
 - AND the target patch, optional transition event, and create-only side-effect
   records remain one operation transaction and outcome
-- AND transition rejection, target snapshot conflict, generated-date failure,
-  field validation, reference validation, unique constraint, or side-effect
-  failure rolls back the complete operation write set
+- AND transition rejection, invalid or missing input, target snapshot conflict,
+  generated-date failure, field validation, reference validation, unique
+  constraint, or side-effect failure rolls back the complete operation write
+  set
 
 ### Requirement: Operation Record Plan Materialization
 

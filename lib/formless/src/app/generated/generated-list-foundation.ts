@@ -15,6 +15,7 @@ import {
   projectOrderingMoveOperationControlBinding,
   projectStateTransitionOperationControlBinding,
   recordFieldIsWritable,
+  type GeneratedCommandDraftSessionState,
   type GeneratedOperationControlBinding,
   type GeneratedOperationExecutionState,
   type RecordFieldConfig,
@@ -111,6 +112,8 @@ export type GeneratedListFoundation = {
 };
 
 export type SelectGeneratedListFoundationOptions = {
+  commandDialogOpenByControlId?: Readonly<Record<string, boolean | undefined>>;
+  commandStateByControlId?: Readonly<Record<string, GeneratedCommandDraftSessionState | undefined>>;
   confirmationOpenByControlId?: Readonly<Record<string, boolean | undefined>>;
   density?: ListContract["density"];
   entity: EntitySchema;
@@ -138,6 +141,8 @@ export type GeneratedListMediaAssetOptionsByRecordId = Readonly<
 >;
 
 export function selectGeneratedListFoundation({
+  commandDialogOpenByControlId = {},
+  commandStateByControlId = {},
   confirmationOpenByControlId = {},
   density = "compact",
   entity,
@@ -241,8 +246,11 @@ export function selectGeneratedListFoundation({
         createIdleGeneratedOperationExecutionState(operation.binding.executionKey);
       const control = projectGeneratedOperationControl({
         binding: operation.binding,
+        commandDialogOpen: commandDialogOpenByControlId[operation.binding.id] ?? false,
+        commandState: commandStateByControlId[operation.binding.id],
         confirmationOpen: confirmationOpenByControlId[operation.binding.id] ?? false,
         presentation: generatedListOperationPresentation(operation),
+        schema,
         state,
       });
 

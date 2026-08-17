@@ -1038,6 +1038,7 @@ function parseOperationEffect(
       context,
       value,
       scope,
+      input,
       target,
       entityName,
       entity,

@@ -870,6 +870,115 @@ describe("generated selected-record relationship hierarchy", () => {
     });
   });
 
+  it("executes transition date input through the relationship-hierarchy command dialog", async () => {
+    resetClientStore();
+    const schema = relationshipHierarchySchema({ withTransitionDateInput: true });
+    applyBootstrapResponse(bootstrapResponse(schema, hierarchyRuntimeRecords()));
+    const screen = required(
+      selectScreenModels(schema).find((candidate) => candidate.screenName === "rateSetup"),
+    );
+    let controller: GeneratedWorkspaceRuntimeController | undefined;
+
+    function RuntimeProbe() {
+      controller = useGeneratedWorkspaceRuntimeController({
+        getSectionSelection: () => ({ selectedRecordId: "rec_card_premium" }),
+        onSelectContext: () => undefined,
+        onSelectQuery: () => undefined,
+        onSelectRecord: () => undefined,
+        screen,
+        today: "2026-08-11",
+      });
+      return null;
+    }
+
+    let renderer: RenderResult | undefined;
+    await act(async () => {
+      renderer = render(<RuntimeProbe />);
+    });
+    let runtime = required(controller);
+    let hierarchy = currentHierarchy(runtime);
+    let node = required(hierarchy.root.relationshipGroups[0]?.nodes[0]);
+    let control = operationControl(node, "Archive rate");
+
+    await act(async () => {
+      await runtime.dispatch(
+        projectGeneratedWorkspaceRelationshipHierarchyIntent(
+          currentScope(runtime),
+          hierarchy.id,
+          hierarchyOperationIntent(hierarchy.id, node, control),
+        ),
+      );
+    });
+    expect(submitOperationMock).not.toHaveBeenCalled();
+    runtime = required(controller);
+    hierarchy = currentHierarchy(runtime);
+    node = required(hierarchy.root.relationshipGroups[0]?.nodes[0]);
+    control = operationControl(node, "Archive rate");
+    const dialog = required(control.commandDialog);
+    const field = required(dialog.fieldSet.fields[0]);
+    expect(dialog).toMatchObject({
+      open: true,
+      submit: { disabled: false },
+    });
+    expect(field).toMatchObject({
+      editor: "date",
+      inputName: "archivedOn",
+      required: true,
+    });
+
+    await act(async () => {
+      await runtime.dispatch(
+        projectGeneratedWorkspaceRelationshipHierarchyIntent(
+          currentScope(runtime),
+          hierarchy.id,
+          hierarchyOperationIntent(hierarchy.id, node, control, {
+            controlId: control.id,
+            fieldId: field.fieldId,
+            intent: {
+              inputName: "archivedOn",
+              inputValue: { kind: "input", value: "2026-08-14" },
+              type: "operationDraftChange",
+            },
+            type: "operationCommandFieldIntent",
+          }),
+        ),
+      );
+    });
+    runtime = required(controller);
+    hierarchy = currentHierarchy(runtime);
+    node = required(hierarchy.root.relationshipGroups[0]?.nodes[0]);
+    control = operationControl(node, "Archive rate");
+
+    submitOperationMock.mockResolvedValueOnce(committedCommandResponse());
+    await act(async () => {
+      await runtime.dispatch(
+        projectGeneratedWorkspaceRelationshipHierarchyIntent(
+          currentScope(runtime),
+          hierarchy.id,
+          hierarchyOperationIntent(
+            hierarchy.id,
+            node,
+            control,
+            required(control.commandDialog).submit.intent,
+          ),
+        ),
+      );
+    });
+    expect(submitOperationMock.mock.calls[0]?.slice(0, 3)).toEqual([
+      "rate",
+      "archive",
+      {
+        input: { archivedOn: "2026-08-14" },
+        recordId: node.recordId,
+        source: { protocol: "generated-ui", surface: "formSubmit" },
+      },
+    ]);
+
+    await act(async () => {
+      required(renderer).unmount();
+    });
+  });
+
   it("scopes child create surfaces, drafts, fields, and stale intents to their path occurrence", async () => {
     resetClientStore();
     const schema = relationshipHierarchySchema();
@@ -1454,10 +1563,12 @@ function relationshipHierarchySchema({
   rootOnly = false,
   withCommandInput = false,
   withDocumentMedia = false,
+  withTransitionDateInput = false,
 }: {
   rootOnly?: boolean;
   withCommandInput?: boolean;
   withDocumentMedia?: boolean;
+  withTransitionDateInput?: boolean;
 } = {}): AppSchema {
   const setup = required(rateSourceSchema.screens.find((screen) => screen.key === "rateSetup"));
   if (setup.type !== "workspace") {
@@ -1615,6 +1726,16 @@ function relationshipHierarchySchema({
                   { key: "archived", label: "Archived" },
                 ],
               },
+              ...(withTransitionDateInput
+                ? [
+                    {
+                      key: "archivedOn",
+                      label: "Archived on",
+                      required: false,
+                      type: "date" as const,
+                    },
+                  ]
+                : []),
             ],
             stateMachines: [
               ...(entity.stateMachines ?? []),
@@ -1635,10 +1756,33 @@ function relationshipHierarchySchema({
                 label: "Archive rate",
                 kind: "command" as const,
                 scope: "record" as const,
+                ...(withTransitionDateInput
+                  ? {
+                      input: {
+                        fields: [
+                          {
+                            key: "archivedOn",
+                            field: "archivedOn",
+                            required: true,
+                          },
+                        ],
+                      },
+                    }
+                  : {}),
                 effect: {
                   type: "operationHandler" as const,
                   handler: "transition-state" as const,
-                  config: { machine: "workflow", transition: "archive" },
+                  config: {
+                    machine: "workflow",
+                    transition: "archive",
+                    ...(withTransitionDateInput
+                      ? {
+                          targetValues: {
+                            archivedOn: { kind: "input" as const, field: "archivedOn" },
+                          },
+                        }
+                      : {}),
+                  },
                 },
               },
               {

@@ -20,6 +20,7 @@ export type StateMachineFieldConfig = {
 };
 
 export type TransitionStateOperationConfig = {
+  entity: EntitySchema;
   operationName: string;
   operation: EntityOperationPresentationConfig;
   label: string;
@@ -91,6 +92,7 @@ export function selectTransitionStateOperations(
 
     return [
       {
+        entity,
         operationName: operation.operationName,
         operation,
         label: operation.label,

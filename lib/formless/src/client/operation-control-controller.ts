@@ -276,7 +276,7 @@ export function buildGeneratedOperationInvocationRequest(
       };
     case "stateTransition":
       return {
-        ...base,
+        ...withOptionalOperationInput(base, callerInput),
         recordId: requiredRecordId(binding, callerInput),
       };
     case "treeComposition":

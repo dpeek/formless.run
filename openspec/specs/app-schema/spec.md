@@ -2066,18 +2066,23 @@ fields without adding nested stored workflow state.
 
 #### Scenario: Parse transition target date values
 
-- GIVEN a record-scoped transition-state operation needs to set an
-  authority-generated date on the transitioned record
+- GIVEN a record-scoped transition-state operation needs to set a date on the
+  transitioned record
 - WHEN the handler config declares a non-empty `targetValues` field map
 - THEN every target field exists on the operation entity, is not a system field
   or the machine-owned enum field, and has date type
-- AND every target value uses `generatedDate` with an explicit IANA time-zone
-  identifier
+- AND every target value uses either `generatedDate` with an explicit IANA
+  time-zone identifier or `input` referencing a declared operation input name
+- AND an input expression references a required date input whose inline type or
+  entity-backed source field is compatible with the target date field
+- AND optional operation input is rejected so an accepted transition cannot
+  omit, clear, or skip its target date
 - AND missing or unsupported time-zone identifiers fail schema parsing
 - AND `targetValues` is rejected for collection-scoped transition operations
-- AND literal values, operation input, target fields, generated timestamps,
-  arbitrary expressions, and patch, delete, or workflow instructions are
-  rejected from `targetValues`
+- AND unknown, non-date, incompatible, or optional input references are rejected
+- AND literal values, target fields, generated timestamps, arbitrary
+  expressions, and patch, delete, or workflow instructions are rejected from
+  `targetValues`
 - AND target date values do not change operation actor policy, idempotency,
   audit, transition validity, event behavior, or side-effect eligibility
 

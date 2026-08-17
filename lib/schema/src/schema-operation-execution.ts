@@ -9,6 +9,7 @@ import {
 } from "./schema-parse-helpers.ts";
 import type {
   CollectionQuerySchema,
+  EntityOperationInputContractSchema,
   EntityOperationCommandEffectType,
   EntityOperationScope,
   EntityOperationTargetSchema,
@@ -28,7 +29,9 @@ import type {
   OperationHandlerKindBySelectionCapability,
   OperationHandlerSelectionCapability,
   RecordPlanGeneratedDateExpressionSchema,
+  RecordPlanInputValueExpressionSchema,
   RelationshipSchema,
+  TransitionStateTargetValueExpressionSchema,
   TransitionSideEffectRecordPlanSchema,
 } from "./types.ts";
 
@@ -237,6 +240,7 @@ export function parseOperationHandlerEffect(
   context: string,
   value: Record<string, unknown>,
   scope: EntityOperationScope,
+  input: EntityOperationInputContractSchema | undefined,
   target: EntityOperationTargetSchema | undefined,
   entityName: string,
   entity: EntitySchema,
@@ -253,6 +257,7 @@ export function parseOperationHandlerEffect(
     handler,
     value.config,
     scope,
+    input,
     target,
     entityName,
     entity,
@@ -282,6 +287,7 @@ function parseOperationHandlerConfig<Kind extends OperationHandlerKind>(
   handler: Kind,
   value: unknown,
   scope: EntityOperationScope,
+  input: EntityOperationInputContractSchema | undefined,
   target: EntityOperationTargetSchema | undefined,
   entityName: string,
   entity: EntitySchema,
@@ -362,6 +368,7 @@ function parseOperationHandlerConfig<Kind extends OperationHandlerKind>(
     context,
     value,
     scope,
+    input,
     entity,
     parseTransitionSideEffects,
   ) as OperationHandlerConfigSchemaByKind[Kind];
@@ -491,6 +498,7 @@ function parseTransitionStateHandlerConfig(
   context: string,
   value: Record<string, unknown>,
   scope: EntityOperationScope,
+  input: EntityOperationInputContractSchema | undefined,
   entity: EntitySchema,
   parseTransitionSideEffects: TransitionSideEffectParser,
 ): OperationHandlerConfigSchemaByKind["transition-state"] {
@@ -510,6 +518,7 @@ function parseTransitionStateHandlerConfig(
           `${context} targetValues`,
           value.targetValues,
           scope,
+          input,
           entity,
           stateMachine.field,
         );
@@ -530,9 +539,10 @@ function parseTransitionTargetValues(
   context: string,
   value: unknown,
   scope: EntityOperationScope,
+  input: EntityOperationInputContractSchema | undefined,
   entity: EntitySchema,
   machineField: string,
-): Record<string, RecordPlanGeneratedDateExpressionSchema> {
+): Record<string, TransitionStateTargetValueExpressionSchema> {
   if (scope !== "record") {
     throw new Error(`${context} requires a record-scoped transition operation.`);
   }
@@ -564,13 +574,51 @@ function parseTransitionTargetValues(
       if (field.type !== "date") {
         throw new Error(`${fieldContext} requires a date destination field.`);
       }
-      if (!isRecord(expression) || expression.kind !== "generatedDate") {
-        throw new Error(`${fieldContext} must use a generatedDate expression.`);
+      if (!isRecord(expression)) {
+        throw new Error(`${fieldContext} must use a generatedDate or input expression.`);
       }
 
-      return [fieldName, parseGeneratedDateValueExpression(fieldContext, expression)];
+      if (expression.kind === "generatedDate") {
+        return [fieldName, parseGeneratedDateValueExpression(fieldContext, expression)];
+      }
+
+      if (expression.kind === "input") {
+        return [
+          fieldName,
+          parseTransitionTargetInputExpression(fieldContext, expression, input, entity),
+        ];
+      }
+
+      throw new Error(`${fieldContext} must use a generatedDate or input expression.`);
     }),
   );
+}
+
+function parseTransitionTargetInputExpression(
+  context: string,
+  value: Record<string, unknown>,
+  input: EntityOperationInputContractSchema | undefined,
+  entity: EntitySchema,
+): RecordPlanInputValueExpressionSchema {
+  assertExactKeys(context, value, ["kind", "field"]);
+  const inputName = parseRequiredNonEmptyString(`${context} field`, value.field);
+  const inputField = definitionsToRecord(input?.fields)[inputName];
+  if (!inputField) {
+    throw new Error(`${context} references unknown operation input field "${inputName}".`);
+  }
+
+  const required = "field" in inputField ? inputField.required === true : inputField.required;
+  if (!required) {
+    throw new Error(`${context} operation input field "${inputName}" must be required.`);
+  }
+
+  const sourceField =
+    "field" in inputField ? definitionsToRecord(entity.fields)[inputField.field] : inputField;
+  if (sourceField?.type !== "date") {
+    throw new Error(`${context} operation input field "${inputName}" must be date-compatible.`);
+  }
+
+  return { kind: "input", field: inputName };
 }
 
 export function parseGeneratedDateValueExpression(

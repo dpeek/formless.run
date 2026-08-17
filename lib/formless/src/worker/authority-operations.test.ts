@@ -1533,6 +1533,139 @@ describe("authority operation execution", () => {
     expect(replayed.body.result.body.output).toEqual(output);
   });
 
+  it("commits a validated operation input date with the destination state", async () => {
+    const bootstrap = await executeOperation<BootstrapResponse>({
+      method: "GET",
+      path: "/bootstrap",
+    });
+    const schema = schemaWithTransitionInputTargetValue(bootstrap.body.result.body.schema);
+
+    await executeOperation({
+      method: "POST",
+      path: "/schema",
+      body: { schema },
+    });
+    const created = await createTaskForTransition("transition-input-date-task", {
+      title: "Received issue",
+      done: false,
+    });
+    const createdOutput = created.body.result.body.output;
+
+    if (createdOutput.type !== "create") {
+      throw new Error("Expected create operation output.");
+    }
+
+    const committed = await executeOperation<OperationInvocationResponse>({
+      method: "POST",
+      path: "/operations/task/startTask",
+      body: {
+        idempotencyKey: "transition-input-date-start",
+        recordId: createdOutput.record.id,
+        input: { receivedAt: "2026-08-14" },
+      },
+    });
+    const output = committed.body.result.body.output;
+
+    if (output.type !== "command") {
+      throw new Error("Expected command operation output.");
+    }
+
+    expect(committed.body.writes.map((write) => write.kind)).toEqual(["committed"]);
+    expect(output.changes.filter((change) => change.entity === "task")).toHaveLength(1);
+    expect(output.changes[0]).toMatchObject({
+      entity: "task",
+      recordId: createdOutput.record.id,
+      payload: {
+        values: {
+          status: "doing",
+          startedOn: "2026-08-14",
+        },
+      },
+    });
+  });
+
+  it("commits no transition writes for invalid input or an invalid destination transition", async () => {
+    const bootstrap = await executeOperation<BootstrapResponse>({
+      method: "GET",
+      path: "/bootstrap",
+    });
+    const schema = schemaWithTransitionInputTargetValue(bootstrap.body.result.body.schema);
+
+    await executeOperation({
+      method: "POST",
+      path: "/schema",
+      body: { schema },
+    });
+    const invalidInputTarget = await createTaskForTransition("transition-invalid-input", {
+      title: "Invalid received date",
+      done: false,
+    });
+    const invalidInputTargetOutput = invalidInputTarget.body.result.body.output;
+
+    if (invalidInputTargetOutput.type !== "create") {
+      throw new Error("Expected create operation output.");
+    }
+
+    const invalidInput = await executeOperationFailure({
+      method: "POST",
+      path: "/operations/task/startTask",
+      body: {
+        idempotencyKey: "transition-invalid-input-date",
+        recordId: invalidInputTargetOutput.record.id,
+        input: { receivedAt: "2026-02-30" },
+      },
+    });
+    const validTarget = await createTaskForTransition("transition-invalid-state", {
+      title: "Already received",
+      done: false,
+    });
+    const validTargetOutput = validTarget.body.result.body.output;
+
+    if (validTargetOutput.type !== "create") {
+      throw new Error("Expected create operation output.");
+    }
+
+    await executeOperation({
+      method: "POST",
+      path: "/operations/task/startTask",
+      body: {
+        idempotencyKey: "transition-valid-before-invalid-state",
+        recordId: validTargetOutput.record.id,
+        input: { receivedAt: "2026-08-14" },
+      },
+    });
+    const invalidTransition = await executeOperationFailure({
+      method: "POST",
+      path: "/operations/task/startTask",
+      body: {
+        idempotencyKey: "transition-invalid-state-date",
+        recordId: validTargetOutput.record.id,
+        input: { receivedAt: "2026-08-15" },
+      },
+    });
+    const after = await executeOperation<BootstrapResponse>({
+      method: "GET",
+      path: "/bootstrap",
+    });
+    const invalidInputRecord = after.body.result.body.records.find(
+      (record) => record.id === invalidInputTargetOutput.record.id,
+    );
+    const invalidTransitionRecord = after.body.result.body.records.find(
+      (record) => record.id === validTargetOutput.record.id,
+    );
+
+    expect(invalidInput.response.status).toBe(400);
+    expect(invalidInput.body.writes).toEqual([]);
+    expect(invalidInputRecord?.values).toMatchObject({ status: "todo" });
+    expect(invalidInputRecord?.values).not.toHaveProperty("startedOn");
+    expect(invalidTransition.response.status).toBe(400);
+    expect(invalidTransition.body.writes).toEqual([]);
+    expect(invalidTransitionRecord?.values).toMatchObject({
+      status: "doing",
+      startedOn: "2026-08-14",
+    });
+  });
+
   it("atomically commits transition side-effect creates and replays their record metadata", async () => {
     const bootstrap = await executeOperation<BootstrapResponse>({
       method: "GET",
@@ -3281,6 +3414,42 @@ function schemaWithTransitionTargetValues(
                 kind: "generatedDate",
                 timeZone: "America/Los_Angeles",
               },
+            },
+          },
+        },
+      },
+    ]),
+  });
+
+  return schema;
+}
+
+function schemaWithTransitionInputTargetValue(sourceSchema: AppSchema): AppSchema {
+  const schema = schemaWithTransitionTargetValues(sourceSchema);
+  const taskEntity = requireEntity(schema, "task");
+  const startTask = taskEntity.operations?.find((definition) => definition.key === "startTask");
+  if (
+    !startTask ||
+    startTask.effect?.type !== "operationHandler" ||
+    startTask.effect.handler !== "transition-state"
+  ) {
+    throw new Error("Expected transition-state task.startTask operation.");
+  }
+
+  setKeyedDefinition(schema.entities, "task", {
+    ...taskEntity,
+    operations: mergeOperations(taskEntity.operations, [
+      {
+        ...startTask,
+        input: {
+          fields: [{ key: "receivedAt", field: "startedOn", required: true }],
+        },
+        effect: {
+          ...startTask.effect,
+          config: {
+            ...startTask.effect.config,
+            targetValues: {
+              startedOn: { kind: "input", field: "receivedAt" },
             },
           },
         },

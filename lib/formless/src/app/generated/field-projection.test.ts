@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 import type {
   AppSchema,
   EntityOperationSchema,
+  EntitySchema,
   FieldSchema,
   GeneratedFieldDraftInput,
   PublicSafeOperationInputField,
@@ -1271,6 +1272,7 @@ function transitionOperation(
   } satisfies EntityOperationSchema;
 
   return {
+    entity: taskEntity,
     field: fields.status,
     fieldName: "status",
     label,
@@ -1327,6 +1329,12 @@ const fields = {
   systemText: { type: "text", required: false },
   title: { type: "text", required: true, label: "Title" },
 } satisfies Record<string, FieldSchema>;
+
+const taskEntity = {
+  id: "entity_58d9ecb9-8ae1-4740-b7c2-ebf7af3c83a4",
+  fields: Object.entries(fields).map(([key, field]) => ({ key, ...field })),
+  label: "Task",
+} satisfies EntitySchema;
 
 const stateMachine = {
   fieldName: "status",

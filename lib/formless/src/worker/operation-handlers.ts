@@ -43,6 +43,7 @@ import {
   materializeRecordPlanAsync,
   recordPlanCommandInput,
   recordPlanOperationOutput,
+  type RecordPlanInputValues,
 } from "./record-plan-materializer.ts";
 import {
   assertActiveOperationTargetSnapshot,
@@ -154,7 +155,13 @@ export async function prepareTransitionStateSideEffectHandlerOutcome(
     );
   }
 
+  const inputValues = recordPlanCommandInput({
+    envelope: context.envelope,
+    schema: context.schema,
+    storage: context.storage,
+  });
   const transition = selectTransitionStateWritePlans(context.storage, context, effect, {
+    inputValues,
     receivedAt: context.envelope.receivedAt,
   });
   const operationId = requiredOperationWriteIdentity(context.envelope);
@@ -162,11 +169,7 @@ export async function prepareTransitionStateSideEffectHandlerOutcome(
     effect: sideEffects,
     envelope: context.envelope,
     identityReferenceResolver: options.identityReferenceResolver,
-    inputValues: recordPlanCommandInput({
-      envelope: context.envelope,
-      schema: context.schema,
-      storage: context.storage,
-    }),
+    inputValues,
     operationId,
     plannedRecords: transition.plannedRecords,
     schema: context.schema,
@@ -828,6 +831,7 @@ function selectTransitionStateWritePlans(
   context: OperationHandlerExecutionContext,
   effect: OperationHandlerEffectSchemaForKind<"transition-state">,
   options: {
+    inputValues?: RecordPlanInputValues;
     receivedAt?: string;
   } = {},
 ): {
@@ -868,20 +872,11 @@ function selectTransitionStateWritePlans(
     );
   }
 
-  const generatedTargetValues = Object.fromEntries(
-    Object.entries(effect.config.targetValues ?? {}).map(([fieldName, expression]) => [
-      fieldName,
-      materializeGeneratedDateExpression(
-        expression,
-        context.envelope.receivedAt,
-        `Operation "${context.envelope.operation.canonicalKey}" targetValues.${fieldName} generatedDate`,
-      ),
-    ]),
-  );
+  const targetValues = materializeTransitionTargetValues(context, effect, options.inputValues);
   const nextValues = validateRecordValues(
     {
       ...record.values,
-      ...generatedTargetValues,
+      ...targetValues,
       [machine.field]: transition.to,
     },
     entity,
@@ -955,6 +950,47 @@ function selectTransitionStateWritePlans(
   }
 
   return { plannedRecords, plans, targetRecord: record };
+}
+
+function materializeTransitionTargetValues(
+  context: OperationHandlerExecutionContext,
+  effect: OperationHandlerEffectSchemaForKind<"transition-state">,
+  providedInputValues: RecordPlanInputValues | undefined,
+): RecordValues {
+  const entries = Object.entries(effect.config.targetValues ?? {});
+  const usesInput = entries.some(([, expression]) => expression.kind === "input");
+  const inputValues = usesInput
+    ? (providedInputValues ??
+      recordPlanCommandInput({
+        envelope: context.envelope,
+        schema: context.schema,
+        storage: context.storage,
+      }))
+    : undefined;
+
+  return Object.fromEntries(
+    entries.map(([fieldName, expression]) => {
+      if (expression.kind === "generatedDate") {
+        return [
+          fieldName,
+          materializeGeneratedDateExpression(
+            expression,
+            context.envelope.receivedAt,
+            `Operation "${context.envelope.operation.canonicalKey}" targetValues.${fieldName} generatedDate`,
+          ),
+        ];
+      }
+
+      const value = inputValues?.[expression.field];
+      if (value === undefined) {
+        throw new BadRequestError(
+          `Operation "${context.envelope.operation.canonicalKey}" targetValues.${fieldName} requires input field "${expression.field}".`,
+        );
+      }
+
+      return [fieldName, value];
+    }),
+  ) as RecordValues;
 }
 
 function stateTransitionCanApply(

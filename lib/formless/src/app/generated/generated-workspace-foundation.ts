@@ -164,6 +164,8 @@ export type GeneratedWorkspaceSelectedRecordDetailRelationshipFacts = {
 type GeneratedWorkspaceListFoundationOptions = Partial<
   Pick<
     SelectGeneratedListFoundationOptions,
+    | "commandDialogOpenByControlId"
+    | "commandStateByControlId"
     | "confirmationOpenByControlId"
     | "fieldStateByRecordId"
     | "mediaAssetOptionsByRecordId"
@@ -176,6 +178,8 @@ type GeneratedWorkspaceListFoundationOptions = Partial<
 type GeneratedWorkspaceRecordResultFoundationOptions = Partial<
   Pick<
     SelectGeneratedRecordResultFoundationOptions,
+    | "commandDialogOpenByControlId"
+    | "commandStateByControlId"
     | "confirmationOpenByControlId"
     | "editingDisabledReason"
     | "mediaAssetOptionsByFieldName"

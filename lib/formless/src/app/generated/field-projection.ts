@@ -1369,7 +1369,14 @@ function projectStateMachineFacts({
             kind: "transitions",
             transitions: transitionOperations.map(
               (operation): StateTransitionOperation => ({
-                ...operation,
+                operationName: operation.operationName,
+                label: operation.label,
+                machineName: operation.machineName,
+                machine: operation.machine,
+                transitionName: operation.transitionName,
+                transition: operation.transition,
+                fieldName: operation.fieldName,
+                field: operation.field,
                 availability: selectTransitionStateOperationAvailability({
                   currentValue,
                   field: operation.field,

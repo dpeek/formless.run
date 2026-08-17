@@ -101,6 +101,48 @@ describe("schema state machines", () => {
     expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
   });
 
+  it("parses required date operation input transition target values", () => {
+    const schema = parseAppSchema(
+      stateMachineSchemaWithTransitionTargetValues(
+        {
+          startedOn: { kind: "input", field: "receivedAt" },
+          reportingDate: { kind: "input", field: "reportingDate" },
+        },
+        {
+          input: {
+            fields: [
+              { key: "receivedAt", field: "startedOn", required: true },
+              { key: "reportingDate", type: "date", required: true },
+            ],
+          },
+        },
+      ),
+    );
+    const operation = schema.entities
+      .find((definition) => definition.key === "task")!
+      .operations?.find((definition) => definition.key === "startWork");
+
+    expect(operation?.input).toEqual({
+      fields: [
+        { key: "receivedAt", field: "startedOn", required: true },
+        { key: "reportingDate", type: "date", required: true },
+      ],
+    });
+    expect(operation?.effect).toEqual({
+      type: "operationHandler",
+      handler: "transition-state",
+      config: {
+        machine: "statusFlow",
+        transition: "start",
+        targetValues: {
+          startedOn: { kind: "input", field: "receivedAt" },
+          reportingDate: { kind: "input", field: "reportingDate" },
+        },
+      },
+    });
+    expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
+  });
+
   it("rejects invalid state-machine declarations", () => {
     expect(() =>
       parseAppSchema(
@@ -327,31 +369,31 @@ describe("schema state machines", () => {
         targetValues: {
           startedOn: { kind: "literal", value: "2026-07-29" },
         },
-        message: "must use a generatedDate expression",
+        message: "must use a generatedDate or input expression",
       },
       {
         targetValues: {
-          startedOn: { kind: "input", field: "startedOn" },
+          startedOn: { kind: "input", field: "missing" },
         },
-        message: "must use a generatedDate expression",
+        message: 'references unknown operation input field "missing"',
       },
       {
         targetValues: {
           startedOn: { kind: "targetField", field: "startedOn" },
         },
-        message: "must use a generatedDate expression",
+        message: "must use a generatedDate or input expression",
       },
       {
         targetValues: {
           startedOn: { kind: "generatedTimestamp" },
         },
-        message: "must use a generatedDate expression",
+        message: "must use a generatedDate or input expression",
       },
       {
         targetValues: {
           startedOn: { kind: "workflow", action: "patch" },
         },
-        message: "must use a generatedDate expression",
+        message: "must use a generatedDate or input expression",
       },
       {
         targetValues: {
@@ -399,6 +441,59 @@ describe("schema state machines", () => {
         ),
       ),
     ).toThrow("targetValues requires a record-scoped transition operation");
+
+    expect(() =>
+      parseAppSchema(
+        stateMachineSchemaWithTransitionTargetValues(
+          { startedOn: { kind: "input", field: "title" } },
+          { input: { fields: [{ key: "title", field: "title", required: true }] } },
+        ),
+      ),
+    ).toThrow('operation input field "title" must be date-compatible');
+
+    expect(() =>
+      parseAppSchema(
+        stateMachineSchemaWithTransitionTargetValues(
+          { startedOn: { kind: "input", field: "receivedAt" } },
+          { input: { fields: [{ key: "receivedAt", type: "text", required: true }] } },
+        ),
+      ),
+    ).toThrow('operation input field "receivedAt" must be date-compatible');
+
+    expect(() =>
+      parseAppSchema(
+        stateMachineSchemaWithTransitionTargetValues(
+          { title: { kind: "input", field: "receivedAt" } },
+          { input: { fields: [{ key: "receivedAt", type: "date", required: true }] } },
+        ),
+      ),
+    ).toThrow("requires a date destination field");
+
+    expect(() =>
+      parseAppSchema(
+        stateMachineSchemaWithTransitionTargetValues(
+          { startedOn: { kind: "input", field: "receivedAt" } },
+          {
+            input: {
+              fields: [{ key: "receivedAt", field: "startedOn", required: false }],
+            },
+          },
+        ),
+      ),
+    ).toThrow('operation input field "receivedAt" must be required');
+
+    expect(() =>
+      parseAppSchema(
+        stateMachineSchemaWithTransitionTargetValues(
+          { startedOn: { kind: "input", field: "receivedAt", fallback: "2026-08-17" } },
+          {
+            input: {
+              fields: [{ key: "receivedAt", field: "startedOn", required: true }],
+            },
+          },
+        ),
+      ),
+    ).toThrow('has unsupported key "fallback"');
   });
 
   it("parses and stringifies create-only transition side effects with target snapshots", () => {

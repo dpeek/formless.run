@@ -11,6 +11,7 @@ import { executeGeneratedOperationControl } from "./operation-control-runtime.ts
 export async function executeTransitionStateOperation({
   binding,
   controller,
+  input,
   operation,
   recordId,
   setStatus,
@@ -18,6 +19,7 @@ export async function executeTransitionStateOperation({
 }: {
   binding: GeneratedOperationControlBinding;
   controller: GeneratedOperationController;
+  input?: unknown;
   operation: TransitionStateOperationConfig;
   recordId: string;
   setStatus?: (status: SyncStatus) => void;
@@ -27,6 +29,7 @@ export async function executeTransitionStateOperation({
     binding,
     callerInput: {
       bindingId: binding.id,
+      ...(input === undefined ? {} : { input }),
       recordId,
       source,
     },
