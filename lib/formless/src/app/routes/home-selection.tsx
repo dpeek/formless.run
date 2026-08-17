@@ -136,13 +136,13 @@ export function selectHomeRouteSectionRecordId(
   current: HomeRouteSelectionState,
   screenName: string,
   sectionId: string,
-): string | null {
+): string | null | undefined {
   if (current.selectedScreenName !== screenName) {
-    return null;
+    return undefined;
   }
   const sectionKey = homeRouteSectionSelectionKey(screenName, sectionId);
 
-  return current.selectedRecordIdsBySection[sectionKey] ?? null;
+  return current.selectedRecordIdsBySection[sectionKey];
 }
 
 export function homeRouteSectionSelectionKey(screenName: string, sectionId: string): string {

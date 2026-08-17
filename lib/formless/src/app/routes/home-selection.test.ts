@@ -77,6 +77,9 @@ describe("home route selection", () => {
     expect(selectHomeRouteSectionRecordId(state, "cards", "secondary")).toBe("card-2");
     expect(selectHomeRouteSectionRecordId(cleared, "cards", "primary")).toBeNull();
     expect(selectHomeRouteSectionRecordId(cleared, "cards", "secondary")).toBe("card-2");
+    expect(
+      selectHomeRouteSectionRecordId(createHomeRouteSelectionState(), "cards", "primary"),
+    ).toBeUndefined();
   });
 
   it("clears selected records when the active screen changes", () => {
@@ -88,7 +91,7 @@ describe("home route selection", () => {
     );
     const changedScreen = withHomeRouteSelectedScreenName(selected, "resources");
 
-    expect(selectHomeRouteSectionRecordId(changedScreen, "cards", "primary")).toBeNull();
+    expect(selectHomeRouteSectionRecordId(changedScreen, "cards", "primary")).toBeUndefined();
     expect(changedScreen.selectedRecordIdsBySection).toEqual({});
   });
 });

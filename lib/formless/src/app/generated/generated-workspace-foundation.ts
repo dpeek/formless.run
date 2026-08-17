@@ -536,7 +536,7 @@ export function selectGeneratedWorkspaceFoundation(
     const selectedRecordId = selectGeneratedWorkspaceSelectedRecordId(
       section,
       recordIds,
-      selection.selectedRecordId ?? null,
+      selection.selectedRecordId,
     );
     const selectedRecordDetailRelationships =
       selectGeneratedWorkspaceSelectedRecordDetailRelationshipFacts({
@@ -1057,13 +1057,15 @@ function selectGeneratedWorkspaceQuery(
 export function selectGeneratedWorkspaceSelectedRecordId(
   section: HomeScreenCollectionSectionModel,
   recordIds: readonly string[],
-  selectedRecordId: string | null,
+  selectedRecordId: string | null | undefined,
 ): string | null {
-  return section.collection.detail !== undefined &&
-    selectedRecordId !== null &&
-    recordIds.includes(selectedRecordId)
+  if (section.collection.detail === undefined || selectedRecordId === null) {
+    return null;
+  }
+
+  return selectedRecordId !== undefined && recordIds.includes(selectedRecordId)
     ? selectedRecordId
-    : null;
+    : (recordIds[0] ?? null);
 }
 
 function selectGeneratedWorkspaceSelectedRecordDetailRelationshipFacts({

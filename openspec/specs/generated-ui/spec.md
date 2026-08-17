@@ -319,11 +319,12 @@ The system SHALL render generated screens from screen models and collection sect
   list result
 - THEN runtime owns nullable selected-record identity keyed by screen and
   section separately from shell navigation, query, and collection-context state
-- AND the initial unselected state renders the list without automatically
-  selecting the first record
-- AND selection is retained only while the selected record remains in the
-  current collection result and is cleared when the result or selected screen
-  no longer contains it
+- AND missing initial selection and stale selection fall back to the first
+  record in the current non-empty collection result
+- AND explicit cleared selection remains nullable so compact Back navigation
+  returns to the list
+- AND selection is retained while the selected record remains in the current
+  collection result and is cleared when that result becomes empty
 - AND the renderer receives semantic select-record and clear-selection intents
   rather than owning selected-record state
 
@@ -826,8 +827,8 @@ selection, reads, evaluation, operation execution, and effects.
 - AND a summary main list carries only each record's title and optional
   subtitle plus one controlled semantic selection state and intent
 - AND the contract declares compact presentation as `drillIn`, so compact
-  rendering starts at the list, selection enters detail, and back clears the
-  selection
+  rendering shows the list for explicit cleared selection, selection enters
+  detail, and back clears the selection
 - AND desktop column proportions, compact breakpoints, scrolling, and visual
   hierarchy remain renderer-owned
 - AND selected-record contracts do not expose query contexts, relationships,
@@ -2177,6 +2178,9 @@ operation execution.
   field intents
 - AND collection context detail and tree-builder field composition retain their
   owning record-result and tree-result contract boundaries
+- AND existing-record text editors with email format render with browser
+  autocomplete disabled and 1Password ignore metadata while create and
+  operation email inputs retain their form behavior
 - AND production mounts field presentation through the root Formless Renderer
   application assembly
 

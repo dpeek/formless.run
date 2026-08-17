@@ -63,6 +63,7 @@ export function TextFieldEditor({
 
   return (
     <TextInput
+      {...recordEmailAutocompleteProps(field)}
       {...fieldChromeProps(field)}
       hasClear={!field.required}
       isLoading={Boolean(field.pending?.isPending)}
@@ -75,6 +76,14 @@ export function TextFieldEditor({
       onKeyDown={handleKeyDown}
     />
   );
+}
+
+function recordEmailAutocompleteProps(field: EditorField) {
+  return (field.surface === "detail" || field.surface === "record") &&
+    field.field.type === "text" &&
+    field.field.format === "email"
+    ? { autoComplete: "off", "data-1p-ignore": "true" }
+    : {};
 }
 
 export function TextareaFieldEditor({

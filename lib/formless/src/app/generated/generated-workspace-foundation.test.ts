@@ -100,10 +100,10 @@ describe("generated workspace foundation", () => {
     }
   });
 
-  it("keeps selected-record state nullable and clears it when a query removes the record", () => {
+  it("defaults missing and stale selected-record state while preserving explicit list state", () => {
     const screen = selectedRecordDetailRateScreen();
     const snapshot = projectionSnapshot(rateCardTestRecords);
-    const select = (selectedQueryName?: string, selectedRecordId?: string) =>
+    const select = (selectedQueryName?: string, selectedRecordId?: string | null) =>
       required(
         selectGeneratedWorkspaceFoundation({
           screen,
@@ -119,17 +119,20 @@ describe("generated workspace foundation", () => {
         }),
       ).runtimePlan.sections[0];
 
-    expect(required(select()).selectedRecordId).toBeNull();
+    expect(required(select()).selectedRecordId).toBe("rec_card_default");
+    expect(required(select(undefined, null)).selectedRecordId).toBeNull();
     expect(required(select(undefined, "rec_card_premium")).selectedRecordId).toBe(
       "rec_card_premium",
     );
-    expect(required(select("cardDefault", "rec_card_premium")).selectedRecordId).toBeNull();
+    expect(required(select("cardDefault", "rec_card_premium")).selectedRecordId).toBe(
+      "rec_card_default",
+    );
   });
 
   it("projects selected-record composition and validates current selection and back intents", () => {
     const screen = selectedRecordDetailRateScreen();
     const snapshot = projectionSnapshot(rateCardTestRecords);
-    const select = (selectedRecordId: string | null) =>
+    const select = (selectedRecordId: string | null | undefined) =>
       required(
         selectGeneratedWorkspaceFoundation({
           screen,
@@ -139,6 +142,19 @@ describe("generated workspace foundation", () => {
           today: "2026-08-10",
         }),
       );
+    const initial = select(undefined);
+    const initialPresentation = required(initial.workspace.sections[0]).collection.presentation;
+    if (initialPresentation.kind !== "selectedRecord") {
+      throw new Error("Missing selected-record presentation.");
+    }
+    expect(initialPresentation).toMatchObject({
+      activePresentation: "detail",
+      selectedRecordId: "rec_card_default",
+    });
+    expect(initialPresentation.result.selection).toEqual({
+      selectedItemId: "rec_card_default",
+    });
+
     const unselected = select(null);
     const unselectedPresentation = required(unselected.workspace.sections[0]).collection
       .presentation;
@@ -410,8 +426,10 @@ describe("generated workspace foundation", () => {
     });
 
     const stale = required(select("rec_card_premium", { selectedQueryName: "cardDefault" }));
-    expect(stale.selectedRecordId).toBeNull();
-    expect(stale.selectedRecordDetailRelationshipResults).toEqual([]);
+    expect(stale.selectedRecordId).toBe("rec_card_default");
+    expect(required(stale.selectedRecordDetailRelationshipResults[0]).recordIds).toEqual(
+      defaultRelationship.recordIds,
+    );
 
     const relationship = required(
       required(screen.layout.sections[0]).collection.detail?.sections.find(

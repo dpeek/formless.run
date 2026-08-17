@@ -25,6 +25,23 @@ const suggestions = ["Research", "Delivery"] as const;
 afterEach(cleanup);
 
 describe("suggested text fields", () => {
+  it("disables autofill only for existing-record email fields", () => {
+    const renderer = render(<FieldRenderer field={emailRecordField()} />);
+    const recordEmail = renderer.getByRole("textbox", { name: /^Email/ });
+
+    expect(recordEmail.getAttribute("autocomplete")).toBe("off");
+    expect(recordEmail.getAttribute("data-1p-ignore")).toBe("true");
+
+    renderer.rerender(<FieldRenderer field={emailCreateField()} />);
+
+    expect(renderer.getByRole("textbox", { name: /^Email/ }).hasAttribute("autocomplete")).toBe(
+      false,
+    );
+    expect(renderer.getByRole("textbox", { name: /^Email/ }).hasAttribute("data-1p-ignore")).toBe(
+      false,
+    );
+  });
+
   it("uses open Typeahead chrome only for suggested text", () => {
     const renderer = render(
       <FieldRenderer
@@ -250,6 +267,40 @@ function ordinaryRecordField(value: string) {
   });
 }
 
+function emailRecordField() {
+  const field = emailSchema();
+  const control = textControl(field);
+
+  return recordField({
+    commit: "field-commit",
+    control,
+    drafts: recordDrafts({ recordValue: "ada@example.com" }),
+    editor: control.editor,
+    field,
+    fieldName: "email",
+    labelVisibility: "visible",
+    occurrence: { ownerId: "contact-record", placementId: "email" },
+    recordId: "contact-1",
+    rendererKind: "text",
+  });
+}
+
+function emailCreateField() {
+  const field = emailSchema();
+  const control = textControl(field);
+
+  return createField({
+    control,
+    draftInput: { kind: "input", value: "ada@example.com" },
+    editor: control.editor,
+    field,
+    fieldName: "email",
+    labelVisibility: "visible",
+    occurrence: { ownerId: "create-contact", placementId: "email" },
+    value: "ada@example.com",
+  });
+}
+
 function suggestedCreateSurface(): CreateSurfaceContract {
   const field = titleSchema(false);
   const control = textControl(field);
@@ -295,6 +346,15 @@ function titleSchema(required: boolean) {
   return {
     label: "Title",
     required,
+    type: "text",
+  } satisfies Extract<FieldSchema, { type: "text" }>;
+}
+
+function emailSchema() {
+  return {
+    format: "email",
+    label: "Email",
+    required: true,
     type: "text",
   } satisfies Extract<FieldSchema, { type: "text" }>;
 }
