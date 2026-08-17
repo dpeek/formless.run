@@ -214,6 +214,23 @@ describe("recovery application media source", () => {
     ]);
   });
 
+  it("cancels the active provider body when media streaming is abandoned", async () => {
+    const stored = mediaObject("media/images/abandoned.png", [1, 2, 3], {
+      contentType: "image/png",
+    });
+    const harness = mediaBucketHarness([stored], { keepBodiesOpen: true });
+    const [entry] = await readRecoveryApplicationMediaInventory(harness.bucket);
+    const source = await readRecoveryApplicationMediaObject(harness.bucket, entry!);
+    const iterator = (source.bytes as AsyncIterable<Uint8Array>)[Symbol.asyncIterator]();
+
+    await iterator.next();
+    await iterator.next();
+    await iterator.next();
+    await iterator.return?.();
+
+    expect(harness.cancelledKeys).toEqual([stored.key]);
+  });
+
   it("rejects changed and disappeared objects selected by the initial inventory", async () => {
     const original = mediaObject("media/images/asset.png", [1, 2, 3], {
       contentType: "image/png",
@@ -304,8 +321,12 @@ function mediaObject(
   } as StoredMediaObject;
 }
 
-function mediaBucketHarness(initialObjects: StoredMediaObject[]) {
+function mediaBucketHarness(
+  initialObjects: StoredMediaObject[],
+  harnessOptions: { keepBodiesOpen?: boolean } = {},
+) {
   const objects = new Map(initialObjects.map((object) => [object.key, object]));
+  const cancelledKeys: string[] = [];
   const listCalls: Array<{
     cursor?: string;
     include?: string[];
@@ -335,7 +356,12 @@ function mediaBucketHarness(initialObjects: StoredMediaObject[]) {
           value: new ReadableStream<Uint8Array>({
             start(controller) {
               controller.enqueue(object.bytes);
-              controller.close();
+              if (!harnessOptions.keepBodiesOpen) {
+                controller.close();
+              }
+            },
+            cancel() {
+              cancelledKeys.push(object.key);
             },
           }),
         },
@@ -362,7 +388,7 @@ function mediaBucketHarness(initialObjects: StoredMediaObject[]) {
     },
   } as unknown as R2Bucket;
 
-  return { bucket, getCalls, listCalls, objects };
+  return { bucket, cancelledKeys, getCalls, listCalls, objects };
 }
 
 async function collectBytes(source: AsyncIterable<Uint8Array>): Promise<Uint8Array> {

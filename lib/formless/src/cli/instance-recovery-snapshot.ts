@@ -27,6 +27,7 @@ export type CaptureRecoverySnapshotInput = {
 
 export type RecoverySnapshotFilesystem = {
   persistRecoverySnapshot: (input: {
+    expectedSourceOrigin: string;
     outputPath: string;
     source: RecoveryByteSource;
   }) => Promise<PersistRecoverySnapshotResult>;
@@ -167,6 +168,7 @@ export async function captureRecoverySnapshot(
   let persisted: PersistRecoverySnapshotResult;
   try {
     persisted = await dependencies.filesystem.persistRecoverySnapshot({
+      expectedSourceOrigin: captureInput.target.origin,
       outputPath: captureInput.outputPath,
       source: classifyTransportFailures(body),
     });
@@ -280,6 +282,7 @@ async function discoverRecoveryProtocol(
     response = await fetcher(url, {
       headers: recoveryRequestHeaders(input.adminBearer, "application/json"),
       method: "GET",
+      redirect: "error",
     });
   } catch {
     throw captureError(
@@ -331,6 +334,7 @@ async function requestRecoveryCapture(
     response = await fetcher(url, {
       headers: recoveryRequestHeaders(input.adminBearer, RECOVERY_MEDIA_TYPE),
       method: "POST",
+      redirect: "error",
     });
   } catch {
     throw captureError(

@@ -500,11 +500,13 @@ async function* recoveryNativeMediaBytes(
   yield header;
 
   const reader = body.getReader();
+  let completed = false;
   let received = 0;
   try {
     while (true) {
       const next = await reader.read();
       if (next.done) {
+        completed = true;
         break;
       }
 
@@ -519,6 +521,9 @@ async function* recoveryNativeMediaBytes(
       yield next.value;
     }
   } finally {
+    if (!completed) {
+      await reader.cancel().catch(() => undefined);
+    }
     reader.releaseLock();
   }
 

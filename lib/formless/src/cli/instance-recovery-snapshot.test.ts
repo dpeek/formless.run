@@ -48,7 +48,12 @@ describe("headless recovery snapshot capture", () => {
     const outputPath = path.join(directory, "target.recovery");
     const payload = new TextEncoder().encode(privatePayloadValue);
     const bytes = await encodedRecoverySnapshot(payload);
-    const requests: { headers: Headers; method: string; url: string }[] = [];
+    const requests: {
+      headers: Headers;
+      method: string;
+      redirect: RequestRedirect | undefined;
+      url: string;
+    }[] = [];
     const progress: RecoverySnapshotCaptureProgress[] = [];
     await writeFile(outputPath, "prior snapshot");
 
@@ -60,6 +65,7 @@ describe("headless recovery snapshot capture", () => {
           requests.push({
             headers: new Headers(init?.headers),
             method: init?.method ?? "GET",
+            redirect: init?.redirect,
             url,
           });
 
@@ -83,6 +89,7 @@ describe("headless recovery snapshot capture", () => {
       `Bearer ${adminBearer}`,
       `Bearer ${adminBearer}`,
     ]);
+    expect(requests.map(({ redirect }) => redirect)).toEqual(["error", "error"]);
     expect(result).toMatchObject({
       evidence: {
         excludedScopes: ["security", "private-auth", "provider"],
@@ -125,6 +132,10 @@ describe("headless recovery snapshot capture", () => {
   });
 
   it("preserves prior output across discovery, negotiation, authorization, and source failures", async () => {
+    const wrongOriginBytes = await encodedRecoverySnapshot(
+      new TextEncoder().encode(privatePayloadValue),
+      "https://another.example.test",
+    );
     const unsupportedDiscovery: RecoveryDiscovery = {
       kind: recoveryDiscoveryV1.kind,
       protocols: [
@@ -159,6 +170,11 @@ describe("headless recovery snapshot capture", () => {
         code: "source-changed",
         fetch: recoveryFetch(() => new Response(privatePayloadValue, { status: 409 })),
         name: "source drift before streaming",
+      },
+      {
+        code: "snapshot-invalid",
+        fetch: recoveryFetch(() => captureResponse(wrongOriginBytes)),
+        name: "capture source origin mismatch",
       },
     ];
 
@@ -289,7 +305,10 @@ function interruptedCaptureResponse(bytes: Uint8Array): Response {
   );
 }
 
-async function encodedRecoverySnapshot(payload: Uint8Array): Promise<Uint8Array> {
+async function encodedRecoverySnapshot(
+  payload: Uint8Array,
+  sourceOrigin = target.origin,
+): Promise<Uint8Array> {
   const header: RecoveryCaptureHeader = {
     captureId: "capture-unknown-native",
     capturedAt: "2026-08-17T00:00:00.000Z",
@@ -300,7 +319,7 @@ async function encodedRecoverySnapshot(payload: Uint8Array): Promise<Uint8Array>
     nativePayloadFormat: "remote.future.program",
     nativePayloadVersion: 47,
     sourceCursor: "remote-cursor-47",
-    sourceOrigin: target.origin,
+    sourceOrigin,
     version: RECOVERY_PROTOCOL_VERSION,
     workerVersion: "remote-worker-47",
   };

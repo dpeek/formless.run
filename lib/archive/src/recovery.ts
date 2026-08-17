@@ -74,11 +74,14 @@ export type RecoveryPayloadDescriptor = RecoveryPayloadFrameHeader & {
   sha256: RecoverySha256Digest;
 };
 
-export type RecoveryCompletionReceipt = {
+export type RecoveryCompletionFrameHeader = {
   kind: typeof RECOVERY_COMPLETION_KIND;
-  payloads: RecoveryPayloadDescriptor[];
   rootSha256: RecoverySha256Digest;
   version: typeof RECOVERY_PROTOCOL_VERSION;
+};
+
+export type RecoveryCompletionReceipt = RecoveryCompletionFrameHeader & {
+  payloads: RecoveryPayloadDescriptor[];
 };
 
 export type RecoveryByteSource =
@@ -237,14 +240,13 @@ export async function* encodeRecoverySnapshot(
     throw new RecoveryValidationError("Recovery snapshot must contain at least one payload.");
   }
 
-  const receipt: RecoveryCompletionReceipt = {
+  const completion: RecoveryCompletionFrameHeader = {
     kind: RECOVERY_COMPLETION_KIND,
-    payloads: descriptors,
     rootSha256: recoverySnapshotRootSha256(header, descriptors),
     version: RECOVERY_PROTOCOL_VERSION,
   };
 
-  yield encodeFrameStart(RECOVERY_FRAME_KINDS.completion, receipt, 0);
+  yield encodeFrameStart(RECOVERY_FRAME_KINDS.completion, completion, 0);
 }
 
 export async function decodeRecoverySnapshot(
@@ -334,18 +336,17 @@ async function decodeRecoverySnapshotFromReader(
       throw new RecoveryValidationError("Recovery completion must follow at least one payload.");
     }
 
-    const receipt = parseRecoveryCompletionReceipt(frame.header);
-    assertDescriptorsMatch(descriptors, receipt.payloads);
+    const completion = parseRecoveryCompletionFrameHeader(frame.header);
 
     const expectedRoot = recoverySnapshotRootSha256(header, descriptors);
-    if (receipt.rootSha256 !== expectedRoot) {
+    if (completion.rootSha256 !== expectedRoot) {
       throw new RecoveryValidationError("Recovery completion whole-snapshot root does not match.");
     }
     if (await reader.hasBytes()) {
       throw new RecoveryValidationError("Recovery stream has trailing bytes after completion.");
     }
 
-    return { header, receipt };
+    return { header, receipt: { ...completion, payloads: descriptors } };
   }
 }
 
@@ -432,68 +433,21 @@ function parseRecoveryPayloadDescriptor(
   };
 }
 
-function parseRecoveryCompletionReceipt(value: unknown): RecoveryCompletionReceipt {
-  const context = "Recovery completion receipt";
+function parseRecoveryCompletionFrameHeader(value: unknown): RecoveryCompletionFrameHeader {
+  const context = "Recovery completion frame header";
   const object = parseObject(context, value);
-  assertExactKeys(context, object, ["kind", "payloads", "rootSha256", "version"]);
+  assertExactKeys(context, object, ["kind", "rootSha256", "version"]);
   if (object.kind !== RECOVERY_COMPLETION_KIND) {
     throw new RecoveryValidationError(`${context} kind must be "${RECOVERY_COMPLETION_KIND}".`);
   }
   if (object.version !== RECOVERY_PROTOCOL_VERSION) {
     throw new RecoveryValidationError(`${context} version must be ${RECOVERY_PROTOCOL_VERSION}.`);
   }
-  if (!Array.isArray(object.payloads) || object.payloads.length === 0) {
-    throw new RecoveryValidationError(`${context} payloads must be a non-empty array.`);
-  }
-
-  const seenPayloadIds = new Set<string>();
-  const payloads = object.payloads.map((payload, index) => {
-    const descriptor = parseRecoveryPayloadDescriptor(`${context} payloads[${index}]`, payload);
-    if (seenPayloadIds.has(descriptor.id)) {
-      throw new RecoveryValidationError(`${context} payload id "${descriptor.id}" must be unique.`);
-    }
-    seenPayloadIds.add(descriptor.id);
-    return descriptor;
-  });
-
   return {
     kind: RECOVERY_COMPLETION_KIND,
-    payloads,
     rootSha256: parseSha256Digest(`${context} rootSha256`, object.rootSha256),
     version: RECOVERY_PROTOCOL_VERSION,
   };
-}
-
-function assertDescriptorsMatch(
-  observed: readonly RecoveryPayloadDescriptor[],
-  declared: readonly RecoveryPayloadDescriptor[],
-): void {
-  if (observed.length !== declared.length) {
-    throw new RecoveryValidationError("Recovery completion payload count does not match.");
-  }
-
-  for (const [index, descriptor] of observed.entries()) {
-    const expected = declared[index];
-    if (
-      expected === undefined ||
-      expected.id !== descriptor.id ||
-      expected.kind !== descriptor.kind
-    ) {
-      throw new RecoveryValidationError(
-        `Recovery completion payload descriptor ${index} does not match its frame.`,
-      );
-    }
-    if (expected.byteLength !== descriptor.byteLength) {
-      throw new RecoveryValidationError(
-        `Recovery completion payload "${descriptor.id}" byte length does not match.`,
-      );
-    }
-    if (expected.sha256 !== descriptor.sha256) {
-      throw new RecoveryValidationError(
-        `Recovery completion payload "${descriptor.id}" SHA-256 digest does not match.`,
-      );
-    }
-  }
 }
 
 function encodeFrameStart(

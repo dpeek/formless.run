@@ -9,6 +9,7 @@ import {
   RECOVERY_FRAME_KINDS,
   RECOVERY_FRAME_PREFIX_BYTES,
   RECOVERY_MAX_FRAME_HEADER_BYTES,
+  RECOVERY_PROTOCOL_VERSION,
   RECOVERY_STREAM_MAGIC,
   decodeRecoverySnapshot,
   encodeRecoverySnapshot,
@@ -76,6 +77,43 @@ describe("recovery snapshot version one", () => {
     await expect(decodeRecoverySnapshot([bytes])).resolves.toMatchObject({
       header: { nativePayloadFormat: "formless.program.native", nativePayloadVersion: 999_999 },
     });
+  });
+
+  it("keeps the completion frame bounded independently of payload count", async () => {
+    const completionHeaderLengths: number[] = [];
+
+    for (const payloadCount of [1, 1_000]) {
+      const bytes = await collect(
+        encodeRecoverySnapshot({
+          header: recoveryGoldenHeader,
+          payloads: Array.from({ length: payloadCount }, (_, index) => ({
+            byteLength: 1,
+            bytes: [Uint8Array.of(index % 256)],
+            id: `media:media/images/${String(index).padStart(6, "0")}-${"a".repeat(64)}.png`,
+            kind: "media",
+          })),
+        }),
+      );
+      const validation = await decodeRecoverySnapshot([bytes]);
+      const completion = frameSpans(bytes).at(-1);
+      if (completion === undefined) {
+        throw new Error("Recovery completion frame is missing.");
+      }
+      const completionHeader = JSON.parse(
+        text(bytes.subarray(completion.headerStart, completion.headerEnd)),
+      ) as Record<string, unknown>;
+
+      completionHeaderLengths.push(completion.headerEnd - completion.headerStart);
+      expect(completionHeader).toEqual({
+        kind: "formless.recovery.completion",
+        rootSha256: validation.receipt.rootSha256,
+        version: RECOVERY_PROTOCOL_VERSION,
+      });
+      expect(validation.receipt.payloads).toHaveLength(payloadCount);
+    }
+
+    expect(new Set(completionHeaderLengths).size).toBe(1);
+    expect(completionHeaderLengths[0]).toBeLessThan(RECOVERY_MAX_FRAME_HEADER_BYTES);
   });
 
   it("rejects oversized and non-canonical JSON headers", async () => {
@@ -167,36 +205,18 @@ describe("recovery snapshot version one", () => {
     ).rejects.toThrow(/must be unique/);
   });
 
-  it("rejects declared length, payload digest, and whole-root mismatches", async () => {
+  it("rejects payload and whole-root mismatches and invalid declared input lengths", async () => {
     const golden = await encodeGoldenSnapshot();
     const validation = await decodeRecoverySnapshot([golden]);
+    const firstPayload = frameSpans(golden)[1];
     const completion = frameSpans(golden).at(-1);
-    if (completion === undefined) {
-      throw new Error("Golden completion frame is missing.");
+    if (firstPayload === undefined || completion === undefined) {
+      throw new Error("Golden recovery frames are incomplete.");
     }
 
-    const wrongLength = golden.slice();
-    replaceTextInRange(
-      wrongLength,
-      completion.headerStart,
-      completion.headerEnd,
-      '"byteLength":5',
-      '"byteLength":6',
-    );
-    await expect(decodeRecoverySnapshot([wrongLength])).rejects.toThrow(
-      /byte length does not match/,
-    );
-
-    const wrongDigest = golden.slice();
-    const payloadDigest = validation.receipt.payloads[0]!.sha256;
-    replaceTextInRange(
-      wrongDigest,
-      completion.headerStart,
-      completion.headerEnd,
-      payloadDigest,
-      alterDigest(payloadDigest),
-    );
-    await expect(decodeRecoverySnapshot([wrongDigest])).rejects.toThrow(/digest does not match/);
+    const wrongPayload = golden.slice();
+    wrongPayload[firstPayload.payloadStart] ^= 0xff;
+    await expect(decodeRecoverySnapshot([wrongPayload])).rejects.toThrow(/root does not match/);
 
     const wrongRoot = golden.slice();
     replaceTextInRange(

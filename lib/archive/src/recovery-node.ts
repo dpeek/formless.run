@@ -6,6 +6,7 @@ import { mkdir, open, rename, rm } from "node:fs/promises";
 import path from "node:path";
 
 import {
+  RecoveryValidationError,
   decodeRecoverySnapshot,
   type RecoveryByteSource,
   type RecoverySnapshotValidation,
@@ -19,9 +20,11 @@ export type PersistRecoverySnapshotResult = RecoverySnapshotValidation & {
 };
 
 export async function persistRecoverySnapshot(input: {
+  expectedSourceOrigin: string;
   outputPath: string;
   source: RecoveryByteSource;
 }): Promise<PersistRecoverySnapshotResult> {
+  const expectedSourceOrigin = parseExpectedSourceOrigin(input.expectedSourceOrigin);
   const outputPath = path.resolve(input.outputPath);
   const outputDirectory = path.dirname(outputPath);
   const temporaryPath = path.join(
@@ -43,6 +46,11 @@ export async function persistRecoverySnapshot(input: {
         byteLength += chunk.byteLength;
       }),
     );
+    if (validation.header.sourceOrigin !== expectedSourceOrigin) {
+      throw new RecoveryValidationError(
+        "Recovery capture source origin does not match the expected target.",
+      );
+    }
 
     await handle.sync();
     await handle.close();
@@ -56,6 +64,25 @@ export async function persistRecoverySnapshot(input: {
     if (!published) {
       await rm(temporaryPath, { force: true }).catch(() => undefined);
     }
+  }
+}
+
+function parseExpectedSourceOrigin(value: string): string {
+  try {
+    const url = new URL(value);
+    if (
+      (url.protocol !== "http:" && url.protocol !== "https:") ||
+      url.username !== "" ||
+      url.password !== "" ||
+      url.pathname !== "/" ||
+      url.search !== "" ||
+      url.hash !== ""
+    ) {
+      throw new Error();
+    }
+    return url.origin;
+  } catch {
+    throw new RecoveryValidationError("Expected recovery source origin is invalid.");
   }
 }
 

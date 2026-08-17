@@ -8,6 +8,7 @@ import { RECOVERY_GOLDEN_V1_HEX } from "./recovery-fixtures.ts";
 import { persistRecoverySnapshot } from "./recovery-node.ts";
 
 const temporaryDirectories: string[] = [];
+const expectedSourceOrigin = "https://example.com";
 
 afterEach(async () => {
   await Promise.all(
@@ -25,6 +26,7 @@ describe("recovery snapshot Node persistence", () => {
     await writeFile(outputPath, "prior complete snapshot");
 
     const result = await persistRecoverySnapshot({
+      expectedSourceOrigin,
       outputPath,
       source: fixedSizeChunks(bytes, 7),
     });
@@ -51,10 +53,22 @@ describe("recovery snapshot Node persistence", () => {
 
     await expect(
       persistRecoverySnapshot({
+        expectedSourceOrigin,
         outputPath,
         source: [bytes.subarray(0, bytes.byteLength - 1)],
       }),
     ).rejects.toThrow(/truncated/);
+
+    expect(await readFile(outputPath, "utf8")).toBe(prior);
+    expect(await readdir(directory)).toEqual(["target.recovery"]);
+
+    await expect(
+      persistRecoverySnapshot({
+        expectedSourceOrigin: "https://another.example.com",
+        outputPath,
+        source: [bytes],
+      }),
+    ).rejects.toThrow(/source origin does not match/);
 
     expect(await readFile(outputPath, "utf8")).toBe(prior);
     expect(await readdir(directory)).toEqual(["target.recovery"]);
@@ -67,7 +81,11 @@ describe("recovery snapshot Node persistence", () => {
     await writeFile(outputPath, "prior complete snapshot");
 
     await expect(
-      persistRecoverySnapshot({ outputPath, source: interruptedSource(bytes) }),
+      persistRecoverySnapshot({
+        expectedSourceOrigin,
+        outputPath,
+        source: interruptedSource(bytes),
+      }),
     ).rejects.toThrow("transport interrupted");
     expect(await readFile(outputPath, "utf8")).toBe("prior complete snapshot");
     expect(await readdir(directory)).toEqual(["target.recovery"]);
@@ -75,7 +93,11 @@ describe("recovery snapshot Node persistence", () => {
     const directoryOutput = path.join(directory, "directory-output");
     await mkdir(directoryOutput);
     await expect(
-      persistRecoverySnapshot({ outputPath: directoryOutput, source: [bytes] }),
+      persistRecoverySnapshot({
+        expectedSourceOrigin,
+        outputPath: directoryOutput,
+        source: [bytes],
+      }),
     ).rejects.toThrow();
     expect((await stat(directoryOutput)).isDirectory()).toBe(true);
     expect((await readdir(directory)).sort()).toEqual(["directory-output", "target.recovery"]);

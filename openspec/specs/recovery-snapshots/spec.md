@@ -62,6 +62,9 @@ payload bytes remain opaque to version-independent callers.
 - AND the body is a length-delimited binary frame stream containing one capture
   header, ordered payload frames, and one terminal completion receipt
 - AND payload bytes are binary rather than JSON base64 values
+- AND the terminal completion frame carries constant-size completion facts
+  independent of payload count while the validated receipt reconstructs ordered
+  payload descriptors from the payload frames
 - AND one payload frame can be consumed and persisted without buffering the
   complete response or another payload frame in memory
 
@@ -76,6 +79,8 @@ payload bytes remain opaque to version-independent callers.
   byte length, and SHA-256 digest
 - AND the completion receipt binds the immutable capture header and ordered
   payload descriptors into one whole-snapshot SHA-256 root
+- AND the completion frame does not repeat the ordered payload descriptor array
+  inside its bounded frame header
 - AND native payload metadata not required for framing or integrity remains
   opaque payload data rather than expanding the stable outer contract
 
@@ -203,6 +208,13 @@ is being read.
 - AND recovery capture does not acquire a deployment lease, enter maintenance
   mode, or mutate Program, media, security, provider, or Alchemy state
 
+#### Scenario: Cancel an abandoned media read
+
+- GIVEN recovery capture is streaming an application media object
+- WHEN the response consumer abandons the capture before that object completes
+- THEN the remote runtime cancels the active provider body
+- AND it emits no completion receipt
+
 ### Requirement: Headless Recovery Capture Operation
 
 The system SHALL provide a headless operation that captures one caller-resolved
@@ -216,6 +228,9 @@ target without owning target selection or terminal behavior.
 - THEN it discovers the target protocol, selects a mutually supported version,
   streams and verifies the response, and atomically publishes one complete
   recovery snapshot at the output path
+- AND discovery and capture redirects fail closed
+- AND the validated capture source origin exactly matches the caller-resolved
+  target origin before atomic publication
 - AND it returns structured progress, integrity evidence, excluded scopes, and
   a display-safe receipt
 - AND it does not infer production, environment, branch, preview, retention, or
