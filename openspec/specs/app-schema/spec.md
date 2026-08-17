@@ -1842,6 +1842,21 @@ public forms, automation, audit, and authorization.
 - AND inline scalar input fields can be declared for command or list input that
   is not automatically materialized as a record value
 
+#### Scenario: Declare a generated date operation-input default
+
+- GIVEN an inline or entity-backed date operation input needs an invocation-time
+  initial value
+- WHEN the input declares `default` with `generatedDate` and an explicit IANA
+  time-zone identifier
+- THEN parsing preserves the default expression as operation-input schema data
+- AND the expression is compatible only with a date input
+- AND missing, fixed-offset, or unresolvable time-zone identifiers fail schema
+  parsing
+- AND parsing and serialization do not evaluate the current date
+- AND date inputs without an explicit default remain unchanged
+- AND generated-date record-plan and transition target expressions retain their
+  existing contracts
+
 #### Scenario: Declare affirmative boolean operation input
 
 - GIVEN an operation declares an entity-backed or inline boolean input

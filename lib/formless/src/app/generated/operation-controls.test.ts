@@ -43,6 +43,88 @@ import {
 } from "./record-delete-runtime.ts";
 
 describe("generated operation controls", () => {
+  it("submits a generated date default evaluated when the command dialog opens", async () => {
+    const projected = projectCollectionOperationControlBinding(requiredClearCompletedOperation());
+    const binding = {
+      ...projected,
+      input: {
+        ...projected.input,
+        form: {
+          fields: [
+            {
+              default: { kind: "generatedDate" as const, timeZone: "Australia/Sydney" },
+              editor: "date" as const,
+              field: { label: "Received at", required: true, type: "date" as const },
+              fieldName: "receivedAt",
+              inputName: "receivedAt",
+              label: "Received at",
+            },
+          ],
+        },
+      },
+    };
+    const controller = createGeneratedOperationController({ bindings: [binding] });
+    let commandDialogOpen = false;
+    let state: GeneratedCommandDraftSessionState | undefined;
+    const invocations: unknown[] = [];
+    const dispatch = (intent: Parameters<typeof handleGeneratedOperationIntent>[0]["intent"]) =>
+      handleGeneratedOperationIntent({
+        binding,
+        commandDialogOpen,
+        commandState: state,
+        controller,
+        currentInstant: () => new Date("2026-08-16T14:30:00.000Z"),
+        intent,
+        invoke: async (_invokeIntent, input) => {
+          invocations.push(input);
+          return { type: "committed" };
+        },
+        onCommandDialogOpenChange: (open) => {
+          commandDialogOpen = open;
+        },
+        onCommandStateChange: (next) => {
+          state = next;
+        },
+      });
+    const closedControl = projectGeneratedOperationControl({
+      binding,
+      presentation: {
+        accessibilityLabel: binding.label,
+        content: { kind: "label", label: binding.label },
+        density: "default",
+        prominence: "secondary",
+      },
+      state: controller.getStateByExecutionKey(binding.executionKey),
+    });
+
+    await dispatch(closedControl.trigger.intent);
+    expect(commandDialogOpen).toBe(true);
+    expect(state?.draft.values).toEqual({
+      receivedAt: { kind: "input", value: "2026-08-17" },
+    });
+
+    const openDialog = projectGeneratedOperationControl({
+      binding,
+      commandDialogOpen,
+      commandState: state,
+      presentation: {
+        accessibilityLabel: binding.label,
+        content: { kind: "label", label: binding.label },
+        density: "default",
+        prominence: "secondary",
+      },
+      state: controller.getStateByExecutionKey(binding.executionKey),
+    }).commandDialog!;
+    expect(openDialog.fieldSet.fields[0]).toMatchObject({
+      draftInput: { kind: "input", value: "2026-08-17" },
+      value: "2026-08-17",
+    });
+
+    await dispatch(openDialog.submit.intent);
+    expect(invocations).toEqual([{ receivedAt: "2026-08-17" }]);
+    expect(commandDialogOpen).toBe(false);
+  });
+
   it("collects, validates, cancels, and submits declared command input exactly once", async () => {
     const projected = projectCollectionOperationControlBinding(requiredClearCompletedOperation());
     const binding = {

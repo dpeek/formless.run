@@ -11,6 +11,7 @@ import type {
   EntitySchema,
   ContactTextFieldFormat,
   FieldSchema,
+  OperationInputDefaultExpressionSchema,
   TextFieldFormat,
 } from "./types.ts";
 
@@ -64,6 +65,7 @@ export type PublicSafeOperationInputField = {
   required: boolean;
   mustBeTrue?: true;
   control: PublicSafeOperationInputControl;
+  default?: OperationInputDefaultExpressionSchema;
   format?: ContactTextFieldFormat;
   suggestions?: string[];
   options?: PublicSafeOperationInputFieldOption[];
@@ -291,6 +293,7 @@ export function projectPublicSafeOperationInputField(
       field.required ?? false,
       entityField,
       field.mustBeTrue,
+      field.default,
     );
   }
 
@@ -300,6 +303,7 @@ export function projectPublicSafeOperationInputField(
     field.required,
     field,
     field.type === "boolean" ? field.mustBeTrue : undefined,
+    field.type === "date" ? field.default : undefined,
   );
 }
 
@@ -309,6 +313,7 @@ function projectScalarPublicSafeOperationInputField(
   required: boolean,
   field: FieldSchema,
   mustBeTrue?: true,
+  defaultExpression?: OperationInputDefaultExpressionSchema,
 ): PublicSafeOperationInputField | undefined {
   const fieldLabel = label ?? field.label ?? inputName;
 
@@ -332,6 +337,9 @@ function projectScalarPublicSafeOperationInputField(
       label: fieldLabel,
       required,
       ...(field.type === "boolean" && mustBeTrue ? { mustBeTrue } : {}),
+      ...(field.type === "date" && defaultExpression !== undefined
+        ? { default: defaultExpression }
+        : {}),
       control: field.type,
     };
   }

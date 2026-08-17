@@ -353,6 +353,13 @@ export type OperationRateLimitPolicySchema = {
   windowSeconds: number;
 };
 
+export type GeneratedDateExpressionSchema = {
+  kind: "generatedDate";
+  timeZone: string;
+};
+
+export type OperationInputDefaultExpressionSchema = GeneratedDateExpressionSchema;
+
 export type OperationAccessPolicySchema = {
   actor: OperationAccessActorMode;
   challenge?: OperationChallengePolicySchema;
@@ -379,6 +386,7 @@ export type PublicOperationDateInputFieldSchema = {
   type: "date";
   required: boolean;
   label?: string;
+  default?: OperationInputDefaultExpressionSchema;
 };
 
 export type PublicOperationNumberInputFieldSchema = {
@@ -1357,6 +1365,7 @@ export type EntityOperationFieldInputSchema = {
   required?: boolean;
   label?: string;
   mustBeTrue?: true;
+  default?: OperationInputDefaultExpressionSchema;
 };
 
 export type EntityOperationInlineInputFieldSchema = PublicOperationInputFieldSchema;
@@ -1564,10 +1573,7 @@ export type RecordPlanGeneratedTimestampExpressionSchema = {
   kind: "generatedTimestamp";
 };
 
-export type RecordPlanGeneratedDateExpressionSchema = {
-  kind: "generatedDate";
-  timeZone: string;
-};
+export type RecordPlanGeneratedDateExpressionSchema = GeneratedDateExpressionSchema;
 
 export type TransitionStateTargetValueExpressionSchema =
   | RecordPlanGeneratedDateExpressionSchema

@@ -111,8 +111,18 @@ describe("schema state machines", () => {
         {
           input: {
             fields: [
-              { key: "receivedAt", field: "startedOn", required: true },
-              { key: "reportingDate", type: "date", required: true },
+              {
+                key: "receivedAt",
+                field: "startedOn",
+                required: true,
+                default: { kind: "generatedDate", timeZone: "Australia/Sydney" },
+              },
+              {
+                key: "reportingDate",
+                type: "date",
+                required: true,
+                default: { kind: "generatedDate", timeZone: "America/Los_Angeles" },
+              },
             ],
           },
         },
@@ -124,8 +134,18 @@ describe("schema state machines", () => {
 
     expect(operation?.input).toEqual({
       fields: [
-        { key: "receivedAt", field: "startedOn", required: true },
-        { key: "reportingDate", type: "date", required: true },
+        {
+          key: "receivedAt",
+          field: "startedOn",
+          required: true,
+          default: { kind: "generatedDate", timeZone: "Australia/Sydney" },
+        },
+        {
+          key: "reportingDate",
+          type: "date",
+          required: true,
+          default: { kind: "generatedDate", timeZone: "America/Los_Angeles" },
+        },
       ],
     });
     expect(operation?.effect).toEqual({
@@ -141,6 +161,79 @@ describe("schema state machines", () => {
       },
     });
     expect(parseAppSchema(JSON.parse(stringifySchema(schema)))).toEqual(schema);
+  });
+
+  it("keeps date operation input defaults explicit and date-compatible", () => {
+    const withoutDefault = parseAppSchema(
+      stateMachineSchemaWithTransitionTargetValues(
+        { startedOn: { kind: "input", field: "receivedAt" } },
+        { input: { fields: [{ key: "receivedAt", type: "date", required: true }] } },
+      ),
+    );
+    expect(
+      withoutDefault.entities
+        .find((definition) => definition.key === "task")!
+        .operations?.find((definition) => definition.key === "startWork")?.input?.fields[0],
+    ).toEqual({ key: "receivedAt", type: "date", required: true });
+
+    const invalidDefaults = [
+      {
+        field: {
+          key: "receivedAt",
+          type: "date",
+          required: true,
+          default: { kind: "generatedDate" },
+        },
+        message: 'must include "timeZone"',
+      },
+      {
+        field: {
+          key: "receivedAt",
+          type: "date",
+          required: true,
+          default: { kind: "generatedDate", timeZone: "+10:00" },
+        },
+        message: "timeZone must be a resolvable IANA time-zone identifier",
+      },
+      {
+        field: {
+          key: "receivedAt",
+          type: "date",
+          required: true,
+          default: { kind: "generatedDate", timeZone: "Mars/Olympus_Mons" },
+        },
+        message: "timeZone must be a resolvable IANA time-zone identifier",
+      },
+      {
+        field: {
+          key: "receivedAt",
+          type: "date",
+          required: true,
+          default: { kind: "literal", value: "2026-08-17" },
+        },
+        message: "default must use a generatedDate expression",
+      },
+      {
+        field: {
+          key: "receivedAt",
+          field: "title",
+          required: true,
+          default: { kind: "generatedDate", timeZone: "Australia/Sydney" },
+        },
+        message: "default requires a date-compatible operation input field",
+      },
+    ];
+
+    for (const invalidDefault of invalidDefaults) {
+      expect(() =>
+        parseAppSchema(
+          stateMachineSchemaWithTransitionTargetValues(
+            { startedOn: { kind: "input", field: "receivedAt" } },
+            { input: { fields: [invalidDefault.field] } },
+          ),
+        ),
+      ).toThrow(invalidDefault.message);
+    }
   });
 
   it("rejects invalid state-machine declarations", () => {

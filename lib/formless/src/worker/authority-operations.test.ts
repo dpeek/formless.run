@@ -3442,7 +3442,14 @@ function schemaWithTransitionInputTargetValue(sourceSchema: AppSchema): AppSchem
       {
         ...startTask,
         input: {
-          fields: [{ key: "receivedAt", field: "startedOn", required: true }],
+          fields: [
+            {
+              key: "receivedAt",
+              field: "startedOn",
+              required: true,
+              default: { kind: "generatedDate", timeZone: "Australia/Sydney" },
+            },
+          ],
         },
         effect: {
           ...startTask.effect,

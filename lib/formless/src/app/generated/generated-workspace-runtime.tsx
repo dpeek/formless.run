@@ -146,6 +146,7 @@ export type GeneratedWorkspaceSectionExternalAction = {
 };
 
 export type GeneratedWorkspaceRuntimeProps = {
+  currentInstant?: () => Date;
   getSectionSelection: (
     section: HomeScreenCollectionSectionModel,
   ) => GeneratedWorkspaceSectionSelection;
@@ -229,6 +230,7 @@ export function GeneratedWorkspaceRuntimeRegistration({
 }
 
 export function useGeneratedWorkspaceRuntimeController({
+  currentInstant,
   getSectionSelection,
   onSelectContext,
   onSelectQuery,
@@ -443,6 +445,7 @@ export function useGeneratedWorkspaceRuntimeController({
     return {
       commandDialogOpen: commandDialogOpenByControlId[binding.id] ?? false,
       commandState: commandStateByControlId[binding.id],
+      currentInstant,
       onCommandDialogOpenChange: (open: boolean) =>
         setCommandDialogOpenByControlId((current) => ({
           ...current,

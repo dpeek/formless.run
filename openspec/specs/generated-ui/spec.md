@@ -2736,6 +2736,23 @@ entity operations and view operation bindings.
 - AND Authority remains responsible for record-plan generation and trusted
   generated ids, codes, dates, and other operation effects
 
+#### Scenario: Prefill a generated date operation-input default
+
+- GIVEN a generated command input declares a date `default` using
+  `generatedDate` and an IANA time-zone identifier
+- WHEN an operator opens its command-input dialog from a record, table, detail,
+  or relationship-hierarchy operation surface
+- THEN generated UI evaluates the current instant in the declared time zone and
+  initializes the draft with the corresponding `YYYY-MM-DD` calendar date
+- AND the default is evaluated when the dialog opens rather than when schema is
+  parsed or projected
+- AND a supplied runtime clock makes the initial draft deterministic in tests
+- AND the operator may replace the initial date before submission
+- AND valid submission sends either the initial or replacement date keyed by
+  the declared operation input name
+- AND a required date input without a declared default remains initially blank
+  and retains required validation
+
 #### Scenario: Preserve input-free command behavior
 
 - GIVEN a generated collection-scoped or record-scoped command declares no

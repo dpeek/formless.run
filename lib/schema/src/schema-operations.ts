@@ -49,6 +49,7 @@ import type {
   FieldSchema,
   KeyedDefinition,
   OperationHandlerEntityOperationEffectSchema,
+  OperationInputDefaultExpressionSchema,
   OperationAccessPolicySchema,
   OperationChallengePolicySchema,
   OperationOriginPolicySchema,
@@ -715,7 +716,12 @@ function parseOperationInputField(
     throw new Error(`${context} must be an object.`);
   }
   if ("field" in value) {
-    assertExactKeys(context, value, ["key", "field"], ["required", "label", "mustBeTrue"]);
+    assertExactKeys(
+      context,
+      value,
+      ["key", "field"],
+      ["required", "label", "mustBeTrue", "default"],
+    );
     const fieldName = parseRequiredNonEmptyString(`${context} field`, value.field);
     const entityField = definitionsToRecord(entity.fields)[fieldName];
     if (!entityField) {
@@ -727,6 +733,11 @@ function parseOperationInputField(
     const mustBeTrue = parseOptionalAffirmativeConstraint(
       `${context} mustBeTrue`,
       value.mustBeTrue,
+    );
+    const defaultExpression = parseOperationInputDefaultExpression(
+      `${context} default`,
+      value.default,
+      entityField,
     );
 
     if (mustBeTrue && entityField.type !== "boolean") {
@@ -742,6 +753,7 @@ function parseOperationInputField(
       ...(required === undefined ? {} : { required }),
       ...(label === undefined ? {} : { label }),
       ...(mustBeTrue === undefined ? {} : { mustBeTrue }),
+      ...(defaultExpression === undefined ? {} : { default: defaultExpression }),
     };
   }
 
@@ -779,8 +791,9 @@ function parseInlineInputField(
       context,
       value,
       ["key", "type", "required"],
-      ["label", "format", "suggestions"],
+      ["label", "format", "suggestions", "default"],
     );
+    parseOperationInputDefaultExpression(`${context} default`, value.default, { type: "text" });
     const format = parseOptionalOperationTextFieldFormat(`${context} format`, value.format);
     const suggestions = parseOptionalTextSuggestions(`${context} suggestions`, value.suggestions);
     return {
@@ -792,7 +805,15 @@ function parseInlineInputField(
     };
   }
   if (value.type === "boolean") {
-    assertExactKeys(context, value, ["key", "type", "required"], ["label", "mustBeTrue"]);
+    assertExactKeys(
+      context,
+      value,
+      ["key", "type", "required"],
+      ["label", "mustBeTrue", "default"],
+    );
+    parseOperationInputDefaultExpression(`${context} default`, value.default, {
+      type: "boolean",
+    });
     const mustBeTrue = parseOptionalAffirmativeConstraint(
       `${context} mustBeTrue`,
       value.mustBeTrue,
@@ -808,11 +829,22 @@ function parseInlineInputField(
     };
   }
   if (value.type === "date") {
-    assertExactKeys(context, value, ["key", "type", "required"], ["label"]);
-    return { type: "date", required: value.required, ...(label === undefined ? {} : { label }) };
+    assertExactKeys(context, value, ["key", "type", "required"], ["label", "default"]);
+    const defaultExpression = parseOperationInputDefaultExpression(
+      `${context} default`,
+      value.default,
+      { type: "date" },
+    );
+    return {
+      type: "date",
+      required: value.required,
+      ...(label === undefined ? {} : { label }),
+      ...(defaultExpression === undefined ? {} : { default: defaultExpression }),
+    };
   }
   if (value.type === "number") {
-    assertExactKeys(context, value, ["key", "type", "required"], ["label"]);
+    assertExactKeys(context, value, ["key", "type", "required"], ["label", "default"]);
+    parseOperationInputDefaultExpression(`${context} default`, value.default, { type: "number" });
     return {
       type: "number",
       required: value.required,
@@ -820,7 +852,8 @@ function parseInlineInputField(
     };
   }
   if (value.type === "enum") {
-    assertExactKeys(context, value, ["key", "type", "required", "values"], ["label"]);
+    assertExactKeys(context, value, ["key", "type", "required", "values"], ["label", "default"]);
+    parseOperationInputDefaultExpression(`${context} default`, value.default, { type: "enum" });
     return {
       type: "enum",
       required: value.required,
@@ -830,6 +863,26 @@ function parseInlineInputField(
   }
 
   throw new Error(`${context} has unsupported type "${String(value.type)}".`);
+}
+
+function parseOperationInputDefaultExpression(
+  context: string,
+  value: unknown,
+  field: Pick<FieldSchema, "type">,
+): OperationInputDefaultExpressionSchema | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (field.type !== "date") {
+    throw new Error(`${context} requires a date-compatible operation input field.`);
+  }
+
+  if (!isRecord(value) || value.kind !== "generatedDate") {
+    throw new Error(`${context} must use a generatedDate expression.`);
+  }
+
+  return parseGeneratedDateValueExpression(context, value);
 }
 
 function parseInlineInputEnumValues(

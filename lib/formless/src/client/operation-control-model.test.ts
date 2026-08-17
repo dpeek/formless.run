@@ -17,6 +17,7 @@ import {
   projectRecordDeleteOperationControlBinding,
   projectRecordOperationControlBinding,
   projectStateTransitionOperationControlBinding,
+  projectTableOperationControlBinding,
   projectTableOperationControlBindings,
   projectTreeCompositionOperationControlBindings,
   projectWorkspaceOperationControlBinding,
@@ -80,7 +81,7 @@ describe("generated operation control model", () => {
     ]);
   });
 
-  it("projects entity-backed and inline command fields for collection and record controls", () => {
+  it("projects entity-backed and inline command fields for collection, record, and table controls", () => {
     const entity = commandInputEntity();
     const collectionOperation = selectEntityOperationPresentation(
       entity.key,
@@ -106,6 +107,15 @@ describe("generated operation control model", () => {
       entity,
       entityLabel: entity.label,
       operation: recordOperation,
+    });
+    const tableBinding = projectTableOperationControlBinding({
+      bindingName: "compound-line.addSample",
+      disabled: false,
+      entity,
+      label: "Add sample",
+      operation: recordOperation,
+      type: "static",
+      variant: "default",
     });
 
     expect(collectionBinding.input).toMatchObject({
@@ -139,8 +149,22 @@ describe("generated operation control model", () => {
             inputName: "assayRole",
             label: "Assay",
           },
+          {
+            default: { kind: "generatedDate", timeZone: "Australia/Sydney" },
+            editor: "date",
+            entityFieldName: "receivedAt",
+            inputName: "receivedAt",
+            label: "Received at",
+          },
         ],
       },
+    });
+    if (recordBinding.input.kind !== "recordCommand") {
+      throw new Error("Expected record command input.");
+    }
+    expect(tableBinding?.input).toMatchObject({
+      kind: "tableCommand",
+      form: recordBinding.input.form,
     });
   });
 
@@ -282,6 +306,10 @@ describe("generated operation control model", () => {
   it("projects transition, tree, ordering, public, and workspace operation facts", () => {
     const taskSchema = sourceLikeTaskSchema();
     const taskEntity = taskSchema.entities.find((definition) => definition.key === "task")!;
+    taskEntity.fields = [
+      ...taskEntity.fields,
+      { key: "receivedAt", label: "Received at", required: false, type: "date" },
+    ];
     taskEntity.stateMachines = [
       {
         field: "priority",
@@ -304,12 +332,25 @@ describe("generated operation control model", () => {
         label: "Escalate",
         kind: "command",
         scope: "record",
+        input: {
+          fields: [
+            {
+              key: "receivedAt",
+              field: "receivedAt",
+              required: true,
+              default: { kind: "generatedDate", timeZone: "Australia/Sydney" },
+            },
+          ],
+        },
         effect: {
           type: "operationHandler",
           handler: "transition-state",
           config: {
             machine: "priorityFlow",
             transition: "escalate",
+            targetValues: {
+              receivedAt: { kind: "input", field: "receivedAt" },
+            },
           },
         },
         output: { type: "command" },
@@ -340,6 +381,17 @@ describe("generated operation control model", () => {
       operationKind: "command",
       availability: { state: "disabled", reason: "Requires Low." },
       input: {
+        form: {
+          fields: [
+            {
+              default: { kind: "generatedDate", timeZone: "Australia/Sydney" },
+              editor: "date",
+              entityFieldName: "receivedAt",
+              inputName: "receivedAt",
+              label: "Received at",
+            },
+          ],
+        },
         kind: "stateTransition",
         machineName: "priorityFlow",
         transitionName: "escalate",
@@ -456,6 +508,12 @@ function commandInputEntity(): KeyedDefinition<EntitySchema> {
         format: "email",
         required: false,
       },
+      {
+        key: "receivedAt",
+        label: "Received at",
+        type: "date",
+        required: false,
+      },
     ],
     operations: [
       {
@@ -486,6 +544,12 @@ function commandInputEntity(): KeyedDefinition<EntitySchema> {
                 { key: "analytical", label: "Analytical" },
                 { key: "sterility", label: "Sterility" },
               ],
+            },
+            {
+              key: "receivedAt",
+              field: "receivedAt",
+              required: true,
+              default: { kind: "generatedDate", timeZone: "Australia/Sydney" },
             },
           ],
         },

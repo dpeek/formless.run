@@ -554,6 +554,21 @@ received instant and an explicit business time zone.
   constraint, or side-effect failure rolls back the complete operation write
   set
 
+#### Scenario: Commit a defaulted operation-input date atomically
+
+- GIVEN generated UI submits a concrete date value initialized from a
+  schema-declared operation-input `generatedDate` default or replaced by the
+  operator
+- WHEN Authority executes an input-backed state transition
+- THEN Authority validates the submitted `YYYY-MM-DD` value as ordinary
+  operation input without reevaluating its draft default
+- AND explicit operator input and generated initial input follow the same
+  operation-input validation and materialization path
+- AND the input-backed date and transition destination state commit in one
+  target-record patch and operation transaction
+- AND invalid input, transition rejection, target conflict, or later operation
+  failure commits neither the date nor the destination state
+
 ### Requirement: Operation Record Plan Materialization
 
 The system SHALL materialize declarative command record plans through the same

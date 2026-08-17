@@ -6,6 +6,7 @@ import type {
   FieldEditor,
   FieldSchema,
   FieldVisibilityValue,
+  OperationInputDefaultExpressionSchema,
 } from "@dpeek/formless-schema";
 import { getFieldTypeBehavior } from "@dpeek/formless-schema";
 import type { CommandOperationUiConfig, HomeOperationConfig } from "./collection-shell-model.ts";
@@ -131,6 +132,7 @@ export type GeneratedPublicOperationInputField = {
 };
 
 export type GeneratedCommandInputFieldConfig = {
+  default?: OperationInputDefaultExpressionSchema;
   editor: FieldEditor;
   entityFieldName?: string;
   field: FieldSchema;
@@ -519,14 +521,25 @@ export function projectGeneratedCommandInputForm(
         );
       }
 
-      const sourceField = entityField ?? inputField;
+      const sourceField = "field" in inputField ? entityField! : inputField;
+      const sourceFieldContract =
+        sourceField.type === "date"
+          ? {
+              type: sourceField.type,
+              required: sourceField.required,
+              ...(sourceField.label === undefined ? {} : { label: sourceField.label }),
+            }
+          : sourceField;
       const field = {
-        ...sourceField,
-        label: inputField.label ?? sourceField.label,
+        ...sourceFieldContract,
+        label: inputField.label ?? sourceFieldContract.label,
         required: "field" in inputField ? (inputField.required ?? false) : inputField.required,
       } as FieldSchema;
 
       return {
+        ...("default" in inputField && inputField.default !== undefined
+          ? { default: inputField.default }
+          : {}),
         editor: getFieldTypeBehavior(field).defaultEditor,
         ...(entityFieldName === undefined ? {} : { entityFieldName }),
         field,

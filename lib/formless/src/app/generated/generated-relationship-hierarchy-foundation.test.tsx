@@ -870,7 +870,7 @@ describe("generated selected-record relationship hierarchy", () => {
     });
   });
 
-  it("executes transition date input through the relationship-hierarchy command dialog", async () => {
+  it("submits defaulted and overridden transition dates through the relationship hierarchy", async () => {
     resetClientStore();
     const schema = relationshipHierarchySchema({ withTransitionDateInput: true });
     applyBootstrapResponse(bootstrapResponse(schema, hierarchyRuntimeRecords()));
@@ -881,6 +881,7 @@ describe("generated selected-record relationship hierarchy", () => {
 
     function RuntimeProbe() {
       controller = useGeneratedWorkspaceRuntimeController({
+        currentInstant: () => new Date("2026-08-16T14:30:00.000Z"),
         getSectionSelection: () => ({ selectedRecordId: "rec_card_premium" }),
         onSelectContext: () => undefined,
         onSelectQuery: () => undefined,
@@ -921,10 +922,56 @@ describe("generated selected-record relationship hierarchy", () => {
       submit: { disabled: false },
     });
     expect(field).toMatchObject({
+      draftInput: { kind: "input", value: "2026-08-17" },
       editor: "date",
       inputName: "archivedOn",
       required: true,
+      value: "2026-08-17",
     });
+
+    submitOperationMock.mockResolvedValueOnce(committedCommandResponse());
+    await act(async () => {
+      await runtime.dispatch(
+        projectGeneratedWorkspaceRelationshipHierarchyIntent(
+          currentScope(runtime),
+          hierarchy.id,
+          hierarchyOperationIntent(
+            hierarchy.id,
+            node,
+            control,
+            required(control.commandDialog).submit.intent,
+          ),
+        ),
+      );
+    });
+    expect(submitOperationMock.mock.calls[0]?.slice(0, 3)).toEqual([
+      "rate",
+      "archive",
+      {
+        input: { archivedOn: "2026-08-17" },
+        recordId: node.recordId,
+        source: { protocol: "generated-ui", surface: "formSubmit" },
+      },
+    ]);
+
+    runtime = required(controller);
+    hierarchy = currentHierarchy(runtime);
+    node = required(hierarchy.root.relationshipGroups[0]?.nodes[0]);
+    control = operationControl(node, "Archive rate");
+    await act(async () => {
+      await runtime.dispatch(
+        projectGeneratedWorkspaceRelationshipHierarchyIntent(
+          currentScope(runtime),
+          hierarchy.id,
+          hierarchyOperationIntent(hierarchy.id, node, control),
+        ),
+      );
+    });
+    runtime = required(controller);
+    hierarchy = currentHierarchy(runtime);
+    node = required(hierarchy.root.relationshipGroups[0]?.nodes[0]);
+    control = operationControl(node, "Archive rate");
+    const overrideField = required(required(control.commandDialog).fieldSet.fields[0]);
 
     await act(async () => {
       await runtime.dispatch(
@@ -933,7 +980,7 @@ describe("generated selected-record relationship hierarchy", () => {
           hierarchy.id,
           hierarchyOperationIntent(hierarchy.id, node, control, {
             controlId: control.id,
-            fieldId: field.fieldId,
+            fieldId: overrideField.fieldId,
             intent: {
               inputName: "archivedOn",
               inputValue: { kind: "input", value: "2026-08-14" },
@@ -964,7 +1011,7 @@ describe("generated selected-record relationship hierarchy", () => {
         ),
       );
     });
-    expect(submitOperationMock.mock.calls[0]?.slice(0, 3)).toEqual([
+    expect(submitOperationMock.mock.calls[1]?.slice(0, 3)).toEqual([
       "rate",
       "archive",
       {
@@ -1764,6 +1811,10 @@ function relationshipHierarchySchema({
                             key: "archivedOn",
                             field: "archivedOn",
                             required: true,
+                            default: {
+                              kind: "generatedDate" as const,
+                              timeZone: "Australia/Sydney",
+                            },
                           },
                         ],
                       },

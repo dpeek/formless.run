@@ -27,20 +27,67 @@ export type GeneratedCommandDraftSessionFacts = {
 
 export function initialGeneratedCommandDraftSessionState(
   form: GeneratedCommandInputForm,
+  options: {
+    currentInstant?: Date;
+  } = {},
 ): GeneratedCommandDraftSessionState {
   return {
     draft: {
       values: Object.fromEntries(
         form.fields.map((field) => [
           field.inputName,
-          field.field.type === "boolean"
-            ? generatedFieldDraftInput(false)
-            : generatedFieldDraftInput(""),
+          initialGeneratedCommandDraftFieldInput(field, options.currentInstant),
         ]),
       ),
     },
     submitAttempted: false,
   };
+}
+
+function initialGeneratedCommandDraftFieldInput(
+  field: GeneratedCommandInputFieldConfig,
+  currentInstant: Date | undefined,
+): GeneratedFieldDraftInput {
+  if (field.default !== undefined && currentInstant !== undefined) {
+    return generatedFieldDraftInput(
+      calendarDateForGeneratedOperationInputDefault(field.default.timeZone, currentInstant),
+    );
+  }
+
+  return field.field.type === "boolean"
+    ? generatedFieldDraftInput(false)
+    : generatedFieldDraftInput("");
+}
+
+function calendarDateForGeneratedOperationInputDefault(
+  timeZone: string,
+  currentInstant: Date,
+): string {
+  if (Number.isNaN(currentInstant.valueOf())) {
+    throw new Error("Generated operation input default requires a valid current instant.");
+  }
+
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    parts = new Intl.DateTimeFormat("en-US-u-ca-iso8601-nu-latn", {
+      day: "2-digit",
+      month: "2-digit",
+      timeZone,
+      year: "numeric",
+    }).formatToParts(currentInstant);
+  } catch {
+    throw new Error(`Generated operation input default time zone "${timeZone}" is not resolvable.`);
+  }
+
+  const calendarParts = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const year = calendarParts.year;
+  const month = calendarParts.month;
+  const day = calendarParts.day;
+  if (year === undefined || month === undefined || day === undefined) {
+    throw new Error("Generated operation input default could not resolve calendar date parts.");
+  }
+
+  return `${year.padStart(4, "0")}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
 }
 
 export function markGeneratedCommandDraftSessionSubmitted(

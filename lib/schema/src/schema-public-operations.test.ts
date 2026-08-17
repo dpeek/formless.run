@@ -265,6 +265,7 @@ describe("schema public operation facts", () => {
               key: "neededBy",
               field: "neededBy",
               required: false,
+              default: { kind: "generatedDate", timeZone: "Australia/Sydney" },
             },
             {
               key: "quantity",
@@ -369,6 +370,7 @@ describe("schema public operation facts", () => {
           label: "Needed by",
           required: false,
           control: "date",
+          default: { kind: "generatedDate", timeZone: "Australia/Sydney" },
         },
         {
           name: "quantity",

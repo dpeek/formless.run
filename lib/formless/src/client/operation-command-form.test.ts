@@ -66,6 +66,45 @@ describe("generated command form", () => {
     });
   });
 
+  it("initializes only declared generated date defaults from a supplied current instant", () => {
+    const form = {
+      fields: [
+        {
+          default: { kind: "generatedDate" as const, timeZone: "Australia/Sydney" },
+          editor: "date" as const,
+          field: { label: "Received at", required: true, type: "date" as const },
+          fieldName: "receivedAt",
+          inputName: "receivedAt",
+          label: "Received at",
+        },
+        {
+          editor: "date" as const,
+          field: { label: "Reviewed at", required: true, type: "date" as const },
+          fieldName: "reviewedAt",
+          inputName: "reviewedAt",
+          label: "Reviewed at",
+        },
+      ],
+    };
+    const withoutInvocationInstant = initialGeneratedCommandDraftSessionState(form);
+    const opened = initialGeneratedCommandDraftSessionState(form, {
+      currentInstant: new Date("2026-08-16T14:30:00.000Z"),
+    });
+
+    expect(withoutInvocationInstant.draft.values).toEqual({
+      receivedAt: { kind: "input", value: "" },
+      reviewedAt: { kind: "input", value: "" },
+    });
+    expect(opened.draft.values).toEqual({
+      receivedAt: { kind: "input", value: "2026-08-17" },
+      reviewedAt: { kind: "input", value: "" },
+    });
+    expect(selectGeneratedCommandDraftSession({ form, state: opened })).toMatchObject({
+      input: { receivedAt: "2026-08-17" },
+      valid: false,
+    });
+  });
+
   it("enforces mustBeTrue command input", () => {
     const form = {
       fields: [

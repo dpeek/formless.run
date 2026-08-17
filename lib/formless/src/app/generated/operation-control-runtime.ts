@@ -40,6 +40,7 @@ export type HandleGeneratedOperationIntentOptions = {
   commandDialogOpen?: boolean;
   commandState?: GeneratedCommandDraftSessionState;
   controller: GeneratedOperationController;
+  currentInstant?: () => Date;
   intent: OperationPresentationIntent;
   invoke: (
     intent: OperationInvokeIntent,
@@ -109,6 +110,7 @@ export async function handleGeneratedOperationIntent({
   commandDialogOpen = false,
   commandState,
   controller,
+  currentInstant = defaultCurrentInstant,
   intent,
   invoke,
   onConfirmationOpenChange,
@@ -124,6 +126,13 @@ export async function handleGeneratedOperationIntent({
 
   if (intent.type === "operationCommandDialogOpenChange") {
     if (commandForm !== undefined) {
+      if (intent.open && commandForm.fields.some((field) => field.default !== undefined)) {
+        onCommandStateChange?.(
+          initialGeneratedCommandDraftSessionState(commandForm, {
+            currentInstant: currentInstant(),
+          }),
+        );
+      }
       onCommandDialogOpenChange?.(intent.open);
     }
     return undefined;
@@ -211,6 +220,10 @@ export async function handleGeneratedOperationIntent({
   }
 
   return result;
+}
+
+function defaultCurrentInstant(): Date {
+  return new Date();
 }
 
 export async function executeGeneratedOperationControl({
