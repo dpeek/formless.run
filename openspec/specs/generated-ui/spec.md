@@ -2302,6 +2302,11 @@ while delegating media-specific controls to the Formless Renderer.
 - AND media editors, media libraries, and media displays render image thumbnails
   or document filename, MIME type, and byte size without exposing raw asset ids,
   provider keys, or provider URLs for authoring
+- AND generated workspace media discovery includes record-presentation media
+  fields from every selected-record relationship-hierarchy node recursively,
+  including the root, nested relationships, union variants, and union fallbacks,
+  while retaining hierarchy create-action media fields and deduplicating fields
+  by entity and field name
 - AND generated and renderer contracts expose one Media control and renderer
   kind without Image or Document field kinds or an asset-versus-URL mode
   discriminator

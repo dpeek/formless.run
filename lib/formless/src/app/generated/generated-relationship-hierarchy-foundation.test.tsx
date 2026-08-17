@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, render, type RenderResult } from "@testing-library/react";
+import { act, render, waitFor, type RenderResult } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { parseAppSchema, type AppSchema } from "@dpeek/formless-schema";
 import type {
@@ -43,16 +43,24 @@ import {
 import { projectGeneratedWorkspaceRelationshipHierarchyIntent } from "./workspace-projection.ts";
 
 const submitOperationMock = vi.hoisted(() => vi.fn());
+const listProgramDocumentMediaAssetsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../../client/sync.ts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../client/sync.ts")>()),
   submitOperation: submitOperationMock,
 }));
 
+vi.mock("@dpeek/formless-media/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@dpeek/formless-media/client")>()),
+  listProgramDocumentMediaAssets: listProgramDocumentMediaAssetsMock,
+}));
+
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 beforeEach(() => {
   submitOperationMock.mockReset();
+  listProgramDocumentMediaAssetsMock.mockReset();
+  listProgramDocumentMediaAssetsMock.mockResolvedValue([]);
 });
 
 describe("generated selected-record relationship hierarchy", () => {
@@ -117,6 +125,95 @@ describe("generated selected-record relationship hierarchy", () => {
     expect(primaryDesigner.recordId).toBe(duplicateDesigner.recordId);
     expect(primaryDesigner.occurrenceId).not.toBe(duplicateDesigner.occurrenceId);
     expect(primaryDesigner.editor.contract.id).not.toBe(duplicateDesigner.editor.contract.id);
+  });
+
+  it("loads matching document media for root and recursively nested hierarchy records", async () => {
+    resetClientStore();
+    const schema = relationshipHierarchySchema({ withDocumentMedia: true });
+    const rootDocument = documentMediaOption("card-terms.pdf", "Rate card terms.pdf");
+    const nestedDocument = documentMediaOption("coa.pdf", "Certificate of analysis.pdf");
+    listProgramDocumentMediaAssetsMock.mockImplementation(
+      (target: { field: { entityName: string; fieldName: string } }) =>
+        Promise.resolve(
+          target.field.entityName === "card"
+            ? [rootDocument]
+            : target.field.entityName === "adjustment"
+              ? [nestedDocument]
+              : [],
+        ),
+    );
+    applyBootstrapResponse(
+      bootstrapResponse(
+        schema,
+        hierarchyRuntimeRecords().map((record) =>
+          record.id === "rec_card_premium"
+            ? { ...record, values: { ...record.values, cardDocumentAssetId: rootDocument.id } }
+            : record.id === "adjustment-developer"
+              ? { ...record, values: { ...record.values, coaAssetId: nestedDocument.id } }
+              : record,
+        ),
+      ),
+    );
+    const screen = required(
+      selectScreenModels(schema).find((candidate) => candidate.screenName === "rateSetup"),
+    );
+    let controller: GeneratedWorkspaceRuntimeController | undefined;
+    let renderer: RenderResult | undefined;
+
+    function RuntimeProbe() {
+      controller = useGeneratedWorkspaceRuntimeController({
+        getSectionSelection: () => ({ selectedRecordId: "rec_card_premium" }),
+        onSelectContext: () => undefined,
+        onSelectQuery: () => undefined,
+        onSelectRecord: () => undefined,
+        screen,
+        today: "2026-08-11",
+      });
+      return null;
+    }
+
+    await act(async () => {
+      renderer = render(<RuntimeProbe />);
+    });
+
+    await waitFor(() => {
+      const hierarchy = currentHierarchy(required(controller));
+      const rootField = required(
+        hierarchy.root.editor.fields.find(({ fieldName }) => fieldName === "cardDocumentAssetId"),
+      );
+      const rateNode = required(
+        hierarchy.root.relationshipGroups[0]?.nodes.find(
+          ({ recordId }) => recordId === "rec_rate_premium_developer",
+        ),
+      );
+      const nestedNode = required(rateNode.relationshipGroups[0]?.nodes[0]);
+      const nestedField = required(
+        nestedNode.editor.fields.find(({ fieldName }) => fieldName === "coaAssetId"),
+      );
+
+      expect(rootField.media).toMatchObject({
+        document: { filename: rootDocument.filename },
+        selectedAssetId: rootDocument.id,
+      });
+      expect(rootField.media).not.toHaveProperty("missingSelectedAsset");
+      expect(nestedField.media).toMatchObject({
+        document: { filename: nestedDocument.filename },
+        selectedAssetId: nestedDocument.id,
+      });
+      expect(nestedField.media).not.toHaveProperty("missingSelectedAsset");
+    });
+    expect(listProgramDocumentMediaAssetsMock).toHaveBeenCalledWith({
+      documentsPath: "/api/formless/program/media/documents",
+      field: { entityName: "card", fieldName: "cardDocumentAssetId" },
+    });
+    expect(listProgramDocumentMediaAssetsMock).toHaveBeenCalledWith({
+      documentsPath: "/api/formless/program/media/documents",
+      field: { entityName: "adjustment", fieldName: "coaAssetId" },
+    });
+
+    await act(async () => {
+      required(renderer).unmount();
+    });
   });
 
   it("resolves ordered record links per occurrence without registering link intents or operations", () => {
@@ -1356,7 +1453,12 @@ function createdRateRecord(): StoredRecord {
 function relationshipHierarchySchema({
   rootOnly = false,
   withCommandInput = false,
-}: { rootOnly?: boolean; withCommandInput?: boolean } = {}): AppSchema {
+  withDocumentMedia = false,
+}: {
+  rootOnly?: boolean;
+  withCommandInput?: boolean;
+  withDocumentMedia?: boolean;
+} = {}): AppSchema {
   const setup = required(rateSourceSchema.screens.find((screen) => screen.key === "rateSetup"));
   if (setup.type !== "workspace") {
     throw new Error("Missing rate setup workspace.");
@@ -1462,6 +1564,23 @@ function relationshipHierarchySchema({
         if (entity.key === "card") {
           return {
             ...entity,
+            fields: withDocumentMedia
+              ? [
+                  ...entity.fields,
+                  {
+                    key: "cardDocumentAssetId",
+                    label: "Card document",
+                    required: false,
+                    type: "text" as const,
+                    asset: {
+                      kind: "document" as const,
+                      acceptedMimeTypes: ["application/pdf"],
+                      maxBytes: 4 * 1024 * 1024,
+                      access: "private" as const,
+                    },
+                  },
+                ]
+              : entity.fields,
             operations: [
               ...(entity.operations ?? []),
               {
@@ -1589,6 +1708,22 @@ function relationshipHierarchySchema({
             label: "Rate",
             to: "rate",
           },
+          ...(withDocumentMedia
+            ? [
+                {
+                  key: "coaAssetId",
+                  label: "Certificate of analysis",
+                  required: false,
+                  type: "text" as const,
+                  asset: {
+                    kind: "document" as const,
+                    acceptedMimeTypes: ["application/pdf"],
+                    maxBytes: 4 * 1024 * 1024,
+                    access: "private" as const,
+                  },
+                },
+              ]
+            : []),
         ],
         operations: [
           {
@@ -1611,11 +1746,24 @@ function relationshipHierarchySchema({
       },
     ],
     itemViews: [
-      ...rateSourceSchema.itemViews,
+      ...rateSourceSchema.itemViews.map((itemView) =>
+        withDocumentMedia && itemView.key === "cardListItem"
+          ? {
+              ...itemView,
+              fields: [
+                ...(itemView.fields ?? []),
+                { field: "cardDocumentAssetId", editor: "media" as const },
+              ],
+            }
+          : itemView,
+      ),
       {
         key: "adjustmentItem",
         entity: "adjustment",
-        fields: [{ field: "label", editor: "text" }],
+        fields: [
+          { field: "label", editor: "text" },
+          ...(withDocumentMedia ? [{ field: "coaAssetId", editor: "media" as const }] : []),
+        ],
       },
     ],
     screens: rateSourceSchema.screens.map((screen) =>
@@ -1736,6 +1884,20 @@ function deferredOperationResponse() {
     resolve = complete;
   });
   return { promise, resolve };
+}
+
+function documentMediaOption(id: string, filename: string) {
+  const href = `/api/formless/program/media/documents/${id}`;
+  return {
+    access: "private" as const,
+    byteSize: 42000,
+    contentType: "application/pdf" as const,
+    downloadHref: `${href}?download=1`,
+    filename,
+    href,
+    id,
+    label: filename,
+  };
 }
 
 function required<T>(value: T | null | undefined): T {

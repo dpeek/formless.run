@@ -80,14 +80,18 @@ export function collectGeneratedWorkspaceMediaFields(
     );
   }
 
-  function addHierarchyCreateOperations(node: HomeSelectedRecordRelationshipHierarchyNodeConfig) {
+  function addHierarchyFields(node: HomeSelectedRecordRelationshipHierarchyNodeConfig) {
+    addFields(
+      node.entityName,
+      collectRecordPresentationFields(node.result.recordFields, node.result.recordUnion),
+    );
     for (const relationship of node.relationships) {
       for (const action of relationship.headerActions) {
         if (action.kind === "create") {
           addCreateOperation(action);
         }
       }
-      addHierarchyCreateOperations(relationship);
+      addHierarchyFields(relationship);
     }
   }
 
@@ -119,7 +123,7 @@ export function collectGeneratedWorkspaceMediaFields(
           );
         }
         if (section.type === "relationshipHierarchy") {
-          addHierarchyCreateOperations(section);
+          addHierarchyFields(section);
         }
       }
     }
