@@ -1975,11 +1975,15 @@ function compareWorkspacePushStoredSchemaContract(
     const desiredFields = new Map(desiredEntity.fields.map((field) => [field.key, field]));
     const currentFieldKeys = [...currentFields.keys()].sort();
     const desiredFieldKeys = [...desiredFields.keys()].sort();
+    const removedFieldKeys = currentFieldKeys.filter((key) => !desiredFields.has(key));
+    const requiredAddedFieldKeys = desiredFieldKeys.filter(
+      (key) => !currentFields.has(key) && desiredFields.get(key)!.required,
+    );
 
-    if (canonicalJsonStringify(currentFieldKeys) !== canonicalJsonStringify(desiredFieldKeys)) {
+    if (removedFieldKeys.length > 0 || requiredAddedFieldKeys.length > 0) {
       issues.push({
         code: "field-set-changed",
-        message: `entity "${entityKey}" stored fields were added or removed`,
+        message: `entity "${entityKey}" stored fields were removed or required fields were added`,
       });
     }
 
